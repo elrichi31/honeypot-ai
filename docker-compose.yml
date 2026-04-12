@@ -1,0 +1,46 @@
+services:
+  cowrie:
+    image: cowrie/cowrie:latest
+    container_name: cowrie
+    restart: unless-stopped
+    ports:
+      - "2222:2222"
+    volumes:
+      - cowrie_var:/cowrie/cowrie-git/var
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: honeypot-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: honeypot
+      POSTGRES_PASSWORD: honeypot
+      POSTGRES_DB: honeypot
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U honeypot"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  ingest-api:
+    build:
+      context: ./apps/ingest-api
+    container_name: ingest-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://honeypot:honeypot@postgres:5432/honeypot
+      PORT: "3000"
+      HOST: "0.0.0.0"
+    ports:
+      - "3000:3000"
+
+volumes:
+  cowrie_var:
+  pg_data:

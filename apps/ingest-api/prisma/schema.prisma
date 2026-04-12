@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id              String   @id @default(uuid())
+  cowrieSessionId String   @unique @map("cowrie_session_id")
+  srcIp           String   @map("src_ip")
+  protocol        String
+  username        String?
+  password        String?
+  loginSuccess    Boolean? @map("login_success")
+  hassh           String?
+  clientVersion   String?  @map("client_version")
+  startedAt       DateTime @map("started_at")
+  endedAt         DateTime? @map("ended_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  events Event[]
+
+  @@map("sessions")
+}
+
+model Event {
+  id             String   @id @default(uuid())
+  sessionId      String   @map("session_id")
+  eventType      String   @map("event_type")
+  eventTs        DateTime @map("event_ts")
+  srcIp          String   @map("src_ip")
+  message        String?
+  command        String?
+  username       String?
+  password       String?
+  success        Boolean?
+  rawJson        Json     @map("raw_json")
+  normalizedJson Json     @map("normalized_json")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  cowrieEventId  String   @map("cowrie_event_id")
+  cowrieTs        String   @map("cowrie_ts")
+
+  session Session @relation(fields: [sessionId], references: [id])
+
+  @@unique([cowrieEventId, cowrieTs], name: "uq_cowrie_event")
+  @@index([sessionId])
+  @@index([eventType])
+  @@map("events")
+}

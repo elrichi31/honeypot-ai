@@ -1,0 +1,87 @@
+import type { FastifyInstance } from 'fastify';
+import { ingestFileBodySchema, cowrieRawEventSchema, ingestBatchBodySchema } from '../schemas/index.js';
+import { IngestService } from '../modules/ingest/ingest.service.js';
+import type { CowrieRawEvent } from '../types/index.js';
+
+export async function ingestRoutes(fastify: FastifyInstance) {
+  // Ingest from local file (dev only)
+  fastify.post('/ingest/cowrie/file', async (request, reply) => {
+    const parsed = ingestFileBodySchema.safeParse(request.body);
+
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: 'Invalid request body',
+        details: parsed.error.flatten().fieldErrors,
+      });
+    }
+
+    const service = new IngestService(fastify.prisma);
+    const summary = await service.processCowrieFile(parsed.data.filePath);
+
+    return reply.status(200).send(summary);
+  });
+
+  // Ingest a single event via HTTP (real-time from VPS)
+  fastify.post('/ingest/cowrie/event', async (request, reply) => {
+    const parsed = cowrieRawEventSchema.safeParse(request.body);
+
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: 'Invalid event',
+        details: parsed.error.flatten().fieldErrors,
+      });
+    }
+
+    const service = new IngestService(fastify.prisma);
+
+    try {
+      const { sessionCreated, eventCreated } = await service.processLine(parsed.data as CowrieRawEvent);
+      return reply.status(eventCreated ? 201 : 200).send({
+        ingested: eventCreated,
+        duplicate: !eventCreated,
+        sessionCreated,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return reply.status(500).send({ error: msg });
+    }
+  });
+
+  // Ingest a batch of events via HTTP (from VPS cron/script)
+  fastify.post('/ingest/cowrie/batch', async (request, reply) => {
+    const parsed = ingestBatchBodySchema.safeParse(request.body);
+
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: 'Invalid batch',
+        details: parsed.error.flatten().fieldErrors,
+      });
+    }
+
+    const service = new IngestService(fastify.prisma);
+    let inserted = 0;
+    let duplicates = 0;
+    let sessions = 0;
+    const errors: string[] = [];
+
+    for (const raw of parsed.data.events) {
+      try {
+        const { sessionCreated, eventCreated } = await service.processLine(raw as CowrieRawEvent);
+        if (eventCreated) inserted++;
+        else duplicates++;
+        if (sessionCreated) sessions++;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(msg);
+      }
+    }
+
+    return reply.status(200).send({
+      total: parsed.data.events.length,
+      inserted,
+      duplicates,
+      sessionsCreated: sessions,
+      errors,
+    });
+  });
+}

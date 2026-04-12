@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Prisma generated client (regenerated on install)
+apps/ingest-api/node_modules/
+
+# Cowrie live data (runtime logs, not for version control)
+cowrie.json
+cowrie-live.json
+cowrie-data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo

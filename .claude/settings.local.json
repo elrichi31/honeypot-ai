@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls /c/Users/Nicolas/Desktop/Proyects/honeypot-pr/*.json)",
+      "Bash(ls /c/Users/Nicolas/Desktop/Proyects/honeypot-pr/*.jsonl)",
+      "Bash(npm install:*)",
+      "Bash(npx prisma:*)",
+      "Bash(npx vitest:*)",
+      "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"si\" npx prisma db push --force-reset)",
+      "Bash(chmod +x /c/Users/Nicolas/Desktop/Proyects/honeypot-pr/scripts/sync-cowrie-logs.sh)",
+      "Bash(chmod +x /c/Users/Nicolas/Desktop/Proyects/honeypot-pr/scripts/cowrie-shipper.sh)",
+      "Bash(docker exec:*)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec cowrie //cowrie/cowrie-env/bin/python -c \"from pathlib import Path; p=Path\\('/cowrie/cowrie-git/var/log/cowrie'\\); print\\([str\\(f\\) for f in p.iterdir\\(\\)]\\)\")",
+      "Bash(docker compose:*)",
+      "Bash(curl -s http://localhost:3000/health)",
+      "Bash(curl -s http://localhost:3000/events)",
+      "Bash(python -m json.tool)",
+      "Bash(curl -s \"http://localhost:3000/events?limit=1\")",
+      "Bash(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -p 2222 root@localhost)",
+      "Bash(curl -s \"http://localhost:3000/events?limit=8\")",
+      "Bash(chmod +x /c/Users/Nicolas/Desktop/Proyects/honeypot-pr/scripts/pull-cowrie-logs.sh)"
+    ]
+  }
+}
