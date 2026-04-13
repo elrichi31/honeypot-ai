@@ -1,11 +1,12 @@
 # Honeypot Platform
 
-Plataforma de ingesta y persistencia de eventos SSH capturados por un honeypot Cowrie.
+Plataforma de monitoreo de eventos SSH capturados por un honeypot Cowrie. Incluye ingesta en tiempo real, persistencia en PostgreSQL y un dashboard web para visualizar sesiones, comandos y credenciales.
 
 ## Stack
 
 - **Honeypot**: Cowrie (Docker)
 - **Backend**: Fastify + TypeScript
+- **Frontend**: Next.js 16 + Tailwind CSS + shadcn/ui + Recharts
 - **ORM**: Prisma
 - **Validacion**: Zod
 - **Base de datos**: PostgreSQL
@@ -22,6 +23,9 @@ Plataforma de ingesta y persistencia de eventos SSH capturados por un honeypot C
                                                   │  ingest-api :3000    │
                                                   │       ↓              │
                                                   │  PostgreSQL :5432    │
+                                                  │                      │
+                                                  │  dashboard :3001     │
+                                                  │  (Next.js)           │
                                                   └──────────────────────┘
 ```
 
@@ -33,7 +37,7 @@ Un solo script (`pull-cowrie-logs.sh`) se encarga de leer los logs de Cowrie y e
 
 La API solo recibe eventos por HTTP. No lee archivos, no tiene watcher.
 
-Los timestamps en todos los endpoints se devuelven en **UTC-5**.
+El dashboard se conecta a la API para mostrar los datos en tiempo real. Todas las fechas se muestran en **UTC-5**.
 
 ---
 
@@ -42,9 +46,10 @@ Los timestamps en todos los endpoints se devuelven en **UTC-5**.
 ### Requisitos
 
 - Docker Desktop
+- Node.js 20+
 - Git
 
-### Paso 1 — Levantar servicios
+### Paso 1 — Levantar servicios backend
 
 ```bash
 git clone <repo-url>
@@ -61,6 +66,18 @@ Esto levanta cuatro servicios:
 
 No hace falta correr ningun script manualmente. El pull de logs arranca solo.
 
+### Paso 2 — Levantar el dashboard
+
+```bash
+cd apps/dashboard
+npm install
+npm run dev -- --port 3001
+```
+
+Abrir http://localhost:3001 en el navegador.
+
+> Por defecto el dashboard consulta la API en `http://localhost:3000`. Para cambiar esto, setear la variable `NEXT_PUBLIC_API_URL` antes de correr el dev server.
+
 ### Paso 3 — Probar
 
 ```bash
@@ -69,14 +86,13 @@ ssh -p 2222 root@localhost
 # Escribi cualquier password, Cowrie acepta todo
 # Ejecuta comandos: whoami, ls, cat /etc/passwd
 # Sali con exit o Ctrl+D
+```
 
-# Ver los eventos capturados (en otra terminal)
+Los eventos aparecen en el dashboard automaticamente al recargar la pagina. Tambien se pueden consultar directamente via API:
+
+```bash
 curl http://localhost:3000/events | python -m json.tool
-
-# Ver las sesiones
 curl http://localhost:3000/sessions | python -m json.tool
-
-# Ver una sesion con todos sus eventos
 curl http://localhost:3000/sessions/<session-id> | python -m json.tool
 ```
 
@@ -111,6 +127,28 @@ docker compose down -v            # Parar y borrar datos
 
 ---
 
+## Dashboard
+
+El frontend es una app Next.js que consume directamente la API REST del ingest-api.
+
+### Paginas
+
+| Ruta | Descripcion |
+|------|-------------|
+| `/` | Overview — stats generales, grafico de actividad por hora, sesiones recientes, top commands/users/passwords |
+| `/sessions` | Listado de todas las sesiones. Click en una sesion para expandir el timeline completo de eventos |
+| `/commands` | Todos los comandos ejecutados con buscador y ranking de los mas usados |
+| `/credentials` | Intentos de login (exitosos y fallidos) con filtros por estado y buscador |
+| `/settings` | Configuracion (placeholder) |
+
+### Variables de entorno
+
+| Variable | Default | Descripcion |
+|----------|---------|-------------|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:3000` | URL base de la ingest-api |
+
+---
+
 ## Produccion (Cowrie en VPS separado)
 
 Cowrie corre en un VPS expuesto. La API + DB corren en otro servidor. El VPS del honeypot **no inicia conexiones salientes** — tu servidor va a buscar los logs.
@@ -128,10 +166,9 @@ Servidor de la API:
 
 | Puerto | Servicio | Quien lo usa |
 |--------|----------|--------------|
-| 3000   | ingest-api | Solo acceso interno / VPN |
+| 3000   | ingest-api | Dashboard y acceso interno |
+| 3001   | dashboard | Navegador web |
 | 5432   | PostgreSQL | Solo acceso interno |
-
-No necesitas puerto 80 ni 443. La API no es publica.
 
 ### Paso 1 — VPS del honeypot
 
@@ -332,44 +369,63 @@ Content-Type: application/json
 honeypot-pr/
 ├── docker-compose.yml
 ├── scripts/
-│   ├── pull-cowrie-logs.sh     # Pull de logs (local, docker o remoto)
-│   └── Dockerfile.puller       # Imagen minima para el contenedor log-puller
-└── apps/ingest-api/
-    ├── Dockerfile
-    ├── entrypoint.sh
+│   ├── pull-cowrie-logs.sh        # Pull de logs (local, docker o remoto)
+│   └── Dockerfile.puller          # Imagen minima para el contenedor log-puller
+├── apps/ingest-api/               # API de ingesta (Fastify + Prisma)
+│   ├── Dockerfile
+│   ├── entrypoint.sh
+│   ├── package.json
+│   ├── prisma/
+│   │   └── schema.prisma
+│   ├── src/
+│   │   ├── main.ts                # Entry point
+│   │   ├── app.ts                 # Fastify setup + plugins + CORS
+│   │   ├── plugins/prisma.ts
+│   │   ├── routes/
+│   │   │   ├── health.ts          # GET /health
+│   │   │   ├── ingest.ts          # POST /ingest/*
+│   │   │   ├── sessions.ts        # GET /sessions
+│   │   │   └── events.ts          # GET /events
+│   │   ├── modules/
+│   │   │   ├── ingest/ingest.service.ts
+│   │   │   ├── sessions/session.repository.ts
+│   │   │   └── events/event.repository.ts
+│   │   ├── lib/
+│   │   │   ├── parser.ts
+│   │   │   └── normalizer.ts
+│   │   ├── types/index.ts
+│   │   └── schemas/index.ts
+│   └── tests/
+│       ├── parser.test.ts
+│       ├── normalizer.test.ts
+│       └── ingest.service.test.ts
+└── apps/dashboard/                # Frontend (Next.js)
     ├── package.json
-    ├── tsconfig.json
-    ├── .env.example
-    ├── prisma/
-    │   └── schema.prisma
-    ├── src/
-    │   ├── main.ts             # Entry point
-    │   ├── app.ts              # Fastify setup + plugins
-    │   ├── plugins/
-    │   │   └── prisma.ts       # PrismaClient como plugin
-    │   ├── routes/
-    │   │   ├── health.ts       # GET /health
-    │   │   ├── ingest.ts       # POST /ingest/*
-    │   │   ├── sessions.ts     # GET /sessions
-    │   │   └── events.ts       # GET /events
-    │   ├── modules/
-    │   │   ├── ingest/
-    │   │   │   └── ingest.service.ts
-    │   │   ├── sessions/
-    │   │   │   └── session.repository.ts
-    │   │   └── events/
-    │   │       └── event.repository.ts
-    │   ├── lib/
-    │   │   ├── parser.ts       # JSON linea → tipo interno
-    │   │   └── normalizer.ts   # cowrie.eventid → categoria
-    │   ├── types/
-    │   │   └── index.ts
-    │   └── schemas/
-    │       └── index.ts        # Validacion Zod
-    └── tests/
-        ├── parser.test.ts
-        ├── normalizer.test.ts
-        └── ingest.service.test.ts
+    ├── next.config.mjs
+    ├── components.json            # shadcn/ui config
+    ├── app/
+    │   ├── layout.tsx             # Root layout (Geist fonts, dark theme)
+    │   ├── globals.css            # Tailwind + tema dark
+    │   ├── page.tsx               # Overview
+    │   ├── sessions/page.tsx
+    │   ├── commands/page.tsx
+    │   ├── credentials/page.tsx
+    │   └── settings/page.tsx
+    ├── components/
+    │   ├── app-sidebar.tsx        # Sidebar con navegacion
+    │   ├── stats-cards.tsx        # Cards de estadisticas
+    │   ├── sessions-table.tsx     # Tabla expandible (lazy load de eventos)
+    │   ├── activity-chart.tsx     # Grafico de actividad (Recharts)
+    │   ├── event-timeline.tsx     # Timeline de eventos por sesion
+    │   ├── top-lists.tsx          # Top commands/users/passwords
+    │   ├── commands-view.tsx      # Vista de comandos con buscador
+    │   ├── credentials-view.tsx   # Vista de credenciales con filtros
+    │   └── ui/                    # Componentes shadcn/ui
+    └── lib/
+        ├── api.ts                 # Cliente HTTP para la ingest-api
+        ├── stats.ts               # Calculo de estadisticas desde datos de la API
+        ├── types.ts               # Tipos compartidos
+        └── utils.ts               # cn() helper
 ```
 
 ## Tests

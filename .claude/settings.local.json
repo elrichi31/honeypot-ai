@@ -18,7 +18,10 @@
       "Bash(curl -s \"http://localhost:3000/events?limit=1\")",
       "Bash(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -p 2222 root@localhost)",
       "Bash(curl -s \"http://localhost:3000/events?limit=8\")",
-      "Bash(chmod +x /c/Users/Nicolas/Desktop/Proyects/honeypot-pr/scripts/pull-cowrie-logs.sh)"
+      "Bash(chmod +x /c/Users/Nicolas/Desktop/Proyects/honeypot-pr/scripts/pull-cowrie-logs.sh)",
+      "Bash(npx next:*)",
+      "Bash(npm ls:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }
