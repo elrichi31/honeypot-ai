@@ -31,13 +31,22 @@ function formatEvent(e: any) {
 
 export async function sessionRoutes(fastify: FastifyInstance) {
   fastify.get('/sessions', async (request) => {
-    const { limit = '50', offset = '0' } = request.query as Record<string, string>;
+    const { limit = '50', offset = '0', startDate, endDate } = request.query as Record<string, string>;
+
+    const where: Record<string, unknown> = {};
+    if (startDate || endDate) {
+      where.startedAt = {
+        ...(startDate && { gte: new Date(startDate) }),
+        ...(endDate && { lte: new Date(endDate) }),
+      };
+    }
 
     const sessions = await fastify.prisma.session.findMany({
-      take: Math.min(Number(limit), 100),
+      take: Math.min(Number(limit), 1000),
       skip: Number(offset),
       orderBy: { startedAt: 'desc' },
       include: { _count: { select: { events: true } } },
+      ...(Object.keys(where).length > 0 && { where }),
     });
 
     return sessions.map(formatSession);

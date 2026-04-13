@@ -9,6 +9,7 @@ import {
   Activity,
   Settings,
   Bug,
+  Crosshair,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -32,6 +33,11 @@ const navItems = [
     title: "Credentials",
     href: "/credentials",
     icon: Shield,
+  },
+  {
+    title: "Campaigns",
+    href: "/campaigns",
+    icon: Crosshair,
   },
   {
     title: "Settings",

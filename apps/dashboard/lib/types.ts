@@ -22,4 +22,13 @@ export interface DashboardStats {
   topUsernames: { username: string; count: number }[]
   topPasswords: { password: string; count: number }[]
   eventsByHour: { hour: string; count: number }[]
+  eventsByDay: { day: string; count: number }[]
+}
+
+export type TimeRange = "day" | "week" | "month"
+
+export interface CountryAttack {
+  country: string   // ISO alpha-2 (e.g. "CN")
+  name: string      // Full country name
+  count: number
 }

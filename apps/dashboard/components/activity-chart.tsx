@@ -1,5 +1,6 @@
 "use client"
 
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   Area,
   AreaChart,
@@ -8,32 +9,69 @@ import {
   YAxis,
   Tooltip,
 } from "recharts"
-import type { DashboardStats } from "@/lib/types"
+import type { DashboardStats, TimeRange } from "@/lib/types"
 
 interface ActivityChartProps {
   stats: DashboardStats
+  range: TimeRange
 }
 
-export function ActivityChart({ stats }: ActivityChartProps) {
-  // Create 24-hour data
-  const hours = Array.from({ length: 24 }, (_, i) => {
-    const hour = i.toString().padStart(2, "0") + ":00"
-    const found = stats.eventsByHour.find((e) => e.hour === hour)
-    return {
-      hour,
-      count: found?.count || 0,
-    }
-  })
+const RANGE_LABELS: Record<TimeRange, string> = {
+  day: "24h",
+  week: "7d",
+  month: "30d",
+}
+
+export function ActivityChart({ stats, range }: ActivityChartProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  function setRange(r: TimeRange) {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("range", r)
+    router.push(`?${params.toString()}`)
+  }
+
+  // Day view: 24 hourly buckets; week/month: day buckets
+  const data =
+    range === "day"
+      ? Array.from({ length: 24 }, (_, i) => {
+          const hour = i.toString().padStart(2, "0") + ":00"
+          const found = stats.eventsByHour.find((e) => e.hour === hour)
+          return { label: hour, count: found?.count || 0 }
+        })
+      : stats.eventsByDay.map((d) => ({ label: d.day, count: d.count }))
+
+  const xInterval = range === "day" ? 3 : range === "week" ? 0 : 4
 
   return (
     <div className="rounded-xl border border-border bg-card p-4">
-      <div className="mb-4">
-        <h3 className="font-semibold text-foreground">Activity Timeline</h3>
-        <p className="text-sm text-muted-foreground">Events per hour</p>
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-foreground">Activity Timeline</h3>
+          <p className="text-sm text-muted-foreground">
+            {range === "day" ? "Events per hour" : "Events per day"}
+          </p>
+        </div>
+        <div className="flex gap-1 rounded-lg border border-border p-1">
+          {(["day", "week", "month"] as TimeRange[]).map((r) => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                range === r
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {RANGE_LABELS[r]}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="h-[200px]">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={hours}>
+          <AreaChart data={data}>
             <defs>
               <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="hsl(250 60% 65%)" stopOpacity={0.3} />
@@ -41,11 +79,11 @@ export function ActivityChart({ stats }: ActivityChartProps) {
               </linearGradient>
             </defs>
             <XAxis
-              dataKey="hour"
+              dataKey="label"
               axisLine={false}
               tickLine={false}
               tick={{ fill: "hsl(0 0% 60%)", fontSize: 11 }}
-              interval={3}
+              interval={xInterval}
             />
             <YAxis
               axisLine={false}

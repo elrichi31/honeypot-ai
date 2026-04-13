@@ -39,6 +39,13 @@ export function getStatsFromData(
     hourCounts.set(hour, (hourCounts.get(hour) || 0) + 1)
   })
 
+  const dayCounts = new Map<string, number>()
+  events.forEach((e) => {
+    const d = new Date(e.eventTs)
+    const day = `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}`
+    dayCounts.set(day, (dayCounts.get(day) || 0) + 1)
+  })
+
   return {
     totalSessions: sessions.length,
     totalCommands: commands.length,
@@ -60,5 +67,8 @@ export function getStatsFromData(
     eventsByHour: Array.from(hourCounts.entries())
       .map(([hour, count]) => ({ hour, count }))
       .sort((a, b) => a.hour.localeCompare(b.hour)),
+    eventsByDay: Array.from(dayCounts.entries())
+      .map(([day, count]) => ({ day, count }))
+      .sort((a, b) => a.day.localeCompare(b.day)),
   }
 }

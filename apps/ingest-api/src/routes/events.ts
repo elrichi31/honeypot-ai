@@ -12,13 +12,22 @@ function toOffsetISOString(date: Date): string {
 
 export async function eventRoutes(fastify: FastifyInstance) {
   fastify.get('/events', async (request) => {
-    const { limit = '50', offset = '0', type } = request.query as Record<string, string>;
+    const { limit = '50', offset = '0', type, startDate, endDate } = request.query as Record<string, string>;
+
+    const where: Record<string, unknown> = {};
+    if (type) where.eventType = type;
+    if (startDate || endDate) {
+      where.eventTs = {
+        ...(startDate && { gte: new Date(startDate) }),
+        ...(endDate && { lte: new Date(endDate) }),
+      };
+    }
 
     const events = await fastify.prisma.event.findMany({
-      take: Math.min(Number(limit), 100),
+      take: Math.min(Number(limit), 2000),
       skip: Number(offset),
       orderBy: { eventTs: 'desc' },
-      ...(type && { where: { eventType: type } }),
+      ...(Object.keys(where).length > 0 && { where }),
     });
 
     return events.map((e) => ({

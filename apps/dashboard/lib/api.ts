@@ -4,11 +4,15 @@ export async function fetchEvents(params?: {
   limit?: number
   offset?: number
   type?: string
+  startDate?: string
+  endDate?: string
 }): Promise<HoneypotEvent[]> {
   const searchParams = new URLSearchParams()
   if (params?.limit) searchParams.set("limit", String(params.limit))
   if (params?.offset) searchParams.set("offset", String(params.offset))
   if (params?.type) searchParams.set("type", params.type)
+  if (params?.startDate) searchParams.set("startDate", params.startDate)
+  if (params?.endDate) searchParams.set("endDate", params.endDate)
 
   const res = await fetch(`${API_URL}/events?${searchParams}`, {
     cache: "no-store",
@@ -20,15 +24,27 @@ export async function fetchEvents(params?: {
 export async function fetchSessions(params?: {
   limit?: number
   offset?: number
+  startDate?: string
+  endDate?: string
 }): Promise<ApiSession[]> {
   const searchParams = new URLSearchParams()
   if (params?.limit) searchParams.set("limit", String(params.limit))
   if (params?.offset) searchParams.set("offset", String(params.offset))
+  if (params?.startDate) searchParams.set("startDate", params.startDate)
+  if (params?.endDate) searchParams.set("endDate", params.endDate)
 
   const res = await fetch(`${API_URL}/sessions?${searchParams}`, {
     cache: "no-store",
   })
   if (!res.ok) throw new Error(`Failed to fetch sessions: ${res.status}`)
+  return res.json()
+}
+
+export async function fetchSessionCommands(): Promise<Record<string, string[]>> {
+  const res = await fetch(`${API_URL}/stats/session-commands?limit=5000`, {
+    cache: "no-store",
+  })
+  if (!res.ok) return {}
   return res.json()
 }
 

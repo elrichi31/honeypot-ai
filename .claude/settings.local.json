@@ -21,7 +21,11 @@
       "Bash(chmod +x /c/Users/Nicolas/Desktop/Proyects/honeypot-pr/scripts/pull-cowrie-logs.sh)",
       "Bash(npx next:*)",
       "Bash(npm ls:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(sed -i 's/\\\\r//' \"c:/Users/nicol/OneDrive/Desktop/Proyects/honeypot-ai/apps/ingest-api/entrypoint.sh\")",
+      "Bash(sed -i 's/\\\\r//' \"c:/Users/nicol/OneDrive/Desktop/Proyects/honeypot-ai/scripts/pull-cowrie-logs.sh\")",
+      "Bash(xargs grep:*)",
+      "Bash(npx tsx:*)"
     ]
   }
 }

@@ -58,6 +58,23 @@ services:
     ports:
       - "3000:3000"
 
+  dashboard:
+    build:
+      context: ./apps/dashboard
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3000
+    container_name: honeypot-dashboard
+    restart: unless-stopped
+    depends_on:
+      - ingest-api
+    environment:
+      NEXT_PUBLIC_API_URL: http://ingest-api:3000
+    volumes:
+      - dashboard_data:/app/data
+    ports:
+      - "4000:4000"
+
 volumes:
   cowrie_var:
   pg_data:
+  dashboard_data:
