@@ -26,6 +26,23 @@ services:
       timeout: 3s
       retries: 10
 
+  log-puller:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile.puller
+    container_name: log-puller
+    restart: unless-stopped
+    depends_on:
+      - cowrie
+      - ingest-api
+    volumes:
+      - cowrie_var:/cowrie/cowrie-git/var:ro
+      - ./scripts/pull-cowrie-logs.sh:/pull-cowrie-logs.sh:ro
+    environment:
+      API_URL: http://ingest-api:3000
+      DIRECT_FILE: "true"
+    command: ["bash", "/pull-cowrie-logs.sh"]
+
   ingest-api:
     build:
       context: ./apps/ingest-api

@@ -5,6 +5,9 @@
 # LOCAL (dev):
 #   API_URL=http://localhost:3000 bash scripts/pull-cowrie-logs.sh
 #
+# DOCKER (inside log-puller container):
+#   DIRECT_FILE=true API_URL=http://ingest-api:3000 bash scripts/pull-cowrie-logs.sh
+#
 # REMOTE (prod):
 #   VPS_HOST=user@vps-ip VPS_SSH_PORT=8022 API_URL=http://localhost:3000 bash scripts/pull-cowrie-logs.sh
 #
@@ -14,6 +17,7 @@
 #   API_URL        — Ingest API base URL (default: http://localhost:3000)
 #   CONTAINER      — Cowrie container name (default: cowrie)
 #   POLL_INTERVAL  — Seconds between polls (default: 3)
+#   DIRECT_FILE    — Read the log file directly without docker exec (default: false)
 
 set -euo pipefail
 
@@ -22,26 +26,40 @@ VPS_SSH_PORT="${VPS_SSH_PORT:-8022}"
 API_URL="${API_URL:-http://localhost:3000}"
 CONTAINER="${CONTAINER:-cowrie}"
 POLL_INTERVAL="${POLL_INTERVAL:-3}"
+DIRECT_FILE="${DIRECT_FILE:-false}"
 REMOTE_LOG="/cowrie/cowrie-git/var/log/cowrie/cowrie.json"
 ENDPOINT="${API_URL}/ingest/cowrie/batch"
 
-# Run a command inside the cowrie container — locally or via SSH
+# Run a command — directly on the file, locally via docker exec, or remotely via SSH
 cowrie_exec() {
-  if [ -n "$VPS_HOST" ]; then
+  if [ "$DIRECT_FILE" = "true" ]; then
+    "$@" 2>/dev/null
+  elif [ -n "$VPS_HOST" ]; then
     ssh -p "$VPS_SSH_PORT" -o ConnectTimeout=5 "$VPS_HOST" "docker exec $CONTAINER $*" 2>/dev/null
   else
     docker exec "$CONTAINER" "$@" 2>/dev/null
   fi
 }
 
-MODE="LOCAL"
-[ -n "$VPS_HOST" ] && MODE="REMOTE ($VPS_HOST:$VPS_SSH_PORT)"
+if [ "$DIRECT_FILE" = "true" ]; then
+  MODE="DIRECT FILE"
+elif [ -n "$VPS_HOST" ]; then
+  MODE="REMOTE ($VPS_HOST:$VPS_SSH_PORT)"
+else
+  MODE="LOCAL"
+fi
 
 echo "[pull] Mode: $MODE"
 echo "[pull] Container: $CONTAINER"
 echo "[pull] Sending to: $ENDPOINT"
 echo "[pull] Poll interval: ${POLL_INTERVAL}s"
 echo ""
+
+# Wait for the log file to exist before starting
+until [ -f "$REMOTE_LOG" ]; do
+  echo "[pull] Waiting for $REMOTE_LOG to appear..."
+  sleep 2
+done
 
 # Get initial file size — only process NEW events from this point
 OFFSET=$(cowrie_exec wc -c < "$REMOTE_LOG" 2>/dev/null | tr -d '[:space:]' || echo "0")

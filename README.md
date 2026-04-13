@@ -14,21 +14,26 @@ Plataforma de ingesta y persistencia de eventos SSH capturados por un honeypot C
 ## Arquitectura
 
 ```
-┌────────────────────┐                         ┌──────────────────────┐
-│  Cowrie (honeypot)  │                         │  Tu servidor         │
-│  puerto 22 / 2222   │    pull-cowrie-logs.sh  │                      │
-│  escribe cowrie.json│ ◄─────────────────────  │  ingest-api :3000    │
-└────────────────────┘   lee logs via           │       ↓              │
-                         docker exec            │  PostgreSQL :5432    │
-                         (local o SSH)          └──────────────────────┘
+┌─────────────────────┐                          ┌──────────────────────┐
+│  Cowrie (honeypot)  │    volumen compartido     │  log-puller          │
+│  puerto 22 / 2222   │ ◄────────────────────     │  (contenedor)        │
+│  escribe cowrie.json│   lee directo del vol     │  pull-cowrie-logs.sh │
+└─────────────────────┘                          │       ↓ HTTP batch   │
+                                                  │  ingest-api :3000    │
+                                                  │       ↓              │
+                                                  │  PostgreSQL :5432    │
+                                                  └──────────────────────┘
 ```
 
-Un solo script (`pull-cowrie-logs.sh`) se encarga de leer los logs de Cowrie y enviarlos a la API. Funciona igual en dev y prod:
+Un solo script (`pull-cowrie-logs.sh`) se encarga de leer los logs de Cowrie y enviarlos a la API. Funciona en tres modos:
 
-- **Dev**: ejecuta `docker exec cowrie ...` directo (local)
+- **Docker** (`DIRECT_FILE=true`): corre como contenedor `log-puller`, lee el volumen de Cowrie directamente. **Se levanta solo con `docker compose up`.**
+- **Dev local**: ejecuta `docker exec cowrie ...` desde el host
 - **Prod**: ejecuta `ssh vps docker exec cowrie ...` (remoto)
 
-La API solo recibe eventos por HTTP. No lee archivos, no tiene watcher, no necesita volumenes compartidos.
+La API solo recibe eventos por HTTP. No lee archivos, no tiene watcher.
+
+Los timestamps en todos los endpoints se devuelven en **UTC-5**.
 
 ---
 
@@ -48,15 +53,13 @@ docker compose up --build -d
 docker compose ps
 ```
 
-Esto levanta Cowrie (puerto 2222), PostgreSQL (puerto 5432) e ingest-api (puerto 3000). El entrypoint de la API espera a Postgres y aplica el schema automaticamente.
+Esto levanta cuatro servicios:
+- **cowrie** — honeypot SSH en puerto 2222
+- **postgres** — base de datos en puerto 5432
+- **ingest-api** — API en puerto 3000 (espera a Postgres y aplica schema automaticamente)
+- **log-puller** — lee el `cowrie.json` del volumen compartido y envia eventos al API cada 3 segundos
 
-### Paso 2 — Ejecutar el pull de logs
-
-```bash
-bash scripts/pull-cowrie-logs.sh
-```
-
-Sin variables extra. El script detecta el contenedor local de Cowrie y empieza a monitorear.
+No hace falta correr ningun script manualmente. El pull de logs arranca solo.
 
 ### Paso 3 — Probar
 
@@ -80,8 +83,8 @@ curl http://localhost:3000/sessions/<session-id> | python -m json.tool
 ### Desarrollo de la API con hot reload
 
 ```bash
-# Levantar solo Cowrie y Postgres en Docker
-docker compose up -d cowrie postgres
+# Levantar Cowrie, Postgres y log-puller en Docker
+docker compose up -d cowrie postgres log-puller
 
 # Instalar dependencias y arrancar la API en local
 cd apps/ingest-api
@@ -89,19 +92,21 @@ npm install
 cp .env.example .env
 npx prisma db push
 npm run dev
-
-# En otra terminal: pull de logs apuntando a la API local
-cd ../..
-bash scripts/pull-cowrie-logs.sh
 ```
+
+> El `log-puller` usa `API_URL=http://ingest-api:3000` por defecto (dentro de Docker). Para que apunte a tu API local, levantalo manualmente:
+> ```bash
+> API_URL=http://localhost:3000 bash scripts/pull-cowrie-logs.sh
+> ```
 
 ### Comandos utiles
 
 ```bash
-docker logs -f ingest-api       # Logs de la API
-docker logs -f cowrie            # Logs de Cowrie
-docker compose down              # Parar todo
-docker compose down -v           # Parar y borrar datos
+docker logs -f ingest-api        # Logs de la API
+docker logs -f cowrie             # Logs de Cowrie
+docker logs -f log-puller         # Ver eventos siendo ingestados en tiempo real
+docker compose down               # Parar todo
+docker compose down -v            # Parar y borrar datos
 ```
 
 ---
@@ -327,7 +332,8 @@ Content-Type: application/json
 honeypot-pr/
 ├── docker-compose.yml
 ├── scripts/
-│   └── pull-cowrie-logs.sh     # Pull de logs (local o remoto)
+│   ├── pull-cowrie-logs.sh     # Pull de logs (local, docker o remoto)
+│   └── Dockerfile.puller       # Imagen minima para el contenedor log-puller
 └── apps/ingest-api/
     ├── Dockerfile
     ├── entrypoint.sh
