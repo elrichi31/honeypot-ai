@@ -1,13 +1,4 @@
 services:
-  cowrie:
-    image: cowrie/cowrie:latest
-    container_name: cowrie
-    restart: unless-stopped
-    ports:
-      - "2222:2222"
-    volumes:
-      - cowrie_var:/cowrie/cowrie-git/var
-
   postgres:
     image: postgres:16-alpine
     container_name: honeypot-postgres
@@ -16,8 +7,6 @@ services:
       POSTGRES_USER: honeypot
       POSTGRES_PASSWORD: honeypot
       POSTGRES_DB: honeypot
-    ports:
-      - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -25,23 +14,6 @@ services:
       interval: 3s
       timeout: 3s
       retries: 10
-
-  log-puller:
-    build:
-      context: ./scripts
-      dockerfile: Dockerfile.puller
-    container_name: log-puller
-    restart: unless-stopped
-    depends_on:
-      - cowrie
-      - ingest-api
-    volumes:
-      - cowrie_var:/cowrie/cowrie-git/var:ro
-      - ./scripts/pull-cowrie-logs.sh:/pull-cowrie-logs.sh:ro
-    environment:
-      API_URL: http://ingest-api:3000
-      DIRECT_FILE: "true"
-    command: ["bash", "/pull-cowrie-logs.sh"]
 
   ingest-api:
     build:
@@ -89,6 +61,5 @@ services:
       - "4000:4000"
 
 volumes:
-  cowrie_var:
   pg_data:
   dashboard_data:

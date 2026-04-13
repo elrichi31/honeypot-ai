@@ -32,12 +32,14 @@ ENDPOINT="${API_URL}/ingest/cowrie/batch"
 
 # Run a command — directly on the file, locally via docker exec, or remotely via SSH
 cowrie_exec() {
+  local cmd="$1"
   if [ "$DIRECT_FILE" = "true" ]; then
-    "$@" 2>/dev/null
+    bash -lc "$cmd" 2>/dev/null
   elif [ -n "$VPS_HOST" ]; then
-    ssh -p "$VPS_SSH_PORT" -o ConnectTimeout=5 "$VPS_HOST" "docker exec $CONTAINER $*" 2>/dev/null
+    ssh -p "$VPS_SSH_PORT" -o ConnectTimeout=5 "$VPS_HOST" \
+      "docker exec $CONTAINER sh -lc '$cmd'" 2>/dev/null
   else
-    docker exec "$CONTAINER" "$@" 2>/dev/null
+    docker exec "$CONTAINER" sh -lc "$cmd" 2>/dev/null
   fi
 }
 
@@ -56,18 +58,18 @@ echo "[pull] Poll interval: ${POLL_INTERVAL}s"
 echo ""
 
 # Wait for the log file to exist before starting
-until [ -f "$REMOTE_LOG" ]; do
+until cowrie_exec "[ -f \"$REMOTE_LOG\" ]"; do
   echo "[pull] Waiting for $REMOTE_LOG to appear..."
   sleep 2
 done
 
 # Get initial file size — only process NEW events from this point
-OFFSET=$(cowrie_exec wc -c < "$REMOTE_LOG" 2>/dev/null | tr -d '[:space:]' || echo "0")
+OFFSET=$(cowrie_exec "wc -c < \"$REMOTE_LOG\"" | tr -d '[:space:]' || echo "0")
 echo "[pull] Starting from offset $OFFSET bytes (skipping existing logs)"
 echo "[pull] Waiting for new events..."
 
 while true; do
-  REMOTE_SIZE=$(cowrie_exec wc -c < "$REMOTE_LOG" 2>/dev/null | tr -d '[:space:]' || echo "0")
+  REMOTE_SIZE=$(cowrie_exec "wc -c < \"$REMOTE_LOG\"" | tr -d '[:space:]' || echo "0")
 
   # File was truncated/rotated
   if [ "$REMOTE_SIZE" -lt "$OFFSET" ]; then
@@ -77,7 +79,7 @@ while true; do
 
   # New data available
   if [ "$REMOTE_SIZE" -gt "$OFFSET" ]; then
-    NEW_DATA=$(cowrie_exec tail -c "+$((OFFSET + 1))" "$REMOTE_LOG" || true)
+    NEW_DATA=$(cowrie_exec "tail -c \"+$((OFFSET + 1))\" \"$REMOTE_LOG\"" || true)
     OFFSET="$REMOTE_SIZE"
 
     if [ -n "$NEW_DATA" ]; then

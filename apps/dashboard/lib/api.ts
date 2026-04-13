@@ -1,4 +1,8 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
+function getApiUrl() {
+  // Server-side rendering inside Docker must talk to the service name,
+  // while the browser must keep using the host-mapped public URL.
+  return process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
+}
 
 export async function fetchEvents(params?: {
   limit?: number
@@ -14,7 +18,7 @@ export async function fetchEvents(params?: {
   if (params?.startDate) searchParams.set("startDate", params.startDate)
   if (params?.endDate) searchParams.set("endDate", params.endDate)
 
-  const res = await fetch(`${API_URL}/events?${searchParams}`, {
+  const res = await fetch(`${getApiUrl()}/events?${searchParams}`, {
     cache: "no-store",
   })
   if (!res.ok) throw new Error(`Failed to fetch events: ${res.status}`)
@@ -33,7 +37,7 @@ export async function fetchSessions(params?: {
   if (params?.startDate) searchParams.set("startDate", params.startDate)
   if (params?.endDate) searchParams.set("endDate", params.endDate)
 
-  const res = await fetch(`${API_URL}/sessions?${searchParams}`, {
+  const res = await fetch(`${getApiUrl()}/sessions?${searchParams}`, {
     cache: "no-store",
   })
   if (!res.ok) throw new Error(`Failed to fetch sessions: ${res.status}`)
@@ -41,7 +45,7 @@ export async function fetchSessions(params?: {
 }
 
 export async function fetchSessionCommands(): Promise<Record<string, string[]>> {
-  const res = await fetch(`${API_URL}/stats/session-commands?limit=5000`, {
+  const res = await fetch(`${getApiUrl()}/stats/session-commands?limit=5000`, {
     cache: "no-store",
   })
   if (!res.ok) return {}
@@ -49,7 +53,7 @@ export async function fetchSessionCommands(): Promise<Record<string, string[]>> 
 }
 
 export async function fetchSession(id: string): Promise<ApiSessionDetail> {
-  const res = await fetch(`${API_URL}/sessions/${id}`, {
+  const res = await fetch(`${getApiUrl()}/sessions/${id}`, {
     cache: "no-store",
   })
   if (!res.ok) throw new Error(`Failed to fetch session: ${res.status}`)
