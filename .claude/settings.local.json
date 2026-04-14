@@ -26,7 +26,8 @@
       "Bash(sed -i 's/\\\\r//' \"c:/Users/nicol/OneDrive/Desktop/Proyects/honeypot-ai/scripts/pull-cowrie-logs.sh\")",
       "Bash(xargs grep:*)",
       "Bash(npx tsx:*)",
-      "Bash(npm i:*)"
+      "Bash(npm i:*)",
+      "Bash(ls c:\\\\Users\\\\Nicolas\\\\Desktop\\\\Proyects\\\\honeypot-pr\\\\apps\\\\dashboard\\\\.env*)"
     ]
   }
 }

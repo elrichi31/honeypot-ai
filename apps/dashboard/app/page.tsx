@@ -8,6 +8,7 @@ import { AttackMap } from "@/components/attack-map"
 import { fetchEvents, fetchSessions } from "@/lib/api"
 import { getStatsFromData } from "@/lib/stats"
 import { geolocateIps } from "@/lib/geo"
+import { readConfig } from "@/lib/server-config"
 import type { TimeRange } from "@/lib/types"
 
 function getDateRange(range: TimeRange): { startDate: string; endDate: string } {
@@ -44,7 +45,9 @@ export default async function DashboardPage({
     fetchSessions({ limit: 5000 }), // all-time for the map
   ])
 
-  const stats = getStatsFromData(sessions, events)
+  const config = readConfig()
+  const timezone = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
+  const stats = getStatsFromData(sessions, events, timezone)
 
   // Geolocate all sessions across all time (not filtered by range)
   const countryAttacks = geolocateIps(

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { formatDistanceToNow } from "date-fns"
 import {
@@ -12,8 +12,10 @@ import {
   Settings,
   Bug,
   Crosshair,
+  LogOut,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { signOut, useSession } from "@/lib/auth-client"
 
 const navItems = [
   {
@@ -71,7 +73,14 @@ function useHealthCheck() {
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const health = useHealthCheck()
+  const { data: session } = useSession()
+
+  async function handleLogout() {
+    await signOut()
+    router.push("/login")
+  }
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-60 flex-col border-r border-border bg-sidebar">
@@ -104,6 +113,19 @@ export function AppSidebar() {
           )
         })}
       </nav>
+
+      {/* User / Logout */}
+      <div className="border-t border-border px-3 py-2">
+        <button
+          onClick={handleLogout}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+        >
+          <LogOut className="h-4 w-4" />
+          <span className="flex-1 truncate text-left">
+            {session?.user?.email ?? "Log out"}
+          </span>
+        </button>
+      </div>
 
       {/* Status */}
       <div className="border-t border-border p-4 space-y-2">

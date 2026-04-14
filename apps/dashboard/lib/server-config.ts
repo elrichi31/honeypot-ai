@@ -8,6 +8,8 @@ export interface AppConfig {
   sshPort?: number
   ingestPort?: number
   ingestApiUrl?: string
+  // Display
+  timezone?: string
 }
 
 const CONFIG_PATH = path.join(process.cwd(), "data", "config.json")

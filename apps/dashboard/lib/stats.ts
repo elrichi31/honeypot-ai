@@ -1,8 +1,40 @@
 import type { HoneypotEvent, ApiSession, DashboardStats } from "./types"
 
+function getHourInTz(date: Date, tz: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hour: "2-digit",
+      hour12: false,
+    }).formatToParts(date)
+    const h = parts.find((p) => p.type === "hour")?.value ?? "00"
+    // "24" is returned for midnight by some implementations
+    return (h === "24" ? "00" : h.padStart(2, "0")) + ":00"
+  } catch {
+    return date.getUTCHours().toString().padStart(2, "0") + ":00"
+  }
+}
+
+function getDayInTz(date: Date, tz: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      day: "2-digit",
+      month: "2-digit",
+    }).formatToParts(date)
+    const day = parts.find((p) => p.type === "day")?.value ?? "01"
+    const month = parts.find((p) => p.type === "month")?.value ?? "01"
+    return `${day}/${month}`
+  } catch {
+    const d = new Date(date.toISOString())
+    return `${d.getUTCDate().toString().padStart(2, "0")}/${(d.getUTCMonth() + 1).toString().padStart(2, "0")}`
+  }
+}
+
 export function getStatsFromData(
   sessions: ApiSession[],
-  events: HoneypotEvent[]
+  events: HoneypotEvent[],
+  timezone = "UTC"
 ): DashboardStats {
   const commands = events.filter(
     (e) => e.eventType === "command.input" && e.command
@@ -34,15 +66,13 @@ export function getStatsFromData(
 
   const hourCounts = new Map<string, number>()
   events.forEach((e) => {
-    const hour =
-      new Date(e.eventTs).getHours().toString().padStart(2, "0") + ":00"
+    const hour = getHourInTz(new Date(e.eventTs), timezone)
     hourCounts.set(hour, (hourCounts.get(hour) || 0) + 1)
   })
 
   const dayCounts = new Map<string, number>()
   events.forEach((e) => {
-    const d = new Date(e.eventTs)
-    const day = `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}`
+    const day = getDayInTz(new Date(e.eventTs), timezone)
     dayCounts.set(day, (dayCounts.get(day) || 0) + 1)
   })
 

@@ -6,7 +6,74 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { Server, Bell, Database, Shield, Sparkles, Eye, EyeOff, CheckCircle, AlertCircle, Loader2, Network, Globe } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Server, Bell, Database, Shield, Sparkles, Eye, EyeOff, CheckCircle, AlertCircle, Loader2, Network, Globe, Clock } from "lucide-react"
+
+const TIMEZONE_GROUPS = [
+  {
+    label: "América",
+    zones: [
+      { value: "America/New_York",       label: "New York (UTC−5/−4)" },
+      { value: "America/Chicago",        label: "Chicago (UTC−6/−5)" },
+      { value: "America/Denver",         label: "Denver (UTC−7/−6)" },
+      { value: "America/Los_Angeles",    label: "Los Ángeles (UTC−8/−7)" },
+      { value: "America/Bogota",         label: "Bogotá (UTC−5)" },
+      { value: "America/Lima",           label: "Lima (UTC−5)" },
+      { value: "America/Guayaquil",      label: "Guayaquil (UTC−5)" },
+      { value: "America/Caracas",        label: "Caracas (UTC−4)" },
+      { value: "America/La_Paz",         label: "La Paz (UTC−4)" },
+      { value: "America/Santiago",       label: "Santiago (UTC−4/−3)" },
+      { value: "America/Argentina/Buenos_Aires", label: "Buenos Aires (UTC−3)" },
+      { value: "America/Sao_Paulo",      label: "São Paulo (UTC−3/−2)" },
+      { value: "America/Mexico_City",    label: "Ciudad de México (UTC−6/−5)" },
+      { value: "America/Havana",         label: "La Habana (UTC−5/−4)" },
+      { value: "America/Santo_Domingo",  label: "Santo Domingo (UTC−4)" },
+      { value: "America/Anchorage",      label: "Anchorage (UTC−9/−8)" },
+      { value: "Pacific/Honolulu",       label: "Honolulú (UTC−10)" },
+    ],
+  },
+  {
+    label: "Europa",
+    zones: [
+      { value: "UTC",                    label: "UTC" },
+      { value: "Europe/London",          label: "Londres (UTC+0/+1)" },
+      { value: "Europe/Madrid",          label: "Madrid (UTC+1/+2)" },
+      { value: "Europe/Paris",           label: "París (UTC+1/+2)" },
+      { value: "Europe/Berlin",          label: "Berlín (UTC+1/+2)" },
+      { value: "Europe/Rome",            label: "Roma (UTC+1/+2)" },
+      { value: "Europe/Amsterdam",       label: "Ámsterdam (UTC+1/+2)" },
+      { value: "Europe/Moscow",          label: "Moscú (UTC+3)" },
+    ],
+  },
+  {
+    label: "Asia / Pacífico",
+    zones: [
+      { value: "Asia/Dubai",             label: "Dubái (UTC+4)" },
+      { value: "Asia/Kolkata",           label: "India (UTC+5:30)" },
+      { value: "Asia/Bangkok",           label: "Bangkok (UTC+7)" },
+      { value: "Asia/Singapore",         label: "Singapur (UTC+8)" },
+      { value: "Asia/Shanghai",          label: "Shanghái (UTC+8)" },
+      { value: "Asia/Tokyo",             label: "Tokio (UTC+9)" },
+      { value: "Australia/Sydney",       label: "Sídney (UTC+10/+11)" },
+    ],
+  },
+  {
+    label: "África",
+    zones: [
+      { value: "Africa/Cairo",           label: "El Cairo (UTC+2/+3)" },
+      { value: "Africa/Johannesburg",    label: "Johannesburgo (UTC+2)" },
+      { value: "Africa/Lagos",           label: "Lagos (UTC+1)" },
+    ],
+  },
+]
 
 function InfrastructureSettings() {
   const [form, setForm] = useState({
@@ -14,6 +81,7 @@ function InfrastructureSettings() {
     sshPort: "22",
     ingestPort: "8022",
     ingestApiUrl: "http://localhost:3000",
+    timezone: "UTC",
   })
   const [status, setStatus] = useState<"idle" | "loading" | "saving" | "saved" | "error">("loading")
   const [error, setError] = useState("")
@@ -27,6 +95,7 @@ function InfrastructureSettings() {
           sshPort: String(data.sshPort ?? 22),
           ingestPort: String(data.ingestPort ?? 8022),
           ingestApiUrl: data.ingestApiUrl ?? "http://localhost:3000",
+          timezone: data.timezone ?? "UTC",
         })
         setStatus("idle")
       })
@@ -50,6 +119,7 @@ function InfrastructureSettings() {
           sshPort: Number(form.sshPort),
           ingestPort: Number(form.ingestPort),
           ingestApiUrl: form.ingestApiUrl,
+          timezone: form.timezone,
         }),
       })
       if (!res.ok) throw new Error()
@@ -157,6 +227,36 @@ function InfrastructureSettings() {
           )}
           <p className="text-xs text-muted-foreground">
             Endpoint del backend que el dashboard consulta para obtener sesiones y eventos.
+          </p>
+        </div>
+
+        {/* Timezone */}
+        <div className="space-y-2">
+          <Label>Zona horaria</Label>
+          {loading ? (
+            <Skeleton />
+          ) : (
+            <Select value={form.timezone} onValueChange={(v) => setForm((f) => ({ ...f, timezone: v }))}>
+              <SelectTrigger className="w-full font-mono text-sm">
+                <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                <SelectValue placeholder="Selecciona una zona horaria" />
+              </SelectTrigger>
+              <SelectContent>
+                {TIMEZONE_GROUPS.map((group) => (
+                  <SelectGroup key={group.label}>
+                    <SelectLabel>{group.label}</SelectLabel>
+                    {group.zones.map((tz) => (
+                      <SelectItem key={tz.value} value={tz.value} className="font-mono text-sm">
+                        {tz.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Zona horaria usada en las gráficas de actividad del dashboard.
           </p>
         </div>
 

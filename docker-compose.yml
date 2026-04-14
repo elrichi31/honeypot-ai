@@ -87,6 +87,10 @@ services:
       HONEYPOT_IP: ${HONEYPOT_IP:-}
       HONEYPOT_SSH_PORT: ${HONEYPOT_SSH_PORT:-22}
       HONEYPOT_INGEST_PORT: ${HONEYPOT_INGEST_PORT:-8022}
+      # Auth
+      DATABASE_URL: postgresql://honeypot:honeypot@postgres:5432/honeypot
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:4000}
     volumes:
       - dashboard_data:/app/data
     ports:
