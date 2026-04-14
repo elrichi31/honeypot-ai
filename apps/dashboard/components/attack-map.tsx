@@ -7,7 +7,7 @@ import {
   Geography,
   ZoomableGroup,
 } from "react-simple-maps"
-import { Plus, Minus, Maximize2 } from "lucide-react"
+import { Plus, Minus, Maximize2, ShieldX, Globe } from "lucide-react"
 import type { CountryAttack } from "@/lib/types"
 import { ISO_A2_TO_NUM } from "@/lib/iso-codes"
 
@@ -17,9 +17,14 @@ interface AttackMapProps {
   countryAttacks: CountryAttack[]
 }
 
-// Log scale color — darker purple for low counts, vivid red for high
+function countryFlag(code: string): string {
+  return [...code.toUpperCase()]
+    .map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65))
+    .join("")
+}
+
 function getColor(count: number, max: number): string {
-  if (count === 0 || max === 0) return "#1e1e2e"
+  if (count === 0 || max === 0) return "#1a1a2e"
   const t = Math.log1p(count) / Math.log1p(max)
   const r = Math.round(80  + t * 175)
   const g = Math.round(20  + t * 30)
@@ -27,11 +32,11 @@ function getColor(count: number, max: number): string {
   return `rgb(${r},${g},${b})`
 }
 
-const DEFAULT_CENTER: [number, number] = [10, 20]
+const DEFAULT_CENTER: [number, number] = [0, 10]
 const DEFAULT_ZOOM = 1
 
 export function AttackMap({ countryAttacks }: AttackMapProps) {
-  const [tooltip, setTooltip] = useState<{ name: string; count: number } | null>(null)
+  const [tooltip, setTooltip] = useState<CountryAttack | null>(null)
   const [position, setPosition] = useState<{
     coordinates: [number, number]
     zoom: number
@@ -43,7 +48,8 @@ export function AttackMap({ countryAttacks }: AttackMapProps) {
     if (num !== undefined) countByNumeric.set(num, ca)
   }
 
-  const max = countryAttacks[0]?.count ?? 0
+  const maxSessions = countryAttacks[0]?.sessions ?? 0
+  const totalSessions = countryAttacks.reduce((s, c) => s + c.sessions, 0)
   const hasData = countryAttacks.length > 0
 
   function zoom(factor: number) {
@@ -60,23 +66,28 @@ export function AttackMap({ countryAttacks }: AttackMapProps) {
   return (
     <div className="rounded-xl border border-border bg-card p-4">
       {/* Header */}
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between gap-4">
         <div>
           <h3 className="font-semibold text-foreground">Attack Origins</h3>
           <p className="text-sm text-muted-foreground">
             {hasData
-              ? `${countryAttacks.length} countries · scroll to zoom · drag to pan`
+              ? `${countryAttacks.length} países · ${totalSessions} sesiones totales`
               : "No external IPs geolocated yet"}
           </p>
         </div>
 
         {/* Hover tooltip */}
         {tooltip && (
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary px-3 py-1.5 text-sm">
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-secondary px-3 py-1.5 text-sm shrink-0">
+            <span className="text-lg">{countryFlag(tooltip.country)}</span>
             <span className="font-semibold text-foreground">{tooltip.name}</span>
-            <span className="rounded-full bg-primary/20 px-2 py-0.5 text-xs font-medium text-primary">
-              {tooltip.count} session{tooltip.count !== 1 ? "s" : ""}
-            </span>
+            <span className="text-muted-foreground">{tooltip.sessions} sesiones</span>
+            {tooltip.successfulLogins > 0 && (
+              <span className="flex items-center gap-1 rounded-full bg-destructive/20 px-2 py-0.5 text-xs font-medium text-destructive">
+                <ShieldX className="h-3 w-3" />
+                {tooltip.successfulLogins} comprometidas
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -84,11 +95,11 @@ export function AttackMap({ countryAttacks }: AttackMapProps) {
       {/* Map */}
       <div
         className="relative w-full overflow-hidden rounded-xl"
-        style={{ background: "#0d0d1a", aspectRatio: "2.2 / 1" }}
+        style={{ background: "#0d0d1a", aspectRatio: "2.4 / 1" }}
       >
         <ComposableMap
-          projection="geoMercator"
-          projectionConfig={{ scale: 130, center: [10, 20] }}
+          projection="geoNaturalEarth1"
+          projectionConfig={{ scale: 160, center: [0, 10] }}
           style={{ width: "100%", height: "100%" }}
         >
           <ZoomableGroup
@@ -103,13 +114,12 @@ export function AttackMap({ countryAttacks }: AttackMapProps) {
             minZoom={1}
             maxZoom={8}
           >
-
             <Geographies geography={GEO_URL}>
               {({ geographies }) =>
                 geographies.map((geo) => {
                   const numericId = Number(geo.id)
                   const ca = countByNumeric.get(numericId)
-                  const fill = getColor(ca?.count ?? 0, max)
+                  const fill = getColor(ca?.sessions ?? 0, maxSessions)
                   const isAttacker = !!ca
 
                   return (
@@ -117,20 +127,18 @@ export function AttackMap({ countryAttacks }: AttackMapProps) {
                       key={geo.rsmKey}
                       geography={geo}
                       fill={fill}
-                      stroke={isAttacker ? "rgba(255,80,60,0.4)" : "#2a2a3e"}
+                      stroke={isAttacker ? "rgba(255,80,60,0.4)" : "#1e1e35"}
                       strokeWidth={isAttacker ? 0.6 : 0.3}
                       style={{
                         default: { outline: "none" },
                         hover: {
                           outline: "none",
-                          fill: isAttacker ? "#ff6b35" : "#2a2a4a",
+                          fill: isAttacker ? "#ff6b35" : "#252540",
                           cursor: isAttacker ? "pointer" : "default",
                         },
                         pressed: { outline: "none" },
                       }}
-                      onMouseEnter={() => {
-                        if (ca) setTooltip({ name: ca.name, count: ca.count })
-                      }}
+                      onMouseEnter={() => { if (ca) setTooltip(ca) }}
                       onMouseLeave={() => setTooltip(null)}
                     />
                   )
@@ -145,21 +153,18 @@ export function AttackMap({ countryAttacks }: AttackMapProps) {
           <button
             onClick={() => zoom(1.5)}
             className="flex h-7 w-7 items-center justify-center rounded-md bg-black/60 text-white/70 backdrop-blur-sm transition-colors hover:bg-black/80 hover:text-white"
-            title="Zoom in"
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={() => zoom(1 / 1.5)}
             className="flex h-7 w-7 items-center justify-center rounded-md bg-black/60 text-white/70 backdrop-blur-sm transition-colors hover:bg-black/80 hover:text-white"
-            title="Zoom out"
           >
             <Minus className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={reset}
             className="flex h-7 w-7 items-center justify-center rounded-md bg-black/60 text-white/70 backdrop-blur-sm transition-colors hover:bg-black/80 hover:text-white"
-            title="Reset view"
           >
             <Maximize2 className="h-3 w-3" />
           </button>
@@ -169,56 +174,67 @@ export function AttackMap({ countryAttacks }: AttackMapProps) {
         {hasData && (
           <div className="absolute bottom-3 right-3 flex items-center gap-2 rounded-lg bg-black/60 px-3 py-1.5 backdrop-blur-sm">
             <div
-              className="h-2.5 w-20 rounded-full"
-              style={{
-                background: "linear-gradient(to right, rgb(80,20,120), rgb(255,50,30))",
-              }}
+              className="h-2 w-16 rounded-full"
+              style={{ background: "linear-gradient(to right, rgb(80,20,120), rgb(255,50,30))" }}
             />
             <span className="text-[10px] text-white/60">Low → High</span>
           </div>
         )}
 
-        {/* Zoom indicator */}
         {position.zoom > 1 && (
           <div className="absolute bottom-3 left-3 rounded-lg bg-black/60 px-2 py-1 backdrop-blur-sm">
             <span className="text-[10px] text-white/50">{position.zoom.toFixed(1)}×</span>
           </div>
         )}
 
-        {/* Empty state overlay */}
         {!hasData && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-            <p className="text-sm font-medium text-white/40">
-              Waiting for external connections
-            </p>
-            <p className="text-xs text-white/25">
-              Private / Docker IPs are not geolocatable
-            </p>
+            <Globe className="h-8 w-8 text-white/20" />
+            <p className="text-sm font-medium text-white/40">Waiting for external connections</p>
+            <p className="text-xs text-white/25">Private / Docker IPs are not geolocatable</p>
           </div>
         )}
       </div>
 
-      {/* Top countries bar */}
+      {/* Country stats */}
       {hasData && (
-        <div className="mt-3 flex flex-col gap-1.5">
-          {countryAttacks.slice(0, 8).map((ca, i) => {
-            const pct = Math.round((Math.log1p(ca.count) / Math.log1p(max)) * 100)
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {countryAttacks.slice(0, 9).map((ca, i) => {
+            const pct = Math.round((ca.sessions / totalSessions) * 100)
+            const compromisePct = ca.sessions > 0
+              ? Math.round((ca.successfulLogins / ca.sessions) * 100)
+              : 0
+
             return (
-              <div key={ca.country} className="flex items-center gap-3 text-sm">
-                <span className="w-4 text-right text-xs text-muted-foreground">{i + 1}</span>
-                <span className="w-28 truncate text-xs font-medium text-foreground">{ca.name}</span>
-                <div className="flex-1 overflow-hidden rounded-full bg-secondary h-1.5">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${pct}%`,
-                      background: getColor(ca.count, max),
-                    }}
-                  />
-                </div>
-                <span className="w-8 text-right font-mono text-xs font-semibold text-foreground">
-                  {ca.count}
+              <div
+                key={ca.country}
+                className="flex items-center gap-3 rounded-lg border border-border bg-secondary/30 px-3 py-2"
+              >
+                {/* Rank */}
+                <span className="w-4 shrink-0 text-right text-xs font-mono text-muted-foreground/60">
+                  {i + 1}
                 </span>
+
+                {/* Flag + name */}
+                <span className="text-base shrink-0">{countryFlag(ca.country)}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-xs font-medium text-foreground">{ca.name}</p>
+                  <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <span>{ca.sessions} sesiones</span>
+                    <span className="text-muted-foreground/40">·</span>
+                    <span>{ca.count} IPs</span>
+                  </div>
+                </div>
+
+                {/* Right: pct + compromise badge */}
+                <div className="shrink-0 text-right">
+                  <p className="text-xs font-semibold text-foreground">{pct}%</p>
+                  {ca.successfulLogins > 0 && (
+                    <p className="text-[11px] text-destructive font-medium">
+                      {compromisePct}% comp.
+                    </p>
+                  )}
+                </div>
               </div>
             )
           })}

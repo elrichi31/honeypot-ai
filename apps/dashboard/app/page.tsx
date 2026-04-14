@@ -46,9 +46,10 @@ export default async function DashboardPage({
 
   const stats = getStatsFromData(sessions, events)
 
-  // Geolocate all unique IPs across all time (not filtered by range)
-  const allIps = [...new Set(allSessions.map((s) => s.srcIp))]
-  const countryAttacks = geolocateIps(allIps)
+  // Geolocate all sessions across all time (not filtered by range)
+  const countryAttacks = geolocateIps(
+    allSessions.map((s) => ({ srcIp: s.srcIp, loginSuccess: s.loginSuccess ?? null })),
+  )
 
   // Geo cache for the overview's session table
   const geoCache2 = new Map<string, ReturnType<typeof geolocateIps>[0] | null>()
@@ -56,7 +57,7 @@ export default async function DashboardPage({
   const sessionsList = sessions.map((s) => {
     const location = (() => {
       if (!geoCache2.has(s.srcIp)) {
-        const r = geolocateIps([s.srcIp])
+        const r = geolocateIps([{ srcIp: s.srcIp }])
         geoCache2.set(s.srcIp, r[0] ?? null)
       }
       return geoCache2.get(s.srcIp) ?? null

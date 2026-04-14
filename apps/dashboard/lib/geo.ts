@@ -21,22 +21,32 @@ export function lookupIp(ip: string): { country: string; countryName: string } |
   }
 }
 
-export function geolocateIps(ips: string[]): CountryAttack[] {
+export function geolocateIps(
+  sessions: { srcIp: string; loginSuccess?: boolean | null }[],
+): CountryAttack[] {
   const geo = getGeoip()
-  const counts = new Map<string, number>()
+  const data = new Map<string, { ips: Set<string>; sessions: number; successfulLogins: number }>()
 
-  for (const ip of ips) {
-    const result = geo.lookup(ip)
-    if (result?.country) {
-      counts.set(result.country, (counts.get(result.country) || 0) + 1)
+  for (const s of sessions) {
+    const result = geo.lookup(s.srcIp)
+    if (!result?.country) continue
+
+    if (!data.has(result.country)) {
+      data.set(result.country, { ips: new Set(), sessions: 0, successfulLogins: 0 })
     }
+    const entry = data.get(result.country)!
+    entry.ips.add(s.srcIp)
+    entry.sessions++
+    if (s.loginSuccess === true) entry.successfulLogins++
   }
 
-  return Array.from(counts.entries())
-    .map(([country, count]) => ({
+  return Array.from(data.entries())
+    .map(([country, { ips, sessions, successfulLogins }]) => ({
       country,
       name: countryNames.of(country) ?? country,
-      count,
+      count: ips.size,
+      sessions,
+      successfulLogins,
     }))
-    .sort((a, b) => b.count - a.count)
+    .sort((a, b) => b.sessions - a.sessions)
 }

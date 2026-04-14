@@ -2,6 +2,8 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useEffect, useState } from "react"
+import { formatDistanceToNow } from "date-fns"
 import {
   LayoutDashboard,
   Terminal,
@@ -46,8 +48,30 @@ const navItems = [
   },
 ]
 
+function useHealthCheck() {
+  const [status, setStatus] = useState<{
+    apiOnline: boolean | null
+    lastEventAt: string | null
+  }>({ apiOnline: null, lastEventAt: null })
+
+  useEffect(() => {
+    function check() {
+      fetch("/api/health")
+        .then((r) => r.json())
+        .then(setStatus)
+        .catch(() => setStatus({ apiOnline: false, lastEventAt: null }))
+    }
+    check()
+    const id = setInterval(check, 30_000)
+    return () => clearInterval(id)
+  }, [])
+
+  return status
+}
+
 export function AppSidebar() {
   const pathname = usePathname()
+  const health = useHealthCheck()
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-60 flex-col border-r border-border bg-sidebar">
@@ -82,13 +106,39 @@ export function AppSidebar() {
       </nav>
 
       {/* Status */}
-      <div className="border-t border-border p-4">
+      <div className="border-t border-border p-4 space-y-2">
+        {/* Ingest API */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+          {health.apiOnline === null ? (
+            <span className="relative flex h-2 w-2">
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-muted-foreground/40" />
+            </span>
+          ) : health.apiOnline ? (
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+            </span>
+          ) : (
+            <span className="relative flex h-2 w-2">
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-destructive" />
+            </span>
+          )}
+          <span>
+            {health.apiOnline === null
+              ? "Conectando..."
+              : health.apiOnline
+              ? "Ingest API online"
+              : "Ingest API offline"}
           </span>
-          Honeypot Active
+        </div>
+
+        {/* Last event */}
+        <div className="text-[11px] text-muted-foreground/60">
+          {health.lastEventAt
+            ? `Último evento ${formatDistanceToNow(new Date(health.lastEventAt), { addSuffix: true })}`
+            : health.apiOnline === false
+            ? "Sin conexión al backend"
+            : "Sin eventos aún"}
         </div>
       </div>
     </aside>
