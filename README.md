@@ -91,17 +91,30 @@ Servicios disponibles:
 | `ssh -p 2222 root@localhost` | SSH honeypot (acepta cualquier password) |
 | `http://localhost:8080` | HTTP honeypot |
 
-### Levantar servicios individualmente (sin Docker para el código)
+### Levantar servicios individualmente
 
-Útil para desarrollar sin rebuilds de imagen.
+Hay dos formas comunes para desarrollar sin rebuilds.
 
-**1. Infraestructura con Docker:**
+**Opcion A. Infra con Docker, codigo local**
+
+Util si quieres Postgres y Cowrie listos rapido, pero correr `ingest-api` y `dashboard` como procesos locales.
 
 ```bash
-docker compose up postgres ingest-api cowrie web-honeypot -d
+docker compose up postgres cowrie -d
 ```
 
-**2. Dashboard en local:**
+Luego:
+
+```bash
+cp apps/ingest-api/.env.example apps/ingest-api/.env
+cd apps/ingest-api
+npm install
+npm run db:push
+npm run dev
+# -> http://localhost:3000
+```
+
+En otra terminal:
 
 ```bash
 cp apps/dashboard/.env.example apps/dashboard/.env
@@ -109,17 +122,41 @@ cp apps/dashboard/.env.example apps/dashboard/.env
 
 cd apps/dashboard
 npm install
-npm run dev          # → http://localhost:3001
+npm run dev
+# -> http://localhost:3001
 ```
 
-**3. (Opcional) Ingest-api en local:**
+**Opcion B. Sin Docker Compose**
+
+Util si quieres correr todo manualmente. En este caso necesitas PostgreSQL disponible por tu cuenta, ya sea instalado localmente o en un contenedor suelto.
+
+1. Levanta PostgreSQL en `localhost:5432` con esta base:
+   `postgresql://honeypot:honeypot@localhost:5432/honeypot`
+2. Copia `apps/ingest-api/.env.example` a `apps/ingest-api/.env`.
+3. En `apps/ingest-api`, corre `npm install`, luego `npm run db:push` y despues `npm run dev`.
+4. Copia `apps/dashboard/.env.example` a `apps/dashboard/.env`.
+5. En `apps/dashboard/.env`, deja:
+   `NEXT_PUBLIC_API_URL=http://localhost:3000`
+   `INTERNAL_API_URL=http://localhost:3000`
+   `DATABASE_URL=postgresql://honeypot:honeypot@localhost:5432/honeypot`
+   `BETTER_AUTH_URL=http://localhost:3001`
+6. Genera `BETTER_AUTH_SECRET` y pegalo en `apps/dashboard/.env`.
+7. En `apps/dashboard`, corre `npm install` y despues `npm run dev`.
+
+Si tambien quieres probar Cowrie sin Compose, puedes levantarlo aparte:
 
 ```bash
-cp apps/ingest-api/.env.example apps/ingest-api/.env
+docker run -d \
+  --name cowrie \
+  -p 2222:2222 \
+  -v cowrie_var:/cowrie/cowrie-git/var \
+  cowrie/cowrie:latest
+```
 
-cd apps/ingest-api
-npm install
-npm run dev          # → http://localhost:3000
+Y en otra terminal correr el puller local:
+
+```bash
+API_URL=http://localhost:3000 bash scripts/pull-cowrie-logs.sh
 ```
 
 ### Probar el honeypot SSH
@@ -486,3 +523,19 @@ sudo systemctl status cowrie-pull
 cd apps/ingest-api
 npm test
 ```
+
+## Estructura
+
+```text
+.
+├── docker-compose.yml
+├── docker-compose.prod.honeypot.yml
+├── docker-compose.prod.app.yml
+├── scripts/
+│   ├── pull-cowrie-logs.sh
+│   └── Dockerfile.puller
+└── apps/
+    ├── ingest-api/
+    └── dashboard/
+```
+
