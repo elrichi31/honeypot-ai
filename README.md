@@ -46,11 +46,15 @@ En produccion se recomienda separar:
 - Node.js 20+
 - Git
 
-### Levantar todo
+### Levantar todo con Docker
 
 ```bash
 git clone <repo-url>
 cd honeypot-pr
+
+# Copia y rellena el .env raíz (solo necesitas cambiar BETTER_AUTH_SECRET)
+cp .env.example .env
+
 docker compose up --build -d
 docker compose ps
 ```
@@ -62,6 +66,40 @@ Servicios locales:
 - `dashboard` en `localhost:4000`
 - `postgres` interno y expuesto en `localhost:5432`
 
+### Levantar servicios individualmente (sin Docker para el código)
+
+Util para desarrollar en el dashboard o la API sin rebuilds.
+
+**1. Levanta solo la infraestructura con Docker:**
+
+```bash
+docker compose up postgres ingest-api -d
+```
+
+**2. Corre el dashboard en local:**
+
+```bash
+cp apps/dashboard/.env.example apps/dashboard/.env
+# Edita BETTER_AUTH_SECRET con un valor aleatorio:
+#   openssl rand -base64 32
+
+cd apps/dashboard
+npm install
+npm run dev
+# → http://localhost:3001
+```
+
+**3. (Opcional) Corre ingest-api en local:**
+
+```bash
+cp apps/ingest-api/.env.example apps/ingest-api/.env
+
+cd apps/ingest-api
+npm install
+npm run dev
+# → http://localhost:3000
+```
+
 ### Probar el flujo
 
 ```bash
@@ -72,7 +110,7 @@ Cowrie acepta cualquier password. Despues podes probar comandos como `whoami`, `
 
 ### Ver datos
 
-- Dashboard: `http://localhost:4000`
+- Dashboard: `http://localhost:4000` (Docker) o `http://localhost:3001` (local)
 - Health API: `http://localhost:3000/health`
 
 ```bash
@@ -203,17 +241,40 @@ sudo systemctl status cowrie-pull
 
 ## Variables de entorno
 
-### Dashboard
+### Raíz del proyecto (`.env`) — usado por docker-compose
 
 | Variable | Default | Descripcion |
 |----------|---------|-------------|
-| `NEXT_PUBLIC_API_URL` | `http://localhost:3000` | URL publica que usa el navegador para llamar a la ingest-api |
-| `INTERNAL_API_URL` | `http://localhost:3000` | URL interna server-side (dentro de Docker usa `http://ingest-api:3000`) |
+| `BETTER_AUTH_SECRET` | — | **Requerido.** Secret para firmar sesiones. Genera con `openssl rand -base64 32` |
+| `BETTER_AUTH_URL` | `http://localhost:4000` | URL publica del dashboard |
 | `HONEYPOT_IP` | — | IP publica del VPS honeypot. Pre-carga el campo en Settings |
 | `HONEYPOT_SSH_PORT` | `22` | Puerto SSH del honeypot (donde se conectan los atacantes) |
 | `HONEYPOT_INGEST_PORT` | `8022` | Puerto SSH admin del VPS (canal honeypot → puller) |
+| `DASHBOARD_TIMEZONE` | `UTC` | Zona horaria para las graficas (nombre IANA, ej. `America/Bogota`) |
 
-> Las variables `HONEYPOT_*` son opcionales. Si no se definen, los campos en Settings quedan en blanco para que el usuario los complete y guarde manualmente. Si se definen, se muestran pre-cargados como valores por defecto pero pueden ser sobreescritos desde la interfaz.
+### Dashboard (`apps/dashboard/.env`)
+
+| Variable | Local dev | Descripcion |
+|----------|-----------|-------------|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:3000` | URL publica que usa el navegador para llamar a la ingest-api |
+| `INTERNAL_API_URL` | `http://localhost:3000` | URL interna server-side. Docker Compose la sobreescribe con `http://ingest-api:3000` |
+| `DATABASE_URL` | `postgresql://honeypot:honeypot@localhost:5432/honeypot` | Conexion a PostgreSQL (usada por better-auth) |
+| `BETTER_AUTH_SECRET` | — | **Requerido.** Mismo valor que en el `.env` raiz |
+| `BETTER_AUTH_URL` | `http://localhost:3001` | URL base del dashboard. En Docker usa el puerto `4000` |
+| `HONEYPOT_IP` | — | Pre-carga el campo IP en Settings |
+| `HONEYPOT_SSH_PORT` | `22` | Pre-carga el puerto SSH en Settings |
+| `HONEYPOT_INGEST_PORT` | `8022` | Pre-carga el puerto ingest en Settings |
+| `DASHBOARD_TIMEZONE` | `UTC` | Zona horaria para las graficas. Tambien configurable desde Settings |
+
+> Las variables `HONEYPOT_*` y `DASHBOARD_TIMEZONE` son opcionales. Si no se definen, se pueden configurar directamente desde la pagina Settings del dashboard.
+
+### Ingest API (`apps/ingest-api/.env`)
+
+| Variable | Default | Descripcion |
+|----------|---------|-------------|
+| `DATABASE_URL` | `postgresql://honeypot:honeypot@localhost:5432/honeypot` | Conexion a PostgreSQL |
+| `PORT` | `3000` | Puerto donde escucha la API |
+| `HOST` | `0.0.0.0` | Interfaz de red |
 
 ### Puller
 
@@ -260,7 +321,8 @@ Cada sesion/escaneo recibe una clasificacion automatica segun `loginSuccess` y c
 
 La pagina `/settings` permite configurar:
 
-- **Infraestructura**: IP del honeypot, puerto SSH, puerto ingest, URL del ingest-api. Si se definen las variables `HONEYPOT_*` en el entorno, los campos se pre-cargan automaticamente.
+- **Infraestructura**: IP del honeypot, puerto SSH, puerto ingest, URL del ingest-api, y zona horaria para las graficas. Si se definen las variables `HONEYPOT_*` y `DASHBOARD_TIMEZONE` en el entorno, los campos se pre-cargan automaticamente.
+- **Zona horaria**: selector con zonas IANA agrupadas por region. Afecta la grafica Activity Timeline del dashboard.
 - **AI Analysis**: API key de OpenAI para analisis de sesiones con GPT-4o mini.
 - **Notificaciones**, **Data Retention**, **Security**: configuracion de alertas y acceso.
 
