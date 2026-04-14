@@ -25,7 +25,8 @@
       "Bash(sed -i 's/\\\\r//' \"c:/Users/nicol/OneDrive/Desktop/Proyects/honeypot-ai/apps/ingest-api/entrypoint.sh\")",
       "Bash(sed -i 's/\\\\r//' \"c:/Users/nicol/OneDrive/Desktop/Proyects/honeypot-ai/scripts/pull-cowrie-logs.sh\")",
       "Bash(xargs grep:*)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "Bash(npm i:*)"
     ]
   }
 }

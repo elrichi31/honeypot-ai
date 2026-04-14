@@ -83,6 +83,10 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:3000
       INTERNAL_API_URL: http://ingest-api:3000
+      # Honeypot infrastructure — pre-fills Settings page
+      HONEYPOT_IP: ${HONEYPOT_IP:-}
+      HONEYPOT_SSH_PORT: ${HONEYPOT_SSH_PORT:-22}
+      HONEYPOT_INGEST_PORT: ${HONEYPOT_INGEST_PORT:-8022}
     volumes:
       - dashboard_data:/app/data
     ports:

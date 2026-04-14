@@ -6,7 +6,213 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { Server, Bell, Database, Shield, Sparkles, Eye, EyeOff, CheckCircle, AlertCircle, Loader2 } from "lucide-react"
+import { Server, Bell, Database, Shield, Sparkles, Eye, EyeOff, CheckCircle, AlertCircle, Loader2, Network, Globe } from "lucide-react"
+
+function InfrastructureSettings() {
+  const [form, setForm] = useState({
+    honeypotIp: "",
+    sshPort: "22",
+    ingestPort: "8022",
+    ingestApiUrl: "http://localhost:3000",
+  })
+  const [status, setStatus] = useState<"idle" | "loading" | "saving" | "saved" | "error">("loading")
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((data) => {
+        setForm({
+          honeypotIp: data.honeypotIp ?? "",
+          sshPort: String(data.sshPort ?? 22),
+          ingestPort: String(data.ingestPort ?? 8022),
+          ingestApiUrl: data.ingestApiUrl ?? "http://localhost:3000",
+        })
+        setStatus("idle")
+      })
+      .catch(() => setStatus("idle"))
+  }, [])
+
+  function set(key: keyof typeof form) {
+    return (e: React.ChangeEvent<HTMLInputElement>) =>
+      setForm((f) => ({ ...f, [key]: e.target.value }))
+  }
+
+  async function save() {
+    setStatus("saving")
+    setError("")
+    try {
+      const res = await fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          honeypotIp: form.honeypotIp,
+          sshPort: Number(form.sshPort),
+          ingestPort: Number(form.ingestPort),
+          ingestApiUrl: form.ingestApiUrl,
+        }),
+      })
+      if (!res.ok) throw new Error()
+      setStatus("saved")
+      setTimeout(() => setStatus("idle"), 3000)
+    } catch {
+      setError("No se pudo guardar. ¿Está corriendo el servidor?")
+      setStatus("error")
+    }
+  }
+
+  const loading = status === "loading"
+
+  return (
+    <div className="rounded-xl border border-border bg-card">
+      <div className="flex items-center gap-3 border-b border-border p-4">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-chart-1/20">
+          <Network className="h-4 w-4 text-chart-1" />
+        </div>
+        <div className="flex-1">
+          <h3 className="font-semibold text-foreground">Infraestructura</h3>
+          <p className="text-sm text-muted-foreground">IP y puertos del honeypot</p>
+        </div>
+      </div>
+
+      <div className="space-y-5 p-4">
+        {/* Honeypot IP */}
+        <div className="space-y-2">
+          <Label htmlFor="honeypot-ip">IP del Honeypot</Label>
+          {loading ? (
+            <Skeleton />
+          ) : (
+            <div className="relative">
+              <Globe className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="honeypot-ip"
+                placeholder="ej. 192.168.1.100 o 203.0.113.5"
+                value={form.honeypotIp}
+                onChange={set("honeypotIp")}
+                className="pl-9 font-mono text-sm"
+              />
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            IP pública o privada de la máquina donde corre el honeypot SSH.
+          </p>
+        </div>
+
+        {/* Ports */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="ssh-port">Puerto SSH (honeypot)</Label>
+            {loading ? (
+              <Skeleton />
+            ) : (
+              <Input
+                id="ssh-port"
+                type="number"
+                min={1}
+                max={65535}
+                value={form.sshPort}
+                onChange={set("sshPort")}
+                className="font-mono text-sm"
+              />
+            )}
+            <p className="text-xs text-muted-foreground">
+              Atacantes se conectan aquí. Por defecto <span className="font-mono">22</span>.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="ingest-port">Puerto Ingest (honeypot → backend)</Label>
+            {loading ? (
+              <Skeleton />
+            ) : (
+              <Input
+                id="ingest-port"
+                type="number"
+                min={1}
+                max={65535}
+                value={form.ingestPort}
+                onChange={set("ingestPort")}
+                className="font-mono text-sm"
+              />
+            )}
+            <p className="text-xs text-muted-foreground">
+              Canal interno de envío de logs. Por defecto <span className="font-mono">8022</span>.
+            </p>
+          </div>
+        </div>
+
+        {/* Ingest API URL */}
+        <div className="space-y-2">
+          <Label htmlFor="ingest-api">URL del Ingest API</Label>
+          {loading ? (
+            <Skeleton />
+          ) : (
+            <Input
+              id="ingest-api"
+              placeholder="http://localhost:3000"
+              value={form.ingestApiUrl}
+              onChange={set("ingestApiUrl")}
+              className="font-mono text-sm"
+            />
+          )}
+          <p className="text-xs text-muted-foreground">
+            Endpoint del backend que el dashboard consulta para obtener sesiones y eventos.
+          </p>
+        </div>
+
+        {/* Summary card */}
+        {!loading && (form.honeypotIp || form.sshPort || form.ingestPort) && (
+          <div className="rounded-lg border border-border bg-secondary/50 p-3 font-mono text-xs space-y-1">
+            {form.honeypotIp && (
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground w-28">Honeypot IP</span>
+                <span className="text-foreground">{form.honeypotIp}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground w-28">SSH (atacantes)</span>
+              <span className="text-foreground">{form.honeypotIp || "<ip>"}:{form.sshPort}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground w-28">Ingest API</span>
+              <span className="text-foreground">{form.ingestApiUrl}</span>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={save}
+            disabled={status === "saving" || loading}
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            {status === "saving" ? (
+              <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Guardando</>
+            ) : status === "saved" ? (
+              <><CheckCircle className="mr-1.5 h-3.5 w-3.5" /> Guardado</>
+            ) : (
+              "Guardar"
+            )}
+          </Button>
+          {status === "error" && (
+            <p className="flex items-center gap-1 text-xs text-destructive">
+              <AlertCircle className="h-3 w-3" /> {error}
+            </p>
+          )}
+          {status === "saved" && (
+            <p className="flex items-center gap-1 text-xs text-success">
+              <CheckCircle className="h-3 w-3" /> Configuración guardada.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Skeleton() {
+  return <div className="h-10 w-full animate-pulse rounded-md bg-secondary" />
+}
 
 function OpenAiSettings() {
   const [key, setKey] = useState("")
@@ -167,31 +373,8 @@ export default function SettingsPage() {
         </div>
 
         <div className="max-w-2xl space-y-6">
-          {/* Connection Settings */}
-          <div className="rounded-xl border border-border bg-card">
-            <div className="flex items-center gap-3 border-b border-border p-4">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-chart-1/20">
-                <Server className="h-4 w-4 text-chart-1" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground">Connection</h3>
-                <p className="text-sm text-muted-foreground">Honeypot server connection settings</p>
-              </div>
-            </div>
-            <div className="space-y-4 p-4">
-              <div className="space-y-2">
-                <Label htmlFor="api-url">API Endpoint</Label>
-                <Input id="api-url" placeholder="http://localhost:3000" defaultValue="http://localhost:3000" />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Auto-refresh</Label>
-                  <p className="text-xs text-muted-foreground">Automatically refresh data every 30 seconds</p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-            </div>
-          </div>
+          {/* Infrastructure — fully interactive */}
+          <InfrastructureSettings />
 
           {/* Notifications */}
           <div className="rounded-xl border border-border bg-card">

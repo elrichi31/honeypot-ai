@@ -3,6 +3,11 @@ import path from "path"
 
 export interface AppConfig {
   openaiApiKey?: string
+  // Honeypot infrastructure
+  honeypotIp?: string
+  sshPort?: number
+  ingestPort?: number
+  ingestApiUrl?: string
 }
 
 const CONFIG_PATH = path.join(process.cwd(), "data", "config.json")
