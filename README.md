@@ -404,6 +404,7 @@ Este despliegue hace lo siguiente:
 - no publica `ingest-api` ni `postgres`
 - separa redes para que `cowrie` no vea la app y para que `web-honeypot` no comparta red directa con `dashboard`
 - protege `POST /ingest/*` con `INGEST_SHARED_SECRET`
+- hace que `log-puller` lea el log JSON de Cowrie directo desde el volumen compartido (`DIRECT_FILE=true`)
 - endurece los contenedores con `no-new-privileges`, `cap_drop: ALL` y límites básicos de procesos
 
 Arranque recomendado:
@@ -424,11 +425,51 @@ ssh -L 4000:127.0.0.1:4000 -p 8022 <usuario>@<ip-del-vps>
 # luego abre http://localhost:4000 en tu navegador local
 ```
 
+Si el puerto `4000` local está ocupado, puedes usar otro puerto en tu laptop o PC, por ejemplo `4400`:
+
+```bash
+ssh -L 4400:127.0.0.1:4000 -p 8022 <usuario>@<ip-del-vps>
+# luego abre http://localhost:4400
+```
+
+Si accedes por un puerto local distinto de `4000`, actualiza también `BETTER_AUTH_URL` para que coincida exactamente con el origen que ve el navegador. Si no coincide, better-auth rechazará login y setup con `Invalid origin`.
+
+```bash
+sed -i 's|^BETTER_AUTH_URL=.*|BETTER_AUTH_URL=http://localhost:4400|' .env
+docker compose -f docker-compose.prod.single-host.yml up -d --force-recreate dashboard
+```
+
+Si usas Tailscale, el patrón recomendado es el mismo: entra por la IP Tailscale del servidor, pero sigue tunelando hacia `127.0.0.1:4000` para no exponer el dashboard públicamente.
+
+```bash
+ssh -L 4400:127.0.0.1:4000 -p 8022 <usuario>@100.x.y.z
+```
+
 Notas importantes:
 
 - no expongas `4000`, `3000` ni `5432` públicamente si vas en single-host
 - si más adelante quieres acceso remoto cómodo al dashboard, mejor súbelo detrás de Tailscale, WireGuard o Cloudflare Tunnel antes que abrir `:4000`
+- en `docker compose` debes usar el nombre del servicio, no `container_name`; por ejemplo `dashboard`, `ingest-api`, `log-puller`
 - esto reduce bastante el riesgo, pero no equivale al aislamiento real de dos VPS distintos; un escape de contenedor o del kernel seguiría siendo riesgo compartido del mismo host
+
+### Probar ataques desde otra máquina
+
+Para simular tráfico externo contra los honeypots, usa la IP pública del VPS en vez de la IP Tailscale y en vez del túnel del dashboard.
+
+- SSH honeypot: `ssh root@<ip-publica> -p 22`
+- Web honeypot: abre `http://<ip-publica>/` en el navegador o usa `curl`
+
+Ejemplos de pruebas web:
+
+```bash
+curl http://<ip-publica>/wp-login.php
+curl http://<ip-publica>/.env
+curl "http://<ip-publica>/search?q=1' OR 1=1--"
+curl "http://<ip-publica>/page?file=../../../../etc/passwd"
+curl "http://<ip-publica>/cmd?exec=whoami"
+```
+
+Si quieres que en el dashboard aparezca la IP real de la otra máquina, no hagas estas pruebas contra `localhost`, ni contra la IP Tailscale, ni desde el mismo VPS.
 
 ### Topología recomendada
 
