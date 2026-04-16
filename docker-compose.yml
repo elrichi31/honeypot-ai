@@ -14,7 +14,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: honeypot
-      POSTGRES_PASSWORD: honeypot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-honeypot}
       POSTGRES_DB: honeypot
     ports:
       - "5432:5432"
@@ -40,6 +40,7 @@ services:
       - ./scripts/pull-cowrie-logs.sh:/pull-cowrie-logs.sh:ro
     environment:
       API_URL: http://ingest-api:3000
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
       DIRECT_FILE: "true"
     command: ["bash", "/pull-cowrie-logs.sh"]
 
@@ -52,7 +53,8 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://honeypot:honeypot@postgres:5432/honeypot
+      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD:-honeypot}@postgres:5432/honeypot
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
       PORT: "3000"
       HOST: "0.0.0.0"
     healthcheck:
@@ -80,9 +82,10 @@ services:
         condition: service_healthy
     environment:
       INGEST_API_URL: http://ingest-api:3000
-      PORT: "80"
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
+      PORT: "8080"
     ports:
-      - "8080:80"   # dev: 8080 para no pisar el 80 local
+      - "8080:8080"   # dev: 8080 para no pisar el 80 local
 
   dashboard:
     build:
@@ -102,7 +105,7 @@ services:
       HONEYPOT_SSH_PORT: ${HONEYPOT_SSH_PORT:-22}
       HONEYPOT_INGEST_PORT: ${HONEYPOT_INGEST_PORT:-8022}
       # Auth
-      DATABASE_URL: postgresql://honeypot:honeypot@postgres:5432/honeypot
+      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD:-honeypot}@postgres:5432/honeypot
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:4000}
     volumes:

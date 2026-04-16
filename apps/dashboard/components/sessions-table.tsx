@@ -37,8 +37,6 @@ interface SessionsTableProps {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
-
 function countryFlag(code: string): string {
   return [...code.toUpperCase()]
     .map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65))
@@ -194,7 +192,7 @@ function SessionRow({ session }: { session: SessionItem }) {
   useEffect(() => {
     if (!expanded || events !== null) return
     setLoading(true)
-    fetch(`${API_URL}/sessions/${session.id}`)
+    fetch(`/api/sessions/${session.id}`)
       .then((r) => r.json())
       .then((d) => setEvents(d.events ?? []))
       .finally(() => setLoading(false))

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { ensureIngestToken } from '../lib/ingest-auth.js';
 
 const webHitSchema = z.object({
   eventId:    z.string().uuid(),
@@ -16,6 +17,8 @@ const webHitSchema = z.object({
 
 export async function webRoutes(fastify: FastifyInstance) {
   fastify.post('/ingest/web/event', async (request, reply) => {
+    if (!ensureIngestToken(request, reply)) return reply;
+
     const parsed = webHitSchema.safeParse(request.body);
 
     if (!parsed.success) {

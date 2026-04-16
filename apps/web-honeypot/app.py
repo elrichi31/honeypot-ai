@@ -22,6 +22,7 @@ from responses import get_response
 app = Flask(__name__)
 
 INGEST_URL = os.environ.get("INGEST_API_URL", "http://ingest-api:3000")
+INGEST_SHARED_SECRET = os.environ.get("INGEST_SHARED_SECRET", "")
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
 logging.basicConfig(
@@ -48,9 +49,13 @@ def get_real_ip() -> str:
 def send_to_ingest(event: dict) -> None:
     """Fire-and-forget POST to ingest-api. Never raises."""
     try:
+        headers = {}
+        if INGEST_SHARED_SECRET:
+            headers["X-Ingest-Token"] = INGEST_SHARED_SECRET
         resp = requests.post(
             f"{INGEST_URL}/ingest/web/event",
             json=event,
+            headers=headers,
             timeout=3,
         )
         if resp.status_code not in (200, 201):
@@ -108,6 +113,6 @@ def catch_all(path: str):
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 80))
+    port = int(os.environ.get("PORT", 8080))
     log.info("Web honeypot listening on :%d", port)
     app.run(host="0.0.0.0", port=port, debug=False)

@@ -1,11 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import { ingestFileBodySchema, cowrieRawEventSchema, ingestBatchBodySchema } from '../schemas/index.js';
+import { ensureIngestToken } from '../lib/ingest-auth.js';
 import { IngestService } from '../modules/ingest/ingest.service.js';
 import type { CowrieRawEvent } from '../types/index.js';
 
 export async function ingestRoutes(fastify: FastifyInstance) {
   // Ingest from local file (dev only)
   fastify.post('/ingest/cowrie/file', async (request, reply) => {
+    if (!ensureIngestToken(request, reply)) return reply;
+
     const parsed = ingestFileBodySchema.safeParse(request.body);
 
     if (!parsed.success) {
@@ -23,6 +26,8 @@ export async function ingestRoutes(fastify: FastifyInstance) {
 
   // Ingest a single event via HTTP (real-time from VPS)
   fastify.post('/ingest/cowrie/event', async (request, reply) => {
+    if (!ensureIngestToken(request, reply)) return reply;
+
     const parsed = cowrieRawEventSchema.safeParse(request.body);
 
     if (!parsed.success) {
@@ -49,6 +54,8 @@ export async function ingestRoutes(fastify: FastifyInstance) {
 
   // Ingest a batch of events via HTTP (from VPS cron/script)
   fastify.post('/ingest/cowrie/batch', async (request, reply) => {
+    if (!ensureIngestToken(request, reply)) return reply;
+
     const parsed = ingestBatchBodySchema.safeParse(request.body);
 
     if (!parsed.success) {

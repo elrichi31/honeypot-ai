@@ -48,9 +48,10 @@ En desarrollo se levanta todo junto con `docker compose up`.
 | `2222` | Cowrie (dev) | SSH honeypot local |
 | `8080` | web-honeypot (dev) | HTTP honeypot local |
 | `8022` | sshd admin VPS | Acceso administrativo real al VPS |
-| `3000` | ingest-api | API Fastify que recibe y normaliza eventos |
-| `4000` | dashboard | Dashboard Next.js |
-| `5432` | PostgreSQL | Base de datos interna |
+| `4000` | dashboard (single-host) | Solo loopback (`127.0.0.1`), recomendado acceder por SSH tunnel o VPN |
+| `3000` | ingest-api | API Fastify que recibe y normaliza eventos. En single-host no se publica al exterior |
+| `4000` | dashboard | Dashboard Next.js. En single-host se deja solo en `127.0.0.1` |
+| `5432` | PostgreSQL | Base de datos interna. En single-host no se publica al exterior |
 
 ## Archivos de despliegue
 
@@ -59,6 +60,7 @@ En desarrollo se levanta todo junto con `docker compose up`.
 | `docker-compose.yml` | Entorno local completo |
 | `docker-compose.prod.honeypot.yml` | VPS público (Cowrie + web-honeypot) |
 | `docker-compose.prod.app.yml` | Servidor app (postgres + ingest-api + dashboard) |
+| `docker-compose.prod.single-host.yml` | Un solo VPS con redes separadas y dashboard solo por loopback |
 
 ---
 
@@ -210,6 +212,8 @@ docker compose down -v   # elimina también los volúmenes
 | Variable | Default | Descripción |
 |----------|---------|-------------|
 | `BETTER_AUTH_SECRET` | — | **Requerido.** Genera con `openssl rand -base64 32` |
+| `POSTGRES_PASSWORD` | — | **Requerido en prod/single-host.** Usa una contraseña larga para PostgreSQL |
+| `INGEST_SHARED_SECRET` | — | **Recomendado.** Token compartido para autorizar `POST /ingest/*` |
 | `BETTER_AUTH_URL` | `http://localhost:4000` | URL pública del dashboard |
 | `HONEYPOT_IP` | — | IP pública del VPS honeypot. Pre-carga el campo en Settings |
 | `HONEYPOT_SSH_PORT` | `22` | Puerto SSH del honeypot (donde se conectan los atacantes) |
@@ -237,6 +241,7 @@ docker compose down -v   # elimina también los volúmenes
 | Variable | Default | Descripción |
 |----------|---------|-------------|
 | `DATABASE_URL` | `postgresql://honeypot:honeypot@localhost:5432/honeypot` | Conexión a PostgreSQL |
+| `INGEST_SHARED_SECRET` | — | Si se define, exige el header `X-Ingest-Token` en todos los `POST /ingest/*` |
 | `PORT` | `3000` | Puerto donde escucha la API |
 | `HOST` | `0.0.0.0` | Interfaz de red |
 
@@ -250,6 +255,7 @@ docker compose down -v   # elimina también los volúmenes
 | `SSH_KEY` | `~/.ssh/honeypot_vps` | Ruta a la clave privada SSH |
 | `REMOTE_LOG` | `/root/honeypot-ai/cowrie.json` | Ruta del log de Cowrie en el VPS |
 | `API_URL` | `http://localhost:3000` | URL base de ingest-api |
+| `INGEST_SHARED_SECRET` | — | Token compartido que el puller envía como header `X-Ingest-Token` |
 | `POLL_INTERVAL` | `3` | Segundos entre lecturas del log |
 | `DIRECT_FILE` | `false` | `true` para leer el archivo directamente sin SSH (modo Docker local) |
 
@@ -386,6 +392,43 @@ Correlación cross-protocol y risk scoring por IP:
 
 ## Producción
 
+### Single-host seguro (un solo VPS)
+
+Si no puedes pagar dos servidores, la opción más segura dentro de un solo host es usar `docker-compose.prod.single-host.yml`.
+
+Este despliegue hace lo siguiente:
+
+- publica solo los puertos del honeypot (`22`, `80`, `8443`)
+- deja `dashboard` en `127.0.0.1:4000`, fuera del port scan público
+- no publica `ingest-api` ni `postgres`
+- separa redes para que `cowrie` no vea la app y para que `web-honeypot` no comparta red directa con `dashboard`
+- protege `POST /ingest/*` con `INGEST_SHARED_SECRET`
+- endurece los contenedores con `no-new-privileges`, `cap_drop: ALL` y límites básicos de procesos
+
+Arranque recomendado:
+
+```bash
+export BETTER_AUTH_SECRET=$(openssl rand -base64 32)
+export POSTGRES_PASSWORD=$(openssl rand -base64 32)
+export INGEST_SHARED_SECRET=$(openssl rand -base64 32)
+
+docker compose -f docker-compose.prod.single-host.yml up --build -d
+docker compose -f docker-compose.prod.single-host.yml ps
+```
+
+Acceso al dashboard:
+
+```bash
+ssh -L 4000:127.0.0.1:4000 -p 8022 <usuario>@<ip-del-vps>
+# luego abre http://localhost:4000 en tu navegador local
+```
+
+Notas importantes:
+
+- no expongas `4000`, `3000` ni `5432` públicamente si vas en single-host
+- si más adelante quieres acceso remoto cómodo al dashboard, mejor súbelo detrás de Tailscale, WireGuard o Cloudflare Tunnel antes que abrir `:4000`
+- esto reduce bastante el riesgo, pero no equivale al aislamiento real de dos VPS distintos; un escape de contenedor o del kernel seguiría siendo riesgo compartido del mismo host
+
 ### Topología recomendada
 
 - **VPS honeypot**: expone puertos `22` (Cowrie) y `80` (web-honeypot) al público. Sin datos de negocio.
@@ -472,6 +515,7 @@ sudo systemctl status cowrie-pull
 ├── docker-compose.yml                   # Dev: todos los servicios
 ├── docker-compose.prod.honeypot.yml     # Prod: VPS público (Cowrie + web-honeypot)
 ├── docker-compose.prod.app.yml          # Prod: servidor app
+├── docker-compose.prod.single-host.yml  # Prod: un solo VPS con redes separadas
 ├── scripts/
 │   ├── pull-cowrie-logs.sh              # Puller de logs Cowrie vía SSH
 │   └── Dockerfile.puller
@@ -531,6 +575,7 @@ npm test
 ├── docker-compose.yml
 ├── docker-compose.prod.honeypot.yml
 ├── docker-compose.prod.app.yml
+├── docker-compose.prod.single-host.yml
 ├── scripts/
 │   ├── pull-cowrie-logs.sh
 │   └── Dockerfile.puller

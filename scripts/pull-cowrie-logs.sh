@@ -28,6 +28,7 @@ VPS_SSH_PORT="${VPS_SSH_PORT:-8022}"
 VPS_USER="${VPS_USER:-root}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/honeypot_vps}"
 API_URL="${API_URL:-http://localhost:3000}"
+INGEST_SHARED_SECRET="${INGEST_SHARED_SECRET:-}"
 POLL_INTERVAL="${POLL_INTERVAL:-3}"
 
 # Ruta del log en el VPS host
@@ -97,8 +98,18 @@ while true; do
       EVENTS="${EVENTS}]"
 
       if [ "$COUNT" -gt 0 ]; then
-        RESPONSE=$(curl -s -X POST "$ENDPOINT" \
-          -H "Content-Type: application/json" \
+        CURL_ARGS=(
+          -s
+          -X POST
+          "$ENDPOINT"
+          -H "Content-Type: application/json"
+        )
+
+        if [ -n "$INGEST_SHARED_SECRET" ]; then
+          CURL_ARGS+=(-H "X-Ingest-Token: $INGEST_SHARED_SECRET")
+        fi
+
+        RESPONSE=$(curl "${CURL_ARGS[@]}" \
           -d "{\"events\": $EVENTS}" 2>/dev/null || echo '{"error":"connection failed"}')
 
         echo "[pull] $(date '+%H:%M:%S') — $COUNT events — $RESPONSE"
