@@ -13,41 +13,32 @@ import {
   Bug,
   Crosshair,
   LogOut,
+  Globe,
+  ChevronDown,
+  Users,
+  BarChart2,
+  FolderSearch,
+  Map,
+  ShieldAlert,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { signOut, useSession } from "@/lib/auth-client"
 
 const navItems = [
-  {
-    title: "Overview",
-    href: "/",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Sessions",
-    href: "/sessions",
-    icon: Activity,
-  },
-  {
-    title: "Commands",
-    href: "/commands",
-    icon: Terminal,
-  },
-  {
-    title: "Credentials",
-    href: "/credentials",
-    icon: Shield,
-  },
-  {
-    title: "Campaigns",
-    href: "/campaigns",
-    icon: Crosshair,
-  },
-  {
-    title: "Settings",
-    href: "/settings",
-    icon: Settings,
-  },
+  { title: "Overview",     href: "/",            icon: LayoutDashboard },
+  { title: "Sessions",     href: "/sessions",    icon: Activity },
+  { title: "Commands",     href: "/commands",    icon: Terminal },
+  { title: "Credentials",  href: "/credentials", icon: Shield },
+  { title: "Campaigns",    href: "/campaigns",   icon: Crosshair },
+  { title: "Threats",      href: "/threats",     icon: ShieldAlert },
+  { title: "Settings",     href: "/settings",    icon: Settings },
+]
+
+const webAttacksItems = [
+  { title: "Attackers",  href: "/web-attacks",           icon: Users },
+  { title: "Timeline",   href: "/web-attacks/timeline",  icon: BarChart2 },
+  { title: "Paths",      href: "/web-attacks/paths",     icon: FolderSearch },
+  { title: "Geo",        href: "/web-attacks/geo",       icon: Map },
 ]
 
 function useHealthCheck() {
@@ -76,6 +67,9 @@ export function AppSidebar() {
   const router = useRouter()
   const health = useHealthCheck()
   const { data: session } = useSession()
+
+  const isWebActive = pathname.startsWith("/web-attacks")
+  const [webOpen, setWebOpen] = useState(isWebActive)
 
   async function handleLogout() {
     await signOut()
@@ -112,6 +106,46 @@ export function AppSidebar() {
             </Link>
           )
         })}
+
+        {/* Web Attacks — collapsible submenu */}
+        <div>
+          <button
+            onClick={() => setWebOpen((o) => !o)}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              isWebActive
+                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+            )}
+          >
+            <Globe className="h-4 w-4" />
+            <span className="flex-1 text-left">Web Attacks</span>
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", webOpen && "rotate-180")} />
+          </button>
+
+          {webOpen && (
+            <div className="mt-1 ml-3 space-y-0.5 border-l border-border pl-3">
+              {webAttacksItems.map((item) => {
+                const isActive = pathname === item.href
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors",
+                      isActive
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                    )}
+                  >
+                    <item.icon className="h-3.5 w-3.5" />
+                    {item.title}
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </nav>
 
       {/* User / Logout */}

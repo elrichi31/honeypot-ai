@@ -5,7 +5,8 @@ import { SessionsTable } from "@/components/sessions-table"
 import { TopLists } from "@/components/top-lists"
 import { ActivityChart } from "@/components/activity-chart"
 import { AttackMap } from "@/components/attack-map"
-import { fetchEvents, fetchSessions } from "@/lib/api"
+import { fetchEvents, fetchSessions, fetchWebHitsStats } from "@/lib/api"
+import { WebAttacksSummary } from "@/components/web-attacks-summary"
 import { getStatsFromData } from "@/lib/stats"
 import { geolocateIps } from "@/lib/geo"
 import { readConfig } from "@/lib/server-config"
@@ -39,10 +40,11 @@ export default async function DashboardPage({
 
   const { startDate, endDate } = getDateRange(range)
 
-  const [sessions, events, allSessions] = await Promise.all([
+  const [sessions, events, allSessions, webStats] = await Promise.all([
     fetchSessions({ limit: 1000, startDate, endDate }),
     fetchEvents({ limit: 2000, startDate, endDate }),
     fetchSessions({ limit: 5000 }), // all-time for the map
+    fetchWebHitsStats(),
   ])
 
   const config = readConfig()
@@ -106,6 +108,12 @@ export default async function DashboardPage({
             <SessionsTable sessions={sessionsList} />
             <TopLists stats={stats} />
           </div>
+          <WebAttacksSummary
+            total={webStats.total}
+            uniqueIps={webStats.topIps.length}
+            byAttackType={webStats.byAttackType}
+            topIps={webStats.topIps}
+          />
         </div>
       </main>
     </div>

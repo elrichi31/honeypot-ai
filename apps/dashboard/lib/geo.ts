@@ -21,6 +21,46 @@ export function lookupIp(ip: string): { country: string; countryName: string } |
   }
 }
 
+export interface WebCountryAttack {
+  country:     string
+  name:        string
+  uniqueIps:   number
+  totalHits:   number
+  topType:     string    // attack type más frecuente
+}
+
+export function geolocateWebHits(
+  attackers: { srcIp: string; totalHits: number; attackTypes: string[] }[],
+): WebCountryAttack[] {
+  const geo  = getGeoip()
+  const data = new Map<string, { ips: Set<string>; hits: number; typeCounts: Record<string, number> }>()
+
+  for (const a of attackers) {
+    const result = geo.lookup(a.srcIp)
+    if (!result?.country) continue
+
+    if (!data.has(result.country)) {
+      data.set(result.country, { ips: new Set(), hits: 0, typeCounts: {} })
+    }
+    const entry = data.get(result.country)!
+    entry.ips.add(a.srcIp)
+    entry.hits += a.totalHits
+    for (const t of a.attackTypes) {
+      entry.typeCounts[t] = (entry.typeCounts[t] ?? 0) + 1
+    }
+  }
+
+  return Array.from(data.entries())
+    .map(([country, { ips, hits, typeCounts }]) => ({
+      country,
+      name:      countryNames.of(country) ?? country,
+      uniqueIps: ips.size,
+      totalHits: hits,
+      topType:   Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "recon",
+    }))
+    .sort((a, b) => b.totalHits - a.totalHits)
+}
+
 export function geolocateIps(
   sessions: { srcIp: string; loginSuccess?: boolean | null }[],
 ): CountryAttack[] {

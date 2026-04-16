@@ -16,7 +16,8 @@ import {
 import { AppSidebar } from "@/components/app-sidebar"
 import { EventTimeline } from "@/components/event-timeline"
 import { AiSummary } from "@/components/ai-summary"
-import { fetchSession } from "@/lib/api"
+import { fetchSession, fetchThreat } from "@/lib/api"
+import { RiskBadge } from "@/components/risk-badge"
 
 function StatCard({
   icon: Icon,
@@ -51,11 +52,18 @@ export default async function SessionReplayPage({
 }) {
   const { id } = await params
   let session
+  let threat = null
 
   try {
     session = await fetchSession(id)
   } catch {
     notFound()
+  }
+
+  try {
+    threat = await fetchThreat(session.srcIp)
+  } catch {
+    // threat data may not exist yet for this IP
   }
 
   const events = session.events ?? []
@@ -103,15 +111,18 @@ export default async function SessionReplayPage({
                 {formatDistanceToNow(new Date(session.startedAt), { addSuffix: true })}
               </p>
             </div>
-            <span
-              className={`rounded-full px-3 py-1 text-sm font-medium ${
-                session.loginSuccess
-                  ? "bg-destructive/20 text-destructive"
-                  : "bg-muted text-muted-foreground"
-              }`}
-            >
-              {session.loginSuccess ? "Compromised" : "Blocked"}
-            </span>
+            <div className="flex items-center gap-2">
+              {threat && <RiskBadge level={threat.risk.level} score={threat.risk.score} ip={session.srcIp} />}
+              <span
+                className={`rounded-full px-3 py-1 text-sm font-medium ${
+                  session.loginSuccess
+                    ? "bg-destructive/20 text-destructive"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {session.loginSuccess ? "Compromised" : "Blocked"}
+              </span>
+            </div>
           </div>
         </div>
 

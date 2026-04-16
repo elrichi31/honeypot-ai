@@ -52,3 +52,23 @@ model Event {
   @@index([eventType])
   @@map("events")
 }
+
+model WebHit {
+  id          String   @id @default(uuid())
+  eventId     String   @unique @map("event_id")
+  srcIp       String   @map("src_ip")
+  method      String
+  path        String
+  query       String   @default("")
+  userAgent   String   @default("") @map("user_agent")
+  headers     Json
+  body        String   @default("")
+  attackType  String   @map("attack_type")
+  timestamp   DateTime
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([srcIp])
+  @@index([attackType])
+  @@index([timestamp])
+  @@map("web_hits")
+}

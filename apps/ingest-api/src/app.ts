@@ -6,6 +6,8 @@ import { ingestRoutes } from './routes/ingest.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { eventRoutes } from './routes/events.js';
 import { statsRoutes } from './routes/stats.js';
+import { webRoutes } from './routes/web.js';
+import { threatRoutes } from './routes/threats.js';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -17,6 +19,8 @@ export async function buildApp() {
   await app.register(sessionRoutes);
   await app.register(eventRoutes);
   await app.register(statsRoutes);
+  await app.register(webRoutes);
+  await app.register(threatRoutes);
 
   return app;
 }
