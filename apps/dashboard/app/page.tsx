@@ -5,9 +5,8 @@ import { SessionsTable } from "@/components/sessions-table"
 import { TopLists } from "@/components/top-lists"
 import { ActivityChart } from "@/components/activity-chart"
 import { AttackMap } from "@/components/attack-map"
-import { fetchEvents, fetchSessions, fetchWebHitsStats } from "@/lib/api"
+import { fetchOverviewStats, fetchSessions, fetchWebHitsStats } from "@/lib/api"
 import { WebAttacksSummary } from "@/components/web-attacks-summary"
-import { getStatsFromData } from "@/lib/stats"
 import { geolocateIps } from "@/lib/geo"
 import { readConfig } from "@/lib/server-config"
 import type { TimeRange } from "@/lib/types"
@@ -18,12 +17,11 @@ function getDateRange(range: TimeRange): { startDate: string; endDate: string } 
   const start = new Date(now)
 
   if (range === "week") {
-    start.setDate(start.getDate() - 7)
+    start.setDate(start.getDate() - 6)
   } else if (range === "month") {
-    start.setDate(start.getDate() - 30)
+    start.setDate(start.getDate() - 29)
   } else {
-    // day
-    start.setHours(start.getHours() - 24)
+    start.setHours(start.getHours() - 23)
   }
 
   return { startDate: start.toISOString(), endDate: end }
@@ -39,17 +37,15 @@ export default async function DashboardPage({
     params.range === "week" || params.range === "month" ? params.range : "day"
 
   const { startDate, endDate } = getDateRange(range)
+  const config = readConfig()
+  const timezone = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
 
-  const [sessions, events, allSessions, webStats] = await Promise.all([
+  const [stats, sessions, allSessions, webStats] = await Promise.all([
+    fetchOverviewStats({ startDate, endDate, range, timezone }),
     fetchSessions({ limit: 1000, startDate, endDate }),
-    fetchEvents({ limit: 2000, startDate, endDate }),
     fetchSessions({ limit: 5000 }), // all-time for the map
     fetchWebHitsStats(),
   ])
-
-  const config = readConfig()
-  const timezone = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
-  const stats = getStatsFromData(sessions, events, timezone)
 
   // Geolocate all sessions across all time (not filtered by range)
   const countryAttacks = geolocateIps(

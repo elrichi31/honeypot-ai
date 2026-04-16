@@ -76,6 +76,14 @@ export function getStatsFromData(
     dayCounts.set(day, (dayCounts.get(day) || 0) + 1)
   })
 
+  const eventsByHour = Array.from(hourCounts.entries())
+    .map(([hour, count]) => ({ hour, count }))
+    .sort((a, b) => a.hour.localeCompare(b.hour))
+
+  const eventsByDay = Array.from(dayCounts.entries())
+    .map(([day, count]) => ({ day, count }))
+    .sort((a, b) => a.day.localeCompare(b.day))
+
   return {
     totalSessions: sessions.length,
     totalCommands: commands.length,
@@ -94,11 +102,12 @@ export function getStatsFromData(
       .map(([password, count]) => ({ password, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10),
-    eventsByHour: Array.from(hourCounts.entries())
-      .map(([hour, count]) => ({ hour, count }))
-      .sort((a, b) => a.hour.localeCompare(b.hour)),
-    eventsByDay: Array.from(dayCounts.entries())
-      .map(([day, count]) => ({ day, count }))
-      .sort((a, b) => a.day.localeCompare(b.day)),
+    timeline: eventsByDay.map((item) => ({
+      bucketStart: item.day,
+      label: item.day,
+      count: item.count,
+    })),
+    eventsByHour,
+    eventsByDay,
   }
 }

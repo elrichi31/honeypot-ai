@@ -4,6 +4,26 @@ function getApiUrl() {
   return process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
 }
 
+export interface TimelinePoint {
+  bucketStart: string
+  label: string
+  count: number
+}
+
+export interface DashboardStats {
+  totalSessions: number
+  totalCommands: number
+  uniqueIps: number
+  successfulLogins: number
+  failedLogins: number
+  topCommands: { command: string; count: number }[]
+  topUsernames: { username: string; count: number }[]
+  topPasswords: { password: string; count: number }[]
+  timeline: TimelinePoint[]
+  eventsByHour?: { hour: string; count: number }[]
+  eventsByDay?: { day: string; count: number }[]
+}
+
 export async function fetchEvents(params?: {
   limit?: number
   offset?: number
@@ -41,6 +61,25 @@ export async function fetchSessions(params?: {
     cache: "no-store",
   })
   if (!res.ok) throw new Error(`Failed to fetch sessions: ${res.status}`)
+  return res.json()
+}
+
+export async function fetchOverviewStats(params: {
+  startDate: string
+  endDate: string
+  range: "day" | "week" | "month"
+  timezone?: string
+}): Promise<DashboardStats> {
+  const searchParams = new URLSearchParams()
+  searchParams.set("startDate", params.startDate)
+  searchParams.set("endDate", params.endDate)
+  searchParams.set("range", params.range)
+  if (params.timezone) searchParams.set("timezone", params.timezone)
+
+  const res = await fetch(`${getApiUrl()}/stats/overview?${searchParams}`, {
+    cache: "no-store",
+  })
+  if (!res.ok) throw new Error(`Failed to fetch overview stats: ${res.status}`)
   return res.json()
 }
 

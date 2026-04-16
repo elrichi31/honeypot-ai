@@ -21,17 +21,17 @@ export function TopLists({ stats }: TopListsProps) {
             stats.topCommands.slice(0, 5).map((item, index) => (
               <div
                 key={item.command}
-                className="flex items-center justify-between p-3"
+                className="flex items-center justify-between gap-2 p-3"
               >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-secondary text-xs text-muted-foreground">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-xs text-muted-foreground">
                     {index + 1}
                   </span>
-                  <code className="font-mono text-sm text-foreground">
+                  <code className="truncate font-mono text-sm text-foreground" title={item.command}>
                     {item.command}
                   </code>
                 </div>
-                <span className="rounded-full bg-warning/20 px-2 py-0.5 text-xs text-warning">
+                <span className="shrink-0 rounded-full bg-warning/20 px-2 py-0.5 text-xs text-warning">
                   {item.count}
                 </span>
               </div>
@@ -55,17 +55,17 @@ export function TopLists({ stats }: TopListsProps) {
             stats.topUsernames.slice(0, 5).map((item, index) => (
               <div
                 key={item.username}
-                className="flex items-center justify-between p-3"
+                className="flex items-center justify-between gap-2 p-3"
               >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-secondary text-xs text-muted-foreground">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-xs text-muted-foreground">
                     {index + 1}
                   </span>
-                  <span className="font-mono text-sm text-foreground">
+                  <span className="truncate font-mono text-sm text-foreground" title={item.username}>
                     {item.username}
                   </span>
                 </div>
-                <span className="rounded-full bg-chart-1/20 px-2 py-0.5 text-xs text-chart-1">
+                <span className="shrink-0 rounded-full bg-chart-1/20 px-2 py-0.5 text-xs text-chart-1">
                   {item.count}
                 </span>
               </div>
@@ -89,17 +89,17 @@ export function TopLists({ stats }: TopListsProps) {
             stats.topPasswords.slice(0, 5).map((item, index) => (
               <div
                 key={item.password}
-                className="flex items-center justify-between p-3"
+                className="flex items-center justify-between gap-2 p-3"
               >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-secondary text-xs text-muted-foreground">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-xs text-muted-foreground">
                     {index + 1}
                   </span>
-                  <span className="font-mono text-sm text-foreground">
+                  <span className="truncate font-mono text-sm text-foreground" title={item.password}>
                     {item.password}
                   </span>
                 </div>
-                <span className="rounded-full bg-destructive/20 px-2 py-0.5 text-xs text-destructive">
+                <span className="shrink-0 rounded-full bg-destructive/20 px-2 py-0.5 text-xs text-destructive">
                   {item.count}
                 </span>
               </div>

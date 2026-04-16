@@ -14,11 +14,11 @@ import {
   RefreshCw,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { HoneypotEvent, ApiSession } from "@/lib/api"
+import type { HoneypotEvent, ApiSessionDetail } from "@/lib/api"
 import type { SessionAnalysis } from "@/app/api/ai/session-summary/route"
 
 interface AiSummaryProps {
-  session: ApiSession
+  session: ApiSessionDetail
   events: HoneypotEvent[]
 }
 

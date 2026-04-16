@@ -21,7 +21,10 @@ function randBool(prob = 0.5) {
   return Math.random() < prob
 }
 function daysAgo(d: number, jitterHours = 12): Date {
-  const ms = Date.now() - d * 86_400_000 + randInt(0, jitterHours * 3_600_000)
+  // Subtract at least (d * 24h) so events are never in the future.
+  // jitter spreads events across the day but always into the past.
+  const jitterMs = randInt(0, jitterHours * 3_600_000)
+  const ms = Date.now() - d * 86_400_000 - jitterMs
   return new Date(ms)
 }
 function secondsAfter(base: Date, s: number): Date {

@@ -32,15 +32,7 @@ export function ActivityChart({ stats, range }: ActivityChartProps) {
     router.push(`?${params.toString()}`)
   }
 
-  // Day view: 24 hourly buckets; week/month: day buckets
-  const data =
-    range === "day"
-      ? Array.from({ length: 24 }, (_, i) => {
-          const hour = i.toString().padStart(2, "0") + ":00"
-          const found = stats.eventsByHour.find((e) => e.hour === hour)
-          return { label: hour, count: found?.count || 0 }
-        })
-      : stats.eventsByDay.map((d) => ({ label: d.day, count: d.count }))
+  const data = stats.timeline.map((point) => ({ label: point.label, count: point.count }))
 
   const xInterval = range === "day" ? 3 : range === "week" ? 0 : 4
 

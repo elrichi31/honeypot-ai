@@ -1,4 +1,10 @@
-export type { HoneypotEvent, ApiSession, ApiSessionDetail } from "./api"
+export type {
+  HoneypotEvent,
+  ApiSession,
+  ApiSessionDetail,
+  DashboardStats,
+  TimelinePoint,
+} from "./api"
 
 export type EventType =
   | "session.connect"
@@ -11,19 +17,6 @@ export type EventType =
   | "command.input"
   | "command.failed"
   | "unknown"
-
-export interface DashboardStats {
-  totalSessions: number
-  totalCommands: number
-  uniqueIps: number
-  successfulLogins: number
-  failedLogins: number
-  topCommands: { command: string; count: number }[]
-  topUsernames: { username: string; count: number }[]
-  topPasswords: { password: string; count: number }[]
-  eventsByHour: { hour: string; count: number }[]
-  eventsByDay: { day: string; count: number }[]
-}
 
 export type TimeRange = "day" | "week" | "month"
 

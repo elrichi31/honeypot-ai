@@ -1,6 +1,7 @@
 "use client"
 
-import { format } from "date-fns"
+import { useTimezone } from "@/components/timezone-provider"
+import { formatTimeOnly } from "@/lib/timezone"
 import {
   Plug,
   LogIn,
@@ -80,6 +81,7 @@ interface EventTimelineProps {
 }
 
 export function EventTimeline({ events }: EventTimelineProps) {
+  const timezone = useTimezone()
   return (
     <div className="space-y-3">
       {events.map((event, index) => {
@@ -107,7 +109,7 @@ export function EventTimeline({ events }: EventTimelineProps) {
                   {config.label}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {format(new Date(event.eventTs), "HH:mm:ss")}
+                  {formatTimeOnly(event.eventTs, timezone)}
                 </span>
               </div>
               {event.message && (

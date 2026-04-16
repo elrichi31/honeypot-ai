@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { format, formatDistanceToNow, differenceInSeconds } from "date-fns"
+import { formatDistanceToNow, differenceInSeconds } from "date-fns"
+import { formatDateTimeLong } from "@/lib/timezone"
+import { readConfig } from "@/lib/server-config"
 import {
   ArrowLeft,
   Globe,
@@ -66,6 +68,8 @@ export default async function SessionReplayPage({
     // threat data may not exist yet for this IP
   }
 
+  const config = readConfig()
+  const timezone = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
   const events = session.events ?? []
 
   const commands = events.filter((e) => e.eventType === "command.input" && e.command)
@@ -107,7 +111,7 @@ export default async function SessionReplayPage({
                 {session.srcIp}
               </h1>
               <p className="text-sm text-muted-foreground">
-                {format(new Date(session.startedAt), "PPpp")} ·{" "}
+                {formatDateTimeLong(session.startedAt, timezone)} ·{" "}
                 {formatDistanceToNow(new Date(session.startedAt), { addSuffix: true })}
               </p>
             </div>

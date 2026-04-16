@@ -123,6 +123,9 @@ function InfrastructureSettings() {
         }),
       })
       if (!res.ok) throw new Error()
+      // Persist timezone in localStorage so TimezoneProvider picks it up
+      // immediately on client-side navigation (without waiting for another fetch).
+      localStorage.setItem("dashboard_tz", form.timezone)
       setStatus("saved")
       setTimeout(() => setStatus("idle"), 3000)
     } catch {

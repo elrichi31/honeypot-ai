@@ -31,7 +31,12 @@
       "Bash(npm create:*)",
       "Bash(npm run:*)",
       "Bash(python -c \"import responses; import app; print\\('OK'\\)\")",
-      "Bash(python -c 'import ast, sys:*)"
+      "Bash(python -c 'import ast, sys:*)",
+      "Bash(xargs head:*)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(curl -s \"http://localhost:3000/stats/overview?range=day&timezone=America/Guayaquil\")",
+      "Bash(node -e ':*)",
+      "Bash(node -e \"const c=[]; process.stdin.on\\('data',d=>c.push\\(d\\)\\); process.stdin.on\\('end',\\(\\)=>{ const d=JSON.parse\\(c.join\\(''\\)\\); console.log\\('Total in timeline:', d.timeline.reduce\\(\\(s,t\\)=>s+t.count,0\\)\\); console.log\\('Non-zero:', d.timeline.filter\\(t=>t.count>0\\).map\\(t=>t.label+'->'+t.count\\).join\\(', '\\)\\); }\\);\")"
     ]
   }
 }

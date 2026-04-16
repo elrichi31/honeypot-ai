@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { TimezoneProvider } from '@/components/timezone-provider'
+import { readConfig } from '@/lib/server-config'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -34,10 +36,14 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const config = readConfig()
+  const timezone = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
   return (
     <html lang="en" className="bg-background">
       <body className="font-sans antialiased">
-        {children}
+        <TimezoneProvider timezone={timezone}>
+          {children}
+        </TimezoneProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
