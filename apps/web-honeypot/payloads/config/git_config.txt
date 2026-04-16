@@ -1,0 +1,23 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+	ignorecase = false
+[remote "origin"]
+	url = git@github.com:techcorp-solutions/web-app.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[remote "deploy"]
+	url = git@deploy.techcorp-solutions.com:production/web.git
+	fetch = +refs/heads/*:refs/remotes/deploy/*
+[branch "main"]
+	remote = origin
+	merge = refs/heads/main
+[branch "production"]
+	remote = deploy
+	merge = refs/heads/production
+[user]
+	name = CI Deploy Bot
+	email = ci@techcorp-solutions.com
+[push]
+	default = current

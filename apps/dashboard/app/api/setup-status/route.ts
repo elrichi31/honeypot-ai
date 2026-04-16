@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server"
 import { Pool } from "pg"
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  options: "-c search_path=public",
+})
 
 export async function GET() {
   try {

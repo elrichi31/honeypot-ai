@@ -1,0 +1,8 @@
+<br>
+<b>Warning</b>:  mysqli_connect(): (HY000/1045): Access denied for user &#39;techcorp_app&#39;@&#39;localhost&#39; (using password: YES) in <b>/var/www/html/includes/db.php</b> on line <b>14</b><br>
+<b>Fatal error</b>:  Uncaught mysqli_sql_exception: Access denied for user &#39;techcorp_app&#39;@&#39;localhost&#39; (using password: YES) in /var/www/html/includes/db.php:14
+Stack trace:
+#0 /var/www/html/includes/db.php(14): mysqli_connect(&#39;db-primary.int...&#39;, &#39;techcorp_app&#39;, &#39;&#42;&#42;&#42;&#42;&#42;&#42;&#42;&#42;&#39;, &#39;techcorp_prod&#39;)
+#1 /var/www/html/index.php(3): require_once(&#39;/var/www/html/i...&#39;)
+#2 {main}
+  thrown in <b>/var/www/html/includes/db.php</b> on line <b>14</b><br>

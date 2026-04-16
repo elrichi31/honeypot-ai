@@ -15,6 +15,8 @@ services:
       - "22:2222"
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var
+      - ./cowrie/cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
+      - ./cowrie/userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
     networks:
       - edge
     pids_limit: 256

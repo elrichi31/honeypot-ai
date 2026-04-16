@@ -1,0 +1,74 @@
+# Cowrie credential database
+# Format: username:unused:password
+#   field 2 is currently unused; keep it as x
+#   password = *      -> accept ANY password
+#   password = !text  -> DENY when password matches "text" (evaluated in order)
+#
+# Strategy: reject the most common/obvious passwords so the honeypot doesn't
+# look trivially breakable, but still let attackers in with less-obvious creds.
+# This mimics a server that has basic password policy but was still compromised.
+
+# ---------- root ----------
+# Reject the top brute-force passwords first
+root:x:!root
+root:x:!admin
+root:x:!password
+root:x:!password123
+root:x:!123456
+root:x:!12345678
+root:x:!1234567890
+root:x:!pass
+root:x:!pass123
+root:x:!test
+root:x:!qwerty
+root:x:!abc123
+root:x:!letmein
+root:x:!welcome
+root:x:!master
+root:x:!dragon
+root:x:!monkey
+root:x:!654321
+root:x:!superman
+root:x:!iloveyou
+root:x:!sunshine
+root:x:!princess
+root:x:!access
+root:x:!shadow
+root:x:!michael
+root:x:!toor
+root:x:!default
+root:x:!changeme
+root:x:!alpine
+root:x:!raspberry
+root:x:!ubuntu
+# Accept any other root password
+root:x:*
+
+# ---------- ubuntu (common cloud default user) ----------
+ubuntu:x:!ubuntu
+ubuntu:x:!password
+ubuntu:x:!admin
+ubuntu:x:*
+
+# ---------- common service/device accounts ----------
+admin:x:!admin
+admin:x:!administrator
+admin:x:!password
+admin:x:!admin123
+admin:x:*
+
+pi:x:!pi
+pi:x:!raspberry
+pi:x:*
+
+user:x:!user
+user:x:!password
+user:x:*
+
+oracle:x:*
+postgres:x:*
+git:x:*
+deploy:x:*
+ec2-user:x:*
+centos:x:*
+ansible:x:*

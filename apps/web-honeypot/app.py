@@ -8,16 +8,16 @@ Design goals (inspired by SNARE/TANNER):
   - Minimal deps: Flask only
 """
 
-import json
 import logging
 import os
 import uuid
 from datetime import datetime, timezone
+from email.utils import formatdate
 
 import requests
 from flask import Flask, request, Response
 from classifier import classify
-from responses import get_response
+from response_catalog import get_response
 
 app = Flask(__name__)
 
@@ -31,10 +31,18 @@ logging.basicConfig(
 )
 log = logging.getLogger("web-honeypot")
 
-# Headers that make us look like Apache
-APACHE_HEADERS = {
+# Static headers that every response carries — mimics a typical Ubuntu/Apache/PHP stack.
+# Keep these consistent across requests so fingerprinting tools see a stable identity.
+_STATIC_HEADERS = {
     "Server": "Apache/2.4.57 (Ubuntu)",
     "X-Powered-By": "PHP/8.1.2-1ubuntu2.14",
+    # Security headers a real hardened server would set
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "SAMEORIGIN",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    # Keep-alive — real Apache does this
+    "Connection": "Keep-Alive",
+    "Keep-Alive": "timeout=5, max=100",
 }
 
 
@@ -99,15 +107,25 @@ def catch_all(path: str):
     send_to_ingest(event)
 
     # Build a convincing response
-    resp_body, content_type, status_code = get_response(full_path, method, body_raw, attack_type)
+    resp_body, content_type, status_code = get_response(full_path, method, query, body_raw, attack_type)
 
     # HEAD requests: same headers, no body
     if method == "HEAD":
         resp_body = ""
 
     response = Response(resp_body, status=status_code, content_type=content_type)
-    for k, v in APACHE_HEADERS.items():
+
+    for k, v in _STATIC_HEADERS.items():
         response.headers[k] = v
+
+    # Dynamic headers — vary per request so they look real
+    response.headers["Date"] = formatdate(usegmt=True)
+    # Fake a last-modified date anchored to a plausible deploy window
+    response.headers["Last-Modified"] = "Mon, 18 Nov 2024 08:32:17 GMT"
+    # ETag derived from path — stable per URL, changes if the "page" changes
+    etag_seed = abs(hash(full_path)) % 0xFFFFFFFF
+    response.headers["ETag"] = f'"{etag_seed:08x}-{len(resp_body):x}"'
+    response.headers["Accept-Ranges"] = "bytes"
 
     return response
 

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign In &mdash; TechCorp Operations Portal</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#edf1f5;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:"Trebuchet MS","Segoe UI",Verdana,sans-serif;color:#1f2937;padding:24px}
+.shell{width:100%;max-width:920px;background:#fff;border:1px solid #d8dee6;border-radius:14px;box-shadow:0 18px 40px rgba(15,23,42,.12);overflow:hidden;display:grid;grid-template-columns:1.05fr .95fr}
+.panel{background:linear-gradient(180deg,#0f2741 0%,#16385a 100%);color:#fff;padding:44px 42px 40px}
+.eyebrow{display:inline-block;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:999px;font-size:11px;letter-spacing:.12em;padding:6px 10px;text-transform:uppercase}
+.panel h1{font-size:30px;line-height:1.1;margin:18px 0 14px;font-weight:700}
+.panel p{color:rgba(255,255,255,.82);font-size:15px;max-width:360px}
+.panel ul{margin-top:26px;padding-left:18px;color:rgba(255,255,255,.82);font-size:14px;line-height:1.8}
+.panel li{margin-bottom:4px}
+.signin{padding:40px 42px;background:#fbfcfd}
+.brand{font-size:18px;font-weight:700;color:#0f2741;letter-spacing:-.02em}
+.meta{margin-top:6px;font-size:13px;color:#6b7280}
+.form-wrap{margin-top:30px}
+.alert-error{background:#fff4f4;border:1px solid #f3c4c4;border-left:4px solid #cf3d3d;border-radius:6px;color:#8f2121;padding:11px 13px;font-size:13px;margin-bottom:18px}
+.form-group{margin-bottom:18px}
+label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6b7280;margin-bottom:8px}
+input[type=text],input[type=password]{width:100%;padding:12px 14px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;color:#111827;background:#fff;transition:border-color .2s,box-shadow .2s}
+input[type=text]:focus,input[type=password]:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+.btn{width:100%;padding:12px 14px;background:#0f2741;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;transition:background .2s}
+.btn:hover{background:#133252}
+.helper{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#6b7280;margin-top:14px}
+.helper a{color:#335f8a;text-decoration:none}
+.footer{margin-top:24px;font-size:12px;color:#94a3b8}
+@media (max-width:780px){.shell{grid-template-columns:1fr}.panel{padding:32px 28px}.signin{padding:32px 28px}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="panel">
+    <span class="eyebrow">Operations Portal</span>
+    <h1>Administrative access for production services.</h1>
+    <p>Use your assigned operator account to access billing, customer support queues, deployment notes, and WordPress maintenance tasks.</p>
+    <ul>
+      <li>Region: us-east-1 / primary cluster</li>
+      <li>Maintenance window: Sundays 02:00 UTC</li>
+      <li>SSO fallback: local credential verification</li>
+    </ul>
+  </div>
+  <div class="signin">
+    <div class="brand">TechCorp Solutions</div>
+    <div class="meta">Operations Console &middot; Authentication required</div>
+    <div class="form-wrap">
+      {{ notice_html }}
+      <form method="POST" action="" id="loginForm">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input type="text" id="username" name="username" placeholder="admin" autocomplete="username" value="{{ submitted_user }}" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn">Sign In</button>
+        <div class="helper">
+          <span>Need access? Contact infra@techcorp-solutions.com</span>
+          <a href="/admin/reset">Reset password</a>
+        </div>
+      </form>
+    </div>
+    <div class="footer">Secure connection established to production identity provider.</div>
+  </div>
+</div>
+</body>
+</html>

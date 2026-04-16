@@ -1,0 +1,30 @@
+{% extends "wordpress/base.html" %}
+{% block title %}Log In &lsaquo; TechCorp Solutions &#8212; WordPress{% endblock %}
+{% block content %}
+<form name="loginform" id="loginform" action="/wp-login.php" method="post">
+  <label for="user_login">Username or Email Address<br>
+    <input type="text" name="log" id="user_login" class="input" value="{{ submitted_user }}" size="20" autocapitalize="off" autocomplete="username" required>
+  </label>
+  <label for="user_pass">Password<br>
+    <input type="password" name="pwd" id="user_pass" class="input" value="" size="20" autocomplete="current-password" spellcheck="false" required>
+  </label>
+  <p class="forgetmenot">
+    <label><input name="rememberme" type="checkbox" id="rememberme" value="forever"> Remember Me</label>
+  </p>
+  <p class="submit">
+    <input type="submit" name="wp-submit" id="wp-submit" class="button button-primary button-large" value="Log In">
+    <input type="hidden" name="redirect_to" value="/wp-admin/">
+    <input type="hidden" name="testcookie" value="1">
+  </p>
+</form>
+{% endblock %}
+{% block footer %}
+<p id="nav">
+  <a href="/wp-login.php?action=lostpassword">Lost your password?</a>
+  &nbsp;&bull;&nbsp;
+  <a href="/">&#8592; Go to TechCorp Solutions</a>
+</p>
+<p style="font-size:11px;text-align:center;color:#646970;margin-top:24px">
+  <a href="/privacy-policy/">Privacy Policy</a>
+</p>
+{% endblock %}

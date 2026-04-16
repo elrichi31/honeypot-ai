@@ -29,7 +29,9 @@
       "Bash(npm i:*)",
       "Bash(ls c:\\\\Users\\\\Nicolas\\\\Desktop\\\\Proyects\\\\honeypot-pr\\\\apps\\\\dashboard\\\\.env*)",
       "Bash(npm create:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(python -c \"import responses; import app; print\\('OK'\\)\")",
+      "Bash(python -c 'import ast, sys:*)"
     ]
   }
 }

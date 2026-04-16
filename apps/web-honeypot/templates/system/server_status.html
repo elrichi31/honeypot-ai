@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Apache Status</title>
+<style>
+body{font-family:monospace;margin:20px;font-size:13px}
+h1{font-size:18px}
+table{border-collapse:collapse;margin:10px 0}
+td,th{border:1px solid #aaa;padding:4px 8px;text-align:left}
+th{background:#ddd}
+.s{color:green}.w{color:orange}.r{color:blue}
+</style>
+</head>
+<body>
+<h1>Apache Server Status for <b>techcorp-solutions.com</b></h1>
+<p>Server Version: <b>Apache/2.4.57 (Ubuntu) OpenSSL/3.0.2</b><br>
+Server MPM: <b>event</b><br>
+Server Built: <b>2023-10-19T13:43:19</b></p>
+<hr>
+<p>Current Time: <b>Wednesday, 01-Jan-2025 00:00:00 UTC</b><br>
+Restart Time: <b>Sunday, 29-Dec-2024 03:14:22 UTC</b><br>
+Parent Server Config. Generation: 3<br>
+Parent Server MPM Generation: 2<br>
+Server uptime: 2 days 20 hours 45 minutes 38 seconds<br>
+Total accesses: 3,847,291 &mdash; Total Traffic: 48.2 GB<br>
+CPU Usage: u24.7 s7.3 cu0 cs0 &mdash; .0418% CPU load<br>
+14.8 requests/sec &mdash; 19.4 kB/second &mdash; 1353 B/request<br>
+12 requests currently being processed, 13 idle workers</p>
+<pre>___W____W__W_W_.___.W______________W_W_....._____W_............................................
+................................................................</pre>
+<p>Scoreboard Key:<br>
+"<b>_</b>" Waiting for Connection, "<b>S</b>" Starting up, "<b>R</b>" Reading Request,<br>
+"<b>W</b>" Sending Reply, "<b>K</b>" Keepalive (read), "<b>D</b>" DNS Lookup,<br>
+"<b>C</b>" Closing connection, "<b>L</b>" Logging, "<b>G</b>" Gracefully finishing,<br>
+"<b>I</b>" Idle cleanup of worker, "<b>.</b>" Open slot with no current process</p>
+<hr>
+<table>
+<tr><th>Srv</th><th>PID</th><th>Acc</th><th>M</th><th>CPU</th><th>SS</th><th>Req</th><th>Conn</th><th>Child</th><th>Slot</th><th>Client</th><th>VHost</th><th>Request</th></tr>
+<tr><td>0-2</td><td>1823</td><td>0/4821/312847</td><td class="s">W</td><td>.01</td><td>0</td><td>0</td><td>0.0</td><td>14.3</td><td>429.2</td><td>10.0.0.1</td><td>techcorp-solutions.com</td><td>GET / HTTP/1.1</td></tr>
+<tr><td>1-2</td><td>1824</td><td>0/2104/198341</td><td class="s">W</td><td>.00</td><td>0</td><td>1</td><td>0.0</td><td>8.1</td><td>201.7</td><td>10.0.0.2</td><td>techcorp-solutions.com</td><td>POST /api/v1/data HTTP/1.1</td></tr>
+</table>
+</body>
+</html>
