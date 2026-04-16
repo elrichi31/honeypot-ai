@@ -254,10 +254,11 @@ docker compose down -v   # elimina también los volúmenes
 | `VPS_USER` | `root` | Usuario SSH en el VPS |
 | `SSH_KEY` | `~/.ssh/honeypot_vps` | Ruta a la clave privada SSH |
 | `REMOTE_LOG` | `/root/honeypot-ai/cowrie.json` | Ruta del log de Cowrie en el VPS |
+| `DIRECT_LOG` | `/cowrie/cowrie-git/var/log/cowrie/cowrie.json` | Ruta del log JSON cuando `DIRECT_FILE=true` (por ejemplo dentro del contenedor `log-puller`) |
 | `API_URL` | `http://localhost:3000` | URL base de ingest-api |
 | `INGEST_SHARED_SECRET` | — | Token compartido que el puller envía como header `X-Ingest-Token` |
 | `POLL_INTERVAL` | `3` | Segundos entre lecturas del log |
-| `DIRECT_FILE` | `false` | `true` para leer el archivo directamente sin SSH (modo Docker local) |
+| `DIRECT_FILE` | `false` | `true` para leer el archivo directamente sin SSH. Es el modo que usa `docker-compose.prod.single-host.yml` con el volumen de Cowrie montado |
 
 ---
 

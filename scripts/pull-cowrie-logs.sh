@@ -17,9 +17,9 @@
 #   VPS_USER       — SSH user on remote VPS (default: root)
 #   SSH_KEY        — SSH private key path (default: ~/.ssh/honeypot_vps)
 #   API_URL        — Ingest API base URL (default: http://localhost:3000)
-#   CONTAINER      — Cowrie container name (default: cowrie)
+#   DIRECT_FILE    — Read a local/mounted Cowrie JSON log directly (default: false)
+#   DIRECT_LOG     — Local Cowrie JSON path for DIRECT_FILE mode
 #   POLL_INTERVAL  — Seconds between polls (default: 3)
-#   DIRECT_FILE    — Read the log file directly without docker exec (default: false)
 
 set -euo pipefail
 
@@ -30,6 +30,8 @@ SSH_KEY="${SSH_KEY:-$HOME/.ssh/honeypot_vps}"
 API_URL="${API_URL:-http://localhost:3000}"
 INGEST_SHARED_SECRET="${INGEST_SHARED_SECRET:-}"
 POLL_INTERVAL="${POLL_INTERVAL:-3}"
+DIRECT_FILE="${DIRECT_FILE:-false}"
+DIRECT_LOG="${DIRECT_LOG:-/cowrie/cowrie-git/var/log/cowrie/cowrie.json}"
 
 # Ruta del log en el VPS host
 REMOTE_LOG="${REMOTE_LOG:-/root/honeypot-ai/cowrie.json}"
@@ -38,7 +40,9 @@ ENDPOINT="${API_URL}/ingest/cowrie/batch"
 
 cowrie_exec() {
   local cmd="$1"
-  if [ -n "$VPS_HOST" ]; then
+  if [ "$DIRECT_FILE" = "true" ]; then
+    bash -lc "$cmd" 2>/dev/null
+  elif [ -n "$VPS_HOST" ]; then
     ssh -i "$SSH_KEY" \
       -p "$VPS_SSH_PORT" \
       -o ConnectTimeout=5 \
@@ -50,25 +54,34 @@ cowrie_exec() {
   fi
 }
 
-MODE="REMOTE (${VPS_USER}@${VPS_HOST}:$VPS_SSH_PORT)"
+if [ "$DIRECT_FILE" = "true" ]; then
+  MODE="DIRECT_FILE (${DIRECT_LOG})"
+  LOG_PATH="$DIRECT_LOG"
+elif [ -n "$VPS_HOST" ]; then
+  MODE="REMOTE (${VPS_USER}@${VPS_HOST}:$VPS_SSH_PORT)"
+  LOG_PATH="$REMOTE_LOG"
+else
+  MODE="LOCAL (${REMOTE_LOG})"
+  LOG_PATH="$REMOTE_LOG"
+fi
 
 echo "[pull] Mode: $MODE"
 echo "[pull] Sending to: $ENDPOINT"
 echo "[pull] Poll interval: ${POLL_INTERVAL}s"
-echo "[pull] Remote log: $REMOTE_LOG"
+echo "[pull] Log path: $LOG_PATH"
 echo ""
 
-until cowrie_exec "[ -f \"$REMOTE_LOG\" ]"; do
-  echo "[pull] Waiting for $REMOTE_LOG to appear..."
+until cowrie_exec "[ -f \"$LOG_PATH\" ]"; do
+  echo "[pull] Waiting for $LOG_PATH to appear..."
   sleep 2
 done
 
-OFFSET=$(cowrie_exec "wc -c < \"$REMOTE_LOG\"" | tr -d '[:space:]' || echo "0")
+OFFSET=$(cowrie_exec "wc -c < \"$LOG_PATH\"" | tr -d '[:space:]' || echo "0")
 echo "[pull] Starting from offset $OFFSET bytes (skipping existing logs)"
 echo "[pull] Waiting for new events..."
 
 while true; do
-  REMOTE_SIZE=$(cowrie_exec "wc -c < \"$REMOTE_LOG\"" | tr -d '[:space:]' || echo "0")
+  REMOTE_SIZE=$(cowrie_exec "wc -c < \"$LOG_PATH\"" | tr -d '[:space:]' || echo "0")
 
   if [ "$REMOTE_SIZE" -lt "$OFFSET" ]; then
     echo "[pull] File rotated, resetting offset"
@@ -76,7 +89,7 @@ while true; do
   fi
 
   if [ "$REMOTE_SIZE" -gt "$OFFSET" ]; then
-    NEW_DATA=$(cowrie_exec "tail -c \"+$((OFFSET + 1))\" \"$REMOTE_LOG\"" || true)
+    NEW_DATA=$(cowrie_exec "tail -c \"+$((OFFSET + 1))\" \"$LOG_PATH\"" || true)
     OFFSET="$REMOTE_SIZE"
 
     if [ -n "$NEW_DATA" ]; then
