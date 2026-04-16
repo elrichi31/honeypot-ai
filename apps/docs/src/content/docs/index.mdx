@@ -1,0 +1,32 @@
+---
+title: Honeypot Platform
+description: Plataforma para capturar, analizar y visualizar ataques SSH y HTTP en tiempo real.
+template: splash
+hero:
+  tagline: Captura ataques SSH y HTTP. Analiza amenazas. Visualiza el caos.
+  actions:
+    - text: Introduccion
+      link: /intro/
+      icon: right-arrow
+    - text: Desarrollo local
+      link: /getting-started/local-dev/
+      icon: rocket
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid stagger>
+  <Card title="SSH Honeypot" icon="seti:shell">
+    Cowrie intercepta conexiones SSH reales. Los atacantes creen que tienen acceso — cada comando queda registrado.
+  </Card>
+  <Card title="Web Honeypot" icon="seti:html">
+    Flask simula rutas vulnerables (WordPress, `.env`, paneles admin). Detecta SQLi, LFI, CMDi y mas.
+  </Card>
+  <Card title="Ingest API" icon="seti:db">
+    Fastify + Prisma recibe, normaliza y persiste cada evento en PostgreSQL con shared secret para autorizacion.
+  </Card>
+  <Card title="Dashboard" icon="laptop">
+    Next.js 15 con overview, sesiones, web attacks, threat intelligence y risk scoring por IP (0–100).
+  </Card>
+</CardGrid>

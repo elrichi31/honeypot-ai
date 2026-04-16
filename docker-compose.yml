@@ -26,24 +26,6 @@ services:
       timeout: 3s
       retries: 10
 
-  log-puller:
-    build:
-      context: ./scripts
-      dockerfile: Dockerfile.puller
-    container_name: log-puller
-    restart: unless-stopped
-    depends_on:
-      - cowrie
-      - ingest-api
-    volumes:
-      - cowrie_var:/cowrie/cowrie-git/var:ro
-      - ./scripts/pull-cowrie-logs.sh:/pull-cowrie-logs.sh:ro
-    environment:
-      API_URL: http://ingest-api:3000
-      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
-      DIRECT_FILE: "true"
-    command: ["bash", "/pull-cowrie-logs.sh"]
-
   ingest-api:
     build:
       context: ./apps/ingest-api
@@ -72,20 +54,52 @@ services:
     ports:
       - "3000:3000"
 
+  # Corre una vez al arrancar: aplica el schema y carga datos de prueba (~30 dias).
+  # Se detiene solo cuando termina. Util en dev para tener datos sin pasos manuales.
+  seed:
+    build:
+      context: ./apps/ingest-api
+    container_name: honeypot-seed
+    restart: "no"
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD:-honeypot}@postgres:5432/honeypot
+    command: ["sh", "-c", "npx prisma db push --accept-data-loss && npx prisma db seed"]
+
+  log-puller:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile.puller
+    container_name: log-puller
+    restart: unless-stopped
+    depends_on:
+      - cowrie
+      - ingest-api
+    volumes:
+      - cowrie_var:/cowrie/cowrie-git/var:ro
+      - ./scripts/pull-cowrie-logs.sh:/pull-cowrie-logs.sh:ro
+    environment:
+      API_URL: http://ingest-api:3000
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
+      DIRECT_FILE: "true"
+    command: ["bash", "/pull-cowrie-logs.sh"]
+
   web-honeypot:
     build:
       context: ./apps/web-honeypot
     container_name: web-honeypot
     restart: unless-stopped
-    depends_on:
-      ingest-api:
-        condition: service_healthy
     environment:
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
       PORT: "8080"
     ports:
-      - "8080:8080"   # dev: 8080 para no pisar el 80 local
+      - "8080:8080"
+    depends_on:
+      ingest-api:
+        condition: service_healthy
 
   dashboard:
     build:
@@ -100,14 +114,13 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:3000
       INTERNAL_API_URL: http://ingest-api:3000
-      # Honeypot infrastructure — pre-fills Settings page
       HONEYPOT_IP: ${HONEYPOT_IP:-}
       HONEYPOT_SSH_PORT: ${HONEYPOT_SSH_PORT:-22}
       HONEYPOT_INGEST_PORT: ${HONEYPOT_INGEST_PORT:-8022}
-      # Auth
       DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD:-honeypot}@postgres:5432/honeypot
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:4000}
+      DASHBOARD_TIMEZONE: ${DASHBOARD_TIMEZONE:-UTC}
     volumes:
       - dashboard_data:/app/data
     ports:

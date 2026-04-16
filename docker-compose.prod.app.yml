@@ -1,3 +1,11 @@
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  init: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -5,7 +13,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: honeypot
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-honeypot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: honeypot
     volumes:
       - pg_data:/var/lib/postgresql/data
@@ -14,19 +22,24 @@ services:
       interval: 3s
       timeout: 3s
       retries: 10
+    networks:
+      - db_private
 
   ingest-api:
+    <<: *service-defaults
     build:
       context: ./apps/ingest-api
     container_name: ingest-api
-    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD:-honeypot}@postgres:5432/honeypot
-      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
+      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
       PORT: "3000"
+      # Escucha en todas las interfaces para que el web-honeypot
+      # del VPS honeypot pueda llegar por la VPN (100.x.x.x:3000).
+      # El firewall del servidor app debe bloquear :3000 desde internet publico.
       HOST: "0.0.0.0"
     healthcheck:
       test:
@@ -41,34 +54,115 @@ services:
       retries: 20
       start_period: 10s
     ports:
+      # Solo expone en la VPN (Tailscale / WireGuard).
+      # Cambia 0.0.0.0 por la IP de la interfaz VPN si quieres mayor restriccion,
+      # o usa reglas de firewall (ufw/iptables) para bloquear acceso publico a :3000.
       - "3000:3000"
+    networks:
+      - app_api
+      - db_private
+    tmpfs:
+      - /tmp
+    pids_limit: 256
+
+  log-puller:
+    <<: *service-defaults
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile.puller
+    container_name: log-puller
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+    volumes:
+      - ./scripts/pull-cowrie-logs.sh:/pull-cowrie-logs.sh:ro
+      # Monta la clave SSH del host para acceder al VPS honeypot por VPN.
+      # Genera la clave con: ssh-keygen -t ed25519 -f ~/.ssh/honeypot_vps -N ""
+      # Luego copia la publica al VPS: ssh-copy-id -p 8022 -i ~/.ssh/honeypot_vps.pub user@<vps-vpn-ip>
+      - ${SSH_KEY:-~/.ssh/honeypot_vps}:/root/.ssh/honeypot_vps:ro
+    environment:
+      API_URL: http://ingest-api:3000
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      DIRECT_FILE: "false"
+      VPS_HOST: ${HONEYPOT_VPN_IP}      # IP VPN del VPS honeypot (ej: 100.x.y.z)
+      VPS_SSH_PORT: ${HONEYPOT_SSH_PORT:-8022}
+      VPS_USER: ${HONEYPOT_SSH_USER:-root}
+      SSH_KEY: /root/.ssh/honeypot_vps
+      REMOTE_LOG: ${COWRIE_LOG_PATH:-/root/honeypot-ai/cowrie.json}
+      POLL_INTERVAL: ${POLL_INTERVAL:-5}
+    command: ["bash", "/pull-cowrie-logs.sh"]
+    networks:
+      - app_api
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /root/.ssh
+    pids_limit: 64
 
   dashboard:
+    <<: *service-defaults
     build:
       context: ./apps/dashboard
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:3000
+        # El navegador llama a ingest-api a traves del proxy Caddy.
+        # Usa el mismo dominio del dashboard con el prefijo /api o un subdominio aparte.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.${DASHBOARD_DOMAIN}}
     container_name: honeypot-dashboard
-    restart: unless-stopped
     depends_on:
       ingest-api:
         condition: service_healthy
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.${DASHBOARD_DOMAIN}}
       INTERNAL_API_URL: http://ingest-api:3000
-      # Honeypot infrastructure — pre-fills Settings page
-      HONEYPOT_IP: ${HONEYPOT_IP:-}
-      HONEYPOT_SSH_PORT: ${HONEYPOT_SSH_PORT:-22}
-      HONEYPOT_INGEST_PORT: ${HONEYPOT_INGEST_PORT:-8022}
-      # Auth
-      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD:-honeypot}@postgres:5432/honeypot
+      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:4000}
+      BETTER_AUTH_URL: https://${DASHBOARD_DOMAIN}
+      HONEYPOT_IP: ${HONEYPOT_IP:-}
+      HONEYPOT_SSH_PORT: ${HONEYPOT_SSH_PORT:-8022}
+      HONEYPOT_INGEST_PORT: ${HONEYPOT_INGEST_PORT:-22}
+      DASHBOARD_TIMEZONE: ${DASHBOARD_TIMEZONE:-UTC}
     volumes:
       - dashboard_data:/app/data
+    # Sin puerto publico — Caddy es el unico punto de entrada al dashboard.
+    expose:
+      - "4000"
+    networks:
+      - app_api
+      - db_private
+      - caddy_net
+    tmpfs:
+      - /tmp
+    pids_limit: 256
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: honeypot-caddy
+    restart: unless-stopped
     ports:
-      - "4000:4000"
+      - "80:80"    # redireccion HTTP → HTTPS automatica
+      - "443:443"  # HTTPS dashboard (y opcionalmente ingest-api en subdominio)
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      DASHBOARD_DOMAIN: ${DASHBOARD_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN:-api.${DASHBOARD_DOMAIN}}
+    networks:
+      - caddy_net
+    cap_add:
+      - NET_BIND_SERVICE  # necesario para bind en :80 y :443
 
 volumes:
   pg_data:
   dashboard_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  app_api:
+    driver: bridge
+  db_private:
+    driver: bridge
+  caddy_net:
+    driver: bridge

@@ -1,24 +1,50 @@
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  init: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
 services:
   cowrie:
+    <<: *service-defaults
     image: cowrie/cowrie:latest
     container_name: cowrie
-    restart: unless-stopped
     ports:
-      - "22:2222"     # SSH honeypot — visible en port scan
+      - "22:2222"     # SSH honeypot — visible en port scan publico
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var
+    networks:
+      - edge
+    pids_limit: 256
 
   web-honeypot:
-    image: ${WEB_HONEYPOT_IMAGE:-honeypot-web-honeypot}
+    <<: *service-defaults
+    build:
+      context: ./apps/web-honeypot
     container_name: web-honeypot
-    restart: unless-stopped
     environment:
+      # IP VPN del servidor app (Tailscale / WireGuard).
+      # El web-honeypot envia eventos a ingest-api por la red privada,
+      # nunca por internet publico.
+      # Ejemplo Tailscale: http://100.x.y.z:3000
       INGEST_API_URL: ${INGEST_API_URL}
-      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
       PORT: "8080"
     ports:
-      - "80:8080"     # HTTP honeypot — mismo host que SSH, sale en port scan
-      - "8443:8080"   # también en 8443 para atrapar scans de puertos alternativos
+      - "80:8080"     # HTTP honeypot — visible en port scan publico
+      - "8443:8080"   # HTTPS alternativo para atrapar scans de puertos
+    networks:
+      - edge
+    read_only: true
+    tmpfs:
+      - /tmp
+    pids_limit: 256
 
 volumes:
   cowrie_var:
+
+networks:
+  edge:
+    driver: bridge

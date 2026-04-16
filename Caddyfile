@@ -1,0 +1,20 @@
+# Caddyfile — Two-host production deployment
+#
+# Variables de entorno necesarias (pasadas desde docker-compose.prod.app.yml):
+#   DASHBOARD_DOMAIN  — dominio del dashboard, ej: dashboard.tudominio.com
+#   API_DOMAIN        — dominio de la API,       ej: api.tudominio.com
+#
+# Caddy obtiene y renueva los certificados TLS automaticamente via Let's Encrypt.
+# Solo requiere que los dominios apunten a la IP publica del servidor app.
+
+# Dashboard — acceso publico con HTTPS
+{$DASHBOARD_DOMAIN} {
+    reverse_proxy dashboard:4000
+}
+
+# Ingest API — acceso publico con HTTPS
+# Los endpoints GET son de solo lectura (estadisticas, sesiones, amenazas).
+# Los endpoints POST /ingest/* estan protegidos por X-Ingest-Token en la API.
+{$API_DOMAIN} {
+    reverse_proxy ingest-api:3000
+}
