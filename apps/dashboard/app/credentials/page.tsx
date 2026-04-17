@@ -1,16 +1,9 @@
 import { AppSidebar } from "@/components/app-sidebar"
 import { CredentialsView } from "@/components/credentials-view"
-import { fetchEvents } from "@/lib/api"
+import { fetchCredentialsAnalytics } from "@/lib/api"
 
 export default async function CredentialsPage() {
-  const [successEvents, failedEvents] = await Promise.all([
-    fetchEvents({ type: "auth.success", limit: 100 }),
-    fetchEvents({ type: "auth.failed", limit: 100 }),
-  ])
-
-  const authEvents = [...successEvents, ...failedEvents].sort(
-    (a, b) => new Date(b.eventTs).getTime() - new Date(a.eventTs).getTime()
-  )
+  const analytics = await fetchCredentialsAnalytics({ limit: 250, recentLimit: 750 })
 
   return (
     <div className="flex min-h-screen">
@@ -19,11 +12,11 @@ export default async function CredentialsPage() {
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-foreground">Credentials</h1>
           <p className="text-sm text-muted-foreground">
-            Login attempts captured by the honeypot
+            Login attempts, repeated credentials, and attacker auth patterns
           </p>
         </div>
 
-        <CredentialsView events={authEvents} />
+        <CredentialsView analytics={analytics} />
       </main>
     </div>
   )

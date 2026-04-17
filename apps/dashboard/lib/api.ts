@@ -24,6 +24,85 @@ export interface DashboardStats {
   eventsByDay?: { day: string; count: number }[]
 }
 
+export interface CredentialsSummary {
+  totalAttempts: number
+  successfulAttempts: number
+  failedAttempts: number
+  uniqueUsernames: number
+  uniquePasswords: number
+  uniqueCredentialPairs: number
+  repeatedCredentialPairs: number
+  sprayPasswords: number
+  targetedUsernames: number
+  successRate: number
+}
+
+export interface CredentialPairStat {
+  username: string | null
+  password: string | null
+  attempts: number
+  successCount: number
+  failedCount: number
+  uniqueIps: number
+  firstSeen: string | null
+  lastSeen: string | null
+}
+
+export interface UsernameCredentialStat {
+  username: string | null
+  attempts: number
+  successCount: number
+  failedCount: number
+  uniqueIps: number
+  passwordCount: number
+}
+
+export interface PasswordCredentialStat {
+  password: string | null
+  attempts: number
+  successCount: number
+  failedCount: number
+  uniqueIps: number
+  usernameCount: number
+}
+
+export interface SprayPasswordStat {
+  password: string | null
+  attempts: number
+  successCount: number
+  usernameCount: number
+  ipCount: number
+}
+
+export interface TargetedUsernameStat {
+  username: string | null
+  attempts: number
+  successCount: number
+  passwordCount: number
+  ipCount: number
+}
+
+export interface DiversifiedAttackerStat {
+  srcIp: string
+  attempts: number
+  successCount: number
+  credentialCount: number
+  usernameCount: number
+  passwordCount: number
+  lastSeen: string | null
+}
+
+export interface CredentialsAnalytics {
+  summary: CredentialsSummary
+  topCredentials: CredentialPairStat[]
+  topUsernames: UsernameCredentialStat[]
+  topPasswords: PasswordCredentialStat[]
+  sprayPasswords: SprayPasswordStat[]
+  targetedUsernames: TargetedUsernameStat[]
+  diversifiedAttackers: DiversifiedAttackerStat[]
+  recentAttempts: HoneypotEvent[]
+}
+
 export async function fetchEvents(params?: {
   limit?: number
   offset?: number
@@ -80,6 +159,25 @@ export async function fetchOverviewStats(params: {
     cache: "no-store",
   })
   if (!res.ok) throw new Error(`Failed to fetch overview stats: ${res.status}`)
+  return res.json()
+}
+
+export async function fetchCredentialsAnalytics(params?: {
+  limit?: number
+  recentLimit?: number
+  startDate?: string
+  endDate?: string
+}): Promise<CredentialsAnalytics> {
+  const searchParams = new URLSearchParams()
+  if (params?.limit) searchParams.set("limit", String(params.limit))
+  if (params?.recentLimit) searchParams.set("recentLimit", String(params.recentLimit))
+  if (params?.startDate) searchParams.set("startDate", params.startDate)
+  if (params?.endDate) searchParams.set("endDate", params.endDate)
+
+  const res = await fetch(`${getApiUrl()}/stats/credentials?${searchParams}`, {
+    cache: "no-store",
+  })
+  if (!res.ok) throw new Error(`Failed to fetch credentials analytics: ${res.status}`)
   return res.json()
 }
 

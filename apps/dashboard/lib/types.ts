@@ -4,6 +4,14 @@ export type {
   ApiSessionDetail,
   DashboardStats,
   TimelinePoint,
+  CredentialsAnalytics,
+  CredentialsSummary,
+  CredentialPairStat,
+  UsernameCredentialStat,
+  PasswordCredentialStat,
+  SprayPasswordStat,
+  TargetedUsernameStat,
+  DiversifiedAttackerStat,
 } from "./api"
 
 export type EventType =
