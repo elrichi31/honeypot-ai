@@ -1,5 +1,5 @@
-import { AppSidebar } from "@/components/app-sidebar"
 import { WebAttacksNav } from "@/components/web-attacks-nav"
+import { PageShell } from "@/components/page-shell"
 import { fetchWebHitsByIp } from "@/lib/api"
 import { geolocateWebHits } from "@/lib/geo"
 import { WebGeoMap } from "./web-geo-map"
@@ -10,9 +10,7 @@ export default async function WebGeoPage() {
   const totalHits  = countries.reduce((s, c) => s + c.totalHits, 0)
 
   return (
-    <div className="flex min-h-screen">
-      <AppSidebar />
-      <main className="ml-60 flex-1 p-6">
+    <PageShell>
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-foreground">Web Attacks · Geo</h1>
           <p className="text-sm text-muted-foreground">
@@ -23,7 +21,6 @@ export default async function WebGeoPage() {
         <WebAttacksNav active="geo" />
 
         <WebGeoMap countries={countries} totalHits={totalHits} />
-      </main>
-    </div>
+  </PageShell>
   )
 }

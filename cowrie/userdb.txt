@@ -1,74 +1,124 @@
 # Cowrie credential database
 # Format: username:unused:password
-#   field 2 is currently unused; keep it as x
-#   password = *      -> accept ANY password
-#   password = !text  -> DENY when password matches "text" (evaluated in order)
+#   field 2 is always x (unused)
+#   password = *       -> accept ANY password not already denied
+#   password = !text   -> DENY when password matches "text" (order matters)
 #
-# Strategy: reject the most common/obvious passwords so the honeypot doesn't
-# look trivially breakable, but still let attackers in with less-obvious creds.
-# This mimics a server that has basic password policy but was still compromised.
+# Strategy: block the trivially weak passwords that ANY real server with even
+# basic hardening would reject. Let "plausible" weak passwords through so
+# post-auth behavior can be captured. A real misconfigured server might have
+# P@ssw0rd as root password -- it would never have "1" or "123" or username=password.
 
-# ---------- root ----------
-# Reject the top brute-force passwords first
-root:x:!root
-root:x:!admin
+# --- root --------------------------------------------------------------------
+# NOTE: passwords < 8 chars are rejected by the auth patch before reaching here.
+# We only need to block 8+ char passwords that are too obvious for a real server.
 root:x:!password
+root:x:!password1
 root:x:!password123
-root:x:!123456
 root:x:!12345678
+root:x:!12345679
+root:x:!12345690
+root:x:!123456789
 root:x:!1234567890
-root:x:!pass
-root:x:!pass123
-root:x:!test
-root:x:!qwerty
-root:x:!abc123
-root:x:!letmein
-root:x:!welcome
-root:x:!master
-root:x:!dragon
-root:x:!monkey
-root:x:!654321
-root:x:!superman
+root:x:!123321123
+root:x:!11111111
+root:x:!00000000
+root:x:!rootroot
+root:x:!root1234
+root:x:!root@123
+root:x:!admin123
+root:x:!admin1234
+root:x:!qwerty12
+root:x:!qwerty123
+root:x:!qwerty1234
+root:x:!abcd1234
+root:x:!abc12345
+root:x:!abc123456
+root:x:!letmein1
+root:x:!welcome1
+root:x:!welcome123
 root:x:!iloveyou
 root:x:!sunshine
 root:x:!princess
-root:x:!access
-root:x:!shadow
-root:x:!michael
-root:x:!toor
-root:x:!default
 root:x:!changeme
-root:x:!alpine
 root:x:!raspberry
-root:x:!ubuntu
-# Accept any other root password
+root:x:!default1
+root:x:!superman1
+root:x:!monkey123
+
+# Accept everything else (non-obvious 8+ char passwords -- real intel)
 root:x:*
 
-# ---------- ubuntu (common cloud default user) ----------
-ubuntu:x:!ubuntu
+# --- ubuntu ------------------------------------------------------------------
 ubuntu:x:!password
-ubuntu:x:!admin
+ubuntu:x:!12345678
+ubuntu:x:!123456789
+ubuntu:x:!11111111
+ubuntu:x:!password1
+ubuntu:x:!ubuntu12
 ubuntu:x:*
 
-# ---------- common service/device accounts ----------
-admin:x:!admin
-admin:x:!administrator
-admin:x:!password
+# --- admin -------------------------------------------------------------------
 admin:x:!admin123
+admin:x:!admin1234
+admin:x:!password
+admin:x:!12345678
+admin:x:!adminadmin
+admin:x:!administrator
 admin:x:*
 
-pi:x:!pi
+# --- service accounts -- reject username=password pattern (8+ char variants) --
+oracle:x:!oracle12
+oracle:x:!oracle123
+oracle:x:!oracledb
+oracle:x:!password
+oracle:x:!12345678
+oracle:x:*
+
+postgres:x:!postgres
+postgres:x:!postgres1
+postgres:x:!postgres123
+postgres:x:!password
+postgres:x:!12345678
+postgres:x:*
+
+git:x:!gitadmin
+git:x:!git12345
+git:x:!password
+git:x:!12345678
+git:x:*
+
+deploy:x:!deploy12
+deploy:x:!deploy123
+deploy:x:!deploy@123
+deploy:x:!password
+deploy:x:!12345678
+deploy:x:*
+
+centos:x:!centos12
+centos:x:!centos123
+centos:x:!password
+centos:x:!12345678
+centos:x:*
+
+ansible:x:!ansible1
+ansible:x:!ansible123
+ansible:x:!password
+ansible:x:!12345678
+ansible:x:*
+
+ec2-user:x:!password
+ec2-user:x:!12345678
+ec2-user:x:*
+
+# --- other common users -------------------------------------------------------
 pi:x:!raspberry
+pi:x:!password
+pi:x:!12345678
 pi:x:*
 
-user:x:!user
 user:x:!password
+user:x:!12345678
+user:x:!useruser
+user:x:!user1234
 user:x:*
-
-oracle:x:*
-postgres:x:*
-git:x:*
-deploy:x:*
-ec2-user:x:*
-centos:x:*
-ansible:x:*

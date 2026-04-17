@@ -1,30 +1,9 @@
-import { AppSidebar } from "@/components/app-sidebar"
 import { fetchWebHitsByIp, fetchWebHitsStats } from "@/lib/api"
+import { PageShell } from "@/components/page-shell"
 import { lookupIp } from "@/lib/geo"
 import { AttackersTable } from "./attackers-table"
 import { WebAttacksNav } from "@/components/web-attacks-nav"
-
-const ATTACK_COLORS: Record<string, string> = {
-  sqli:            "bg-red-500/15 text-red-400 border-red-500/30",
-  xss:             "bg-orange-500/15 text-orange-400 border-orange-500/30",
-  lfi:             "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
-  rfi:             "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
-  cmdi:            "bg-purple-500/15 text-purple-400 border-purple-500/30",
-  scanner:         "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  info_disclosure: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
-  recon:           "bg-muted/50 text-muted-foreground border-border",
-}
-
-const ATTACK_LABELS: Record<string, string> = {
-  sqli:            "SQLi",
-  xss:             "XSS",
-  lfi:             "LFI",
-  rfi:             "RFI",
-  cmdi:            "CmdI",
-  scanner:         "Scanner",
-  info_disclosure: "Info",
-  recon:           "Recon",
-}
+import { ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
 
 export default async function WebAttacksPage() {
   const [attackers, stats] = await Promise.all([
@@ -39,9 +18,7 @@ export default async function WebAttacksPage() {
   }
 
   return (
-    <div className="flex min-h-screen">
-      <AppSidebar />
-      <main className="ml-60 flex-1 p-6">
+    <PageShell>
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-foreground">Web Attacks</h1>
           <p className="text-sm text-muted-foreground">
@@ -95,7 +72,6 @@ export default async function WebAttacksPage() {
             </tbody>
           </table>
         </div>
-      </main>
-    </div>
+  </PageShell>
   )
 }

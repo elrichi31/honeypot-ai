@@ -1,0 +1,3 @@
+ 14:32:18 up 47 days,  3:21,  1 user,  load average: 0.08, 0.12, 0.09
+USER     TTY      FROM             LOGIN@   IDLE   JCPU   PCPU WHAT
+ubuntu   pts/0    10.0.2.15        14:32    0.00s  0.01s  0.00s w

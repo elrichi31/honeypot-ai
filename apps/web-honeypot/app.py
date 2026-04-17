@@ -15,11 +15,14 @@ from datetime import datetime, timezone
 from email.utils import formatdate
 
 import requests
-from flask import Flask, request, Response
+from flask import Flask, request, Response, session
 from classifier import classify
 from response_catalog import get_response
 
 app = Flask(__name__)
+# Stable key keeps sessions alive across WSGI worker restarts.
+# Override via SECRET_KEY env var in production.
+app.secret_key = os.environ.get("SECRET_KEY", "hp-default-secret-change-me")
 
 INGEST_URL = os.environ.get("INGEST_API_URL", "http://ingest-api:3000")
 INGEST_SHARED_SECRET = os.environ.get("INGEST_SHARED_SECRET", "")

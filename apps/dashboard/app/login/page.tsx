@@ -12,7 +12,7 @@ function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [phase, setPhase] = useState<"idle" | "signing-in" | "redirecting">("idle")
   const [checking, setChecking] = useState(true)
 
   useEffect(() => {
@@ -28,20 +28,25 @@ function LoginForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
-    setLoading(true)
+    setPhase("signing-in")
     try {
       const result = await signIn.email({ email, password })
       if (result.error) {
         setError(result.error.message ?? "Invalid email or password.")
+        setPhase("idle")
       } else {
-        router.push("/")
+        // Show "redirecting" state then do a hard navigation so the
+        // middleware gets a fresh request with the new session cookie.
+        setPhase("redirecting")
+        window.location.href = "/"
       }
     } catch {
       setError("An unexpected error occurred. Please try again.")
-    } finally {
-      setLoading(false)
+      setPhase("idle")
     }
   }
+
+  const loading = phase !== "idle"
 
   if (checking) {
     return (
@@ -85,6 +90,7 @@ function LoginForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
+                disabled={loading}
                 className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
@@ -101,6 +107,7 @@ function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
+                disabled={loading}
                 className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
@@ -117,7 +124,9 @@ function LoginForm() {
               disabled={loading}
               className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {loading ? (
+              {phase === "redirecting" ? (
+                <><CheckCircle className="h-4 w-4" /> Redirecting…</>
+              ) : phase === "signing-in" ? (
                 <><Loader2 className="h-4 w-4 animate-spin" /> Signing in…</>
               ) : (
                 "Sign in"

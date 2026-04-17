@@ -9,7 +9,8 @@ x-service-defaults: &service-defaults
 services:
   cowrie:
     <<: *service-defaults
-    image: cowrie/cowrie:latest
+    build:
+      context: ./cowrie
     container_name: cowrie
     ports:
       - "22:2222"     # SSH honeypot — visible en port scan publico

@@ -1,0 +1,16 @@
+Apr 14 21:58:03 web-prod-01 sshd[892]: Server listening on 0.0.0.0 port 22.
+Apr 14 21:58:03 web-prod-01 sshd[892]: Server listening on :: port 22.
+Apr 14 22:03:44 web-prod-01 sshd[1891]: Accepted publickey for ubuntu from 203.0.113.42 port 51234 ssh2: RSA SHA256:abc123
+Apr 14 22:03:44 web-prod-01 sshd[1891]: pam_unix(sshd:session): session opened for user ubuntu by (uid=0)
+Apr 14 22:04:12 web-prod-01 sshd[1891]: pam_unix(sshd:session): session closed for user ubuntu
+Apr 15 09:14:22 web-prod-01 sshd[2341]: Accepted publickey for ubuntu from 10.0.2.15 port 49876 ssh2: RSA SHA256:def456
+Apr 15 09:14:22 web-prod-01 sshd[2341]: pam_unix(sshd:session): session opened for user ubuntu by (uid=0)
+Apr 15 11:28:07 web-prod-01 sshd[2341]: pam_unix(sshd:session): session closed for user ubuntu
+Apr 15 14:22:18 web-prod-01 sshd[3102]: Invalid user admin from 198.51.100.73 port 42312
+Apr 15 14:22:18 web-prod-01 sshd[3102]: pam_unix(sshd:auth): authentication failure; logname= uid=0 euid=0 tty=ssh ruser= rhost=198.51.100.73
+Apr 15 14:22:20 web-prod-01 sshd[3102]: Failed password for invalid user admin from 198.51.100.73 port 42312 ssh2
+Apr 15 14:22:21 web-prod-01 sshd[3103]: Failed password for invalid user admin from 198.51.100.73 port 42314 ssh2
+Apr 15 14:22:22 web-prod-01 sshd[3104]: Failed password for invalid user admin from 198.51.100.73 port 42316 ssh2
+Apr 15 14:22:23 web-prod-01 sshd[3102]: Connection closed by invalid user admin 198.51.100.73 port 42312 [preauth]
+Apr 16 09:14:22 web-prod-01 sshd[4291]: Accepted publickey for ubuntu from 10.0.2.15 port 50012 ssh2: RSA SHA256:def456
+Apr 16 09:14:22 web-prod-01 sshd[4291]: pam_unix(sshd:session): session opened for user ubuntu by (uid=0)

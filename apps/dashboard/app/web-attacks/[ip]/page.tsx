@@ -1,39 +1,13 @@
 import { notFound } from "next/navigation"
+import { PageShell } from "@/components/page-shell"
 import Link from "next/link"
 import { format, formatDistanceToNow } from "date-fns"
 import { ArrowLeft, Globe, Clock, MousePointerClick, Shield } from "lucide-react"
-import { AppSidebar } from "@/components/app-sidebar"
 import { fetchWebHitsByIp, fetchWebHits, fetchThreat } from "@/lib/api"
 import { lookupIp } from "@/lib/geo"
 import { RiskBadge } from "@/components/risk-badge"
-
-const ATTACK_COLORS: Record<string, string> = {
-  sqli:            "bg-red-500/15 text-red-400 border-red-500/30",
-  xss:             "bg-orange-500/15 text-orange-400 border-orange-500/30",
-  lfi:             "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
-  rfi:             "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
-  cmdi:            "bg-purple-500/15 text-purple-400 border-purple-500/30",
-  scanner:         "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  info_disclosure: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
-  recon:           "bg-muted/50 text-muted-foreground border-border",
-}
-
-const ATTACK_LABELS: Record<string, string> = {
-  sqli:            "SQL Injection",
-  xss:             "XSS",
-  lfi:             "LFI",
-  rfi:             "RFI",
-  cmdi:            "Cmd Injection",
-  scanner:         "Scanner",
-  info_disclosure: "Info Disclosure",
-  recon:           "Recon",
-}
-
-function countryFlag(code: string): string {
-  return code.toUpperCase().split("").map(
-    (c) => String.fromCodePoint(0x1f1e6 - 65 + c.charCodeAt(0))
-  ).join("")
-}
+import { countryFlag } from "@/lib/formatting"
+import { ATTACK_COLORS, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack-types"
 
 function StatCard({ icon: Icon, label, value, color = "text-muted-foreground", bg = "bg-secondary" }: {
   icon: React.ElementType; label: string; value: string | number; color?: string; bg?: string
@@ -90,9 +64,7 @@ export default async function WebAttackerDetailPage({
   const uniqueUAs = [...new Set(attacker.userAgents)]
 
   return (
-    <div className="flex min-h-screen">
-      <AppSidebar />
-      <main className="ml-60 flex-1 p-6">
+    <PageShell>
         {/* Header */}
         <div className="mb-6">
           <Link
@@ -247,7 +219,6 @@ export default async function WebAttackerDetailPage({
             </div>
           </div>
         </div>
-      </main>
-    </div>
+  </PageShell>
   )
 }

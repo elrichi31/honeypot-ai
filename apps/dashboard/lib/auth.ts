@@ -10,7 +10,11 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   emailAndPassword: { enabled: true },
   session: {
-    expiresIn: 60 * 60 * 8,
-    updateAge: 60 * 60 * 2,
+    expiresIn: 60 * 60 * 8,   // 8 hours
+    updateAge: 60 * 60 * 2,   // re-issue cookie every 2 hours of activity
+    cookieCache: {
+      enabled: true,
+      maxAge: 60 * 5,          // cache in a signed cookie for 5 min (skips DB on middleware)
+    },
   },
 })

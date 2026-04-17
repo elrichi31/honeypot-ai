@@ -36,7 +36,21 @@
       "Bash(echo \"exit: $?\")",
       "Bash(curl -s \"http://localhost:3000/stats/overview?range=day&timezone=America/Guayaquil\")",
       "Bash(node -e ':*)",
-      "Bash(node -e \"const c=[]; process.stdin.on\\('data',d=>c.push\\(d\\)\\); process.stdin.on\\('end',\\(\\)=>{ const d=JSON.parse\\(c.join\\(''\\)\\); console.log\\('Total in timeline:', d.timeline.reduce\\(\\(s,t\\)=>s+t.count,0\\)\\); console.log\\('Non-zero:', d.timeline.filter\\(t=>t.count>0\\).map\\(t=>t.label+'->'+t.count\\).join\\(', '\\)\\); }\\);\")"
+      "Bash(node -e \"const c=[]; process.stdin.on\\('data',d=>c.push\\(d\\)\\); process.stdin.on\\('end',\\(\\)=>{ const d=JSON.parse\\(c.join\\(''\\)\\); console.log\\('Total in timeline:', d.timeline.reduce\\(\\(s,t\\)=>s+t.count,0\\)\\); console.log\\('Non-zero:', d.timeline.filter\\(t=>t.count>0\\).map\\(t=>t.label+'->'+t.count\\).join\\(', '\\)\\); }\\);\")",
+      "Bash(find /c/Users/nicol/OneDrive/Desktop/Proyects/honeypot-ai/apps/dashboard -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" -o -name \"*.js\" -o -name \"*.jsx\" \\\\\\) ! -path \"*/.next/*\" ! -path \"*/node_modules/*\" -exec wc -l {} +)",
+      "Bash(sed -i 's/import { AppSidebar } from \"@\\\\/components\\\\/app-sidebar\"/import { PageShell } from \"@\\\\/components\\\\/page-shell\"/' c:/Users/nicol/OneDrive/Desktop/Proyects/honeypot-ai/apps/dashboard/app/campaigns/page.tsx)",
+      "Bash(sed -i 's|<div className=\"flex min-h-screen\">|<PageShell>|' c:/Users/nicol/OneDrive/Desktop/Proyects/honeypot-ai/apps/dashboard/app/campaigns/page.tsx)",
+      "Bash(sed -i '/<AppSidebar \\\\/>/d' c:/Users/nicol/OneDrive/Desktop/Proyects/honeypot-ai/apps/dashboard/app/campaigns/page.tsx)",
+      "Bash(sed -i 's|<main className=\"ml-60 flex-1 p-6\">||' c:/Users/nicol/OneDrive/Desktop/Proyects/honeypot-ai/apps/dashboard/app/campaigns/page.tsx)",
+      "Bash(python3 -c ':*)",
+      "Bash(wc -l c:/Users/nicol/OneDrive/Desktop/Proyects/honeypot-ai/apps/dashboard/app/settings/page.tsx c:/Users/nicol/OneDrive/Desktop/Proyects/honeypot-ai/apps/dashboard/components/settings/*.tsx)",
+      "Bash(grep -n \"cowrie\" c:/Users/nicol/OneDrive/Desktop/Proyects/honeypot-ai/docker-compose.prod.*.yml)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('response_catalog.py'\\).read\\(\\)\\); print\\('response_catalog.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('app.py'\\).read\\(\\)\\); print\\('app.py OK'\\)\")",
+      "Bash(docker run:*)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\)[0]; print\\('Entrypoint:', d.get\\('Config',{}\\).get\\('Entrypoint'\\)\\); print\\('Cmd:', d.get\\('Config',{}\\).get\\('Cmd'\\)\\); print\\('Env:', [e for e in \\(d.get\\('Config',{}\\).get\\('Env'\\) or []\\) if 'PYTHON' in e or 'PATH' in e]\\)\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker run --rm --entrypoint=\"\" cowrie/cowrie:latest /cowrie/cowrie-env/bin/python3 -c \"import cowrie.core.auth, os; print\\(os.path.abspath\\(cowrie.core.auth.__file__\\)\\)\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker run --rm --entrypoint=\"\" cowrie/cowrie:latest /cowrie/cowrie-env/bin/python3 -c \"print\\(open\\('/cowrie/cowrie-git/src/cowrie/core/auth.py'\\).read\\(\\)\\)\")"
     ]
   }
 }

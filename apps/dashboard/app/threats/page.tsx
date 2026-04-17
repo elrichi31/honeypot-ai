@@ -1,5 +1,5 @@
 import { ShieldAlert } from "lucide-react"
-import { AppSidebar } from "@/components/app-sidebar"
+import { PageShell } from "@/components/page-shell"
 import { fetchThreats } from "@/lib/api"
 import type { ThreatSummary } from "@/lib/api"
 import { ThreatsTable } from "./threats-table"
@@ -17,9 +17,7 @@ export default async function ThreatsPage() {
   const crossP   = threats.filter((t) => t.crossProtocol).length
 
   return (
-    <div className="flex min-h-screen">
-      <AppSidebar />
-      <main className="ml-60 flex-1 p-6">
+    <PageShell>
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-1">
@@ -52,7 +50,6 @@ export default async function ThreatsPage() {
         </div>
 
         <ThreatsTable threats={threats} />
-      </main>
-    </div>
+  </PageShell>
   )
 }

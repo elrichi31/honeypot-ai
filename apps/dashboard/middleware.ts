@@ -1,20 +1,24 @@
+import { betterFetch } from "@better-fetch/fetch"
 import { NextRequest, NextResponse } from "next/server"
 
 const PUBLIC_PATHS = ["/login", "/setup", "/api/auth", "/api/setup-status"]
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next()
   }
 
-  // better-auth sets this cookie on login
-  const session =
-    request.cookies.get("better-auth.session_token") ??
-    request.cookies.get("__Secure-better-auth.session_token")
+  const { data: session } = await betterFetch<{ session: unknown }>(
+    "/api/auth/get-session",
+    {
+      baseURL: request.nextUrl.origin,
+      headers: { cookie: request.headers.get("cookie") ?? "" },
+    }
+  )
 
-  if (!session?.value) {
+  if (!session?.session) {
     return NextResponse.redirect(new URL("/login", request.url))
   }
 

@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation"
+import { PageShell } from "@/components/page-shell"
 import Link from "next/link"
 import { format, formatDistanceToNow } from "date-fns"
 import { ArrowLeft, ShieldAlert, Terminal, Globe, Activity } from "lucide-react"
-import { AppSidebar } from "@/components/app-sidebar"
 import { fetchThreat } from "@/lib/api"
 import type { RiskLevel } from "@/lib/api"
 
@@ -61,9 +61,7 @@ export default async function ThreatDetailPage({
   ]
 
   return (
-    <div className="flex min-h-screen">
-      <AppSidebar />
-      <main className="ml-60 flex-1 p-6">
+    <PageShell>
         {/* Header */}
         <div className="mb-6">
           <Link
@@ -267,7 +265,6 @@ export default async function ThreatDetailPage({
             </div>
           </div>
         </div>
-      </main>
-    </div>
+  </PageShell>
   )
 }

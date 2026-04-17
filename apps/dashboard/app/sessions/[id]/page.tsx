@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation"
+import { PageShell } from "@/components/page-shell"
 import Link from "next/link"
 import { formatDistanceToNow, differenceInSeconds } from "date-fns"
 import { formatDateTimeLong } from "@/lib/timezone"
@@ -15,7 +16,6 @@ import {
   ShieldX,
   Download,
 } from "lucide-react"
-import { AppSidebar } from "@/components/app-sidebar"
 import { EventTimeline } from "@/components/event-timeline"
 import { AiSummary } from "@/components/ai-summary"
 import { fetchSession, fetchThreat } from "@/lib/api"
@@ -94,9 +94,7 @@ export default async function SessionReplayPage({
       : null
 
   return (
-    <div className="flex min-h-screen">
-      <AppSidebar />
-      <main className="ml-60 flex-1 p-6">
+    <PageShell>
         {/* Header */}
         <div className="mb-6">
           <Link
@@ -285,7 +283,6 @@ export default async function SessionReplayPage({
             </div>
           </div>
         </div>
-      </main>
-    </div>
+  </PageShell>
   )
 }

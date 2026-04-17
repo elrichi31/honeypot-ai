@@ -1,0 +1,5 @@
+Netid State  Recv-Q Send-Q  Local Address:Port   Peer Address:Port Process
+tcp   LISTEN 0      128           0.0.0.0:22          0.0.0.0:*     users:(("sshd",pid=892,fd=3))
+tcp   LISTEN 0      70          127.0.0.1:3306        0.0.0.0:*     users:(("mysqld",pid=1203,fd=22))
+tcp   LISTEN 0      511                 *:80                *:*     users:(("apache2",pid=1185,fd=4))
+tcp   LISTEN 0      511                 *:443               *:*     users:(("apache2",pid=1185,fd=6))
