@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   Download,
   Filter,
@@ -32,116 +33,200 @@ import {
 import {
   displayValue,
   downloadTextFile,
-  filterPairs,
-  filterPasswords,
   filterPatternRows,
-  filterUsernames,
   percent,
   toCsv,
-  type FrequencyFilter,
-  type MainCredentialsTab,
-  type OutcomeFilter,
-  type RankingType,
 } from "@/lib/credentials"
+import { TablePagination } from "@/components/table-pagination"
 import { cn } from "@/lib/utils"
-import type { CredentialsAnalytics } from "@/lib/api"
+import type {
+  CredentialPairStat,
+  CredentialsAnalytics,
+  CredentialsFrequencyFilter,
+  CredentialsMainTab,
+  CredentialsOutcomeFilter,
+  CredentialsRankingType,
+  HoneypotEvent,
+  PasswordCredentialStat,
+  UsernameCredentialStat,
+} from "@/lib/api"
 
-interface CredentialsViewProps {
-  analytics: CredentialsAnalytics
+const DEFAULT_SORT_BY: Record<CredentialsRankingType, string> = {
+  pairs: "attempts",
+  passwords: "attempts",
+  usernames: "attempts",
 }
 
-export function CredentialsView({ analytics }: CredentialsViewProps) {
-  const [mainTab, setMainTab] = useState<MainCredentialsTab>("rankings")
-  const [rankingType, setRankingType] = useState<RankingType>("pairs")
-  const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>("all")
-  const [frequencyFilter, setFrequencyFilter] = useState<FrequencyFilter>("reused")
-  const [search, setSearch] = useState("")
+export function CredentialsView({ analytics }: { analytics: CredentialsAnalytics }) {
+  const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const [search, setSearch] = useState(analytics.current.search)
 
-  const filteredPairs = filterPairs(analytics.topCredentials, outcomeFilter, frequencyFilter, search)
-  const filteredPasswords = filterPasswords(analytics.topPasswords, outcomeFilter, search)
-  const filteredUsernames = filterUsernames(analytics.topUsernames, outcomeFilter, search)
-  const filteredSprays = filterPatternRows(analytics.sprayPasswords, search, (item) => item.password ?? "")
-  const filteredTargets = filterPatternRows(analytics.targetedUsernames, search, (item) => item.username ?? "")
-  const filteredAttackers = filterPatternRows(analytics.diversifiedAttackers, search, (item) => item.srcIp)
-  const filteredRecentAttempts = analytics.recentAttempts.filter((event) => {
-    const matchesOutcome =
-      outcomeFilter === "all" ||
-      (outcomeFilter === "success" && event.success === true) ||
-      (outcomeFilter === "failed" && event.success === false)
+  useEffect(() => {
+    setSearch(analytics.current.search)
+  }, [analytics.current.search])
 
-    if (!matchesOutcome) return false
-    const q = search.toLowerCase()
-    if (!q) return true
-    return [event.username, event.password, event.srcIp].some((value) => value?.toLowerCase().includes(q))
-  })
+  const mainTab = analytics.current.mainTab
+  const rankingType = analytics.current.rankingType
+  const outcomeFilter = analytics.current.outcome
+  const frequencyFilter = analytics.current.frequency
+  const sortBy = analytics.current.sortBy
+  const sortDir = analytics.current.sortDir
 
-  const currentExportRows =
-    mainTab === "rankings"
-      ? rankingType === "pairs"
-        ? filteredPairs.map((item) => ({
-            username: item.username,
-            password: item.password,
-            attempts: item.attempts,
-            successCount: item.successCount,
-            failedCount: item.failedCount,
-            uniqueIps: item.uniqueIps,
-            firstSeen: item.firstSeen,
-            lastSeen: item.lastSeen,
-          }))
-        : rankingType === "passwords"
-          ? filteredPasswords.map((item) => ({
-              password: item.password,
-              attempts: item.attempts,
-              successCount: item.successCount,
-              failedCount: item.failedCount,
-              uniqueIps: item.uniqueIps,
-              usernameCount: item.usernameCount,
-            }))
-          : filteredUsernames.map((item) => ({
-              username: item.username,
-              attempts: item.attempts,
-              successCount: item.successCount,
-              failedCount: item.failedCount,
-              uniqueIps: item.uniqueIps,
-              passwordCount: item.passwordCount,
-            }))
-      : mainTab === "patterns"
-        ? [
-            ...filteredSprays.map((item) => ({
-              patternType: "password_spray",
-              password: item.password,
-              attempts: item.attempts,
-              successCount: item.successCount,
-              usernameCount: item.usernameCount,
-              ipCount: item.ipCount,
-            })),
-            ...filteredTargets.map((item) => ({
-              patternType: "targeted_username",
-              username: item.username,
-              attempts: item.attempts,
-              successCount: item.successCount,
-              passwordCount: item.passwordCount,
-              ipCount: item.ipCount,
-            })),
-            ...filteredAttackers.map((item) => ({
-              patternType: "diversified_attacker",
-              srcIp: item.srcIp,
-              attempts: item.attempts,
-              successCount: item.successCount,
-              credentialCount: item.credentialCount,
-              usernameCount: item.usernameCount,
-              passwordCount: item.passwordCount,
-              lastSeen: item.lastSeen,
-            })),
-          ]
-        : filteredRecentAttempts.map((event) => ({
-            status: event.success ? "success" : "failed",
-            username: event.username,
-            password: event.password,
-            srcIp: event.srcIp,
-            eventTs: event.eventTs,
-            sessionId: event.sessionId,
-          }))
+  const filteredSprays = filterPatternRows(
+    analytics.sprayPasswords,
+    search,
+    (item) => item.password ?? "",
+  )
+  const filteredTargets = filterPatternRows(
+    analytics.targetedUsernames,
+    search,
+    (item) => item.username ?? "",
+  )
+  const filteredAttackers = filterPatternRows(
+    analytics.diversifiedAttackers,
+    search,
+    (item) => item.srcIp,
+  )
+
+  const rankingRows = analytics.rankingsPage.items
+  const recentRows = analytics.recentAttemptsPage.items
+
+  const currentExportRows = useMemo(() => {
+    if (mainTab === "rankings") {
+      if (rankingType === "pairs") {
+        return (rankingRows as CredentialPairStat[]).map((item) => ({
+          username: item.username,
+          password: item.password,
+          attempts: item.attempts,
+          successCount: item.successCount,
+          failedCount: item.failedCount,
+          uniqueIps: item.uniqueIps,
+          firstSeen: item.firstSeen,
+          lastSeen: item.lastSeen,
+        }))
+      }
+
+      if (rankingType === "passwords") {
+        return (rankingRows as PasswordCredentialStat[]).map((item) => ({
+          password: item.password,
+          attempts: item.attempts,
+          successCount: item.successCount,
+          failedCount: item.failedCount,
+          uniqueIps: item.uniqueIps,
+          usernameCount: item.usernameCount,
+        }))
+      }
+
+      return (rankingRows as UsernameCredentialStat[]).map((item) => ({
+        username: item.username,
+        attempts: item.attempts,
+        successCount: item.successCount,
+        failedCount: item.failedCount,
+        uniqueIps: item.uniqueIps,
+        passwordCount: item.passwordCount,
+      }))
+    }
+
+    if (mainTab === "patterns") {
+      return [
+        ...filteredSprays.map((item) => ({
+          patternType: "password_spray",
+          password: item.password,
+          attempts: item.attempts,
+          successCount: item.successCount,
+          usernameCount: item.usernameCount,
+          ipCount: item.ipCount,
+        })),
+        ...filteredTargets.map((item) => ({
+          patternType: "targeted_username",
+          username: item.username,
+          attempts: item.attempts,
+          successCount: item.successCount,
+          passwordCount: item.passwordCount,
+          ipCount: item.ipCount,
+        })),
+        ...filteredAttackers.map((item) => ({
+          patternType: "diversified_attacker",
+          srcIp: item.srcIp,
+          attempts: item.attempts,
+          successCount: item.successCount,
+          credentialCount: item.credentialCount,
+          usernameCount: item.usernameCount,
+          passwordCount: item.passwordCount,
+          lastSeen: item.lastSeen,
+        })),
+      ]
+    }
+
+    return (recentRows as HoneypotEvent[]).map((event) => ({
+      status: event.success ? "success" : "failed",
+      username: event.username,
+      password: event.password,
+      srcIp: event.srcIp,
+      eventTs: event.eventTs,
+      sessionId: event.sessionId,
+    }))
+  }, [mainTab, rankingRows, rankingType, recentRows, filteredSprays, filteredTargets, filteredAttackers])
+
+  function pushParams(updates: Record<string, string>) {
+    const next = new URLSearchParams(searchParams.toString())
+
+    for (const [key, value] of Object.entries(updates)) {
+      next.set(key, value)
+    }
+
+    router.push(`${pathname}?${next.toString()}`)
+  }
+
+  function handleSearchSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    pushParams({
+      search,
+      page: "1",
+    })
+  }
+
+  function setMainTab(value: CredentialsMainTab) {
+    pushParams({
+      mainTab: value,
+      page: "1",
+      sortBy: value === "recent" ? "eventTs" : DEFAULT_SORT_BY[rankingType],
+      sortDir: "desc",
+    })
+  }
+
+  function setRankingType(value: CredentialsRankingType) {
+    pushParams({
+      rankingType: value,
+      page: "1",
+      sortBy: DEFAULT_SORT_BY[value],
+      sortDir: "desc",
+    })
+  }
+
+  function setOutcome(value: CredentialsOutcomeFilter) {
+    pushParams({ outcome: value, page: "1" })
+  }
+
+  function setFrequency(value: CredentialsFrequencyFilter) {
+    pushParams({ frequency: value, page: "1" })
+  }
+
+  function handleSort(column: string) {
+    const nextSortDir = sortBy === column && sortDir === "desc" ? "asc" : "desc"
+    pushParams({
+      sortBy: column,
+      sortDir: nextSortDir,
+      page: "1",
+    })
+  }
+
+  function clearSearch() {
+    setSearch("")
+    pushParams({ search: "", page: "1" })
+  }
 
   function downloadCurrentView(formatType: "csv" | "json") {
     const baseName =
@@ -156,7 +241,11 @@ export function CredentialsView({ analytics }: CredentialsViewProps) {
       return
     }
 
-    downloadTextFile(`${baseName}.json`, JSON.stringify(currentExportRows, null, 2), "application/json;charset=utf-8")
+    downloadTextFile(
+      `${baseName}.json`,
+      JSON.stringify(currentExportRows, null, 2),
+      "application/json;charset=utf-8",
+    )
   }
 
   return (
@@ -209,20 +298,26 @@ export function CredentialsView({ analytics }: CredentialsViewProps) {
       <div className="rounded-xl border border-border bg-card p-4">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-1 flex-col gap-4 lg:flex-row">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search username, password, or attacker IP..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+            <form onSubmit={handleSearchSubmit} className="flex flex-1 gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search username, password, or attacker IP..."
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Button type="submit" variant="outline">Search</Button>
+              {analytics.current.search && (
+                <Button type="button" variant="ghost" onClick={clearSearch}>Clear</Button>
+              )}
+            </form>
             <div className="flex flex-wrap gap-2">
               {(["all", "success", "failed"] as const).map((filter) => (
                 <button
                   key={filter}
-                  onClick={() => setOutcomeFilter(filter)}
+                  onClick={() => setOutcome(filter)}
                   className={cn(
                     "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
                     outcomeFilter === filter
@@ -237,7 +332,7 @@ export function CredentialsView({ analytics }: CredentialsViewProps) {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {mainTab === "rankings" && rankingType === "pairs" && (
-              <Select value={frequencyFilter} onValueChange={(value: FrequencyFilter) => setFrequencyFilter(value)}>
+              <Select value={frequencyFilter} onValueChange={(value: CredentialsFrequencyFilter) => setFrequency(value)}>
                 <SelectTrigger className="w-[160px]">
                   <Filter className="h-4 w-4" />
                   <SelectValue placeholder="Frequency" />
@@ -250,7 +345,7 @@ export function CredentialsView({ analytics }: CredentialsViewProps) {
               </Select>
             )}
             {mainTab === "rankings" && (
-              <Select value={rankingType} onValueChange={(value: RankingType) => setRankingType(value)}>
+              <Select value={rankingType} onValueChange={(value: CredentialsRankingType) => setRankingType(value)}>
                 <SelectTrigger className="w-[170px]">
                   <SelectValue placeholder="Ranking type" />
                 </SelectTrigger>
@@ -273,7 +368,7 @@ export function CredentialsView({ analytics }: CredentialsViewProps) {
         </div>
       </div>
 
-      <Tabs value={mainTab} onValueChange={(value) => setMainTab(value as MainCredentialsTab)} className="space-y-4">
+      <Tabs value={mainTab} onValueChange={(value) => setMainTab(value as CredentialsMainTab)} className="space-y-4">
         <TabsList>
           <TabsTrigger value="rankings">Common Credentials</TabsTrigger>
           <TabsTrigger value="patterns">Deep Analysis</TabsTrigger>
@@ -283,12 +378,28 @@ export function CredentialsView({ analytics }: CredentialsViewProps) {
         <TabsContent value="rankings">
           <div className="rounded-xl border border-border bg-card overflow-x-auto">
             {rankingType === "pairs" ? (
-              <PairsTable rows={filteredPairs} />
+              <PairsTable
+                rows={rankingRows as CredentialPairStat[]}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
             ) : rankingType === "passwords" ? (
-              <PasswordsTable rows={filteredPasswords} />
+              <PasswordsTable
+                rows={rankingRows as PasswordCredentialStat[]}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
             ) : (
-              <UsernamesTable rows={filteredUsernames} />
+              <UsernamesTable
+                rows={rankingRows as UsernameCredentialStat[]}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
             )}
+            <TablePagination pagination={analytics.rankingsPage.pagination} />
           </div>
         </TabsContent>
 
@@ -303,7 +414,7 @@ export function CredentialsView({ analytics }: CredentialsViewProps) {
                 <PatternRow
                   key={`${item.password}-${item.ipCount}`}
                   label={displayValue(item.password)}
-                  meta={`${item.usernameCount} usernames · ${item.ipCount} IPs`}
+                  meta={`${item.usernameCount} usernames - ${item.ipCount} IPs`}
                   value={`${item.attempts} tries`}
                   tone="warning"
                 />
@@ -318,7 +429,7 @@ export function CredentialsView({ analytics }: CredentialsViewProps) {
                 <PatternRow
                   key={`${item.username}-${item.ipCount}`}
                   label={displayValue(item.username)}
-                  meta={`${item.passwordCount} passwords · ${item.ipCount} IPs`}
+                  meta={`${item.passwordCount} passwords - ${item.ipCount} IPs`}
                   value={`${item.attempts} tries`}
                   tone="default"
                 />
@@ -333,7 +444,7 @@ export function CredentialsView({ analytics }: CredentialsViewProps) {
                 <PatternRow
                   key={`${item.srcIp}-${item.lastSeen}`}
                   label={item.srcIp}
-                  meta={`${item.credentialCount} credential pairs · ${item.usernameCount} users`}
+                  meta={`${item.credentialCount} credential pairs - ${item.usernameCount} users`}
                   value={`${item.attempts} tries`}
                   tone="destructive"
                 />
@@ -344,7 +455,13 @@ export function CredentialsView({ analytics }: CredentialsViewProps) {
 
         <TabsContent value="recent">
           <div className="rounded-xl border border-border bg-card overflow-x-auto">
-            <RecentAttemptsTable rows={filteredRecentAttempts} />
+            <RecentAttemptsTable
+              rows={recentRows}
+              sortBy={sortBy}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+            <TablePagination pagination={analytics.recentAttemptsPage.pagination} />
           </div>
         </TabsContent>
       </Tabs>

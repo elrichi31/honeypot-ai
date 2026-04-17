@@ -8,7 +8,7 @@ import {
   ExternalLink, Shield, ScanLine,
 } from "lucide-react"
 import { formatDuration, countryFlag } from "@/lib/formatting"
-import { type ScanGroup } from "@/lib/session-classify"
+import { type ScanGroup } from "@/lib/session-classify-v2"
 
 const CRED_PREVIEW = 5
 
@@ -46,6 +46,11 @@ export function ScanGroupRow({ group }: { group: ScanGroup }) {
               <ScanLine className="h-3 w-3" />
               {group.attempts} {group.attempts === 1 ? "intento" : "intentos"}
             </span>
+            {group.authAttempts > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-orange-400/15 px-2 py-0.5 text-xs font-medium text-orange-400">
+                {group.authAttempts} auth
+              </span>
+            )}
             {hasCredentials && (
               <span className="inline-flex items-center gap-1 rounded-full bg-yellow-400/15 px-2 py-0.5 text-xs font-medium text-yellow-400">
                 <Key className="h-3 w-3" />
@@ -59,6 +64,12 @@ export function ScanGroupRow({ group }: { group: ScanGroup }) {
               <Clock className="h-3 w-3" />
               {formatDistanceToNow(new Date(group.lastSeen), { addSuffix: true })}
             </span>
+            {group.spanSec > 0 && (
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                ventana {formatDuration(group.spanSec)}
+              </span>
+            )}
             {group.clientVersions.length > 0 && (
               <span className="hidden xl:flex items-center gap-1 max-w-[280px] truncate">
                 <Terminal className="h-3 w-3 shrink-0" />

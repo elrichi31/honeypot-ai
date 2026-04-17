@@ -9,7 +9,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatDuration, countryFlag } from "@/lib/formatting"
-import { classify, type SessionItem } from "@/lib/session-classify"
+import { classify, type SessionItem } from "@/lib/session-classify-v2"
 import { EventTimeline } from "./event-timeline"
 import type { HoneypotEvent } from "@/lib/api"
 

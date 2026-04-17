@@ -2,6 +2,19 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { computeRiskScore, classifyCommands } from '../lib/risk-score.js';
 
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 5000;
+
+const threatListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
+  limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+  q: z.string().trim().min(1).optional(),
+  level: z.enum(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO']).optional(),
+  crossProtocol: z.coerce.boolean().optional(),
+});
+
 export async function threatRoutes(fastify: FastifyInstance) {
 
   /**
@@ -15,7 +28,23 @@ export async function threatRoutes(fastify: FastifyInstance) {
    *
    * Sorted by risk score DESC.
    */
-  fastify.get('/threats', async (_request, reply) => {
+  fastify.get('/threats', async (request, reply) => {
+    const parsed = threatListQuerySchema.safeParse(request.query);
+
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: 'Invalid query params',
+        details: parsed.error.flatten().fieldErrors,
+      });
+    }
+
+    const pageSize = Math.min(
+      parsed.data.pageSize ?? parsed.data.limit ?? DEFAULT_PAGE_SIZE,
+      MAX_PAGE_SIZE,
+    );
+    const offset = parsed.data.offset ?? ((parsed.data.page ?? 1) - 1) * pageSize;
+    const page = parsed.data.page ?? Math.floor(offset / pageSize) + 1;
+    const search = parsed.data.q?.toLowerCase();
 
     // ── 1. Aggregate SSH data per IP ─────────────────────────────────────────
     const sshRows = await fastify.prisma.$queryRaw<Array<{
@@ -116,7 +145,39 @@ export async function threatRoutes(fastify: FastifyInstance) {
 
     threats.sort((a, b) => b.score - a.score);
 
-    return reply.send(threats);
+    const filteredThreats = threats.filter((threat) => {
+      if (search && !threat.ip.toLowerCase().includes(search)) return false;
+      if (parsed.data.level && threat.level !== parsed.data.level) return false;
+      if (
+        parsed.data.crossProtocol !== undefined &&
+        threat.crossProtocol !== parsed.data.crossProtocol
+      ) {
+        return false;
+      }
+      return true;
+    });
+
+    const total = filteredThreats.length;
+    const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize);
+    const items = filteredThreats.slice(offset, offset + pageSize);
+
+    return reply.send({
+      items,
+      summary: {
+        total,
+        critical: filteredThreats.filter((threat) => threat.level === 'CRITICAL').length,
+        high: filteredThreats.filter((threat) => threat.level === 'HIGH').length,
+        crossProtocol: filteredThreats.filter((threat) => threat.crossProtocol).length,
+      },
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    });
   });
 
   /**

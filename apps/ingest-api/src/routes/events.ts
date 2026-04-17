@@ -1,6 +1,20 @@
 import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 
 const UTC_OFFSET_HOURS = -5;
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 5000;
+
+const eventListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
+  limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+  type: z.string().trim().min(1).optional(),
+  q: z.string().trim().min(1).optional(),
+  startDate: z.string().datetime({ offset: true }).optional(),
+  endDate: z.string().datetime({ offset: true }).optional(),
+});
 
 function toOffsetISOString(date: Date): string {
   const offsetMs = UTC_OFFSET_HOURS * 60 * 60 * 1000;
@@ -11,30 +25,74 @@ function toOffsetISOString(date: Date): string {
 }
 
 export async function eventRoutes(fastify: FastifyInstance) {
-  fastify.get('/events', async (request) => {
-    const { limit = '50', offset = '0', type, startDate, endDate } = request.query as Record<string, string>;
+  fastify.get('/events', async (request, reply) => {
+    const parsed = eventListQuerySchema.safeParse(request.query);
 
-    const where: Record<string, unknown> = {};
-    if (type) where.eventType = type;
-    if (startDate || endDate) {
-      where.eventTs = {
-        ...(startDate && { gte: new Date(startDate) }),
-        ...(endDate && { lte: new Date(endDate) }),
-      };
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: 'Invalid query params',
+        details: parsed.error.flatten().fieldErrors,
+      });
     }
 
-    const events = await fastify.prisma.event.findMany({
-      take: Math.min(Number(limit), 2000),
-      skip: Number(offset),
-      orderBy: { eventTs: 'desc' },
-      ...(Object.keys(where).length > 0 && { where }),
-    });
+    const pageSize = Math.min(
+      parsed.data.pageSize ?? parsed.data.limit ?? DEFAULT_PAGE_SIZE,
+      MAX_PAGE_SIZE,
+    );
+    const offset = parsed.data.offset ?? ((parsed.data.page ?? 1) - 1) * pageSize;
+    const page = parsed.data.page ?? Math.floor(offset / pageSize) + 1;
+    const search = parsed.data.q?.trim();
 
-    return events.map((e) => ({
-      ...e,
-      eventTs: toOffsetISOString(e.eventTs),
-      createdAt: toOffsetISOString(e.createdAt),
-      cowrieTs: toOffsetISOString(new Date(e.cowrieTs as string)),
-    }));
+    const where = {
+      ...(parsed.data.type ? { eventType: parsed.data.type } : {}),
+      ...((parsed.data.startDate || parsed.data.endDate)
+        ? {
+            eventTs: {
+              ...(parsed.data.startDate && { gte: new Date(parsed.data.startDate) }),
+              ...(parsed.data.endDate && { lte: new Date(parsed.data.endDate) }),
+            },
+          }
+        : {}),
+      ...(search
+        ? {
+            OR: [
+              { srcIp: { startsWith: search, mode: 'insensitive' as const } },
+              { command: { contains: search, mode: 'insensitive' as const } },
+              { message: { contains: search, mode: 'insensitive' as const } },
+              { username: { contains: search, mode: 'insensitive' as const } },
+              { password: { contains: search, mode: 'insensitive' as const } },
+            ],
+          }
+        : {}),
+    };
+
+    const [events, total] = await Promise.all([
+      fastify.prisma.event.findMany({
+        where,
+        take: pageSize,
+        skip: offset,
+        orderBy: { eventTs: 'desc' },
+      }),
+      fastify.prisma.event.count({ where }),
+    ]);
+
+    const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize);
+
+    return {
+      items: events.map((e) => ({
+        ...e,
+        eventTs: toOffsetISOString(e.eventTs),
+        createdAt: toOffsetISOString(e.createdAt),
+        cowrieTs: toOffsetISOString(new Date(e.cowrieTs as string)),
+      })),
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
   });
 }

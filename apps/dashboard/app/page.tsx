@@ -77,7 +77,9 @@ export default async function DashboardPage({
       username: s.username || undefined,
       password: s.password || undefined,
       loginSuccess: s.loginSuccess ?? null,
-      eventCount: s._count.events,
+      eventCount: s.eventCount,
+      authAttemptCount: s.authAttemptCount,
+      commandCount: s.commandCount,
       hassh: s.hassh ?? undefined,
       clientVersion: s.clientVersion ?? undefined,
     }

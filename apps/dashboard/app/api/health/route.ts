@@ -14,8 +14,8 @@ export async function GET() {
     let lastEventAt: string | null = null
     if (sessionsRes.ok) {
       const sessions = await sessionsRes.json()
-      if (Array.isArray(sessions) && sessions.length > 0) {
-        lastEventAt = sessions[0].startedAt ?? sessions[0].createdAt ?? null
+      if (Array.isArray(sessions?.items) && sessions.items.length > 0) {
+        lastEventAt = sessions.items[0].startedAt ?? sessions.items[0].createdAt ?? null
       }
     }
 

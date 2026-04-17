@@ -1,19 +1,87 @@
+import { Prisma } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ensureIngestToken } from '../lib/ingest-auth.js';
 
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 5000;
+
 const webHitSchema = z.object({
-  eventId:    z.string().uuid(),
-  timestamp:  z.string().datetime({ offset: true }),
-  srcIp:      z.string().min(1),
-  method:     z.string().min(1),
-  path:       z.string().min(1),
-  query:      z.string().default(''),
-  userAgent:  z.string().default(''),
-  headers:    z.record(z.string()).default({}),
-  body:       z.string().default(''),
+  eventId: z.string().uuid(),
+  timestamp: z.string().datetime({ offset: true }),
+  srcIp: z.string().min(1),
+  method: z.string().min(1),
+  path: z.string().min(1),
+  query: z.string().default(''),
+  userAgent: z.string().default(''),
+  headers: z.record(z.string()).default({}),
+  body: z.string().default(''),
   attackType: z.string().min(1),
 });
+
+const byIpQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
+  limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+  q: z.string().trim().min(1).optional(),
+});
+
+type WebHitsByIpRow = {
+  src_ip: string;
+  total_hits: number;
+  first_seen: Date;
+  last_seen: Date;
+  attack_types: string[] | null;
+  top_paths: string[] | null;
+  user_agents: string[] | null;
+};
+
+type WebHitRow = {
+  id: string;
+  srcIp: string;
+  method: string;
+  path: string;
+  query: string;
+  userAgent: string;
+  attackType: string;
+  timestamp: Date;
+};
+
+type AttackTypeStatRow = {
+  attack_type: string;
+  count: number;
+};
+
+type IpStatRow = {
+  src_ip: string;
+  count: number;
+};
+
+function buildByIpWhereSql(query?: string) {
+  const clauses: Prisma.Sql[] = [Prisma.sql`1 = 1`];
+
+  if (query?.trim()) {
+    const wildcard = /^[0-9a-fA-F:.]+$/.test(query) ? `${query}%` : `%${query}%`;
+    clauses.push(Prisma.sql`src_ip ILIKE ${wildcard}`);
+  }
+
+  return Prisma.sql`WHERE ${Prisma.join(clauses, ' AND ')}`;
+}
+
+function buildWebHitsWhereSql(params: { attackType?: string; srcIp?: string }) {
+  const clauses: Prisma.Sql[] = [Prisma.sql`1 = 1`];
+
+  if (params.attackType) {
+    clauses.push(Prisma.sql`attack_type = ${params.attackType}`);
+  }
+
+  if (params.srcIp) {
+    clauses.push(Prisma.sql`src_ip = ${params.srcIp}`);
+  }
+
+  return Prisma.sql`WHERE ${Prisma.join(clauses, ' AND ')}`;
+}
 
 export async function webRoutes(fastify: FastifyInstance) {
   fastify.post('/ingest/web/event', async (request, reply) => {
@@ -31,27 +99,44 @@ export async function webRoutes(fastify: FastifyInstance) {
     const d = parsed.data;
 
     try {
-      const hit = await fastify.prisma.webHit.create({
-        data: {
-          eventId:    d.eventId,
-          srcIp:      d.srcIp,
-          method:     d.method,
-          path:       d.path,
-          query:      d.query,
-          userAgent:  d.userAgent,
-          headers:    d.headers,
-          body:       d.body,
-          attackType: d.attackType,
-          timestamp:  new Date(d.timestamp),
-        },
-      });
+      const createdRows = await fastify.prisma.$queryRaw<Array<{ id: string; attack_type: string }>>`
+        INSERT INTO web_hits (
+          event_id,
+          src_ip,
+          method,
+          path,
+          query,
+          user_agent,
+          headers,
+          body,
+          attack_type,
+          timestamp
+        )
+        VALUES (
+          ${d.eventId},
+          ${d.srcIp},
+          ${d.method},
+          ${d.path},
+          ${d.query},
+          ${d.userAgent},
+          CAST(${JSON.stringify(d.headers)} AS jsonb),
+          ${d.body},
+          ${d.attackType},
+          ${new Date(d.timestamp)}
+        )
+        ON CONFLICT (event_id) DO NOTHING
+        RETURNING id, attack_type
+      `;
 
-      return reply.status(201).send({ id: hit.id, attackType: hit.attackType });
-    } catch (err: unknown) {
-      // Duplicate eventId — idempotent, treat as success
-      if (err instanceof Error && err.message.includes('Unique constraint')) {
-        return reply.status(200).send({ duplicate: true });
+      if (createdRows[0]) {
+        return reply.status(201).send({
+          id: createdRows[0].id,
+          attackType: createdRows[0].attack_type,
+        });
       }
+
+      return reply.status(200).send({ duplicate: true });
+    } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return reply.status(500).send({ error: msg });
     }
@@ -59,10 +144,10 @@ export async function webRoutes(fastify: FastifyInstance) {
 
   fastify.get('/web-hits', async (request, reply) => {
     const querySchema = z.object({
-      limit:      z.coerce.number().min(1).max(500).default(100),
-      offset:     z.coerce.number().min(0).default(0),
+      limit: z.coerce.number().min(1).max(500).default(100),
+      offset: z.coerce.number().min(0).default(0),
       attackType: z.string().optional(),
-      srcIp:      z.string().optional(),
+      srcIp: z.string().optional(),
     });
 
     const parsed = querySchema.safeParse(request.query);
@@ -71,54 +156,58 @@ export async function webRoutes(fastify: FastifyInstance) {
     }
 
     const { limit, offset, attackType, srcIp } = parsed.data;
+    const whereSql = buildWebHitsWhereSql({ attackType, srcIp });
 
-    const where = {
-      ...(attackType ? { attackType } : {}),
-      ...(srcIp      ? { srcIp }      : {}),
-    };
-
-    const [hits, total] = await Promise.all([
-      fastify.prisma.webHit.findMany({
-        where,
-        orderBy: { timestamp: 'desc' },
-        take: limit,
-        skip: offset,
-        select: {
-          id: true, srcIp: true, method: true, path: true,
-          query: true, userAgent: true, attackType: true, timestamp: true,
-        },
-      }),
-      fastify.prisma.webHit.count({ where }),
+    const [countRows, hits] = await Promise.all([
+      fastify.prisma.$queryRaw<Array<{ total: number }>>`
+        SELECT COUNT(*)::int AS total
+        FROM web_hits
+        ${whereSql}
+      `,
+      fastify.prisma.$queryRaw<WebHitRow[]>`
+        SELECT
+          id,
+          src_ip AS "srcIp",
+          method,
+          path,
+          query,
+          user_agent AS "userAgent",
+          attack_type AS "attackType",
+          timestamp
+        FROM web_hits
+        ${whereSql}
+        ORDER BY timestamp DESC
+        LIMIT ${limit}
+        OFFSET ${offset}
+      `,
     ]);
 
-    return reply.send({ total, hits });
+    return reply.send({ total: countRows[0]?.total ?? 0, hits });
   });
 
-  // Hits por día desglosados por tipo de ataque (últimos 30 días)
   fastify.get('/web-hits/timeline', async (_request, reply) => {
     const rows = await fastify.prisma.$queryRaw<Array<{
-      day:         string;
+      day: string;
       attack_type: string;
-      count:       bigint;
+      count: bigint;
     }>>`
       SELECT
         TO_CHAR(timestamp AT TIME ZONE 'UTC', 'DD/MM') AS day,
         attack_type,
-        COUNT(*)                                        AS count
+        COUNT(*) AS count
       FROM web_hits
       WHERE timestamp >= NOW() - INTERVAL '30 days'
       GROUP BY day, attack_type
       ORDER BY MIN(timestamp), attack_type
     `;
 
-    // Pivot: { day -> { attackType -> count } }
     const dayMap = new Map<string, Record<string, number>>();
-    for (const r of rows) {
-      if (!dayMap.has(r.day)) dayMap.set(r.day, {});
-      dayMap.get(r.day)![r.attack_type] = Number(r.count);
+    for (const row of rows) {
+      if (!dayMap.has(row.day)) dayMap.set(row.day, {});
+      dayMap.get(row.day)![row.attack_type] = Number(row.count);
     }
 
-    const attackTypes = [...new Set(rows.map(r => r.attack_type))];
+    const attackTypes = [...new Set(rows.map((row) => row.attack_type))];
 
     return reply.send({
       days: Array.from(dayMap.entries()).map(([day, types]) => ({ day, ...types })),
@@ -126,12 +215,11 @@ export async function webRoutes(fastify: FastifyInstance) {
     });
   });
 
-  // Top paths con desglose por tipo de ataque
   fastify.get('/web-hits/paths', async (_request, reply) => {
     const rows = await fastify.prisma.$queryRaw<Array<{
-      path:        string;
+      path: string;
       attack_type: string;
-      count:       bigint;
+      count: bigint;
     }>>`
       SELECT
         path,
@@ -143,13 +231,12 @@ export async function webRoutes(fastify: FastifyInstance) {
       LIMIT 200
     `;
 
-    // Agrupar por path
     const pathMap = new Map<string, { total: number; byType: Record<string, number> }>();
-    for (const r of rows) {
-      if (!pathMap.has(r.path)) pathMap.set(r.path, { total: 0, byType: {} });
-      const entry = pathMap.get(r.path)!;
-      entry.byType[r.attack_type] = Number(r.count);
-      entry.total += Number(r.count);
+    for (const row of rows) {
+      if (!pathMap.has(row.path)) pathMap.set(row.path, { total: 0, byType: {} });
+      const entry = pathMap.get(row.path)!;
+      entry.byType[row.attack_type] = Number(row.count);
+      entry.total += Number(row.count);
     }
 
     const paths = Array.from(pathMap.entries())
@@ -160,62 +247,112 @@ export async function webRoutes(fastify: FastifyInstance) {
     return reply.send({ paths });
   });
 
-  // Hits agrupados por IP — equivalente a la vista de sesiones SSH
-  fastify.get('/web-hits/by-ip', async (_request, reply) => {
-    const rows = await fastify.prisma.$queryRaw<Array<{
-      src_ip:       string;
-      total_hits:   bigint;
-      first_seen:   Date;
-      last_seen:    Date;
-      attack_types: string[];
-      top_paths:    string[];
-      user_agents:  string[];
-    }>>`
-      SELECT
-        src_ip,
-        COUNT(*)                                          AS total_hits,
-        MIN(timestamp)                                    AS first_seen,
-        MAX(timestamp)                                    AS last_seen,
-        ARRAY_AGG(DISTINCT attack_type)                   AS attack_types,
-        (ARRAY_AGG(path ORDER BY timestamp DESC))[1:5]   AS top_paths,
-        ARRAY_AGG(DISTINCT user_agent)
-          FILTER (WHERE user_agent <> '')                 AS user_agents
-      FROM web_hits
-      GROUP BY src_ip
-      ORDER BY total_hits DESC
-    `;
+  fastify.get('/web-hits/by-ip', async (request, reply) => {
+    const parsed = byIpQuerySchema.safeParse(request.query);
 
-    return reply.send(rows.map(r => ({
-      srcIp:       r.src_ip,
-      totalHits:   Number(r.total_hits),
-      firstSeen:   r.first_seen,
-      lastSeen:    r.last_seen,
-      attackTypes: r.attack_types ?? [],
-      topPaths:    r.top_paths   ?? [],
-      userAgents:  (r.user_agents ?? []).slice(0, 3),
-    })));
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: 'Invalid query params',
+        details: parsed.error.flatten().fieldErrors,
+      });
+    }
+
+    const pageSize = Math.min(
+      parsed.data.pageSize ?? parsed.data.limit ?? DEFAULT_PAGE_SIZE,
+      MAX_PAGE_SIZE,
+    );
+    const offset = parsed.data.offset ?? ((parsed.data.page ?? 1) - 1) * pageSize;
+    const page = parsed.data.page ?? Math.floor(offset / pageSize) + 1;
+    const whereSql = buildByIpWhereSql(parsed.data.q);
+
+    const [countRows, rows] = await Promise.all([
+      fastify.prisma.$queryRaw<Array<{ total: number }>>`
+        SELECT COUNT(*)::int AS total
+        FROM (
+          SELECT src_ip
+          FROM web_hits
+          ${whereSql}
+          GROUP BY src_ip
+        ) grouped_hits
+      `,
+      fastify.prisma.$queryRaw<WebHitsByIpRow[]>`
+        WITH grouped_hits AS (
+          SELECT
+            src_ip,
+            COUNT(*)::int AS total_hits,
+            MIN(timestamp) AS first_seen,
+            MAX(timestamp) AS last_seen,
+            ARRAY_AGG(DISTINCT attack_type) AS attack_types,
+            (ARRAY_AGG(path ORDER BY timestamp DESC))[1:5] AS top_paths,
+            ARRAY_AGG(DISTINCT user_agent)
+              FILTER (WHERE user_agent <> '') AS user_agents
+          FROM web_hits
+          ${whereSql}
+          GROUP BY src_ip
+        )
+        SELECT *
+        FROM grouped_hits
+        ORDER BY total_hits DESC, last_seen DESC
+        LIMIT ${pageSize}
+        OFFSET ${offset}
+      `,
+    ]);
+
+    const total = countRows[0]?.total ?? 0;
+    const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize);
+
+    return reply.send({
+      items: rows.map((row) => ({
+        srcIp: row.src_ip,
+        totalHits: row.total_hits,
+        firstSeen: row.first_seen,
+        lastSeen: row.last_seen,
+        attackTypes: row.attack_types ?? [],
+        topPaths: row.top_paths ?? [],
+        userAgents: (row.user_agents ?? []).slice(0, 3),
+      })),
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    });
   });
 
   fastify.get('/web-hits/stats', async (_request, reply) => {
-    const [byAttackType, byIp, total] = await Promise.all([
-      fastify.prisma.webHit.groupBy({
-        by: ['attackType'],
-        _count: { _all: true },
-        orderBy: { _count: { attackType: 'desc' } },
-      }),
-      fastify.prisma.webHit.groupBy({
-        by: ['srcIp'],
-        _count: { _all: true },
-        orderBy: { _count: { srcIp: 'desc' } },
-        take: 10,
-      }),
-      fastify.prisma.webHit.count(),
+    const [attackTypeRows, topIpRows, totalRows] = await Promise.all([
+      fastify.prisma.$queryRaw<AttackTypeStatRow[]>`
+        SELECT attack_type, COUNT(*)::int AS count
+        FROM web_hits
+        GROUP BY attack_type
+        ORDER BY count DESC
+      `,
+      fastify.prisma.$queryRaw<IpStatRow[]>`
+        SELECT src_ip, COUNT(*)::int AS count
+        FROM web_hits
+        GROUP BY src_ip
+        ORDER BY count DESC
+        LIMIT 10
+      `,
+      fastify.prisma.$queryRaw<Array<{ total: number }>>`
+        SELECT COUNT(*)::int AS total
+        FROM web_hits
+      `,
     ]);
 
     return reply.send({
-      total,
-      byAttackType: byAttackType.map(r => ({ attackType: r.attackType, count: r._count._all })),
-      topIps:       byIp.map(r => ({ srcIp: r.srcIp, count: r._count._all })),
+      total: totalRows[0]?.total ?? 0,
+      byAttackType: attackTypeRows.map((row) => ({
+        attackType: row.attack_type,
+        count: row.count,
+      })),
+      topIps: topIpRows.map((row) => ({
+        srcIp: row.src_ip,
+        count: row.count,
+      })),
     });
   });
 }

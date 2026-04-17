@@ -3,7 +3,7 @@ import { PageShell } from "@/components/page-shell"
 import Link from "next/link"
 import { format, formatDistanceToNow } from "date-fns"
 import { ArrowLeft, Globe, Clock, MousePointerClick, Shield } from "lucide-react"
-import { fetchWebHitsByIp, fetchWebHits, fetchThreat } from "@/lib/api"
+import { fetchWebHitsByIpPage, fetchWebHits, fetchThreat } from "@/lib/api"
 import { lookupIp } from "@/lib/geo"
 import { RiskBadge } from "@/components/risk-badge"
 import { countryFlag } from "@/lib/formatting"
@@ -33,12 +33,12 @@ export default async function WebAttackerDetailPage({
   const { ip } = await params
   const srcIp = decodeURIComponent(ip)
 
-  const [allAttackers, { hits }] = await Promise.all([
-    fetchWebHitsByIp(),
+  const [attackersPage, { hits }] = await Promise.all([
+    fetchWebHitsByIpPage({ q: srcIp, pageSize: 10 }),
     fetchWebHits({ srcIp, limit: 500 }),
   ])
 
-  const attacker = allAttackers.find((a) => a.srcIp === srcIp)
+  const attacker = attackersPage.items.find((a) => a.srcIp === srcIp)
   if (!attacker) notFound()
 
   let threat = null

@@ -24,6 +24,9 @@ model Session {
 
   events Event[]
 
+  @@index([srcIp])
+  @@index([startedAt(sort: Desc)])
+  @@index([loginSuccess, startedAt(sort: Desc)])
   @@map("sessions")
 }
 
@@ -50,6 +53,9 @@ model Event {
   @@unique([cowrieEventId, cowrieTs], name: "uq_cowrie_event")
   @@index([sessionId])
   @@index([eventType])
+  @@index([eventTs(sort: Desc)])
+  @@index([srcIp, eventTs(sort: Desc)])
+  @@index([eventType, eventTs(sort: Desc)])
   @@map("events")
 }
 
@@ -70,5 +76,6 @@ model WebHit {
   @@index([srcIp])
   @@index([attackType])
   @@index([timestamp])
+  @@index([srcIp, timestamp(sort: Desc)])
   @@map("web_hits")
 }
