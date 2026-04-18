@@ -2,12 +2,22 @@ import { betterAuth } from "better-auth"
 import { nextCookies } from "better-auth/next-js"
 import { Pool } from "pg"
 
+const authBaseUrl = process.env.BETTER_AUTH_URL || "http://localhost:4000"
+const authBaseUrlObject = new URL(authBaseUrl)
+const authAllowedHosts = Array.from(
+  new Set([authBaseUrlObject.hostname, "localhost", "127.0.0.1"]),
+)
+
 export const auth = betterAuth({
   database: new Pool({
     connectionString: process.env.DATABASE_URL,
     options: "-c search_path=public",
   }),
-  baseURL: process.env.BETTER_AUTH_URL,
+  baseURL: {
+    allowedHosts: authAllowedHosts,
+    fallback: authBaseUrl,
+    protocol: authBaseUrlObject.protocol === "https:" ? "https" : "http",
+  },
   secret: process.env.BETTER_AUTH_SECRET,
   emailAndPassword: { enabled: true },
   session: {
