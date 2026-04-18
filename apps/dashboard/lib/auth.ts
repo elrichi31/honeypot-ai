@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth"
+import { nextCookies } from "better-auth/next-js"
 import { Pool } from "pg"
 
 export const auth = betterAuth({
@@ -17,4 +18,5 @@ export const auth = betterAuth({
       maxAge: 60 * 5,          // cache in a signed cookie for 5 min (skips DB on middleware)
     },
   },
+  plugins: [nextCookies()],
 })
