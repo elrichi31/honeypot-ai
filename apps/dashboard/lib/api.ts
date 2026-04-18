@@ -22,6 +22,7 @@ export interface SessionsSummary {
   total: number
   compromised: number
   blocked: number
+  scanGroups: number
 }
 
 export interface PaginatedSessionsResponse extends PaginatedResponse<ApiSession> {
@@ -224,6 +225,31 @@ export async function fetchSessionsPage(params?: {
     cache: "no-store",
   })
   if (!res.ok) throw new Error(`Failed to fetch sessions: ${res.status}`)
+  return res.json()
+}
+
+export async function fetchSessionScanGroupsPage(params?: {
+  page?: number
+  pageSize?: number
+  limit?: number
+  offset?: number
+  q?: string
+  startDate?: string
+  endDate?: string
+}): Promise<PaginatedSessionsResponse> {
+  const searchParams = new URLSearchParams()
+  if (params?.page) searchParams.set("page", String(params.page))
+  if (params?.pageSize) searchParams.set("pageSize", String(params.pageSize))
+  if (params?.limit) searchParams.set("limit", String(params.limit))
+  if (params?.offset) searchParams.set("offset", String(params.offset))
+  if (params?.q) searchParams.set("q", params.q)
+  if (params?.startDate) searchParams.set("startDate", params.startDate)
+  if (params?.endDate) searchParams.set("endDate", params.endDate)
+
+  const res = await fetch(`${getApiUrl()}/sessions/scan-groups?${searchParams}`, {
+    cache: "no-store",
+  })
+  if (!res.ok) throw new Error(`Failed to fetch scan groups: ${res.status}`)
   return res.json()
 }
 

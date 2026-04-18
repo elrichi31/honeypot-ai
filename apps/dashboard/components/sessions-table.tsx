@@ -47,18 +47,20 @@ export function SessionsTable({
     setServerQuery(searchQuery)
   }, [searchQuery])
 
-  const activeSessions = useMemo(() => sessions.filter((s) => s.loginSuccess === true), [sessions])
-  const scanSessions = useMemo(() => sessions.filter((s) => s.loginSuccess !== true), [sessions])
+  const activeSessions = useMemo(() => sessions.filter((session) => session.loginSuccess === true), [sessions])
+  const scanSessions = useMemo(() => sessions.filter((session) => session.loginSuccess !== true), [sessions])
   const scanGroups = useMemo(() => groupScans(scanSessions), [scanSessions])
 
   const availableCountries = useMemo(() => {
     const source = tab === "sessions" ? activeSessions : scanSessions
     const seen = new Map<string, string>()
+
     for (const session of source) {
       if (session.country && session.countryName && !seen.has(session.country)) {
         seen.set(session.country, session.countryName)
       }
     }
+
     return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]))
   }, [tab, activeSessions, scanSessions])
 
@@ -69,21 +71,23 @@ export function SessionsTable({
   }, [activeSessions])
 
   const filteredSessions = useMemo(
-    () => activeSessions.filter((session) => {
-      if (filters.search && !session.srcIp.includes(filters.search)) return false
-      if (filters.country && session.country !== filters.country) return false
-      if (filters.classification && classify(session).label !== filters.classification) return false
-      return true
-    }),
+    () =>
+      activeSessions.filter((session) => {
+        if (filters.search && !session.srcIp.includes(filters.search)) return false
+        if (filters.country && session.country !== filters.country) return false
+        if (filters.classification && classify(session).label !== filters.classification) return false
+        return true
+      }),
     [activeSessions, filters],
   )
 
   const filteredGroups = useMemo(
-    () => scanGroups.filter((group) => {
-      if (filters.search && !group.srcIp.includes(filters.search)) return false
-      if (filters.country && group.country !== filters.country) return false
-      return true
-    }),
+    () =>
+      scanGroups.filter((group) => {
+        if (filters.search && !group.srcIp.includes(filters.search)) return false
+        if (filters.country && group.country !== filters.country) return false
+        return true
+      }),
     [scanGroups, filters],
   )
 
@@ -102,12 +106,13 @@ export function SessionsTable({
 
   if (!showAll) {
     const preview = activeSessions.slice(0, 5)
+
     return (
       <div className="rounded-xl border border-border bg-card">
         <div className="border-b border-border p-4">
           <h3 className="font-semibold text-foreground">Sesiones recientes</h3>
           <p className="text-sm text-muted-foreground">
-            {activeSessions.length} sesiones comprometidas · {scanGroups.length} IPs escanearon
+            {activeSessions.length} sesiones comprometidas - {scanGroups.length} IPs escanearon
           </p>
         </div>
         <div className="divide-y divide-border">
@@ -120,7 +125,7 @@ export function SessionsTable({
         {sessions.length > 5 && (
           <div className="border-t border-border p-4 text-center">
             <Link href="/sessions" className="text-sm text-accent hover:underline">
-              Ver todas las {sessions.length} sesiones →
+              Ver todas las {sessions.length} sesiones
             </Link>
           </div>
         )}
@@ -128,99 +133,98 @@ export function SessionsTable({
     )
   }
 
+  const compromisedCount = summary?.compromised ?? activeSessions.length
+  const scanGroupCount = summary?.scanGroups ?? scanGroups.length
+
   return (
-    <div className="rounded-xl border border-border bg-card">
-      <div className="border-b border-border p-4 space-y-3">
-        <div className="flex items-center justify-between">
+    <div className="flex min-h-[620px] max-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-xl border border-border bg-card">
+      <div className="space-y-4 border-b border-border p-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <h3 className="font-semibold text-foreground">Sessions</h3>
             <p className="text-xs text-muted-foreground">
-              {summary
-                ? `${summary.compromised} comprometidas · ${summary.blocked} bloqueadas`
-                : `${activeSessions.length} comprometidas · ${scanGroups.length} IPs escanearon`}
+              {compromisedCount.toLocaleString()} comprometidas - {scanGroupCount.toLocaleString()} IPs en escaneo
             </p>
           </div>
-          <Filter className="h-4 w-4 text-muted-foreground" />
-        </div>
-
-        <div className="flex gap-1 rounded-lg bg-secondary p-1 w-fit">
-          {(["sessions", "scans"] as const).map((currentTab) => (
-            <button
-              key={currentTab}
-              onClick={() => setTab(currentTab)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                tab === currentTab
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {currentTab === "sessions" ? <ShieldX className="h-3.5 w-3.5" /> : <ScanLine className="h-3.5 w-3.5" />}
-              {currentTab === "sessions" ? "Sesiones" : "Escaneos"}
-              <span
+          <div className="flex gap-1 rounded-lg bg-secondary p-1">
+            {(["sessions", "scans"] as const).map((currentTab) => (
+              <button
+                key={currentTab}
+                onClick={() => setTab(currentTab)}
                 className={cn(
-                  "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                   tab === currentTab
-                    ? currentTab === "sessions"
-                      ? "bg-destructive/20 text-destructive"
-                      : "bg-secondary text-foreground"
-                    : "bg-secondary text-muted-foreground",
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {currentTab === "sessions" ? summary?.compromised ?? activeSessions.length : summary?.blocked ?? scanGroups.length}
-              </span>
-            </button>
-          ))}
+                {currentTab === "sessions" ? <ShieldX className="h-3.5 w-3.5" /> : <ScanLine className="h-3.5 w-3.5" />}
+                {currentTab === "sessions" ? "Sesiones" : "Escaneos"}
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                    tab === currentTab
+                      ? currentTab === "sessions"
+                        ? "bg-destructive/20 text-destructive"
+                        : "bg-secondary text-foreground"
+                      : "bg-secondary text-muted-foreground",
+                  )}
+                >
+                  {currentTab === "sessions" ? compromisedCount : scanGroupCount}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        <form className="flex flex-wrap gap-2" action={pathname}>
-          <input type="hidden" name="tab" value={tab} />
-          <input type="hidden" name="pageSize" value={String(pagination?.pageSize ?? 50)} />
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              name="q"
-              placeholder="Buscar IP, usuario, cliente..."
-              value={serverQuery}
-              onChange={(event) => setServerQuery(event.target.value)}
-              className="h-8 min-w-64 rounded-lg border border-border bg-secondary pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </div>
-          <button
-            type="submit"
-            className="h-8 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
-          >
-            Buscar
-          </button>
-          {searchQuery && (
-            <Link
-              href={`${pathname}?tab=${tab}&pageSize=${pagination?.pageSize ?? 50}`}
-              className="inline-flex h-8 items-center rounded-lg border border-border px-3 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+        <div className="flex flex-wrap items-center gap-3">
+          <form className="flex min-w-[320px] flex-1 items-center gap-2" action={pathname}>
+            <input type="hidden" name="tab" value={tab} />
+            <input type="hidden" name="pageSize" value={String(pagination?.pageSize ?? 50)} />
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                name="q"
+                placeholder="Buscar IP, usuario, cliente..."
+                value={serverQuery}
+                onChange={(event) => setServerQuery(event.target.value)}
+                className="h-10 w-full rounded-lg border border-border bg-secondary pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <button
+              type="submit"
+              className="h-10 rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
             >
-              Limpiar
-            </Link>
-          )}
-        </form>
+              Buscar
+            </button>
+            {searchQuery && (
+              <Link
+                href={`${pathname}?tab=${tab}&pageSize=${pagination?.pageSize ?? 50}`}
+                className="inline-flex h-10 items-center rounded-lg border border-border px-4 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              >
+                Limpiar
+              </Link>
+            )}
+          </form>
 
-        <div className="flex flex-wrap gap-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <div className="relative min-w-[240px] flex-1">
+            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Filtrar IP cargadas..."
+              placeholder={tab === "sessions" ? "Filtrar IPs visibles..." : "Filtrar IPs agrupadas..."}
               value={filters.search}
               onChange={(event) => setFilter("search", event.target.value)}
-              className="h-8 rounded-lg border border-border bg-secondary pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              className="h-10 w-full rounded-lg border border-border bg-secondary pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
 
           <select
             value={filters.country}
             onChange={(event) => setFilter("country", event.target.value)}
-            className="h-8 rounded-lg border border-border bg-secondary px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="h-10 min-w-[220px] rounded-lg border border-border bg-secondary px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           >
-            <option value="">Todos los países</option>
+            <option value="">Todos los paises</option>
             {availableCountries.map(([code, name]) => (
               <option key={code} value={code}>
                 {countryFlag(code)} {name}
@@ -232,7 +236,7 @@ export function SessionsTable({
             <select
               value={filters.classification}
               onChange={(event) => setFilter("classification", event.target.value)}
-              className="h-8 rounded-lg border border-border bg-secondary px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              className="h-10 min-w-[220px] rounded-lg border border-border bg-secondary px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="">Todos los tipos</option>
               {availableClasses.map((classification) => (
@@ -242,6 +246,13 @@ export function SessionsTable({
               ))}
             </select>
           )}
+
+          <span className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
+            <Filter className="h-3.5 w-3.5" />
+            {tab === "sessions"
+              ? `${filteredSessions.length} visibles de ${activeSessions.length}`
+              : `${filteredGroups.length} visibles de ${scanGroups.length}`}
+          </span>
         </div>
 
         {activeFilters.length > 0 && (
@@ -274,18 +285,20 @@ export function SessionsTable({
         )}
       </div>
 
-      <div className="divide-y divide-border">
-        {tab === "sessions" ? (
-          filteredSessions.length === 0 ? (
-            <p className="p-8 text-center text-sm text-muted-foreground">No hay sesiones que coincidan con los filtros.</p>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="divide-y divide-border">
+          {tab === "sessions" ? (
+            filteredSessions.length === 0 ? (
+              <p className="p-8 text-center text-sm text-muted-foreground">No hay sesiones que coincidan con los filtros.</p>
+            ) : (
+              filteredSessions.map((session) => <SessionRow key={session.id} session={session} />)
+            )
+          ) : filteredGroups.length === 0 ? (
+            <p className="p-8 text-center text-sm text-muted-foreground">No hay escaneos que coincidan con los filtros.</p>
           ) : (
-            filteredSessions.map((session) => <SessionRow key={session.id} session={session} />)
-          )
-        ) : filteredGroups.length === 0 ? (
-          <p className="p-8 text-center text-sm text-muted-foreground">No hay escaneos que coincidan con los filtros.</p>
-        ) : (
-          filteredGroups.map((group) => <ScanGroupRow key={group.srcIp} group={group} />)
-        )}
+            filteredGroups.map((group) => <ScanGroupRow key={group.srcIp} group={group} />)
+          )}
+        </div>
       </div>
 
       {pagination && <TablePagination pagination={pagination} />}

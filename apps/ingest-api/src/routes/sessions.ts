@@ -21,6 +21,7 @@ type SessionSummaryRow = {
   total: number;
   compromised: number;
   blocked: number;
+  scanGroups: number;
 };
 
 type SessionListRow = {
@@ -170,7 +171,8 @@ export async function sessionRoutes(fastify: FastifyInstance) {
         SELECT
           COUNT(*)::int AS total,
           COUNT(*) FILTER (WHERE s.login_success IS TRUE)::int AS compromised,
-          COUNT(*) FILTER (WHERE s.login_success IS DISTINCT FROM TRUE)::int AS blocked
+          COUNT(*) FILTER (WHERE s.login_success IS DISTINCT FROM TRUE)::int AS blocked,
+          COUNT(DISTINCT s.src_ip) FILTER (WHERE s.login_success IS DISTINCT FROM TRUE)::int AS "scanGroups"
         FROM sessions s
         ${buildWhereSql(baseClauses)}
       `,
@@ -217,13 +219,125 @@ export async function sessionRoutes(fastify: FastifyInstance) {
       `,
     ]);
 
-    const summary = summaryRows[0] ?? { total: 0, compromised: 0, blocked: 0 };
+    const summary = summaryRows[0] ?? { total: 0, compromised: 0, blocked: 0, scanGroups: 0 };
     const total =
       parsed.data.outcome === 'compromised'
         ? summary.compromised
         : parsed.data.outcome === 'blocked'
           ? summary.blocked
           : summary.total;
+    const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize);
+
+    return {
+      items: sessionRows.map(formatSession),
+      summary,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
+  });
+
+  fastify.get('/sessions/scan-groups', async (request, reply) => {
+    const parsed = sessionListQuerySchema.safeParse(request.query);
+
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: 'Invalid query params',
+        details: parsed.error.flatten().fieldErrors,
+      });
+    }
+
+    const { page, pageSize, offset } = getPagination(parsed.data);
+    const baseClauses = buildSessionClauses({
+      q: parsed.data.q,
+      startDate: parsed.data.startDate,
+      endDate: parsed.data.endDate,
+      outcome: 'all',
+    });
+    const blockedClauses = buildSessionClauses({
+      q: parsed.data.q,
+      startDate: parsed.data.startDate,
+      endDate: parsed.data.endDate,
+      outcome: 'blocked',
+    });
+
+    const [summaryRows, totalGroupRows, sessionRows] = await Promise.all([
+      fastify.prisma.$queryRaw<SessionSummaryRow[]>`
+        SELECT
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE s.login_success IS TRUE)::int AS compromised,
+          COUNT(*) FILTER (WHERE s.login_success IS DISTINCT FROM TRUE)::int AS blocked,
+          COUNT(DISTINCT s.src_ip) FILTER (WHERE s.login_success IS DISTINCT FROM TRUE)::int AS "scanGroups"
+        FROM sessions s
+        ${buildWhereSql(baseClauses)}
+      `,
+      fastify.prisma.$queryRaw<Array<{ count: number }>>`
+        SELECT COUNT(DISTINCT s.src_ip)::int AS count
+        FROM sessions s
+        ${buildWhereSql(blockedClauses)}
+      `,
+      fastify.prisma.$queryRaw<SessionListRow[]>`
+        WITH filtered_scans AS (
+          SELECT
+            s.id,
+            s.cowrie_session_id AS "cowrieSessionId",
+            s.src_ip AS "srcIp",
+            s.protocol,
+            s.username,
+            s.password,
+            s.login_success AS "loginSuccess",
+            s.hassh,
+            s.client_version AS "clientVersion",
+            s.started_at AS "startedAt",
+            s.ended_at AS "endedAt",
+            s.created_at AS "createdAt",
+            s.updated_at AS "updatedAt"
+          FROM sessions s
+          ${buildWhereSql(blockedClauses)}
+        ),
+        paged_groups AS (
+          SELECT
+            fs."srcIp",
+            MAX(fs."startedAt") AS "lastSeen"
+          FROM filtered_scans fs
+          GROUP BY fs."srcIp"
+          ORDER BY "lastSeen" DESC
+          LIMIT ${pageSize}
+          OFFSET ${offset}
+        ),
+        grouped_sessions AS (
+          SELECT fs.*
+          FROM filtered_scans fs
+          INNER JOIN paged_groups pg ON pg."srcIp" = fs."srcIp"
+        ),
+        event_counts AS (
+          SELECT
+            e.session_id AS session_id,
+            COUNT(*)::int AS event_count,
+            COUNT(*) FILTER (WHERE e.event_type IN ('auth.success', 'auth.failed'))::int AS auth_attempt_count,
+            COUNT(*) FILTER (WHERE e.event_type = 'command.input')::int AS command_count
+          FROM events e
+          INNER JOIN grouped_sessions gs ON gs.id = e.session_id
+          GROUP BY e.session_id
+        )
+        SELECT
+          gs.*,
+          COALESCE(ec.event_count, 0)::int AS "eventCount",
+          COALESCE(ec.auth_attempt_count, 0)::int AS "authAttemptCount",
+          COALESCE(ec.command_count, 0)::int AS "commandCount"
+        FROM grouped_sessions gs
+        LEFT JOIN event_counts ec ON ec.session_id = gs.id
+        ORDER BY gs."srcIp" ASC, gs."startedAt" DESC
+      `,
+    ]);
+
+    const summary = summaryRows[0] ?? { total: 0, compromised: 0, blocked: 0, scanGroups: 0 };
+    const total = totalGroupRows[0]?.count ?? 0;
     const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize);
 
     return {

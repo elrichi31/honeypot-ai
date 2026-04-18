@@ -57,6 +57,9 @@ const DEFAULT_SORT_BY: Record<CredentialsRankingType, string> = {
   usernames: "attempts",
 }
 
+const TABLE_PANEL_CLASS =
+  "flex min-h-[620px] max-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-xl border border-border bg-card"
+
 export function CredentialsView({ analytics }: { analytics: CredentialsAnalytics }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -74,21 +77,9 @@ export function CredentialsView({ analytics }: { analytics: CredentialsAnalytics
   const sortBy = analytics.current.sortBy
   const sortDir = analytics.current.sortDir
 
-  const filteredSprays = filterPatternRows(
-    analytics.sprayPasswords,
-    search,
-    (item) => item.password ?? "",
-  )
-  const filteredTargets = filterPatternRows(
-    analytics.targetedUsernames,
-    search,
-    (item) => item.username ?? "",
-  )
-  const filteredAttackers = filterPatternRows(
-    analytics.diversifiedAttackers,
-    search,
-    (item) => item.srcIp,
-  )
+  const filteredSprays = filterPatternRows(analytics.sprayPasswords, search, (item) => item.password ?? "")
+  const filteredTargets = filterPatternRows(analytics.targetedUsernames, search, (item) => item.username ?? "")
+  const filteredAttackers = filterPatternRows(analytics.diversifiedAttackers, search, (item) => item.srcIp)
 
   const rankingRows = analytics.rankingsPage.items
   const recentRows = analytics.recentAttemptsPage.items
@@ -296,23 +287,28 @@ export function CredentialsView({ analytics }: { analytics: CredentialsAnalytics
       </div>
 
       <div className="rounded-xl border border-border bg-card p-4">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex flex-1 flex-col gap-4 lg:flex-row">
-            <form onSubmit={handleSearchSubmit} className="flex flex-1 gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search username, password, or attacker IP..."
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <Button type="submit" variant="outline">Search</Button>
-              {analytics.current.search && (
-                <Button type="button" variant="ghost" onClick={clearSearch}>Clear</Button>
-              )}
-            </form>
+        <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
+          <form onSubmit={handleSearchSubmit} className="flex min-w-[320px] flex-1 items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search username, password, or attacker IP..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Button type="submit" variant="outline">
+              Search
+            </Button>
+            {analytics.current.search && (
+              <Button type="button" variant="ghost" onClick={clearSearch}>
+                Clear
+              </Button>
+            )}
+          </form>
+
+          <div className="flex flex-1 flex-wrap items-center gap-2 2xl:justify-end">
             <div className="flex flex-wrap gap-2">
               {(["all", "success", "failed"] as const).map((filter) => (
                 <button
@@ -329,11 +325,10 @@ export function CredentialsView({ analytics }: { analytics: CredentialsAnalytics
                 </button>
               ))}
             </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+
             {mainTab === "rankings" && rankingType === "pairs" && (
               <Select value={frequencyFilter} onValueChange={(value: CredentialsFrequencyFilter) => setFrequency(value)}>
-                <SelectTrigger className="w-[160px]">
+                <SelectTrigger className="w-[170px]">
                   <Filter className="h-4 w-4" />
                   <SelectValue placeholder="Frequency" />
                 </SelectTrigger>
@@ -344,6 +339,7 @@ export function CredentialsView({ analytics }: { analytics: CredentialsAnalytics
                 </SelectContent>
               </Select>
             )}
+
             {mainTab === "rankings" && (
               <Select value={rankingType} onValueChange={(value: CredentialsRankingType) => setRankingType(value)}>
                 <SelectTrigger className="w-[170px]">
@@ -356,6 +352,12 @@ export function CredentialsView({ analytics }: { analytics: CredentialsAnalytics
                 </SelectContent>
               </Select>
             )}
+
+            <span className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
+              <Filter className="h-3.5 w-3.5" />
+              {currentExportRows.length} visible rows
+            </span>
+
             <Button variant="outline" size="sm" onClick={() => downloadCurrentView("csv")}>
               <Download className="h-4 w-4" />
               CSV
@@ -369,36 +371,38 @@ export function CredentialsView({ analytics }: { analytics: CredentialsAnalytics
       </div>
 
       <Tabs value={mainTab} onValueChange={(value) => setMainTab(value as CredentialsMainTab)} className="space-y-4">
-        <TabsList>
+        <TabsList className="flex h-auto w-fit flex-wrap gap-1 rounded-lg bg-secondary p-1">
           <TabsTrigger value="rankings">Common Credentials</TabsTrigger>
           <TabsTrigger value="patterns">Deep Analysis</TabsTrigger>
           <TabsTrigger value="recent">Recent Attempts</TabsTrigger>
         </TabsList>
 
         <TabsContent value="rankings">
-          <div className="rounded-xl border border-border bg-card overflow-x-auto">
-            {rankingType === "pairs" ? (
-              <PairsTable
-                rows={rankingRows as CredentialPairStat[]}
-                sortBy={sortBy}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
-            ) : rankingType === "passwords" ? (
-              <PasswordsTable
-                rows={rankingRows as PasswordCredentialStat[]}
-                sortBy={sortBy}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
-            ) : (
-              <UsernamesTable
-                rows={rankingRows as UsernameCredentialStat[]}
-                sortBy={sortBy}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
-            )}
+          <div className={TABLE_PANEL_CLASS}>
+            <div className="min-h-0 flex-1 overflow-auto">
+              {rankingType === "pairs" ? (
+                <PairsTable
+                  rows={rankingRows as CredentialPairStat[]}
+                  sortBy={sortBy}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              ) : rankingType === "passwords" ? (
+                <PasswordsTable
+                  rows={rankingRows as PasswordCredentialStat[]}
+                  sortBy={sortBy}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              ) : (
+                <UsernamesTable
+                  rows={rankingRows as UsernameCredentialStat[]}
+                  sortBy={sortBy}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              )}
+            </div>
             <TablePagination pagination={analytics.rankingsPage.pagination} />
           </div>
         </TabsContent>
@@ -454,13 +458,15 @@ export function CredentialsView({ analytics }: { analytics: CredentialsAnalytics
         </TabsContent>
 
         <TabsContent value="recent">
-          <div className="rounded-xl border border-border bg-card overflow-x-auto">
-            <RecentAttemptsTable
-              rows={recentRows}
-              sortBy={sortBy}
-              sortDir={sortDir}
-              onSort={handleSort}
-            />
+          <div className={TABLE_PANEL_CLASS}>
+            <div className="min-h-0 flex-1 overflow-auto">
+              <RecentAttemptsTable
+                rows={recentRows}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
+            </div>
             <TablePagination pagination={analytics.recentAttemptsPage.pagination} />
           </div>
         </TabsContent>

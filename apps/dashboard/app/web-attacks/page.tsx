@@ -1,3 +1,5 @@
+import Link from "next/link"
+import { Search } from "lucide-react"
 import { fetchWebHitsByIpPage, fetchWebHitsStats } from "@/lib/api"
 import { PageShell } from "@/components/page-shell"
 import { lookupIp } from "@/lib/geo"
@@ -37,28 +39,44 @@ export default async function WebAttacksPage({
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-foreground">Web Attacks</h1>
         <p className="text-sm text-muted-foreground">
-          {stats.total} requests capturadas · {attackersPage.pagination.total} atacantes visibles
+          {stats.total.toLocaleString()} requests capturadas - {attackersPage.pagination.total.toLocaleString()} atacantes visibles
         </p>
       </div>
 
       <WebAttacksNav active="attackers" />
 
-      <form className="mb-6 flex flex-wrap gap-2">
-        <input type="hidden" name="pageSize" value={String(attackersPage.pagination.pageSize)} />
-        <input
-          type="text"
-          name="q"
-          defaultValue={q ?? ""}
-          placeholder="Buscar IP atacante..."
-          className="h-10 min-w-72 rounded-md border border-border bg-background px-3 text-sm text-foreground"
-        />
-        <button
-          type="submit"
-          className="h-10 rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
-        >
-          Buscar
-        </button>
-      </form>
+      <div className="mb-6 rounded-xl border border-border bg-card p-4">
+        <form className="flex flex-wrap items-center gap-3">
+          <input type="hidden" name="pageSize" value={String(attackersPage.pagination.pageSize)} />
+          <div className="relative min-w-[320px] flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              name="q"
+              defaultValue={q ?? ""}
+              placeholder="Buscar IP atacante..."
+              className="h-10 w-full rounded-md border border-border bg-background pl-10 pr-3 text-sm text-foreground"
+            />
+          </div>
+          <button
+            type="submit"
+            className="h-10 rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+          >
+            Buscar
+          </button>
+          {q && (
+            <Link
+              href={`/web-attacks?pageSize=${attackersPage.pagination.pageSize}`}
+              className="inline-flex h-10 items-center rounded-md border border-border px-4 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              Limpiar
+            </Link>
+          )}
+          <span className="inline-flex items-center rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
+            {attackersPage.items.length} filas en esta pagina
+          </span>
+        </form>
+      </div>
 
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-xl border border-border bg-card p-4">
@@ -85,22 +103,30 @@ export default async function WebAttacksPage({
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/30">
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">IP atacante</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Hits</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Tipos de ataque</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Paths principales</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Primer hit</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Último hit</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            <AttackersTable attackers={attackersPage.items} geo={geoMap} />
-          </tbody>
-        </table>
+      <div className="flex min-h-[620px] max-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-xl border border-border bg-card">
+        <div className="border-b border-border px-4 py-3">
+          <h2 className="font-semibold text-foreground">Attackers</h2>
+          <p className="text-xs text-muted-foreground">IPs HTTP ordenadas por actividad y volumen de hits</p>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-auto">
+          <table className="min-w-[1080px] w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/30">
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">IP atacante</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Hits</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Tipos de ataque</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Paths principales</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Primer hit</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Ultimo hit</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              <AttackersTable attackers={attackersPage.items} geo={geoMap} />
+            </tbody>
+          </table>
+        </div>
+
         <TablePagination pagination={attackersPage.pagination} />
       </div>
     </PageShell>
