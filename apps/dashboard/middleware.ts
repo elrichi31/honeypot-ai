@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server"
 
 const PUBLIC_PATHS = ["/login", "/setup", "/api/auth", "/api/setup-status"]
 
+function isPrefetchRequest(request: NextRequest) {
+  return (
+    request.headers.has("next-router-prefetch") ||
+    request.headers.has("x-middleware-prefetch") ||
+    request.headers.get("purpose") === "prefetch"
+  )
+}
+
 function getSetCookieHeaders(response: Response) {
   if (typeof response.headers.getSetCookie === "function") {
     return response.headers.getSetCookie()
@@ -18,6 +26,13 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+    return NextResponse.next()
+  }
+
+  // App Router prefetch requests can poison the client cache with a redirect
+  // if they arrive without the latest auth cookies. Let the real navigation
+  // request perform the actual session check instead.
+  if (isPrefetchRequest(request)) {
     return NextResponse.next()
   }
 
