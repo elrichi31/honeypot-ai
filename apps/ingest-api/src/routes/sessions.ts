@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { detectBot } from '../lib/bot-detector.js';
 
 const UTC_OFFSET_HOURS = -5;
 const DEFAULT_PAGE_SIZE = 50;
@@ -15,6 +16,7 @@ const sessionListQuerySchema = z.object({
   endDate: z.string().datetime({ offset: true }).optional(),
   q: z.string().trim().min(1).optional(),
   outcome: z.enum(['all', 'compromised', 'blocked']).optional(),
+  actor: z.enum(['all', 'bot', 'human', 'unknown']).optional(),
 });
 
 type SessionSummaryRow = {
@@ -22,6 +24,8 @@ type SessionSummaryRow = {
   compromised: number;
   blocked: number;
   scanGroups: number;
+  bots: number;
+  humans: number;
 };
 
 type SessionListRow = {
@@ -36,6 +40,7 @@ type SessionListRow = {
   clientVersion: string | null;
   startedAt: Date;
   endedAt: Date | null;
+  sessionType: string;
   createdAt: Date;
   updatedAt: Date;
   eventCount: number;
@@ -69,6 +74,7 @@ function formatSession(row: SessionListRow) {
     clientVersion: row.clientVersion,
     startedAt: toOffsetISOString(row.startedAt),
     endedAt: row.endedAt ? toOffsetISOString(row.endedAt) : null,
+    sessionType: row.sessionType ?? 'unknown',
     createdAt: toOffsetISOString(row.createdAt),
     updatedAt: toOffsetISOString(row.updatedAt),
     eventCount: row.eventCount,
@@ -93,6 +99,7 @@ function buildSessionClauses(params: {
   startDate?: string;
   endDate?: string;
   outcome?: 'all' | 'compromised' | 'blocked';
+  actor?: 'all' | 'bot' | 'human' | 'unknown';
 }) {
   const clauses: Prisma.Sql[] = [Prisma.sql`1 = 1`];
   const trimmedQuery = params.q?.trim();
@@ -124,6 +131,10 @@ function buildSessionClauses(params: {
     clauses.push(Prisma.sql`s.login_success IS TRUE`);
   } else if (params.outcome === 'blocked') {
     clauses.push(Prisma.sql`s.login_success IS DISTINCT FROM TRUE`);
+  }
+
+  if (params.actor && params.actor !== 'all') {
+    clauses.push(Prisma.sql`s.session_type = ${params.actor}`);
   }
 
   return clauses;
@@ -158,12 +169,14 @@ export async function sessionRoutes(fastify: FastifyInstance) {
       startDate: parsed.data.startDate,
       endDate: parsed.data.endDate,
       outcome: 'all',
+      actor: parsed.data.actor ?? 'all',
     });
     const listClauses = buildSessionClauses({
       q: parsed.data.q,
       startDate: parsed.data.startDate,
       endDate: parsed.data.endDate,
       outcome: parsed.data.outcome ?? 'all',
+      actor: parsed.data.actor ?? 'all',
     });
 
     const [summaryRows, sessionRows] = await Promise.all([
@@ -172,7 +185,9 @@ export async function sessionRoutes(fastify: FastifyInstance) {
           COUNT(*)::int AS total,
           COUNT(*) FILTER (WHERE s.login_success IS TRUE)::int AS compromised,
           COUNT(*) FILTER (WHERE s.login_success IS DISTINCT FROM TRUE)::int AS blocked,
-          COUNT(DISTINCT s.src_ip) FILTER (WHERE s.login_success IS DISTINCT FROM TRUE)::int AS "scanGroups"
+          COUNT(DISTINCT s.src_ip) FILTER (WHERE s.login_success IS DISTINCT FROM TRUE)::int AS "scanGroups",
+          COUNT(*) FILTER (WHERE s.session_type = 'bot')::int AS bots,
+          COUNT(*) FILTER (WHERE s.session_type = 'human')::int AS humans
         FROM sessions s
         ${buildWhereSql(baseClauses)}
       `,
@@ -190,6 +205,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
             s.client_version AS "clientVersion",
             s.started_at AS "startedAt",
             s.ended_at AS "endedAt",
+            s.session_type AS "sessionType",
             s.created_at AS "createdAt",
             s.updated_at AS "updatedAt"
           FROM sessions s
@@ -272,7 +288,9 @@ export async function sessionRoutes(fastify: FastifyInstance) {
           COUNT(*)::int AS total,
           COUNT(*) FILTER (WHERE s.login_success IS TRUE)::int AS compromised,
           COUNT(*) FILTER (WHERE s.login_success IS DISTINCT FROM TRUE)::int AS blocked,
-          COUNT(DISTINCT s.src_ip) FILTER (WHERE s.login_success IS DISTINCT FROM TRUE)::int AS "scanGroups"
+          COUNT(DISTINCT s.src_ip) FILTER (WHERE s.login_success IS DISTINCT FROM TRUE)::int AS "scanGroups",
+          COUNT(*) FILTER (WHERE s.session_type = 'bot')::int AS bots,
+          COUNT(*) FILTER (WHERE s.session_type = 'human')::int AS humans
         FROM sessions s
         ${buildWhereSql(baseClauses)}
       `,
@@ -295,6 +313,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
             s.client_version AS "clientVersion",
             s.started_at AS "startedAt",
             s.ended_at AS "endedAt",
+            s.session_type AS "sessionType",
             s.created_at AS "createdAt",
             s.updated_at AS "updatedAt"
           FROM sessions s
@@ -371,14 +390,90 @@ export async function sessionRoutes(fastify: FastifyInstance) {
     ).length;
     const commandCount = session.events.filter((event) => event.eventType === 'command.input').length;
 
+    const commands = session.events
+      .filter(e => e.eventType === 'command.input')
+      .map(e => e.command ?? '')
+      .filter(Boolean);
+
+    const durationSec =
+      session.endedAt
+        ? Math.max(0, Math.round((session.endedAt.getTime() - session.startedAt.getTime()) / 1000))
+        : null;
+
+    const { actor: sessionType } = detectBot({
+      clientVersion: session.clientVersion,
+      hassh: session.hassh,
+      durationSec,
+      commands,
+      authAttemptCount,
+      loginSuccess: session.loginSuccess,
+    });
+
     return {
       ...formatSession({
         ...session,
+        sessionType,
         eventCount: session.events.length,
         authAttemptCount,
         commandCount,
       }),
       events: session.events.map(formatEvent),
     };
+  });
+
+  // Backfill sessionType for all existing sessions that are still 'unknown'
+  fastify.post('/sessions/backfill-actor', async (_request, reply) => {
+    type UnclassifiedRow = {
+      id: string;
+      client_version: string | null;
+      hassh: string | null;
+      started_at: Date;
+      ended_at: Date | null;
+      login_success: boolean | null;
+    };
+
+    const sessions = await fastify.prisma.$queryRaw<UnclassifiedRow[]>`
+      SELECT id, client_version, hassh, started_at, ended_at, login_success
+      FROM sessions
+      WHERE session_type = 'unknown'
+      LIMIT 5000
+    `;
+
+    let updated = 0;
+
+    for (const s of sessions) {
+      const [commandEvents, authEvents] = await Promise.all([
+        fastify.prisma.event.findMany({
+          where: { sessionId: s.id, eventType: 'command.input' },
+          select: { command: true },
+        }),
+        fastify.prisma.event.findMany({
+          where: { sessionId: s.id, eventType: { in: ['auth.success', 'auth.failed'] } },
+          select: { id: true },
+        }),
+      ]);
+
+      const durationSec =
+        s.ended_at
+          ? Math.max(0, Math.round((s.ended_at.getTime() - s.started_at.getTime()) / 1000))
+          : null;
+
+      const { actor } = detectBot({
+        clientVersion: s.client_version,
+        hassh: s.hassh,
+        durationSec,
+        commands: commandEvents.map(e => e.command ?? '').filter(Boolean),
+        authAttemptCount: authEvents.length,
+        loginSuccess: s.login_success,
+      });
+
+      await fastify.prisma.session.update({
+        where: { id: s.id },
+        data: { sessionType: actor },
+      });
+      updated++;
+    }
+
+    return reply.send({ backfilled: updated, remaining: sessions.length === 5000 ? 'more' : 0 });
   });
 }

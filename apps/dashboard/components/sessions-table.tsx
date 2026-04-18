@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { Filter, Search, ShieldX, ScanLine, X } from "lucide-react"
+import { Filter, Search, ShieldX, ScanLine, X, Bot, User } from "lucide-react"
 import type { PaginationMeta, SessionsSummary } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { countryFlag } from "@/lib/formatting"
@@ -19,6 +19,7 @@ interface SessionsTableProps {
   showAll?: boolean
   tab?: "sessions" | "scans"
   searchQuery?: string
+  actor?: "all" | "bot" | "human" | "unknown"
   summary?: SessionsSummary
   pagination?: PaginationMeta
 }
@@ -34,6 +35,7 @@ export function SessionsTable({
   showAll = false,
   tab = "sessions",
   searchQuery = "",
+  actor = "all",
   summary,
   pagination,
 }: SessionsTableProps) {
@@ -102,6 +104,17 @@ export function SessionsTable({
     router.push(`${pathname}?${next.toString()}`)
   }
 
+  function setActorFilter(nextActor: "all" | "bot" | "human") {
+    const next = new URLSearchParams(searchParams.toString())
+    if (nextActor === "all") {
+      next.delete("actor")
+    } else {
+      next.set("actor", nextActor)
+    }
+    next.set("page", "1")
+    router.push(`${pathname}?${next.toString()}`)
+  }
+
   const activeFilters = [filters.search, filters.country, filters.classification].filter(Boolean)
 
   if (!showAll) {
@@ -135,6 +148,8 @@ export function SessionsTable({
 
   const compromisedCount = summary?.compromised ?? activeSessions.length
   const scanGroupCount = summary?.scanGroups ?? scanGroups.length
+  const botCount = summary?.bots ?? 0
+  const humanCount = summary?.humans ?? 0
 
   return (
     <div className="flex min-h-[620px] max-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-xl border border-border bg-card">
@@ -146,34 +161,69 @@ export function SessionsTable({
               {compromisedCount.toLocaleString()} comprometidas - {scanGroupCount.toLocaleString()} IPs en escaneo
             </p>
           </div>
-          <div className="flex gap-1 rounded-lg bg-secondary p-1">
-            {(["sessions", "scans"] as const).map((currentTab) => (
-              <button
-                key={currentTab}
-                onClick={() => setTab(currentTab)}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                  tab === currentTab
-                    ? "bg-card text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {currentTab === "sessions" ? <ShieldX className="h-3.5 w-3.5" /> : <ScanLine className="h-3.5 w-3.5" />}
-                {currentTab === "sessions" ? "Sesiones" : "Escaneos"}
-                <span
+          <div className="flex flex-wrap items-center gap-2">
+            {tab === "sessions" && (
+              <div className="flex gap-1 rounded-lg bg-secondary p-1">
+                {(
+                  [
+                    { value: "all" as const, label: "Todos", icon: null, count: null, activeColor: "" },
+                    { value: "bot" as const, label: "Bots", icon: Bot, count: botCount, activeColor: "bg-orange-500/20 text-orange-400" },
+                    { value: "human" as const, label: "Humanos", icon: User, count: humanCount, activeColor: "bg-blue-500/20 text-blue-400" },
+                  ]
+                ).map(({ value, label, icon: Icon, count, activeColor }) => {
+                  const isActive = actor === value || (value === "all" && (actor === "all" || actor === "unknown"))
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => setActorFilter(value)}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                        isActive
+                          ? value === "all" ? "bg-card text-foreground shadow-sm" : activeColor
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {Icon && <Icon className="h-3 w-3" />}
+                      {label}
+                      {count !== null && count > 0 && (
+                        <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+            <div className="flex gap-1 rounded-lg bg-secondary p-1">
+              {(["sessions", "scans"] as const).map((currentTab) => (
+                <button
+                  key={currentTab}
+                  onClick={() => setTab(currentTab)}
                   className={cn(
-                    "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                     tab === currentTab
-                      ? currentTab === "sessions"
-                        ? "bg-destructive/20 text-destructive"
-                        : "bg-secondary text-foreground"
-                      : "bg-secondary text-muted-foreground",
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  {currentTab === "sessions" ? compromisedCount : scanGroupCount}
-                </span>
-              </button>
-            ))}
+                  {currentTab === "sessions" ? <ShieldX className="h-3.5 w-3.5" /> : <ScanLine className="h-3.5 w-3.5" />}
+                  {currentTab === "sessions" ? "Sesiones" : "Escaneos"}
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                      tab === currentTab
+                        ? currentTab === "sessions"
+                          ? "bg-destructive/20 text-destructive"
+                          : "bg-secondary text-foreground"
+                        : "bg-secondary text-muted-foreground",
+                    )}
+                  >
+                    {currentTab === "sessions" ? compromisedCount : scanGroupCount}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

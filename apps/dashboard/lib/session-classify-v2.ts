@@ -16,6 +16,7 @@ export interface SessionItem {
   commandCount: number
   hassh?: string
   clientVersion?: string
+  sessionType?: 'bot' | 'human' | 'unknown'
 }
 
 export interface Classification {
@@ -141,6 +142,8 @@ export interface ScanGroup {
   spanSec: number
   clientVersions: string[]
   sessions: SessionItem[]
+  botCount: number
+  isBot: boolean
 }
 
 export function groupScans(scans: SessionItem[]): ScanGroup[] {
@@ -161,6 +164,8 @@ export function groupScans(scans: SessionItem[]): ScanGroup[] {
         spanSec: 0,
         clientVersions: [],
         sessions: [],
+        botCount: 0,
+        isBot: false,
       })
     }
 
@@ -169,6 +174,7 @@ export function groupScans(scans: SessionItem[]): ScanGroup[] {
     group.authAttempts += session.authAttemptCount
     group.commandCount += session.commandCount
     group.sessions.push(session)
+    if (session.sessionType === 'bot') group.botCount++
 
     if (new Date(session.startTime) < new Date(group.firstSeen)) group.firstSeen = session.startTime
     if (new Date(session.startTime) > new Date(group.lastSeen)) group.lastSeen = session.startTime
@@ -193,7 +199,10 @@ export function groupScans(scans: SessionItem[]): ScanGroup[] {
     }
   }
 
-  return [...map.values()].sort(
-    (a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime(),
-  )
+  return [...map.values()]
+    .map(group => ({
+      ...group,
+      isBot: group.attempts > 0 && group.botCount / group.attempts >= 0.6,
+    }))
+    .sort((a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime())
 }

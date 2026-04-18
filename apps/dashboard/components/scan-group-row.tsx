@@ -5,7 +5,7 @@ import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
 import {
   ChevronDown, ChevronRight, Terminal, Clock, User, Key,
-  ExternalLink, Shield, ScanLine,
+  ExternalLink, Shield, ScanLine, Bot,
 } from "lucide-react"
 import { formatDuration, countryFlag } from "@/lib/formatting"
 import { type ScanGroup } from "@/lib/session-classify-v2"
@@ -42,6 +42,11 @@ export function ScanGroupRow({ group }: { group: ScanGroup }) {
             <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
               <Shield className="h-3 w-3" /> Bloqueado
             </span>
+            {group.isBot && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-2 py-0.5 text-xs font-medium text-orange-400">
+                <Bot className="h-3 w-3" /> Bot
+              </span>
+            )}
             <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-muted-foreground">
               <ScanLine className="h-3 w-3" />
               {group.attempts} {group.attempts === 1 ? "intento" : "intentos"}
@@ -65,9 +70,9 @@ export function ScanGroupRow({ group }: { group: ScanGroup }) {
               {formatDistanceToNow(new Date(group.lastSeen), { addSuffix: true })}
             </span>
             {group.spanSec > 0 && (
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1" title="Tiempo entre el primer y último intento de este IP">
                 <Clock className="h-3 w-3" />
-                ventana {formatDuration(group.spanSec)}
+                activo {formatDuration(group.spanSec)}
               </span>
             )}
             {group.clientVersions.length > 0 && (

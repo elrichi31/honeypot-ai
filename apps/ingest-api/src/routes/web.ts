@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ensureIngestToken } from '../lib/ingest-auth.js';
+import { isWebHitBot } from '../lib/bot-detector.js';
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 5000;
@@ -35,6 +36,7 @@ type WebHitsByIpRow = {
   attack_types: string[] | null;
   top_paths: string[] | null;
   user_agents: string[] | null;
+  bot_hits: number;
 };
 
 type WebHitRow = {
@@ -46,6 +48,7 @@ type WebHitRow = {
   userAgent: string;
   attackType: string;
   timestamp: Date;
+  isBot: boolean;
 };
 
 type AttackTypeStatRow = {
@@ -173,7 +176,8 @@ export async function webRoutes(fastify: FastifyInstance) {
           query,
           user_agent AS "userAgent",
           attack_type AS "attackType",
-          timestamp
+          timestamp,
+          FALSE AS "isBot"
         FROM web_hits
         ${whereSql}
         ORDER BY timestamp DESC
@@ -182,7 +186,10 @@ export async function webRoutes(fastify: FastifyInstance) {
       `,
     ]);
 
-    return reply.send({ total: countRows[0]?.total ?? 0, hits });
+    return reply.send({
+      total: countRows[0]?.total ?? 0,
+      hits: hits.map(h => ({ ...h, isBot: isWebHitBot(h.attackType, h.userAgent) })),
+    });
   });
 
   fastify.get('/web-hits/timeline', async (_request, reply) => {
@@ -285,7 +292,11 @@ export async function webRoutes(fastify: FastifyInstance) {
             ARRAY_AGG(DISTINCT attack_type) AS attack_types,
             (ARRAY_AGG(path ORDER BY timestamp DESC))[1:5] AS top_paths,
             ARRAY_AGG(DISTINCT user_agent)
-              FILTER (WHERE user_agent <> '') AS user_agents
+              FILTER (WHERE user_agent <> '') AS user_agents,
+            COUNT(*) FILTER (
+              WHERE attack_type IN ('scanner', 'recon')
+                 OR user_agent ~* 'sqlmap|nikto|nmap|masscan|zgrab|nuclei|dirbuster|gobuster|wfuzz|hydra|medusa|burpsuite|metasploit|acunetix|nessus|openvas|shodan|censys|curl/|python-requests|go-http-client|libwww-perl|scrapy'
+            )::int AS bot_hits
           FROM web_hits
           ${whereSql}
           GROUP BY src_ip
@@ -310,6 +321,8 @@ export async function webRoutes(fastify: FastifyInstance) {
         attackTypes: row.attack_types ?? [],
         topPaths: row.top_paths ?? [],
         userAgents: (row.user_agents ?? []).slice(0, 3),
+        botHits: row.bot_hits ?? 0,
+        isBot: (row.bot_hits ?? 0) >= row.total_hits * 0.8,
       })),
       pagination: {
         page,

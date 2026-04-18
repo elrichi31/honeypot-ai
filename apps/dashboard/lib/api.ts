@@ -23,6 +23,8 @@ export interface SessionsSummary {
   compromised: number
   blocked: number
   scanGroups: number
+  bots: number
+  humans: number
 }
 
 export interface PaginatedSessionsResponse extends PaginatedResponse<ApiSession> {
@@ -208,6 +210,7 @@ export async function fetchSessionsPage(params?: {
   offset?: number
   q?: string
   outcome?: "all" | "compromised" | "blocked"
+  actor?: "all" | "bot" | "human" | "unknown"
   startDate?: string
   endDate?: string
 }): Promise<PaginatedSessionsResponse> {
@@ -218,6 +221,7 @@ export async function fetchSessionsPage(params?: {
   if (params?.offset) searchParams.set("offset", String(params.offset))
   if (params?.q) searchParams.set("q", params.q)
   if (params?.outcome) searchParams.set("outcome", params.outcome)
+  if (params?.actor && params.actor !== "all") searchParams.set("actor", params.actor)
   if (params?.startDate) searchParams.set("startDate", params.startDate)
   if (params?.endDate) searchParams.set("endDate", params.endDate)
 
@@ -435,6 +439,7 @@ export interface ApiSession {
   clientVersion: string | null
   startedAt: string
   endedAt: string | null
+  sessionType: 'bot' | 'human' | 'unknown'
   createdAt: string
   updatedAt: string
   eventCount: number

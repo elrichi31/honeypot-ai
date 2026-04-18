@@ -5,6 +5,8 @@ import { lookupIp } from "@/lib/geo"
 
 const PAGE_SIZE_OPTIONS = new Set(["50", "100", "200"])
 
+const VALID_ACTORS = new Set(["all", "bot", "human", "unknown"])
+
 export default async function SessionsPage({
   searchParams,
 }: {
@@ -13,6 +15,7 @@ export default async function SessionsPage({
     pageSize?: string
     q?: string
     tab?: string
+    actor?: string
   }>
 }) {
   const params = await searchParams
@@ -20,6 +23,7 @@ export default async function SessionsPage({
   const pageSize = PAGE_SIZE_OPTIONS.has(params.pageSize ?? "") ? Number(params.pageSize) : 50
   const tab = params.tab === "scans" ? "scans" : "sessions"
   const q = params.q?.trim() || undefined
+  const actor = VALID_ACTORS.has(params.actor ?? "") ? params.actor as "all" | "bot" | "human" | "unknown" : undefined
 
   const sessionPage = await (
     tab === "scans"
@@ -33,6 +37,7 @@ export default async function SessionsPage({
           pageSize,
           q,
           outcome: "compromised",
+          actor,
         })
   )
   const sessions = sessionPage.items
@@ -62,6 +67,7 @@ export default async function SessionsPage({
       commandCount: session.commandCount,
       hassh: session.hassh ?? undefined,
       clientVersion: session.clientVersion ?? undefined,
+      sessionType: session.sessionType ?? 'unknown',
     }
   })
 
@@ -81,6 +87,7 @@ export default async function SessionsPage({
         showAll
         tab={tab}
         searchQuery={q ?? ""}
+        actor={actor ?? "all"}
         summary={sessionPage.summary}
         pagination={sessionPage.pagination}
       />

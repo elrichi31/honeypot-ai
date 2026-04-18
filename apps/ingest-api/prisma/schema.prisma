@@ -19,6 +19,7 @@ model Session {
   clientVersion   String?  @map("client_version")
   startedAt       DateTime @map("started_at")
   endedAt         DateTime? @map("ended_at")
+  sessionType     String   @default("unknown") @map("session_type")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 

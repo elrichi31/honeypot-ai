@@ -5,7 +5,7 @@ import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
 import {
   ChevronDown, ChevronRight, Terminal, Clock, User, Key,
-  Loader2, ExternalLink, ShieldX,
+  Loader2, ExternalLink, ShieldX, Bot,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatDuration, countryFlag } from "@/lib/formatting"
@@ -56,6 +56,11 @@ export function SessionRow({ session }: { session: SessionItem }) {
             <span className="inline-flex items-center gap-1 rounded-full bg-destructive/20 px-2 py-0.5 text-xs font-medium text-destructive">
               <ShieldX className="h-3 w-3" /> Comprometido
             </span>
+            {session.sessionType === 'bot' && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-2 py-0.5 text-xs font-medium text-orange-400">
+                <Bot className="h-3 w-3" /> Bot
+              </span>
+            )}
             <span className={cn("inline-flex items-center gap-1 rounded-full border border-transparent px-2 py-0.5 text-xs font-medium", cls.bg, cls.color)}>
               <Icon className="h-3 w-3" />
               {cls.label}
