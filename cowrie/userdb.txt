@@ -4,39 +4,137 @@
 #   password = *       -> accept ANY password not already denied
 #   password = !text   -> DENY when password matches "text" (order matters)
 #
-# Strategy: block the trivially weak passwords that ANY real server with even
-# basic hardening would reject. Let "plausible" weak passwords through so
-# post-auth behavior can be captured. A real misconfigured server might have
-# P@ssw0rd as root password -- it would never have "1" or "123" or username=password.
+# Strategy: block (1) trivially weak passwords any hardened server would reject,
+# (2) username=password patterns, and (3) high-frequency credential pairs seen
+# in scan traffic -- automated noise that yields no real intelligence.
+#
+# Passwords < 8 chars are rejected by patch_auth.py at Docker build time.
+# The explicit short-password denies below are a SAFETY NET for when the
+# image hasn't been rebuilt yet. Run:
+#   docker compose build --no-cache cowrie && docker compose up -d cowrie
+# to activate the length check in auth.py.
 
 # --- root --------------------------------------------------------------------
-# NOTE: passwords < 8 chars are rejected by the auth patch before reaching here.
-# We only need to block 8+ char passwords that are too obvious for a real server.
+
+# Safety net: most-common short passwords (patch_auth.py handles these at build time)
+root:x:!root
+root:x:!admin
+root:x:!pass
+root:x:!0
+root:x:!1
+root:x:!123
+root:x:!1234
+root:x:!12345
+root:x:!123456
+root:x:!1234567
+root:x:!toor
+root:x:!0000
+root:x:!ubuntu
+root:x:!redhat
+root:x:!centos
+root:x:!debian
+root:x:!linux
+root:x:!rock
+root:x:!eve
+root:x:!null
+root:x:!abc
+root:x:!abc123
+root:x:!test
+root:x:!qwe
+root:x:!qwe123
+root:x:!asd
+root:x:!asd123
+root:x:!passwd
+
+# High-frequency 8+ char passwords seen in scan traffic (> 25 hits in telemetry)
 root:x:!password
 root:x:!password1
 root:x:!password123
+root:x:!Password
+root:x:!Password1
+root:x:!Password@123
+root:x:!P@ssw0rd
+root:x:!P@ssw0rd123
+root:x:!P@ssw0rd2026
+root:x:!P@ssword
+root:x:!Passw0rd
+root:x:!passw0rd
+root:x:!p@ssw0rd
+root:x:!P@55w0rd
+root:x:!Pass@123
+root:x:!!Q2w3e4r
+root:x:!!Q@W3e4r
+root:x:!!QAZ2wsx
+root:x:!!Qaz@Wsx
+root:x:!!qaz@WSX
+root:x:!!QAZ@WSX
+root:x:!1qaz@WSX
+root:x:!1qaz@wsx
+root:x:!1qazXSW@
+root:x:!1qazxsw2
+root:x:!1qaz2wsx
+root:x:!1qaz@WSX3edc
+root:x:!1q2w3e4r
+root:x:!1Q2w3e4r
+root:x:!1Q2W3E4R
+root:x:!1qaz!QAZ
+root:x:!aA123456
+root:x:!Aa123456
+root:x:!Aa123456@
+root:x:!Aa123456.
+root:x:!Aa123321
+root:x:!Aa@123456
+root:x:!Aa1234567890
+root:x:!aa123456
+root:x:!qq123456
+root:x:!Qq123456
+root:x:!qQ123456
+root:x:!QQ123456
+root:x:!QWEqwe123
+root:x:!qwerty12
+root:x:!qwerty123
+root:x:!qwerty1234
+root:x:!qwe123!@
+root:x:!qwer1234
+root:x:!qwe123456
+root:x:!ab123456
+root:x:!Ab123456
+root:x:!aB123456
+root:x:!abc12345
+root:x:!abc123456
+root:x:!abcd1234
+root:x:!abcd@1234
+root:x:!a123456A
+root:x:!A123456a
+root:x:!Abc12345
+root:x:!Abc123456
+root:x:!Admin123
+root:x:!Admin123!
+root:x:!Admin@123
+root:x:!Admin@123456
+root:x:!admin123
+root:x:!admin1234
+root:x:!admin@123
 root:x:!12345678
 root:x:!12345679
 root:x:!12345690
 root:x:!123456789
 root:x:!1234567890
 root:x:!123321123
+root:x:!123123123
+root:x:!123qwe!@
+root:x:!123@@@
 root:x:!11111111
 root:x:!00000000
 root:x:!rootroot
 root:x:!root1234
 root:x:!root@123
-root:x:!admin123
-root:x:!admin1234
-root:x:!qwerty12
-root:x:!qwerty123
-root:x:!qwerty1234
-root:x:!abcd1234
-root:x:!abc12345
-root:x:!abc123456
+root:x:!Root@123
 root:x:!letmein1
 root:x:!welcome1
 root:x:!welcome123
+root:x:!Welcome@123
+root:x:!Welcome123
 root:x:!iloveyou
 root:x:!sunshine
 root:x:!princess
@@ -45,29 +143,60 @@ root:x:!raspberry
 root:x:!default1
 root:x:!superman1
 root:x:!monkey123
+root:x:!Huawei123
+root:x:!Huawei@123
+root:x:!huawei@123
+root:x:!t0talc0ntr0l4!
+root:x:!LeitboGi0ro
+root:x:!nPSpP4PBW0
+root:x:!Test1234
+root:x:!test1234
+root:x:!test@123
+root:x:!test123
+root:x:!Pass@123
+root:x:!q1w2e3r4
+root:x:!qwer1234
+root:x:!1029384756
+root:x:!12qwaszx
+root:x:!tesTtest123a
+root:x:!qwe123456
 
-# Accept everything else (non-obvious 8+ char passwords -- real intel)
+# Accept everything else (non-obvious passwords -- genuine attack intel)
 root:x:*
 
 # --- ubuntu ------------------------------------------------------------------
+ubuntu:x:!ubuntu
+ubuntu:x:!123456
 ubuntu:x:!password
 ubuntu:x:!12345678
 ubuntu:x:!123456789
 ubuntu:x:!11111111
 ubuntu:x:!password1
 ubuntu:x:!ubuntu12
+ubuntu:x:!P@ssw0rd
+ubuntu:x:!1qaz@WSX
+ubuntu:x:!Aa123456
+ubuntu:x:!solana
 ubuntu:x:*
 
 # --- admin -------------------------------------------------------------------
+admin:x:!admin
+admin:x:!1234
+admin:x:!1111
 admin:x:!admin123
 admin:x:!admin1234
+admin:x:!admin123456
+admin:x:!Admin@123
+admin:x:!admin@123
 admin:x:!password
 admin:x:!12345678
 admin:x:!adminadmin
 admin:x:!administrator
 admin:x:*
 
-# --- service accounts -- reject username=password pattern (8+ char variants) --
+# --- service accounts -- reject username=password and high-frequency patterns --
+oracle:x:!oracle
+oracle:x:!123456
 oracle:x:!oracle12
 oracle:x:!oracle123
 oracle:x:!oracledb
@@ -76,18 +205,28 @@ oracle:x:!12345678
 oracle:x:*
 
 postgres:x:!postgres
+postgres:x:!123456
+postgres:x:!123
+postgres:x:!1
 postgres:x:!postgres1
 postgres:x:!postgres123
 postgres:x:!password
 postgres:x:!12345678
 postgres:x:*
 
+git:x:!git
+git:x:!123
+git:x:!123456
+git:x:!git123
 git:x:!gitadmin
 git:x:!git12345
 git:x:!password
 git:x:!12345678
 git:x:*
 
+deploy:x:!deploy
+deploy:x:!1
+deploy:x:!123456
 deploy:x:!deploy12
 deploy:x:!deploy123
 deploy:x:!deploy@123
@@ -95,30 +234,44 @@ deploy:x:!password
 deploy:x:!12345678
 deploy:x:*
 
+centos:x:!centos
+centos:x:!123456
 centos:x:!centos12
 centos:x:!centos123
 centos:x:!password
 centos:x:!12345678
 centos:x:*
 
+ansible:x:!ansible
 ansible:x:!ansible1
 ansible:x:!ansible123
 ansible:x:!password
 ansible:x:!12345678
 ansible:x:*
 
+ec2-user:x:!ec2-user
+ec2-user:x:!123456
 ec2-user:x:!password
 ec2-user:x:!12345678
 ec2-user:x:*
 
 # --- other common users -------------------------------------------------------
+pi:x:!pi
 pi:x:!raspberry
+pi:x:!raspberryraspberry993311
 pi:x:!password
 pi:x:!12345678
 pi:x:*
 
+user:x:!user
+user:x:!123
+user:x:!1234
+user:x:!123456
+user:x:!111111
 user:x:!password
 user:x:!12345678
 user:x:!useruser
 user:x:!user1234
+user:x:!user123456
+user:x:!1qaz@WSX
 user:x:*
