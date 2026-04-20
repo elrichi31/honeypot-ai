@@ -51,7 +51,15 @@
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\)[0]; print\\('Entrypoint:', d.get\\('Config',{}\\).get\\('Entrypoint'\\)\\); print\\('Cmd:', d.get\\('Config',{}\\).get\\('Cmd'\\)\\); print\\('Env:', [e for e in \\(d.get\\('Config',{}\\).get\\('Env'\\) or []\\) if 'PYTHON' in e or 'PATH' in e]\\)\")",
       "Bash(MSYS_NO_PATHCONV=1 docker run --rm --entrypoint=\"\" cowrie/cowrie:latest /cowrie/cowrie-env/bin/python3 -c \"import cowrie.core.auth, os; print\\(os.path.abspath\\(cowrie.core.auth.__file__\\)\\)\")",
       "Bash(MSYS_NO_PATHCONV=1 docker run --rm --entrypoint=\"\" cowrie/cowrie:latest /cowrie/cowrie-env/bin/python3 -c \"print\\(open\\('/cowrie/cowrie-git/src/cowrie/core/auth.py'\\).read\\(\\)\\)\")",
-      "Bash(curl -s -X POST http://localhost:3000/sessions/backfill-actor)"
+      "Bash(curl -s -X POST http://localhost:3000/sessions/backfill-actor)",
+      "Bash(COMPOSE_BAKE=false docker compose build --no-cache cowrie)",
+      "Bash(DOCKER_BUILDKIT=0 docker build --no-cache -t honeypot-ai-cowrie ./cowrie)",
+      "Bash(DOCKER_BUILDKIT=0 docker compose up -d cowrie)",
+      "WebFetch(domain:github.com)",
+      "WebSearch",
+      "WebFetch(domain:docs.cowrie.org)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:cryptax.medium.com)"
     ]
   }
 }
