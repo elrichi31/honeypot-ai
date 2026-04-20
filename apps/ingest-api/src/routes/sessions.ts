@@ -236,7 +236,8 @@ export async function sessionRoutes(fastify: FastifyInstance) {
               CASE WHEN bool_or(e.command ILIKE '%xmrig%' OR e.command ILIKE '%minerd%' OR e.command ILIKE '%pool.minexmr%' OR e.command ILIKE '%stratum+tcp%') THEN 'crypto_mining' END,
               CASE WHEN bool_or(e.command ILIKE '%wget http%' OR e.command ILIKE '%curl http%') AND bool_or(e.command ILIKE '%chmod +x%' OR e.command ILIKE '%/tmp/%') THEN 'malware_drop' END,
               CASE WHEN bool_or(e.command ILIKE '%crontab%' OR (e.command ILIKE '%authorized_keys%' AND e.command NOT ILIKE '%chattr%')) THEN 'persistence' END,
-              CASE WHEN bool_or(e.command ILIKE '%cat /etc/passwd%' OR e.command ILIKE '%history -c%' OR e.command ILIKE '%rm -rf /var/log%') THEN 'data_exfil' END
+              CASE WHEN bool_or(e.command ILIKE '%cat /etc/passwd%' OR e.command ILIKE '%history -c%' OR e.command ILIKE '%rm -rf /var/log%') THEN 'data_exfil' END,
+              CASE WHEN bool_or(e.command ILIKE '%jito%' OR e.command ILIKE '%firedancer%' OR e.command ILIKE '%shredstream%' OR e.command ILIKE '%solana-validator%' OR e.command ILIKE '%geyser%') THEN 'solana_targeting' END
             ], NULL) AS tags
           FROM events e
           INNER JOIN paged_sessions ps ON ps.id = e.session_id
@@ -428,6 +429,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
       commands,
       authAttemptCount,
       loginSuccess: session.loginSuccess,
+      password: session.password,
     });
 
     return {
@@ -487,6 +489,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
         commands: commandEvents.map(e => e.command ?? '').filter(Boolean),
         authAttemptCount: authEvents.length,
         loginSuccess: s.login_success,
+        password: s.password,
       });
 
       await fastify.prisma.session.update({

@@ -19,6 +19,7 @@ export interface BotDetectionInput {
   commands: string[];
   authAttemptCount: number;
   loginSuccess: boolean | null;
+  password?: string | null;
 }
 
 export interface BotDetectionResult {
@@ -51,6 +52,10 @@ const HUMAN_CLIENT_PATTERNS: RegExp[] = [
 
 // Commands that are essentially the first thing every automated recon bot runs
 const BASIC_RECON_PATTERN = /^(id|whoami|uname(\s+-a)?|hostname|w\b|who\b|uptime|cat\s+\/etc\/issue|cat\s+\/proc\/(version|cpuinfo))(\s|$)/i
+
+// Passwords that look like dates — strongly associated with breach-list credential stuffing
+// Matches DDMMYYYY, MMDDYYYY, YYYYMMDD, DDMMYY, and common separators like 01/01/1990
+const DATE_PASSWORD_PATTERN = /^(\d{2}[.\-/]?\d{2}[.\-/]?\d{2,4}|\d{4}[.\-/]?\d{2}[.\-/]?\d{2})$/
 
 export function detectBot(input: BotDetectionInput): BotDetectionResult {
   let score = 0
@@ -113,6 +118,12 @@ export function detectBot(input: BotDetectionInput): BotDetectionResult {
       score += 15
       reasons.push('Logged in then ran only recon script (automated)')
     }
+  }
+
+  // ── Date-format password = breach-list credential stuffing ───────────────────
+  if (input.password && DATE_PASSWORD_PATTERN.test(input.password)) {
+    score += 20
+    reasons.push(`Date-pattern password "${input.password}" — breach list indicator`)
   }
 
   const botScore = Math.max(0, Math.min(100, score))

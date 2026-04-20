@@ -1,4 +1,4 @@
-import { Cpu, Eye, Download, Shield, Crosshair, KeyRound, Ghost, Container, Database, type LucideIcon } from "lucide-react"
+import { Cpu, Eye, Download, Shield, Crosshair, KeyRound, Ghost, Container, Database, Coins, type LucideIcon } from "lucide-react"
 
 export interface SessionItem {
   id: string
@@ -90,6 +90,16 @@ export function classify(session: SessionItem): Classification {
       color: "text-red-400",
       bg: "bg-red-400/15",
       summary: `Intentó exfiltrar datos del sistema`,
+    }
+  }
+
+  if (loggedIn && tags.includes('solana_targeting')) {
+    return {
+      label: "Targeted Crypto",
+      icon: Coins,
+      color: "text-emerald-400",
+      bg: "bg-emerald-400/15",
+      summary: `Buscó infraestructura Solana (validator, Jito, Firedancer)`,
     }
   }
 

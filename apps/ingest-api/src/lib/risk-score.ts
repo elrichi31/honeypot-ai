@@ -86,6 +86,17 @@ const CMD_PATTERNS: Record<string, RegExp[]> = {
     /cat\s+\/dev\/null\s*>/i,                  // log wiping
     /rm\s+-rf?\s+\/var\/log/i,
   ],
+  solana_targeting: [
+    /\bjito\b/i,                                  // Jito Labs MEV / validator infra
+    /\braydium\b/i,                               // Raydium DEX
+    /\bfiredancer\b/i,                            // Jump Crypto Firedancer validator
+    /\bshredstream\b/i,                           // Jito ShredStream (block propagation)
+    /\banza\b/i,                                  // Anza (Solana core dev team)
+    /\bgeyser\b/i,                                // Solana Geyser plugin API
+    /solana.*validator|validator.*solana/i,
+    /\.sol\s+keypair|id\.json.*solana/i,          // wallet key file patterns
+    /agave|solana-validator|solana-keygen/i,
+  ],
   recon: [
     /^(id|whoami|w|who|last|uptime|hostname|env)(\s|$)/i,
     /uname\s+-a/i,
@@ -105,15 +116,16 @@ export type CommandCategory = keyof typeof CMD_PATTERNS
 
 export function classifyCommands(commands: string[]): Record<CommandCategory, string[]> {
   const result: Record<CommandCategory, string[]> = {
-    ssh_backdoor:     [],
-    honeypot_evasion: [],
-    container_escape: [],
-    malware_drop:     [],
-    persistence:      [],
-    lateral_movement: [],
-    crypto_mining:    [],
-    data_exfil:       [],
-    recon:            [],
+    ssh_backdoor:      [],
+    honeypot_evasion:  [],
+    container_escape:  [],
+    malware_drop:      [],
+    persistence:       [],
+    lateral_movement:  [],
+    crypto_mining:     [],
+    data_exfil:        [],
+    solana_targeting:  [],
+    recon:             [],
   }
 
   for (const cmd of commands) {
@@ -197,6 +209,7 @@ export function computeRiskScore(input: RiskInput): RiskResult {
   if (cats.lateral_movement.length) { cmdPts += 15; factors.push('Lateral movement') }
   if (cats.crypto_mining.length)    { cmdPts += 15; factors.push('Crypto miner deployment') }
   if (cats.data_exfil.length)       { cmdPts += 12; factors.push('Data exfiltration / log wiping') }
+  if (cats.solana_targeting.length) { cmdPts += 18; factors.push('Solana validator/infrastructure targeting') }
   if (cats.recon.length)            { cmdPts +=  5; factors.push('Recon commands') }
 
   // ── Web ─────────────────────────────────────────────────────────────────────

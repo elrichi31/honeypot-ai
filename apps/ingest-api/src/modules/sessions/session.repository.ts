@@ -86,6 +86,7 @@ export class SessionRepository {
       commands: commandEvents.map(e => e.command ?? '').filter(Boolean),
       authAttemptCount: authEvents.length,
       loginSuccess: sessionData.loginSuccess ?? session.loginSuccess,
+      password: sessionData.password,
     });
 
     return actor;

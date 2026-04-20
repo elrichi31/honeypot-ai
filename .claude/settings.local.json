@@ -59,7 +59,9 @@
       "WebSearch",
       "WebFetch(domain:docs.cowrie.org)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "WebFetch(domain:cryptax.medium.com)"
+      "WebFetch(domain:cryptax.medium.com)",
+      "Bash(DOCKER_BUILDKIT=0 docker compose up -d postgres)",
+      "Bash(docker cp *)"
     ]
   }
 }
