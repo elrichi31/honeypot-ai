@@ -15,6 +15,29 @@
 // ─── Command classifiers ───────────────────────────────────────────────────────
 
 const CMD_PATTERNS: Record<string, RegExp[]> = {
+  ssh_backdoor: [
+    /chattr\s+.*authorized_keys/i,             // immutable backdoor key
+    /echo.+ssh-rsa\s+AAAA/i,                   // writing public key
+    /echo.+ssh-ed25519\s+AAAA/i,
+    />\s*~?\/\.ssh\/authorized_keys/i,          // redirecting to authorized_keys
+    /clean\.sh|setup\.sh/i,                    // dropper scripts seen in the wild
+    /auth_ok/i,                                // C2 callback signal
+  ],
+  honeypot_evasion: [
+    /D877F783D5D3EF8C/i,                       // known honeypot detection file
+    /locate\s+D877F783/i,
+    /ls\s+.*TelegramDesktop\/tdata/i,          // Telegram session file check
+    /\/dev\/ttyGSM|ttyUSB-mod/i,              // GSM/modem device check
+    /\/var\/spool\/sms/i,                      // SMS spool check
+    /smsd\.conf|qmuxd|simman/i,               // SIM management tools
+    /\/var\/config\/sms|qmux_connect/i,
+  ],
+  container_escape: [
+    /\/proc\/1\/mounts/i,                      // container detection via mounts
+    /ls\s+\/proc\/1\//i,                       // listing PID 1 namespace
+    /cat\s+\/proc\/1\/cgroup/i,
+    /curl2\b/i,                                // tool used for container escape recon
+  ],
   malware_drop: [
     /wget\s+https?:\/\//i,
     /curl\s+(-[a-z]+\s+)*https?:\/\//i,
@@ -82,12 +105,15 @@ export type CommandCategory = keyof typeof CMD_PATTERNS
 
 export function classifyCommands(commands: string[]): Record<CommandCategory, string[]> {
   const result: Record<CommandCategory, string[]> = {
-    malware_drop:    [],
-    persistence:     [],
-    lateral_movement:[],
-    crypto_mining:   [],
-    data_exfil:      [],
-    recon:           [],
+    ssh_backdoor:     [],
+    honeypot_evasion: [],
+    container_escape: [],
+    malware_drop:     [],
+    persistence:      [],
+    lateral_movement: [],
+    crypto_mining:    [],
+    data_exfil:       [],
+    recon:            [],
   }
 
   for (const cmd of commands) {
@@ -163,12 +189,15 @@ export function computeRiskScore(input: RiskInput): RiskResult {
   }
 
   // ── Commands ────────────────────────────────────────────────────────────────
-  if (cats.malware_drop.length)    { cmdPts += 20; factors.push('Malware dropper commands') }
-  if (cats.persistence.length)     { cmdPts += 20; factors.push('Persistence mechanisms') }
-  if (cats.lateral_movement.length){ cmdPts += 15; factors.push('Lateral movement') }
-  if (cats.crypto_mining.length)   { cmdPts += 15; factors.push('Crypto miner deployment') }
-  if (cats.data_exfil.length)      { cmdPts += 12; factors.push('Data exfiltration / log wiping') }
-  if (cats.recon.length)           { cmdPts +=  5; factors.push('Recon commands') }
+  if (cats.ssh_backdoor.length)     { cmdPts += 30; factors.push('SSH backdoor installation') }
+  if (cats.honeypot_evasion.length) { cmdPts += 20; factors.push('Honeypot/sandbox evasion') }
+  if (cats.container_escape.length) { cmdPts += 20; factors.push('Container escape attempt') }
+  if (cats.malware_drop.length)     { cmdPts += 20; factors.push('Malware dropper commands') }
+  if (cats.persistence.length)      { cmdPts += 20; factors.push('Persistence mechanisms') }
+  if (cats.lateral_movement.length) { cmdPts += 15; factors.push('Lateral movement') }
+  if (cats.crypto_mining.length)    { cmdPts += 15; factors.push('Crypto miner deployment') }
+  if (cats.data_exfil.length)       { cmdPts += 12; factors.push('Data exfiltration / log wiping') }
+  if (cats.recon.length)            { cmdPts +=  5; factors.push('Recon commands') }
 
   // ── Web ─────────────────────────────────────────────────────────────────────
   const uniqueWebTypes = [...new Set(input.webAttackTypes)]

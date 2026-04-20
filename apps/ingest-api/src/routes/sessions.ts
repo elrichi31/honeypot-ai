@@ -46,6 +46,7 @@ type SessionListRow = {
   eventCount: number;
   authAttemptCount: number;
   commandCount: number;
+  threatTags: string[];
 };
 
 function toOffsetISOString(date: Date): string {
@@ -81,6 +82,7 @@ function formatSession(row: SessionListRow) {
     authAttemptCount: row.authAttemptCount,
     commandCount: row.commandCount,
     durationSec: toDurationSec(row.startedAt, row.endedAt),
+    threatTags: row.threatTags ?? [],
     _count: { events: row.eventCount },
   };
 }
@@ -223,14 +225,33 @@ export async function sessionRoutes(fastify: FastifyInstance) {
           FROM events e
           INNER JOIN paged_sessions ps ON ps.id = e.session_id
           GROUP BY e.session_id
+        ),
+        attack_tags AS (
+          SELECT
+            e.session_id,
+            array_remove(ARRAY[
+              CASE WHEN bool_or(e.command ILIKE '%authorized_keys%' AND (e.command ILIKE '%chattr%' OR e.command ILIKE '%ssh-rsa%' OR e.command ILIKE '%ssh-ed25519%')) THEN 'ssh_backdoor' END,
+              CASE WHEN bool_or(e.command ILIKE '%D877F783D5D3EF8C%' OR e.command ILIKE '%TelegramDesktop/tdata%' OR e.command ILIKE '%ttyGSM%' OR e.command ILIKE '%/var/spool/sms%') THEN 'honeypot_evasion' END,
+              CASE WHEN bool_or(e.command ILIKE '%/proc/1/mounts%' OR e.command ILIKE '%ls /proc/1/%') THEN 'container_escape' END,
+              CASE WHEN bool_or(e.command ILIKE '%xmrig%' OR e.command ILIKE '%minerd%' OR e.command ILIKE '%pool.minexmr%' OR e.command ILIKE '%stratum+tcp%') THEN 'crypto_mining' END,
+              CASE WHEN bool_or(e.command ILIKE '%wget http%' OR e.command ILIKE '%curl http%') AND bool_or(e.command ILIKE '%chmod +x%' OR e.command ILIKE '%/tmp/%') THEN 'malware_drop' END,
+              CASE WHEN bool_or(e.command ILIKE '%crontab%' OR (e.command ILIKE '%authorized_keys%' AND e.command NOT ILIKE '%chattr%')) THEN 'persistence' END,
+              CASE WHEN bool_or(e.command ILIKE '%cat /etc/passwd%' OR e.command ILIKE '%history -c%' OR e.command ILIKE '%rm -rf /var/log%') THEN 'data_exfil' END
+            ], NULL) AS tags
+          FROM events e
+          INNER JOIN paged_sessions ps ON ps.id = e.session_id
+          WHERE e.event_type = 'command.input'
+          GROUP BY e.session_id
         )
         SELECT
           ps.*,
           COALESCE(ec.event_count, 0)::int AS "eventCount",
           COALESCE(ec.auth_attempt_count, 0)::int AS "authAttemptCount",
-          COALESCE(ec.command_count, 0)::int AS "commandCount"
+          COALESCE(ec.command_count, 0)::int AS "commandCount",
+          COALESCE(at.tags, ARRAY[]::text[]) AS "threatTags"
         FROM paged_sessions ps
         LEFT JOIN event_counts ec ON ec.session_id = ps.id
+        LEFT JOIN attack_tags at ON at.session_id = ps.id
         ORDER BY ps."startedAt" DESC
       `,
     ]);
@@ -416,6 +437,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
         eventCount: session.events.length,
         authAttemptCount,
         commandCount,
+        threatTags: [],
       }),
       events: session.events.map(formatEvent),
     };

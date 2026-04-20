@@ -440,6 +440,7 @@ export interface ApiSession {
   startedAt: string
   endedAt: string | null
   sessionType: 'bot' | 'human' | 'unknown'
+  threatTags: string[]
   createdAt: string
   updatedAt: string
   eventCount: number

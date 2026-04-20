@@ -1,4 +1,4 @@
-import { Cpu, Eye, Download, Shield, Crosshair, type LucideIcon } from "lucide-react"
+import { Cpu, Eye, Download, Shield, Crosshair, KeyRound, Ghost, Container, Database, type LucideIcon } from "lucide-react"
 
 export interface SessionItem {
   id: string
@@ -17,6 +17,7 @@ export interface SessionItem {
   hassh?: string
   clientVersion?: string
   sessionType?: 'bot' | 'human' | 'unknown'
+  threatTags?: string[]
 }
 
 export interface Classification {
@@ -39,6 +40,58 @@ export function classify(session: SessionItem): Classification {
   const authAttempts = session.authAttemptCount
   const commandCount = session.commandCount
   const authRate = authRatePerMinute(session)
+  const tags = session.threatTags ?? []
+
+  // ── Threat-tag labels take priority over generic heuristics ──────────────
+  if (loggedIn && tags.includes('ssh_backdoor')) {
+    return {
+      label: "SSH Backdoor",
+      icon: KeyRound,
+      color: "text-red-500",
+      bg: "bg-red-500/15",
+      summary: `Intentó plantar llave SSH persistente con chattr +ai`,
+    }
+  }
+
+  if (loggedIn && tags.includes('honeypot_evasion')) {
+    return {
+      label: "Honeypot Evasion",
+      icon: Ghost,
+      color: "text-purple-400",
+      bg: "bg-purple-400/15",
+      summary: `Detectó sandbox/honeypot · buscó datos Telegram/SIM`,
+    }
+  }
+
+  if (loggedIn && tags.includes('container_escape')) {
+    return {
+      label: "Container Escape",
+      icon: Container,
+      color: "text-orange-500",
+      bg: "bg-orange-500/15",
+      summary: `Intentó detectar y escapar del entorno de contenedor`,
+    }
+  }
+
+  if (loggedIn && tags.includes('crypto_mining')) {
+    return {
+      label: "Crypto Miner",
+      icon: Cpu,
+      color: "text-yellow-400",
+      bg: "bg-yellow-400/15",
+      summary: `Desplegó minero de criptomonedas`,
+    }
+  }
+
+  if (loggedIn && tags.includes('data_exfil')) {
+    return {
+      label: "Data Exfil",
+      icon: Database,
+      color: "text-red-400",
+      bg: "bg-red-400/15",
+      summary: `Intentó exfiltrar datos del sistema`,
+    }
+  }
 
   if (!loggedIn) {
     if (authAttempts === 0 && session.eventCount <= 3) {

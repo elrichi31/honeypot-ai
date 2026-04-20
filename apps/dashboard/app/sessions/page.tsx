@@ -68,6 +68,7 @@ export default async function SessionsPage({
       hassh: session.hassh ?? undefined,
       clientVersion: session.clientVersion ?? undefined,
       sessionType: session.sessionType ?? 'unknown',
+      threatTags: session.threatTags ?? [],
     }
   })
 
