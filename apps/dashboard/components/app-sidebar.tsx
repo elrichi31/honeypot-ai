@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { formatDistanceToNow } from "date-fns"
 import {
-  LayoutDashboard,
   Terminal,
   Shield,
   Activity,
@@ -27,9 +26,11 @@ import { signOut, useSession } from "@/lib/auth-client"
 
 const navSections = [
   {
-    title: "Overview",
-    icon: LayoutDashboard,
-    items: [{ title: "Overview", href: "/", icon: LayoutDashboard }],
+    title: "Dashboard",
+    icon: BarChart2,
+    items: [
+      { title: "Dashboard", href: "/", icon: BarChart2 },
+    ],
   },
   {
     title: "SSH Honeypot",

@@ -454,10 +454,11 @@ export async function sessionRoutes(fastify: FastifyInstance) {
       started_at: Date;
       ended_at: Date | null;
       login_success: boolean | null;
+      password: string | null;
     };
 
     const sessions = await fastify.prisma.$queryRaw<UnclassifiedRow[]>`
-      SELECT id, client_version, hassh, started_at, ended_at, login_success
+      SELECT id, client_version, hassh, started_at, ended_at, login_success, password
       FROM sessions
       WHERE session_type = 'unknown'
       LIMIT 5000

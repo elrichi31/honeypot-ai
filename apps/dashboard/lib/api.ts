@@ -34,7 +34,8 @@ export interface PaginatedSessionsResponse extends PaginatedResponse<ApiSession>
 export interface TimelinePoint {
   bucketStart: string
   label: string
-  count: number
+  sessions: number
+  successfulLogins: number
 }
 
 export interface DashboardStats {
@@ -49,6 +50,77 @@ export interface DashboardStats {
   timeline: TimelinePoint[]
   eventsByHour?: { hour: string; count: number }[]
   eventsByDay?: { day: string; count: number }[]
+}
+
+export interface DashboardInsightsWindow {
+  firstSeen: string | null
+  lastSeen: string | null
+  totalSessions: number
+  uniqueIps: number
+}
+
+export interface DashboardInsightsFunnel {
+  connections: number
+  authAttempts: number
+  loginSuccess: number
+  commands: number
+  highSignalCompromise: number
+}
+
+export interface DashboardCountrySuccessCandidate {
+  srcIp: string
+  sessions: number
+  successes: number
+}
+
+export interface DashboardCredentialCampaign {
+  bucketStart: string
+  username: string | null
+  password: string | null
+  attempts: number
+  successCount: number
+  uniqueIps: number
+  ips: string[]
+}
+
+export interface DashboardRecurringIp {
+  srcIp: string
+  totalSessions: number
+  failedSessions: number
+  successfulSessions: number
+  credentialCount: number
+  firstSeen: string
+  lastSeen: string
+  returnAfterMinutes: number | null
+  clientVersion: string | null
+}
+
+export interface DashboardCommandPattern {
+  sequence: string
+  sessions: number
+  uniqueIps: number
+}
+
+export interface DashboardDepthBucket {
+  bucket: string
+  sessions: number
+}
+
+export interface DashboardSuccessfulDepth {
+  buckets: DashboardDepthBucket[]
+  averageCommands: number
+  maxCommands: number
+  interactiveSessions: number
+}
+
+export interface DashboardInsights {
+  window: DashboardInsightsWindow
+  funnel: DashboardInsightsFunnel
+  countrySuccessCandidates: DashboardCountrySuccessCandidate[]
+  credentialCampaigns: DashboardCredentialCampaign[]
+  recurringIps: DashboardRecurringIp[]
+  commandPatterns: DashboardCommandPattern[]
+  successfulDepth: DashboardSuccessfulDepth
 }
 
 export interface CredentialsSummary {
@@ -273,6 +345,20 @@ export async function fetchOverviewStats(params: {
     cache: "no-store",
   })
   if (!res.ok) throw new Error(`Failed to fetch overview stats: ${res.status}`)
+  return res.json()
+}
+
+export async function fetchGeoSummary(): Promise<{ srcIp: string; loginSuccess: boolean | null }[]> {
+  const res = await fetch(`${getApiUrl()}/stats/geo`, { cache: "no-store" })
+  if (!res.ok) return []
+  return res.json()
+}
+
+export async function fetchDashboardInsights(): Promise<DashboardInsights> {
+  const res = await fetch(`${getApiUrl()}/stats/dashboards`, {
+    cache: "no-store",
+  })
+  if (!res.ok) throw new Error(`Failed to fetch dashboard insights: ${res.status}`)
   return res.json()
 }
 

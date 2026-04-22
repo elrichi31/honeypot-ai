@@ -1,15 +1,34 @@
 import { Suspense } from "react"
 import { PageShell } from "@/components/page-shell"
-import { StatsCards } from "@/components/stats-cards"
-import { SessionsTable } from "@/components/sessions-table"
-import { TopLists } from "@/components/top-lists"
+import { DashboardInsightsView } from "@/components/dashboard-insights"
 import { ActivityChart } from "@/components/activity-chart"
 import { AttackMap } from "@/components/attack-map"
-import { fetchOverviewStats, fetchSessions, fetchWebHitsStats } from "@/lib/api"
-import { WebAttacksSummary } from "@/components/web-attacks-summary"
-import { geolocateIps } from "@/lib/geo"
+import { fetchDashboardInsights, fetchOverviewStats, fetchGeoSummary } from "@/lib/api"
+import { lookupIp, geolocateIps } from "@/lib/geo"
 import { readConfig } from "@/lib/server-config"
 import type { TimeRange } from "@/lib/types"
+
+interface CountrySuccessRow {
+  country: string
+  countryName: string
+  sessions: number
+  successes: number
+  uniqueIps: number
+  successRate: number
+}
+
+interface CampaignGeoRow {
+  bucketStart: string
+  username: string | null
+  password: string | null
+  attempts: number
+  successCount: number
+  uniqueIps: number
+  ips: string[]
+  countries: string[]
+  countryCount: number
+  successRate: number
+}
 
 function getDateRange(range: TimeRange): { startDate: string; endDate: string } {
   const now = new Date()
@@ -27,6 +46,88 @@ function getDateRange(range: TimeRange): { startDate: string; endDate: string } 
   return { startDate: start.toISOString(), endDate: end }
 }
 
+function buildCountrySuccess(
+  candidates: Awaited<ReturnType<typeof fetchDashboardInsights>>["countrySuccessCandidates"],
+): CountrySuccessRow[] {
+  const geoCache = new Map<string, ReturnType<typeof lookupIp>>()
+  const countryMap = new Map<
+    string,
+    { countryName: string; sessions: number; successes: number; uniqueIps: Set<string> }
+  >()
+
+  const geo = (ip: string) => {
+    if (!geoCache.has(ip)) geoCache.set(ip, lookupIp(ip))
+    return geoCache.get(ip) ?? null
+  }
+
+  for (const candidate of candidates) {
+    const location = geo(candidate.srcIp)
+    if (!location?.country) continue
+
+    if (!countryMap.has(location.country)) {
+      countryMap.set(location.country, {
+        countryName: location.countryName,
+        sessions: 0,
+        successes: 0,
+        uniqueIps: new Set<string>(),
+      })
+    }
+
+    const entry = countryMap.get(location.country)!
+    entry.sessions += candidate.sessions
+    entry.successes += candidate.successes
+    entry.uniqueIps.add(candidate.srcIp)
+  }
+
+  return Array.from(countryMap.entries())
+    .map(([country, entry]) => ({
+      country,
+      countryName: entry.countryName,
+      sessions: entry.sessions,
+      successes: entry.successes,
+      uniqueIps: entry.uniqueIps.size,
+      successRate: entry.sessions > 0 ? Number(((entry.successes / entry.sessions) * 100).toFixed(1)) : 0,
+    }))
+    .filter((row) => row.sessions >= 20 && row.uniqueIps >= 2)
+    .sort((a, b) => b.successRate - a.successRate || b.successes - a.successes)
+    .slice(0, 12)
+}
+
+function buildCampaignGeo(
+  campaigns: Awaited<ReturnType<typeof fetchDashboardInsights>>["credentialCampaigns"],
+): CampaignGeoRow[] {
+  const geoCache = new Map<string, ReturnType<typeof lookupIp>>()
+  const geo = (ip: string) => {
+    if (!geoCache.has(ip)) geoCache.set(ip, lookupIp(ip))
+    return geoCache.get(ip) ?? null
+  }
+
+  return campaigns
+    .map((campaign) => {
+      const countries = Array.from(
+        new Set(
+          campaign.ips
+            .map((ip) => geo(ip)?.country)
+            .filter((country): country is string => Boolean(country)),
+        ),
+      )
+
+      return {
+        ...campaign,
+        countries,
+        countryCount: countries.length,
+        successRate: campaign.attempts > 0 ? Number(((campaign.successCount / campaign.attempts) * 100).toFixed(1)) : 0,
+      }
+    })
+    .sort((a, b) => b.uniqueIps - a.uniqueIps || b.countryCount - a.countryCount || b.attempts - a.attempts)
+    .slice(0, 12)
+}
+
+function percent(part: number, whole: number) {
+  if (!whole) return "0"
+  return ((part / whole) * 100).toFixed(1)
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -34,83 +135,89 @@ export default async function DashboardPage({
 }) {
   const params = await searchParams
   const range: TimeRange =
-    params.range === "week" || params.range === "month" ? params.range : "day"
+    params.range === "week" || params.range === "month" ? params.range : "week"
 
-  const { startDate, endDate } = getDateRange(range)
   const config = readConfig()
   const timezone = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
+  const { startDate, endDate } = getDateRange(range)
 
-  const [stats, sessions, allSessions, webStats] = await Promise.all([
+  const [insights, overviewStats, geoData] = await Promise.all([
+    fetchDashboardInsights(),
     fetchOverviewStats({ startDate, endDate, range, timezone }),
-    fetchSessions({ limit: 1000, startDate, endDate }),
-    fetchSessions({ limit: 5000 }), // all-time for the map
-    fetchWebHitsStats(),
+    fetchGeoSummary(),
   ])
 
-  // Geolocate all sessions across all time (not filtered by range)
-  const countryAttacks = geolocateIps(
-    allSessions.map((s) => ({ srcIp: s.srcIp, loginSuccess: s.loginSuccess ?? null })),
-  )
+  const countryAttacks = geolocateIps(geoData)
+  const countrySuccess = buildCountrySuccess(insights.countrySuccessCandidates)
+  const campaignGeo = buildCampaignGeo(insights.credentialCampaigns)
 
-  // Geo cache for the overview's session table
-  const geoCache2 = new Map<string, ReturnType<typeof geolocateIps>[0] | null>()
-
-  const sessionsList = sessions.map((s) => {
-    const location = (() => {
-      if (!geoCache2.has(s.srcIp)) {
-        const r = geolocateIps([{ srcIp: s.srcIp }])
-        geoCache2.set(s.srcIp, r[0] ?? null)
-      }
-      return geoCache2.get(s.srcIp) ?? null
-    })()
-    const durationSec = s.endedAt
-      ? Math.round((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 1000)
-      : null
-    return {
-      id: s.id,
-      srcIp: s.srcIp,
-      country: location?.country ?? null,
-      countryName: location?.name ?? null,
-      startTime: s.startedAt,
-      endTime: s.endedAt || undefined,
-      duration: durationSec,
-      username: s.username || undefined,
-      password: s.password || undefined,
-      loginSuccess: s.loginSuccess ?? null,
-      eventCount: s.eventCount,
-      authAttemptCount: s.authAttemptCount,
-      commandCount: s.commandCount,
-      hassh: s.hassh ?? undefined,
-      clientVersion: s.clientVersion ?? undefined,
-    }
-  })
+  const compromiseRate = percent(insights.funnel.loginSuccess, insights.funnel.authAttempts)
 
   return (
     <PageShell>
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-foreground">Overview</h1>
-          <p className="text-sm text-muted-foreground">
-            Real-time honeypot activity monitoring
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
+        <p className="text-sm text-muted-foreground">
+          Análisis de profundidad · campañas · comportamiento post-login
+        </p>
+      </div>
+
+      {/* Top-level KPI strip */}
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Sesiones totales</p>
+          <p className="mt-2 text-3xl font-semibold text-foreground">
+            {insights.window.totalSessions.toLocaleString()}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {insights.window.uniqueIps.toLocaleString()} IPs únicas observadas
           </p>
         </div>
-
-        <div className="space-y-6">
-          <StatsCards stats={stats} />
-          <Suspense fallback={<div className="h-[268px] rounded-xl border border-border bg-card" />}>
-            <ActivityChart stats={stats} range={range} />
-          </Suspense>
-          <AttackMap countryAttacks={countryAttacks} />
-          <div className="grid gap-6 xl:grid-cols-2">
-            <SessionsTable sessions={sessionsList} />
-            <TopLists stats={stats} />
-          </div>
-          <WebAttacksSummary
-            total={webStats.total}
-            uniqueIps={webStats.topIps.length}
-            byAttackType={webStats.byAttackType}
-            topIps={webStats.topIps}
-          />
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Tasa de compromiso</p>
+          <p className="mt-2 text-3xl font-semibold text-foreground">{compromiseRate}%</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {insights.funnel.loginSuccess.toLocaleString()} logins exitosos
+          </p>
         </div>
-  </PageShell>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Alta amenaza</p>
+          <p className="mt-2 text-3xl font-semibold text-foreground">
+            {insights.funnel.highSignalCompromise.toLocaleString()}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Sesiones con backdoor, miner, malware drop
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Post-login profundo</p>
+          <p className="mt-2 text-3xl font-semibold text-foreground">
+            {insights.successfulDepth.interactiveSessions.toLocaleString()}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Sesiones con 20+ comandos · máx {insights.successfulDepth.maxCommands}
+          </p>
+        </div>
+      </div>
+
+      {/* All high-signal analytics */}
+      <DashboardInsightsView
+        insights={insights}
+        countrySuccess={countrySuccess}
+        campaignGeo={campaignGeo}
+      />
+
+      {/* Activity timeline */}
+      <div className="mt-6">
+        <Suspense fallback={<div className="h-[284px] rounded-xl border border-border bg-card" />}>
+          <ActivityChart stats={overviewStats} range={range} />
+        </Suspense>
+      </div>
+
+      {/* Attack map */}
+      <div className="mt-6">
+        <AttackMap countryAttacks={countryAttacks} />
+      </div>
+    </PageShell>
   )
 }
