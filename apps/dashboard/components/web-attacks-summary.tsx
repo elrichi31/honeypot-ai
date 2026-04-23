@@ -2,29 +2,18 @@
 
 import Link from "next/link"
 import { Globe, ArrowRight } from "lucide-react"
-import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from "recharts"
+import { Bar, BarChart, Cell, XAxis } from "recharts"
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart"
+import type { ChartConfig } from "@/components/ui/chart"
+import { ATTACK_COLORS_HEX as ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
 
-const ATTACK_COLORS: Record<string, string> = {
-  sqli:            "#ef4444",
-  xss:             "#f97316",
-  lfi:             "#eab308",
-  rfi:             "#eab308",
-  cmdi:            "#a855f7",
-  scanner:         "#3b82f6",
-  info_disclosure: "#06b6d4",
-  recon:           "#6b7280",
-}
-
-const ATTACK_LABELS: Record<string, string> = {
-  sqli:            "SQLi",
-  xss:             "XSS",
-  lfi:             "LFI",
-  rfi:             "RFI",
-  cmdi:            "CmdI",
-  scanner:         "Scanner",
-  info_disclosure: "Info",
-  recon:           "Recon",
-}
+const chartConfig = {
+  count: { label: "Hits" },
+} satisfies ChartConfig
 
 interface Props {
   total:        number
@@ -44,7 +33,6 @@ export function WebAttacksSummary({ total, uniqueIps, byAttackType, topIps }: Pr
 
   return (
     <div className="rounded-xl border border-border bg-card p-4">
-      {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
@@ -63,7 +51,6 @@ export function WebAttacksSummary({ total, uniqueIps, byAttackType, topIps }: Pr
         </Link>
       </div>
 
-      {/* Quick stats */}
       <div className="mb-4 grid grid-cols-3 gap-3">
         <div className="rounded-lg bg-muted/30 p-3">
           <p className="text-xs text-muted-foreground">Total hits</p>
@@ -81,36 +68,21 @@ export function WebAttacksSummary({ total, uniqueIps, byAttackType, topIps }: Pr
         </div>
       </div>
 
-      {/* Bar chart por tipo */}
-      <div className="h-[120px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} barSize={20}>
-            <XAxis
-              dataKey="name"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "hsl(0 0% 60%)", fontSize: 10 }}
-            />
-            <Tooltip
-              cursor={{ fill: "hsl(0 0% 18%)" }}
-              contentStyle={{
-                backgroundColor: "hsl(0 0% 12%)",
-                border: "1px solid hsl(0 0% 22%)",
-                borderRadius: "8px",
-                fontSize: "12px",
-              }}
-              labelStyle={{ color: "hsl(0 0% 95%)" }}
-            />
-            <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-              {chartData.map((entry, i) => (
-                <rect key={i} fill={entry.fill} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      <ChartContainer config={chartConfig} className="aspect-auto h-[120px]">
+        <BarChart data={chartData} barSize={20}>
+          <XAxis dataKey="name" axisLine={false} tickLine={false} />
+          <ChartTooltip
+            content={<ChartTooltipContent hideLabel />}
+            cursor={{ fill: "hsl(var(--muted)/0.4)" }}
+          />
+          <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+            {chartData.map((entry, i) => (
+              <Cell key={i} fill={entry.fill} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ChartContainer>
 
-      {/* Top IPs */}
       {topIps.length > 0 && (
         <div className="mt-3 space-y-1.5 border-t border-border pt-3">
           <p className="text-xs text-muted-foreground">Top IPs atacantes</p>

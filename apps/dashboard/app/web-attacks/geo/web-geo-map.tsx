@@ -11,41 +11,9 @@ import { Plus, Minus, Maximize2, Globe } from "lucide-react"
 import { ISO_A2_TO_NUM } from "@/lib/iso-codes"
 import type { WebCountryAttack } from "@/lib/geo"
 import Link from "next/link"
+import { ATTACK_COLORS as ATTACK_BADGE, ATTACK_COLORS_HEX, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack-types"
 
 const GEO_URL = "/world-110m.json"
-
-const ATTACK_LABELS: Record<string, string> = {
-  sqli:            "SQL Injection",
-  xss:             "XSS",
-  lfi:             "LFI",
-  rfi:             "RFI",
-  cmdi:            "Cmd Injection",
-  scanner:         "Scanner",
-  info_disclosure: "Info Disclosure",
-  recon:           "Recon",
-}
-
-const ATTACK_COLORS_HEX: Record<string, string> = {
-  sqli:            "#ef4444",
-  xss:             "#f97316",
-  lfi:             "#eab308",
-  rfi:             "#ca8a04",
-  cmdi:            "#a855f7",
-  scanner:         "#3b82f6",
-  info_disclosure: "#06b6d4",
-  recon:           "#6b7280",
-}
-
-const ATTACK_BADGE: Record<string, string> = {
-  sqli:            "bg-red-500/15 text-red-400 border-red-500/30",
-  xss:             "bg-orange-500/15 text-orange-400 border-orange-500/30",
-  lfi:             "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
-  rfi:             "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
-  cmdi:            "bg-purple-500/15 text-purple-400 border-purple-500/30",
-  scanner:         "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  info_disclosure: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
-  recon:           "bg-muted/50 text-muted-foreground border-border",
-}
 
 function countryFlag(code: string): string {
   return [...code.toUpperCase()]

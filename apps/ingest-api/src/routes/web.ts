@@ -194,32 +194,40 @@ export async function webRoutes(fastify: FastifyInstance) {
 
   fastify.get('/web-hits/timeline', async (_request, reply) => {
     const rows = await fastify.prisma.$queryRaw<Array<{
-      day: string;
+      isoDay: string;
       attack_type: string;
       count: bigint;
     }>>`
       SELECT
-        TO_CHAR(timestamp AT TIME ZONE 'UTC', 'DD/MM') AS day,
+        TO_CHAR(DATE_TRUNC('day', timestamp AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS "isoDay",
         attack_type,
         COUNT(*) AS count
       FROM web_hits
       WHERE timestamp >= NOW() - INTERVAL '30 days'
-      GROUP BY day, attack_type
-      ORDER BY MIN(timestamp), attack_type
+      GROUP BY 1, 2
+      ORDER BY 1, 2
     `;
 
     const dayMap = new Map<string, Record<string, number>>();
     for (const row of rows) {
-      if (!dayMap.has(row.day)) dayMap.set(row.day, {});
-      dayMap.get(row.day)![row.attack_type] = Number(row.count);
+      if (!dayMap.has(row.isoDay)) dayMap.set(row.isoDay, {});
+      dayMap.get(row.isoDay)![row.attack_type] = Number(row.count);
     }
 
     const attackTypes = [...new Set(rows.map((row) => row.attack_type))];
 
-    return reply.send({
-      days: Array.from(dayMap.entries()).map(([day, types]) => ({ day, ...types })),
-      attackTypes,
-    });
+    // Fill all 31 days so the chart shows a continuous series (empty days = zeros)
+    const days: ({ day: string } & Record<string, number>)[] = [];
+    const now = new Date();
+    for (let i = 30; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const isoDay = d.toISOString().slice(0, 10);
+      const label = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+      days.push({ day: label, ...(dayMap.get(isoDay) ?? {}) });
+    }
+
+    return reply.send({ days, attackTypes });
   });
 
   fastify.get('/web-hits/paths', async (_request, reply) => {

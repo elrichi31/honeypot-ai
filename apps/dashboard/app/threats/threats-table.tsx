@@ -2,37 +2,8 @@
 
 import { useRouter } from "next/navigation"
 import { TablePagination } from "@/components/table-pagination"
-import type { PaginationMeta, RiskLevel, ThreatSummary } from "@/lib/api"
-
-const LEVEL_STYLES: Record<RiskLevel, { badge: string; dot: string; bar: string }> = {
-  CRITICAL: { badge: "bg-red-500/15 text-red-400 border-red-500/40", dot: "bg-red-500", bar: "bg-red-500" },
-  HIGH: { badge: "bg-orange-500/15 text-orange-400 border-orange-500/40", dot: "bg-orange-500", bar: "bg-orange-500" },
-  MEDIUM: { badge: "bg-yellow-500/15 text-yellow-400 border-yellow-500/40", dot: "bg-yellow-500", bar: "bg-yellow-500" },
-  LOW: { badge: "bg-blue-500/15 text-blue-400 border-blue-500/40", dot: "bg-blue-500", bar: "bg-blue-500" },
-  INFO: {
-    badge: "bg-muted/40 text-muted-foreground border-border",
-    dot: "bg-muted-foreground",
-    bar: "bg-muted-foreground",
-  },
-}
-
-const CMD_LABELS: Record<string, string> = {
-  malware_drop: "Malware",
-  persistence: "Persist",
-  lateral_movement: "Lateral",
-  crypto_mining: "Mining",
-  data_exfil: "Exfil",
-  recon: "Recon",
-}
-
-const CMD_COLORS: Record<string, string> = {
-  malware_drop: "bg-red-500/15 text-red-400",
-  persistence: "bg-orange-500/15 text-orange-400",
-  lateral_movement: "bg-purple-500/15 text-purple-400",
-  crypto_mining: "bg-yellow-500/15 text-yellow-400",
-  data_exfil: "bg-pink-500/15 text-pink-400",
-  recon: "bg-muted/50 text-muted-foreground",
-}
+import type { PaginationMeta, ThreatSummary } from "@/lib/api"
+import { LEVEL_STYLES, CMD_COLORS, CMD_LABELS_SHORT as CMD_LABELS } from "@/lib/attack-types"
 
 export function ThreatsTable({
   threats,

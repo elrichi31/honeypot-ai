@@ -38,7 +38,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD:-honeypot}@postgres:5432/honeypot
+      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD:-honeypot}@postgres:5432/honeypot_prod
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
       PORT: "3000"
       HOST: "0.0.0.0"
@@ -68,7 +68,7 @@ services:
       ingest-api:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD:-honeypot}@postgres:5432/honeypot
+      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD:-honeypot}@postgres:5432/honeypot_prod
     command: ["sh", "-c", "npx prisma db seed"]
 
   log-puller:

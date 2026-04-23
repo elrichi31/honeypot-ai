@@ -61,7 +61,10 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:cryptax.medium.com)",
       "Bash(DOCKER_BUILDKIT=0 docker compose up -d postgres)",
-      "Bash(docker cp *)"
+      "Bash(docker cp *)",
+      "Bash(psql -U honeypot -h localhost -c \"SELECT 1\" honeypot_prod)",
+      "Bash(grep -v \"^$\")",
+      "WebFetch(domain:cobe.vercel.app)"
     ]
   }
 }

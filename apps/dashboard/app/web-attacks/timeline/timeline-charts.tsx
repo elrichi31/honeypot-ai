@@ -1,38 +1,22 @@
 "use client"
 
+import { Bar, BarChart, Cell, Pie, PieChart, XAxis, YAxis } from "recharts"
 import {
-  Bar, BarChart, Cell, Legend, Pie, PieChart,
-  ResponsiveContainer, Tooltip, XAxis, YAxis,
-} from "recharts"
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from "@/components/ui/chart"
+import type { ChartConfig } from "@/components/ui/chart"
+import { ATTACK_COLORS_HEX as ATTACK_COLORS, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack-types"
 
-const ATTACK_COLORS: Record<string, string> = {
-  sqli:            "#ef4444",
-  xss:             "#f97316",
-  lfi:             "#eab308",
-  rfi:             "#ca8a04",
-  cmdi:            "#a855f7",
-  scanner:         "#3b82f6",
-  info_disclosure: "#06b6d4",
-  recon:           "#6b7280",
-}
-
-const ATTACK_LABELS: Record<string, string> = {
-  sqli:            "SQL Injection",
-  xss:             "XSS",
-  lfi:             "LFI",
-  rfi:             "RFI",
-  cmdi:            "Cmd Injection",
-  scanner:         "Scanner",
-  info_disclosure: "Info Disclosure",
-  recon:           "Recon",
-}
-
-const TOOLTIP_STYLE = {
-  backgroundColor: "hsl(0 0% 12%)",
-  border: "1px solid hsl(0 0% 22%)",
-  borderRadius: "8px",
-  fontSize: "12px",
-}
+const timelineChartConfig: ChartConfig = Object.fromEntries(
+  Object.entries(ATTACK_COLORS).map(([key, color]) => [
+    key,
+    { label: ATTACK_LABELS[key] ?? key, color },
+  ])
+)
 
 interface Props {
   days: ({ day: string } & Record<string, number>)[]
@@ -42,7 +26,7 @@ interface Props {
 
 export function TimelineCharts({ days, attackTypes, byAttackType }: Props) {
   const pieData = byAttackType.map((a) => ({
-    name:  ATTACK_LABELS[a.attackType] ?? a.attackType,
+    name:  a.attackType,
     value: a.count,
     fill:  ATTACK_COLORS[a.attackType] ?? "#6b7280",
   }))
@@ -56,82 +40,56 @@ export function TimelineCharts({ days, attackTypes, byAttackType }: Props) {
         {days.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">Sin datos aún</p>
         ) : (
-          <div className="h-[260px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={days} barSize={14}>
-                <XAxis
-                  dataKey="day"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "hsl(0 0% 60%)", fontSize: 10 }}
-                  interval={4}
+          <ChartContainer config={timelineChartConfig} className="aspect-auto h-[280px]">
+            <BarChart data={days} barSize={14}>
+              <XAxis dataKey="day" axisLine={false} tickLine={false} interval={4} />
+              <YAxis axisLine={false} tickLine={false} width={28} />
+              <ChartTooltip
+                content={<ChartTooltipContent />}
+                cursor={{ fill: "hsl(var(--muted)/0.3)" }}
+              />
+              <ChartLegend content={<ChartLegendContent />} />
+              {attackTypes.map((t) => (
+                <Bar
+                  key={t}
+                  dataKey={t}
+                  stackId="a"
+                  fill={ATTACK_COLORS[t] ?? "#6b7280"}
+                  radius={attackTypes.indexOf(t) === attackTypes.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]}
                 />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "hsl(0 0% 60%)", fontSize: 10 }}
-                  width={28}
-                />
-                <Tooltip
-                  cursor={{ fill: "hsl(0 0% 18%)" }}
-                  contentStyle={TOOLTIP_STYLE}
-                  labelStyle={{ color: "hsl(0 0% 95%)" }}
-                />
-                <Legend
-                  iconType="circle"
-                  iconSize={8}
-                  wrapperStyle={{ fontSize: "11px", paddingTop: "12px" }}
-                  formatter={(value) => ATTACK_LABELS[value] ?? value}
-                />
-                {attackTypes.map((t) => (
-                  <Bar
-                    key={t}
-                    dataKey={t}
-                    stackId="a"
-                    fill={ATTACK_COLORS[t] ?? "#6b7280"}
-                    radius={attackTypes.indexOf(t) === attackTypes.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]}
-                  />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+              ))}
+            </BarChart>
+          </ChartContainer>
         )}
       </div>
 
       {/* Dos columnas: Pie + tabla de totales */}
       <div className="grid gap-6 xl:grid-cols-2">
-        {/* Pie chart distribución total */}
         <div className="rounded-xl border border-border bg-card p-4">
           <h3 className="mb-1 font-semibold text-foreground">Distribución total</h3>
           <p className="mb-4 text-xs text-muted-foreground">Porcentaje por tipo de ataque · all-time</p>
-          <div className="h-[240px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={55}
-                  outerRadius={90}
-                  paddingAngle={2}
-                  dataKey="value"
-                >
-                  {pieData.map((entry, i) => (
-                    <Cell key={i} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={TOOLTIP_STYLE}
-                  formatter={(value: number, name: string) => [value.toLocaleString(), name]}
-                />
-                <Legend
-                  iconType="circle"
-                  iconSize={8}
-                  wrapperStyle={{ fontSize: "11px" }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+          <ChartContainer config={timelineChartConfig} className="aspect-auto h-[260px]">
+            <PieChart>
+              <Pie
+                data={pieData}
+                cx="50%"
+                cy="50%"
+                innerRadius={55}
+                outerRadius={90}
+                paddingAngle={2}
+                dataKey="value"
+                nameKey="name"
+              >
+                {pieData.map((entry, i) => (
+                  <Cell key={i} fill={entry.fill} />
+                ))}
+              </Pie>
+              <ChartTooltip
+                content={<ChartTooltipContent nameKey="name" />}
+              />
+              <ChartLegend content={<ChartLegendContent nameKey="name" />} />
+            </PieChart>
+          </ChartContainer>
         </div>
 
         {/* Ranking numérico */}
@@ -149,7 +107,9 @@ export function TimelineCharts({ days, attackTypes, byAttackType }: Props) {
                     <span className="font-medium text-foreground">
                       {i + 1}. {ATTACK_LABELS[a.attackType] ?? a.attackType}
                     </span>
-                    <span className="text-muted-foreground">{a.count.toLocaleString()} <span className="opacity-60">({pct}%)</span></span>
+                    <span className="text-muted-foreground">
+                      {a.count.toLocaleString()} <span className="opacity-60">({pct}%)</span>
+                    </span>
                   </div>
                   <div className="h-1.5 w-full rounded-full bg-muted">
                     <div

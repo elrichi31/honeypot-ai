@@ -3,28 +3,7 @@
 import { useRouter } from "next/navigation"
 import { formatDistanceToNow } from "date-fns"
 import type { WebHitByIp } from "@/lib/api"
-
-const ATTACK_COLORS: Record<string, string> = {
-  sqli: "bg-red-500/15 text-red-400 border-red-500/30",
-  xss: "bg-orange-500/15 text-orange-400 border-orange-500/30",
-  lfi: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
-  rfi: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
-  cmdi: "bg-purple-500/15 text-purple-400 border-purple-500/30",
-  scanner: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  info_disclosure: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
-  recon: "bg-muted/50 text-muted-foreground border-border",
-}
-
-const ATTACK_LABELS: Record<string, string> = {
-  sqli: "SQLi",
-  xss: "XSS",
-  lfi: "LFI",
-  rfi: "RFI",
-  cmdi: "CmdI",
-  scanner: "Scanner",
-  info_disclosure: "Info",
-  recon: "Recon",
-}
+import { ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
 
 function countryFlag(code: string): string {
   return code

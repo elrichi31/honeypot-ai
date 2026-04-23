@@ -20,32 +20,7 @@ import { EventTimeline } from "@/components/event-timeline"
 import { AiSummary } from "@/components/ai-summary"
 import { fetchSession, fetchThreat } from "@/lib/api"
 import { RiskBadge } from "@/components/risk-badge"
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  color = "text-muted-foreground",
-  bg = "bg-secondary",
-}: {
-  icon: React.ElementType
-  label: string
-  value: string | number
-  color?: string
-  bg?: string
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
-      <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${bg}`}>
-        <Icon className={`h-4 w-4 ${color}`} />
-      </div>
-      <div>
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="font-semibold text-foreground">{value}</p>
-      </div>
-    </div>
-  )
-}
+import { StatCard } from "@/components/stat-card"
 
 export default async function SessionReplayPage({
   params,

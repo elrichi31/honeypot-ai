@@ -1,27 +1,37 @@
 "use client"
 
 import { useRouter, useSearchParams } from "next/navigation"
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-  Tooltip,
-} from "recharts"
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import type { DashboardStats, TimeRange } from "@/lib/types"
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from "@/components/ui/chart"
+import type { ChartConfig } from "@/components/ui/chart"
 
-interface ActivityChartProps {
-  stats: DashboardStats
-  range: TimeRange
-}
+const chartConfig = {
+  Sesiones: {
+    label: "Sesiones",
+    color: "hsl(250 60% 65%)",
+  },
+  Comprometidas: {
+    label: "Comprometidas",
+    color: "hsl(0 84% 60%)",
+  },
+} satisfies ChartConfig
 
 const RANGE_LABELS: Record<TimeRange, string> = {
   day: "24h",
   week: "7d",
   month: "30d",
+}
+
+interface ActivityChartProps {
+  stats: DashboardStats
+  range: TimeRange
 }
 
 export function ActivityChart({ stats, range }: ActivityChartProps) {
@@ -48,7 +58,7 @@ export function ActivityChart({ stats, range }: ActivityChartProps) {
         <div>
           <h3 className="font-semibold text-foreground">Actividad en el tiempo</h3>
           <p className="text-sm text-muted-foreground">
-            {range === "day" ? "Sesiones por hora" : "Sesiones por día"} · azul = total, rojo = comprometidas
+            {range === "day" ? "Sesiones por hora" : "Sesiones por día"}
           </p>
         </div>
         <div className="flex gap-1 rounded-lg border border-border p-1">
@@ -67,66 +77,42 @@ export function ActivityChart({ stats, range }: ActivityChartProps) {
           ))}
         </div>
       </div>
-      <div className="h-[220px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data}>
-            <defs>
-              <linearGradient id="colorSessions" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="hsl(250 60% 65%)" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="hsl(250 60% 65%)" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="colorCompromised" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="hsl(0 84% 60%)" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="hsl(0 84% 60%)" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
-            <XAxis
-              dataKey="label"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "hsl(0 0% 60%)", fontSize: 11 }}
-              interval={xInterval}
-            />
-            <YAxis
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "hsl(0 0% 60%)", fontSize: 11 }}
-              width={30}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "hsl(0 0% 12%)",
-                border: "1px solid hsl(0 0% 22%)",
-                borderRadius: "8px",
-                fontSize: "12px",
-              }}
-              labelStyle={{ color: "hsl(0 0% 95%)" }}
-            />
-            <Legend
-              iconType="circle"
-              iconSize={8}
-              wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
-            />
-            <Area
-              type="monotone"
-              dataKey="Sesiones"
-              stroke="hsl(250 60% 65%)"
-              strokeWidth={2}
-              fillOpacity={1}
-              fill="url(#colorSessions)"
-            />
-            <Area
-              type="monotone"
-              dataKey="Comprometidas"
-              stroke="hsl(0 84% 60%)"
-              strokeWidth={2}
-              fillOpacity={1}
-              fill="url(#colorCompromised)"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+
+      <ChartContainer config={chartConfig} className="aspect-auto h-[220px]">
+        <AreaChart data={data}>
+          <defs>
+            <linearGradient id="gradSessions" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="var(--color-Sesiones)" stopOpacity={0.25} />
+              <stop offset="95%" stopColor="var(--color-Sesiones)" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="gradCompromised" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="var(--color-Comprometidas)" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="var(--color-Comprometidas)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey="label" axisLine={false} tickLine={false} interval={xInterval} />
+          <YAxis axisLine={false} tickLine={false} width={30} />
+          <ChartTooltip content={<ChartTooltipContent />} />
+          <ChartLegend content={<ChartLegendContent />} />
+          <Area
+            type="monotone"
+            dataKey="Sesiones"
+            stroke="var(--color-Sesiones)"
+            strokeWidth={2}
+            fillOpacity={1}
+            fill="url(#gradSessions)"
+          />
+          <Area
+            type="monotone"
+            dataKey="Comprometidas"
+            stroke="var(--color-Comprometidas)"
+            strokeWidth={2}
+            fillOpacity={1}
+            fill="url(#gradCompromised)"
+          />
+        </AreaChart>
+      </ChartContainer>
     </div>
   )
 }

@@ -4,35 +4,7 @@ import Link from "next/link"
 import { format, formatDistanceToNow } from "date-fns"
 import { ArrowLeft, ShieldAlert, Terminal, Globe, Activity } from "lucide-react"
 import { fetchThreat } from "@/lib/api"
-import type { RiskLevel } from "@/lib/api"
-
-const LEVEL_STYLES: Record<RiskLevel, { badge: string; bg: string; bar: string }> = {
-  CRITICAL: { badge: "bg-red-500/15 text-red-400 border-red-500/40",         bg: "bg-red-500/10",    bar: "bg-red-500"    },
-  HIGH:     { badge: "bg-orange-500/15 text-orange-400 border-orange-500/40", bg: "bg-orange-500/10", bar: "bg-orange-500" },
-  MEDIUM:   { badge: "bg-yellow-500/15 text-yellow-400 border-yellow-500/40", bg: "bg-yellow-500/10", bar: "bg-yellow-500" },
-  LOW:      { badge: "bg-blue-500/15 text-blue-400 border-blue-500/40",       bg: "bg-blue-500/10",   bar: "bg-blue-500"   },
-  INFO:     { badge: "bg-muted/40 text-muted-foreground border-border",        bg: "bg-muted/20",      bar: "bg-muted-foreground" },
-}
-
-const CMD_COLORS: Record<string, string> = {
-  malware_drop:     "bg-red-500/15 text-red-400 border-red-500/30",
-  persistence:      "bg-orange-500/15 text-orange-400 border-orange-500/30",
-  lateral_movement: "bg-purple-500/15 text-purple-400 border-purple-500/30",
-  crypto_mining:    "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
-  data_exfil:       "bg-pink-500/15 text-pink-400 border-pink-500/30",
-  recon:            "bg-muted/50 text-muted-foreground border-border",
-  other:            "bg-muted/30 text-muted-foreground border-border",
-}
-
-const CMD_LABELS: Record<string, string> = {
-  malware_drop:     "Malware Drop",
-  persistence:      "Persistence",
-  lateral_movement: "Lateral Movement",
-  crypto_mining:    "Crypto Mining",
-  data_exfil:       "Data Exfil",
-  recon:            "Recon",
-  other:            "Other",
-}
+import { LEVEL_STYLES, CMD_COLORS, CMD_LABELS } from "@/lib/attack-types"
 
 export default async function ThreatDetailPage({
   params,

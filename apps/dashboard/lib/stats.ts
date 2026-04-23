@@ -76,6 +76,15 @@ export function getStatsFromData(
     dayCounts.set(day, (dayCounts.get(day) || 0) + 1)
   })
 
+  const sessionDayCounts = new Map<string, { sessions: number; successfulLogins: number }>()
+  sessions.forEach((s) => {
+    const day = getDayInTz(new Date(s.startedAt), timezone)
+    const current = sessionDayCounts.get(day) ?? { sessions: 0, successfulLogins: 0 }
+    current.sessions += 1
+    if (s.loginSuccess === true) current.successfulLogins += 1
+    sessionDayCounts.set(day, current)
+  })
+
   const eventsByHour = Array.from(hourCounts.entries())
     .map(([hour, count]) => ({ hour, count }))
     .sort((a, b) => a.hour.localeCompare(b.hour))
@@ -102,11 +111,14 @@ export function getStatsFromData(
       .map(([password, count]) => ({ password, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10),
-    timeline: eventsByDay.map((item) => ({
-      bucketStart: item.day,
-      label: item.day,
-      count: item.count,
-    })),
+    timeline: Array.from(sessionDayCounts.entries())
+      .map(([day, counts]) => ({
+        bucketStart: day,
+        label: day,
+        sessions: counts.sessions,
+        successfulLogins: counts.successfulLogins,
+      }))
+      .sort((a, b) => a.bucketStart.localeCompare(b.bucketStart)),
     eventsByHour,
     eventsByDay,
   }

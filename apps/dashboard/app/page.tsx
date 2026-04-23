@@ -2,7 +2,7 @@ import { Suspense } from "react"
 import { PageShell } from "@/components/page-shell"
 import { DashboardInsightsView } from "@/components/dashboard-insights"
 import { ActivityChart } from "@/components/activity-chart"
-import { AttackMap } from "@/components/attack-map"
+import { GlobeMap } from "@/components/globe-map"
 import { fetchDashboardInsights, fetchOverviewStats, fetchGeoSummary } from "@/lib/api"
 import { lookupIp, geolocateIps } from "@/lib/geo"
 import { readConfig } from "@/lib/server-config"
@@ -214,9 +214,9 @@ export default async function DashboardPage({
         </Suspense>
       </div>
 
-      {/* Attack map */}
+      {/* Globe map */}
       <div className="mt-6">
-        <AttackMap countryAttacks={countryAttacks} />
+        <GlobeMap countryAttacks={countryAttacks} />
       </div>
     </PageShell>
   )

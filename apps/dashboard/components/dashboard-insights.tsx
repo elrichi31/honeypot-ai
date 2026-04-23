@@ -15,12 +15,20 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  ResponsiveContainer,
-  Tooltip,
+  LabelList,
   XAxis,
   YAxis,
 } from "recharts"
 import type { TooltipProps } from "recharts"
+
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from "@/components/ui/chart"
+import type { ChartConfig } from "@/components/ui/chart"
 import type { DashboardInsights } from "@/lib/api"
 
 interface CountrySuccessRow {
@@ -107,6 +115,14 @@ function CountryRateTooltip({ active, payload }: TooltipProps<number, string>) {
   )
 }
 
+const countryChartConfig = {
+  successRate: { label: "Success Rate" },
+} satisfies ChartConfig
+
+const depthChartConfig = {
+  sessions: { label: "Sessions", color: "#f59e0b" },
+} satisfies ChartConfig
+
 export function DashboardInsightsView({ insights, countrySuccess, campaignGeo }: Props) {
   const funnelStages = [
     {
@@ -139,6 +155,7 @@ export function DashboardInsightsView({ insights, countrySuccess, campaignGeo }:
   const countryChartData = countrySuccess.map((row) => ({
     ...row,
     label: `${row.country} · ${row.countryName}`,
+    yLabel: `${countryFlag(row.country)} ${row.countryName}`,
   }))
 
   const depthBuckets = DEPTH_BUCKET_ORDER.map((bucket) => ({
@@ -146,7 +163,7 @@ export function DashboardInsightsView({ insights, countrySuccess, campaignGeo }:
     sessions: insights.successfulDepth.buckets.find((entry) => entry.bucket === bucket)?.sessions ?? 0,
   }))
 
-  const countryChartHeight = Math.max(360, countryChartData.length * 44)
+  const countryChartHeight = Math.max(360, countryChartData.length * 52)
 
   return (
     <div className="space-y-6">
@@ -211,43 +228,50 @@ export function DashboardInsightsView({ insights, countrySuccess, campaignGeo }:
             </div>
           </div>
 
-          <div style={{ height: `${countryChartHeight}px` }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={countryChartData}
-                layout="vertical"
-                barCategoryGap={10}
-                margin={{ left: 8, right: 20, top: 4, bottom: 4 }}
-              >
-                <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" horizontal={false} />
-                <XAxis
-                  type="number"
-                  domain={[0, 100]}
-                  tickFormatter={(value) => `${value}%`}
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="country"
-                  tick={{ fill: "hsl(var(--foreground))", fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={56}
-                />
-                <Tooltip cursor={{ fill: "hsl(var(--secondary) / 0.3)" }} content={<CountryRateTooltip />} />
-                <Bar dataKey="successRate" radius={[0, 8, 8, 0]} barSize={30}>
-                  {countryChartData.map((row, index) => (
-                    <Cell
-                      key={row.country}
-                      fill={index < 3 ? "#22c55e" : index < 7 ? "#38bdf8" : "#f59e0b"}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="mb-3 flex items-center gap-4 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-3 rounded-sm bg-emerald-500" />Top 3</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-3 rounded-sm bg-sky-400" />Mid tier</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-3 rounded-sm bg-amber-400" />Rest</span>
           </div>
+          <ChartContainer config={countryChartConfig} className="aspect-auto" style={{ height: `${countryChartHeight}px` }}>
+            <BarChart
+              data={countryChartData}
+              layout="vertical"
+              barCategoryGap={8}
+              margin={{ left: 8, right: 52, top: 4, bottom: 4 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+              <XAxis
+                type="number"
+                domain={[0, 100]}
+                tickFormatter={(v) => `${v}%`}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                type="category"
+                dataKey="countryName"
+                axisLine={false}
+                tickLine={false}
+                width={140}
+              />
+              <ChartTooltip content={<CountryRateTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+              <Bar dataKey="successRate" radius={[0, 6, 6, 0]} barSize={26}>
+                <LabelList
+                  dataKey="successRate"
+                  position="right"
+                  formatter={(v: number) => `${v}%`}
+                  style={{ fontSize: 11 }}
+                />
+                {countryChartData.map((row, index) => (
+                  <Cell
+                    key={row.country}
+                    fill={index < 3 ? "#22c55e" : index < 7 ? "#38bdf8" : "#f59e0b"}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ChartContainer>
         </section>
 
         <section className="rounded-xl border border-border bg-card p-5">
@@ -261,33 +285,23 @@ export function DashboardInsightsView({ insights, countrySuccess, campaignGeo }:
             </div>
           </div>
 
-          <div className="mb-5 h-[240px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={depthBuckets}>
-                <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
-                <XAxis
-                  dataKey="bucket"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
-                  width={36}
-                />
-                <Tooltip
-                  cursor={{ fill: "hsl(var(--secondary) / 0.3)" }}
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "12px",
-                  }}
-                />
-                <Bar dataKey="sessions" radius={[8, 8, 0, 0]} fill="#f59e0b" />
+          <div className="mb-5">
+            <ChartContainer config={depthChartConfig} className="aspect-auto h-[240px]">
+              <BarChart data={depthBuckets} margin={{ top: 24, right: 8, bottom: 8, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="bucket" axisLine={false} tickLine={false} />
+                <YAxis axisLine={false} tickLine={false} width={36} />
+                <ChartTooltip content={<ChartTooltipContent />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+                <ChartLegend content={<ChartLegendContent />} />
+                <Bar dataKey="sessions" radius={[8, 8, 0, 0]} fill="var(--color-sessions)">
+                  <LabelList
+                    dataKey="sessions"
+                    position="top"
+                    style={{ fontSize: 11, fontWeight: 600 }}
+                  />
+                </Bar>
               </BarChart>
-            </ResponsiveContainer>
+            </ChartContainer>
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">
