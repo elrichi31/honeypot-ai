@@ -16,3 +16,6 @@ export const cowrieRawEventSchema = z.object({
 export const ingestBatchBodySchema = z.object({
   events: z.array(cowrieRawEventSchema).min(1).max(1000),
 });
+
+// Vector HTTP sink sends a raw JSON array — no wrapper object
+export const vectorBatchBodySchema = z.array(cowrieRawEventSchema).min(1).max(1000);

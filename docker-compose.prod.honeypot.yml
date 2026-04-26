@@ -45,8 +45,28 @@ services:
       - /tmp
     pids_limit: 256
 
+  vector:
+    <<: *service-defaults
+    image: timberio/vector:0.40.0-alpine
+    container_name: vector
+    depends_on:
+      - cowrie
+    volumes:
+      - cowrie_var:/cowrie/cowrie-git/var:ro
+      - ./vector/cowrie.toml:/etc/vector/vector.toml:ro
+      - vector_data:/var/lib/vector
+    environment:
+      COWRIE_LOG_PATH: /cowrie/cowrie-git/var/log/cowrie/cowrie.json
+      # IP VPN del servidor app (Tailscale / WireGuard), ej: http://100.x.y.z:3000
+      INGEST_API_URL: ${INGEST_API_URL}
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+    networks:
+      - edge
+    pids_limit: 128
+
 volumes:
   cowrie_var:
+  vector_data:
 
 networks:
   edge:

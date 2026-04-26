@@ -1,11 +1,11 @@
 ---
 title: API Reference
-description: Todos los endpoints de ingest-api con metodos, paths y descripcion.
+description: Todos los endpoints de ingest-api con metodos, paths, parametros y ejemplos.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-La ingest-api escucha en el puerto `3000`. En produccion solo es accesible desde la red interna Docker — no esta expuesta a internet.
+La ingest-api escucha en el puerto `3000`. En produccion solo es accesible desde la red interna Docker o via VPN — no esta expuesta a internet.
 
 <Aside>
 Los endpoints `POST /ingest/*` requieren el header `X-Ingest-Token: <INGEST_SHARED_SECRET>` si la variable esta definida. Los endpoints `GET` no requieren autenticacion.
@@ -32,9 +32,49 @@ Estado de la API y timestamp del ultimo evento recibido.
 
 ## Ingesta SSH (Cowrie)
 
+### `POST /ingest/cowrie/vector`
+
+Endpoint principal de ingesta SSH. Usado por **Vector** (log shipper). Acepta un array JSON de eventos Cowrie en formato nativo — el mismo que escribe Cowrie en `cowrie.json`.
+
+**Headers:** `X-Ingest-Token: <secret>`, `Content-Type: application/json`
+
+**Body:** array de 1 a 1000 eventos Cowrie.
+
+```json
+[
+  {
+    "eventid": "cowrie.session.connect",
+    "src_ip": "1.2.3.4",
+    "src_port": 54321,
+    "session": "abc123",
+    "timestamp": "2024-01-15T10:30:00.000Z"
+  },
+  {
+    "eventid": "cowrie.login.failed",
+    "username": "admin",
+    "password": "123456",
+    "session": "abc123",
+    "timestamp": "2024-01-15T10:30:01.000Z"
+  }
+]
+```
+
+**Respuesta:**
+```json
+{
+  "total": 2,
+  "inserted": 2,
+  "duplicates": 0,
+  "sessionsCreated": 1,
+  "errors": 0
+}
+```
+
+---
+
 ### `POST /ingest/cowrie/event`
 
-Ingesta un evento Cowrie individual en formato JSON nativo de Cowrie.
+Ingesta un evento Cowrie individual.
 
 **Headers:** `X-Ingest-Token: <secret>`
 
@@ -44,7 +84,7 @@ Ingesta un evento Cowrie individual en formato JSON nativo de Cowrie.
 
 ### `POST /ingest/cowrie/batch`
 
-Ingesta un array de eventos Cowrie. El log-puller usa este endpoint.
+Ingesta un array de eventos Cowrie. Mismo formato que `/ingest/cowrie/vector`.
 
 **Headers:** `X-Ingest-Token: <secret>`
 
@@ -94,16 +134,24 @@ Ingesta un hit HTTP del web honeypot.
 
 ### `GET /sessions`
 
-Lista de sesiones con filtros opcionales.
+Lista paginada de sesiones SSH.
 
 **Query params:**
 
-| Param | Tipo | Descripcion |
-|-------|------|-------------|
-| `page` | number | Numero de pagina (default: 1) |
-| `limit` | number | Resultados por pagina (default: 20) |
-| `loginSuccess` | boolean | Filtrar por login exitoso |
-| `ip` | string | Filtrar por IP de origen |
+| Param | Tipo | Default | Descripcion |
+|-------|------|---------|-------------|
+| `page` | number | 1 | Numero de pagina |
+| `limit` | number | 20 | Resultados por pagina (max 100) |
+| `loginSuccess` | boolean | — | Filtrar por login exitoso |
+| `ip` | string | — | Filtrar por IP de origen |
+
+**Respuesta:**
+```json
+{
+  "data": [...],
+  "meta": { "page": 1, "limit": 20, "total": 1543, "totalPages": 78 }
+}
+```
 
 ---
 
@@ -113,11 +161,19 @@ Detalle de una sesion con todos sus eventos ordenados por timestamp.
 
 ---
 
+### `GET /sessions/scan-groups`
+
+Sesiones agrupadas por campana de ataque (misma IP, patron de comandos similares).
+
+**Query params:** `page`, `limit`
+
+---
+
 ## Eventos
 
 ### `GET /events`
 
-Lista de eventos con filtros opcionales.
+Lista paginada de eventos SSH individuales.
 
 **Query params:** `page`, `limit`, `sessionId`, `eventType`
 
@@ -127,7 +183,7 @@ Lista de eventos con filtros opcionales.
 
 ### `GET /web-hits`
 
-Lista paginada de hits HTTP.
+Lista paginada de hits HTTP al honeypot web.
 
 **Query params:** `page`, `limit`, `ip`, `attackType`, `path`
 
@@ -153,7 +209,9 @@ Top 50 paths mas atacados con conteo y tipos detectados.
 
 ### `GET /web-hits/by-ip`
 
-Hits agrupados por IP atacante con totales y tipos de ataque.
+Hits agrupados por IP atacante con totales y tipos de ataque. Soporta paginacion.
+
+**Query params:** `page`, `limit`
 
 ---
 
@@ -183,22 +241,48 @@ Todas las IPs con risk score, ordenadas por score DESC.
 Detalle completo de una IP:
 
 - Score breakdown por categoria (SSH, web, comandos, cross-protocol)
-- Comandos clasificados por tipo
-- Timeline de comandos SSH
+- Clasificacion de comandos por tipo (recon, persistence, malware, etc.)
+- Timeline de actividad SSH y web
 - Historial de web hits
 
 ---
 
-## Estadisticas
+## Estadisticas y Dashboard
 
-### `GET /stats/*`
+### `GET /stats/overview`
 
-Varios sub-endpoints para el overview y las graficas del dashboard:
+Timeline de sesiones SSH y web hits por dia. Usado por la grafica principal del overview.
 
-| Path | Descripcion |
-|------|-------------|
-| `/stats/summary` | Totales globales (sesiones, eventos, IPs, logins) |
-| `/stats/activity` | Timeline SSH + web por dia |
-| `/stats/geo` | Conteo de sesiones por pais |
-| `/stats/credentials` | Credenciales mas usadas |
-| `/stats/campaigns` | Sesiones agrupadas por herramienta / campana |
+**Query params:** `from` (ISO date), `to` (ISO date)
+
+---
+
+### `GET /stats/dashboards`
+
+Metricas agregadas para el dashboard: totales, funnel de autenticacion, top IPs, top paises, top comandos y distribucion de tipos de sesion.
+
+---
+
+### `GET /stats/credentials`
+
+Credenciales mas usadas: top usernames, top passwords y top pares username+password.
+
+**Query params:** `limit` (default: 20)
+
+---
+
+### `GET /stats/geo`
+
+Conteo de sesiones y eventos por pais de origen (basado en geolocalizacion de IP).
+
+---
+
+### `GET /stats/heatmap`
+
+Conteo de ataques por dia de semana y hora del dia — matriz 7x24 para el heatmap del dashboard.
+
+---
+
+### `GET /stats/session-commands`
+
+Comandos ejecutados en sesiones SSH, agrupados por tipo y frecuencia.

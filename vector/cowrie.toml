@@ -1,0 +1,54 @@
+# vector/cowrie.toml — Cowrie log shipper
+#
+# Tails cowrie.json, parses each JSON line, and POSTs batches to the ingest-api.
+# Persists read offset to disk → survives container restarts without losing events.
+# Buffers to disk when ingest-api is unreachable → no events dropped on downtime.
+#
+# Environment variables (required):
+#   COWRIE_LOG_PATH      — path to cowrie.json inside the container
+#   INGEST_API_URL       — base URL of ingest-api  (e.g. http://ingest-api:3000)
+#   INGEST_SHARED_SECRET — shared secret for X-Ingest-Token header
+
+data_dir = "/var/lib/vector"
+
+# ── Source: tail cowrie.json ────────────────────────────────────────────────
+[sources.cowrie_file]
+type       = "file"
+include    = ["${COWRIE_LOG_PATH}"]
+read_from  = "end"           # skip history on first run; offset persists after that
+fingerprint.strategy = "device_and_inode"   # handles log rotation correctly
+
+# ── Transform: parse each line as JSON ─────────────────────────────────────
+[transforms.parse_event]
+type          = "remap"
+inputs        = ["cowrie_file"]
+drop_on_error = true          # discard malformed lines silently
+source        = '''
+  . = parse_json!(string!(.message))
+'''
+
+# ── Sink: POST batches to ingest-api ───────────────────────────────────────
+[sinks.ingest_api]
+type    = "http"
+inputs  = ["parse_event"]
+uri     = "${INGEST_API_URL}/ingest/cowrie/vector"
+method  = "post"
+
+encoding.codec = "json"       # batch → sends as JSON array [event, event, ...]
+
+[sinks.ingest_api.batch]
+max_events   = 100            # flush when 100 events ready
+timeout_secs = 2              # or every 2 seconds, whichever comes first
+
+[sinks.ingest_api.request]
+headers.Content-Type  = "application/json"
+headers.X-Ingest-Token = "${INGEST_SHARED_SECRET}"
+retry_attempts             = 360          # ~1h of retries before giving up
+retry_initial_backoff_secs = 1
+retry_max_duration_secs    = 10
+
+# Disk buffer — survives ingest-api downtime without dropping events
+[sinks.ingest_api.buffer]
+type      = "disk"
+max_size  = 268435456     # 256 MB
+when_full = "block"       # back-pressure instead of dropping

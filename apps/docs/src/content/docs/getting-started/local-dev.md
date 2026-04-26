@@ -13,7 +13,7 @@ import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
 
 ## Opcion A — Todo con Docker (mas rapido)
 
-La forma mas sencilla. Levanta todos los servicios con un solo comando.
+La forma mas sencilla. Levanta todos los servicios con un solo comando. Incluye Cowrie, web-honeypot, Vector, ingest-api, PostgreSQL y el dashboard.
 
 <Steps>
 1. Clona el repositorio e instala dependencias:
@@ -60,7 +60,7 @@ Servicios disponibles una vez que todo este `healthy`:
 Util cuando quieres iterar rapido en `ingest-api` o `dashboard` sin rebuilds de imagen.
 
 <Steps>
-1. Levanta solo la infraestructura base:
+1. Levanta solo la infraestructura base (PostgreSQL y Cowrie):
 
    ```bash
    docker compose up postgres cowrie -d
@@ -137,10 +137,18 @@ Necesitas PostgreSQL disponible localmente (instalado o en contenedor suelto).
      cowrie/cowrie:latest
    ```
 
-5. (Opcional) Corre el puller manualmente:
+5. (Opcional) Levanta Vector para enviar logs de Cowrie a la API:
 
    ```bash
-   API_URL=http://localhost:3000 bash scripts/pull-cowrie-logs.sh
+   docker run -d \
+     --name vector \
+     -v cowrie_var:/cowrie/cowrie-git/var:ro \
+     -v $(pwd)/vector/cowrie.toml:/etc/vector/vector.toml:ro \
+     -v vector_data:/var/lib/vector \
+     -e COWRIE_LOG_PATH=/cowrie/cowrie-git/var/log/cowrie/cowrie.json \
+     -e INGEST_API_URL=http://host.docker.internal:3000 \
+     -e INGEST_SHARED_SECRET= \
+     timberio/vector:0.40.0-alpine
    ```
 </Steps>
 
@@ -186,13 +194,20 @@ npx prisma db seed
 ## Comandos utiles
 
 ```bash
+# Ver logs en tiempo real
 docker logs -f ingest-api
 docker logs -f cowrie
 docker logs -f web-honeypot
-docker logs -f log-puller
+docker logs -f vector            # Vector log shipper
 
-docker compose down          # detiene y elimina contenedores
-docker compose down -v       # tambien elimina los volumenes (borra datos)
+# Estado de todos los servicios
+docker compose ps
+
+# Detener sin borrar datos
+docker compose down
+
+# Detener y borrar todos los volumenes (borra datos de Postgres, offsets de Vector)
+docker compose down -v
 ```
 
 ---

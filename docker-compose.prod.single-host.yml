@@ -97,12 +97,10 @@ services:
       - /tmp
     pids_limit: 256
 
-  log-puller:
+  vector:
     <<: *service-defaults
-    build:
-      context: ./scripts
-      dockerfile: Dockerfile.puller
-    container_name: log-puller
+    image: timberio/vector:0.40.0-alpine
+    container_name: vector
     depends_on:
       cowrie:
         condition: service_started
@@ -110,17 +108,14 @@ services:
         condition: service_healthy
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var:ro
-      - ./scripts/pull-cowrie-logs.sh:/pull-cowrie-logs.sh:ro
+      - ./vector/cowrie.toml:/etc/vector/vector.toml:ro
+      - vector_data:/var/lib/vector
     environment:
-      API_URL: http://ingest-api:3000
+      COWRIE_LOG_PATH: /cowrie/cowrie-git/var/log/cowrie/cowrie.json
+      INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
-      DIRECT_FILE: "true"
-    command: ["bash", "/pull-cowrie-logs.sh"]
     networks:
       - honeypot_ingest
-    read_only: true
-    tmpfs:
-      - /tmp
     pids_limit: 128
 
   dashboard:
@@ -171,6 +166,7 @@ volumes:
   cowrie_var:
   pg_data:
   dashboard_data:
+  vector_data:
 
 networks:
   edge:

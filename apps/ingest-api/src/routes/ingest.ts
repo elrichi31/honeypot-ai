@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { ingestFileBodySchema, cowrieRawEventSchema, ingestBatchBodySchema } from '../schemas/index.js';
+import { ingestFileBodySchema, cowrieRawEventSchema, ingestBatchBodySchema, vectorBatchBodySchema } from '../schemas/index.js';
 import { ensureIngestToken } from '../lib/ingest-auth.js';
 import { IngestService } from '../modules/ingest/ingest.service.js';
 import type { CowrieRawEvent } from '../types/index.js';
@@ -90,5 +90,31 @@ export async function ingestRoutes(fastify: FastifyInstance) {
       sessionsCreated: sessions,
       errors,
     });
+  });
+
+  // Vector HTTP sink sends a raw JSON array (no wrapper object)
+  fastify.post('/ingest/cowrie/vector', async (request, reply) => {
+    if (!ensureIngestToken(request, reply)) return reply;
+
+    const parsed = vectorBatchBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid batch', details: parsed.error.flatten() });
+    }
+
+    const service = new IngestService(fastify.prisma);
+    let inserted = 0, duplicates = 0, sessions = 0;
+    const errors: string[] = [];
+
+    for (const raw of parsed.data) {
+      try {
+        const { sessionCreated, eventCreated } = await service.processLine(raw as CowrieRawEvent);
+        if (eventCreated) inserted++; else duplicates++;
+        if (sessionCreated) sessions++;
+      } catch (err) {
+        errors.push(err instanceof Error ? err.message : String(err));
+      }
+    }
+
+    return reply.status(200).send({ total: parsed.data.length, inserted, duplicates, sessionsCreated: sessions, errors });
   });
 }

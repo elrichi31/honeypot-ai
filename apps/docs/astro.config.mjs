@@ -31,7 +31,7 @@ export default defineConfig({
 						{ label: 'SSH Honeypot (Cowrie)', slug: 'services/cowrie' },
 						{ label: 'Web Honeypot', slug: 'services/web-honeypot' },
 						{ label: 'Ingest API', slug: 'services/ingest-api' },
-						{ label: 'Log Puller', slug: 'services/log-puller' },
+						{ label: 'Vector (Log Shipper)', slug: 'services/vector' },
 						{ label: 'Dashboard', slug: 'services/dashboard' },
 					],
 				},

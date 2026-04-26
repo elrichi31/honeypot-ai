@@ -16,9 +16,20 @@ En single-host, si un atacante logra escapar un contenedor a nivel de kernel, ti
 - Publica solo los puertos del honeypot: `22` (Cowrie), `80` y `8443` (web-honeypot)
 - Deja el `dashboard` en `127.0.0.1:4000` — no alcanzable desde internet
 - No publica `ingest-api` ni `postgres`
-- Separa la red `edge` (honeypot) de la red `app_api` (dashboard)
-- Habilita `DIRECT_FILE=true` en el puller — lee el log de Cowrie directamente del volumen compartido
+- Corre **Vector** como sidecar de Cowrie para enviar logs a ingest-api via red interna
+- Separa la red `edge` (honeypot) de las redes `app_api` y `db_private`
 - Aplica `no-new-privileges`, `cap_drop: ALL` y `pids_limit` a todos los servicios
+
+## Redes Docker en single-host
+
+```
+edge          → cowrie, web-honeypot
+honeypot_ingest → web-honeypot, vector, ingest-api
+app_api       → ingest-api, dashboard
+db_private    → postgres, ingest-api, dashboard
+```
+
+Cowrie solo esta en `edge` — no tiene ninguna ruta a postgres ni al dashboard.
 
 ## Requisitos previos
 
@@ -58,7 +69,11 @@ docker compose -f docker-compose.prod.single-host.yml up --build -d
 docker compose -f docker-compose.prod.single-host.yml ps
 ```
 
-Espera a que todos los servicios esten `healthy` antes de continuar.
+Espera a que todos los servicios esten `healthy` antes de continuar. El orden de arranque es:
+
+1. `postgres` — espera healthcheck `pg_isready`
+2. `ingest-api` — espera healthcheck HTTP `/health`
+3. `cowrie`, `web-honeypot`, `dashboard`, `vector` — arrancan cuando ingest-api esta sano
 
 ## Paso 3 — Acceder al dashboard
 
@@ -111,19 +126,35 @@ curl "http://<ip-publica>/page?file=../../../../etc/passwd"
 No hagas pruebas contra `localhost` ni desde el mismo VPS — la IP que registra el honeypot sera `127.0.0.1` o la IP interna de Docker, no la IP real del atacante.
 </Aside>
 
+## Verificar que Vector esta funcionando
+
+```bash
+docker compose -f docker-compose.prod.single-host.yml logs -f vector
+# Deberias ver:
+# INFO vector::sources::file: Tailing file. path=/cowrie/cowrie-git/var/log/cowrie/cowrie.json
+# INFO vector::sinks::http: Request finished. status=200 ...
+```
+
+Si Vector reporta errores de conexion a ingest-api, espera a que ingest-api este `healthy` y Vector reintentara automaticamente.
+
 ## Comandos de mantenimiento
 
 ```bash
 # Ver logs en tiempo real
 docker compose -f docker-compose.prod.single-host.yml logs -f
+docker compose -f docker-compose.prod.single-host.yml logs -f vector
+docker compose -f docker-compose.prod.single-host.yml logs -f cowrie
 
 # Reiniciar un servicio especifico
 docker compose -f docker-compose.prod.single-host.yml restart dashboard
 
-# Detener todo
+# Estado de todos los servicios
+docker compose -f docker-compose.prod.single-host.yml ps
+
+# Detener sin borrar datos
 docker compose -f docker-compose.prod.single-host.yml down
 
-# Detener y borrar datos (volumenes)
+# Detener y borrar datos (volumenes — incluye Postgres y offsets de Vector)
 docker compose -f docker-compose.prod.single-host.yml down -v
 ```
 

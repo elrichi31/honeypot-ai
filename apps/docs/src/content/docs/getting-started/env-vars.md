@@ -17,7 +17,7 @@ Usado por Docker Compose para pasar valores a los contenedores.
 | `BETTER_AUTH_URL` | `http://localhost:4000` | URL publica del dashboard. Debe coincidir exactamente con el origen que ve el navegador. |
 | `HONEYPOT_IP` | — | IP publica del VPS honeypot. Pre-carga el campo en la pagina Settings. |
 | `HONEYPOT_SSH_PORT` | `22` | Puerto SSH de Cowrie (donde se conectan los atacantes). |
-| `HONEYPOT_INGEST_PORT` | `8022` | Puerto SSH admin del VPS (canal honeypot → puller en topologia dos hosts). |
+| `HONEYPOT_INGEST_PORT` | `8022` | Puerto SSH admin del VPS. |
 | `DASHBOARD_TIMEZONE` | `UTC` | Zona horaria IANA para las graficas del dashboard. Ej: `America/Bogota`, `Europe/Madrid`. |
 
 <Aside type="caution">
@@ -39,6 +39,7 @@ Usado por Docker Compose para pasar valores a los contenedores.
 | `HONEYPOT_SSH_PORT` | `22` | Pre-carga el puerto SSH en Settings. |
 | `HONEYPOT_INGEST_PORT` | `8022` | Pre-carga el puerto ingest en Settings. |
 | `DASHBOARD_TIMEZONE` | `UTC` | Zona horaria para las graficas. |
+| `DISCORD_WEBHOOK_URL` | — | Webhook de Discord para alertas. Si no se define, las alertas estan desactivadas. |
 
 ---
 
@@ -50,32 +51,64 @@ Usado por Docker Compose para pasar valores a los contenedores.
 | `INGEST_SHARED_SECRET` | — | Si se define, exige el header `X-Ingest-Token` en todos los `POST /ingest/*`. |
 | `PORT` | `3000` | Puerto donde escucha la API. |
 | `HOST` | `0.0.0.0` | Interfaz de red. En prod single-host no se publica al exterior. |
+| `DISCORD_WEBHOOK_URL` | — | Webhook de Discord para alertas de login exitoso y risk score alto. |
 
 ---
 
-## Log Puller (`scripts/pull-cowrie-logs.sh`)
+## Vector (Log Shipper)
 
-Variables de entorno leidas por el script del puller. En Docker Compose se pasan via `environment:`.
+Variables de entorno leidas por el contenedor Vector. Se pasan via `environment:` en Docker Compose.
 
-| Variable | Default | Descripcion |
-|----------|---------|-------------|
-| `DIRECT_FILE` | `false` | `true` para leer el log directamente desde el volumen (modo single-host). `false` para leer por SSH (modo dos hosts). |
-| `DIRECT_LOG` | `/cowrie/cowrie-git/var/log/cowrie/cowrie.json` | Ruta del log cuando `DIRECT_FILE=true`. |
-| `API_URL` | `http://localhost:3000` | URL base de ingest-api. |
-| `INGEST_SHARED_SECRET` | — | Token que el puller envia como header `X-Ingest-Token`. |
-| `VPS_HOST` | — | IP o hostname del VPS honeypot (solo modo SSH). |
-| `VPS_SSH_PORT` | `8022` | Puerto SSH admin del VPS (solo modo SSH). |
-| `VPS_USER` | `root` | Usuario SSH (solo modo SSH). |
-| `SSH_KEY` | `~/.ssh/honeypot_vps` | Ruta a la clave privada SSH (solo modo SSH). |
-| `REMOTE_LOG` | `/root/honeypot-ai/cowrie.json` | Ruta del log en el VPS remoto (solo modo SSH). |
-| `POLL_INTERVAL` | `3` | Segundos entre lecturas del log. |
+| Variable | Descripcion |
+|----------|-------------|
+| `COWRIE_LOG_PATH` | Ruta al archivo `cowrie.json` dentro del contenedor. Valor tipico: `/cowrie/cowrie-git/var/log/cowrie/cowrie.json` |
+| `INGEST_API_URL` | URL base de ingest-api. En single-host: `http://ingest-api:3000`. En two-host: `http://<ip-vpn-app>:3000` |
+| `INGEST_SHARED_SECRET` | Token que Vector envia como header `X-Ingest-Token`. Debe coincidir con el del servidor app. |
+
+### Variables internas de Vector (configuradas en `vector/cowrie.toml`)
+
+| Parametro | Valor | Descripcion |
+|-----------|-------|-------------|
+| `data_dir` | `/var/lib/vector` | Directorio para offset y buffer de disco |
+| `batch.max_events` | `100` | Maximo de eventos por batch |
+| `batch.timeout_secs` | `2` | Envia aunque no llegue a 100 si pasan 2 segundos |
+| `buffer.max_size` | `268435456` | Buffer de disco de 256 MB |
+| `retry_attempts` | `360` | ~1 hora de reintentos si la API esta caida |
+
+---
+
+## Variables para topologia two-host
+
+### VPS honeypot (`.env` en el VPS)
+
+```bash
+# URL VPN del servidor app — Vector y web-honeypot envian eventos aqui
+INGEST_API_URL=http://100.a.b.c:3000   # IP VPN (Tailscale) del servidor app
+INGEST_SHARED_SECRET=<mismo-valor-que-en-servidor-app>
+```
+
+### Servidor app (`.env` en el servidor app)
+
+```bash
+BETTER_AUTH_SECRET=
+POSTGRES_PASSWORD=
+INGEST_SHARED_SECRET=                  # mismo valor que en el VPS honeypot
+
+DASHBOARD_DOMAIN=dashboard.tudominio.com
+API_DOMAIN=api.tudominio.com
+NEXT_PUBLIC_API_URL=https://api.tudominio.com
+
+HONEYPOT_IP=<ip-publica-del-vps>
+DASHBOARD_TIMEZONE=UTC
+DISCORD_WEBHOOK_URL=                   # opcional
+```
 
 ---
 
 ## Generar secrets
 
 ```bash
-# BETTER_AUTH_SECRET y POSTGRES_PASSWORD y INGEST_SHARED_SECRET
+# BETTER_AUTH_SECRET, POSTGRES_PASSWORD y INGEST_SHARED_SECRET
 openssl rand -base64 32
 openssl rand -base64 32
 openssl rand -base64 32

@@ -66,40 +66,6 @@ services:
       - /tmp
     pids_limit: 256
 
-  log-puller:
-    <<: *service-defaults
-    build:
-      context: ./scripts
-      dockerfile: Dockerfile.puller
-    container_name: log-puller
-    depends_on:
-      ingest-api:
-        condition: service_healthy
-    volumes:
-      - ./scripts/pull-cowrie-logs.sh:/pull-cowrie-logs.sh:ro
-      # Monta la clave SSH del host para acceder al VPS honeypot por VPN.
-      # Genera la clave con: ssh-keygen -t ed25519 -f ~/.ssh/honeypot_vps -N ""
-      # Luego copia la publica al VPS: ssh-copy-id -p 8022 -i ~/.ssh/honeypot_vps.pub user@<vps-vpn-ip>
-      - ${SSH_KEY:-~/.ssh/honeypot_vps}:/root/.ssh/honeypot_vps:ro
-    environment:
-      API_URL: http://ingest-api:3000
-      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
-      DIRECT_FILE: "false"
-      VPS_HOST: ${HONEYPOT_VPN_IP}      # IP VPN del VPS honeypot (ej: 100.x.y.z)
-      VPS_SSH_PORT: ${HONEYPOT_SSH_PORT:-8022}
-      VPS_USER: ${HONEYPOT_SSH_USER:-root}
-      SSH_KEY: /root/.ssh/honeypot_vps
-      REMOTE_LOG: ${COWRIE_LOG_PATH:-/root/honeypot-ai/cowrie.json}
-      POLL_INTERVAL: ${POLL_INTERVAL:-5}
-    command: ["bash", "/pull-cowrie-logs.sh"]
-    networks:
-      - app_api
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /root/.ssh
-    pids_limit: 64
-
   dashboard:
     <<: *service-defaults
     build:
