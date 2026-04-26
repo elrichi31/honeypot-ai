@@ -5,7 +5,7 @@ import { healthRoutes } from './routes/health.js';
 import { ingestRoutes } from './routes/ingest.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { eventRoutes } from './routes/events.js';
-import { statsRoutes } from './routes/stats.js';
+import { statsRoutes } from './routes/stats/index.js';
 import { webRoutes } from './routes/web.js';
 import { threatRoutes } from './routes/threats.js';
 
