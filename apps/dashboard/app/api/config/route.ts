@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { readConfig, writeConfig, getOpenAiKey } from "@/lib/server-config"
+import { readConfig, writeConfig, getOpenAiKey, getDiscordWebhookUrl } from "@/lib/server-config"
 
 function maskKey(key: string | undefined): string {
   if (!key) return ""
@@ -16,6 +16,8 @@ export async function GET() {
     hasAbuseipdbKey: !!config.abuseipdbApiKey,
     ipinfoApiKey: config.ipinfoApiKey ? maskKey(config.ipinfoApiKey) : "",
     hasIpinfoKey: !!config.ipinfoApiKey,
+    discordWebhookUrl: getDiscordWebhookUrl() ? maskKey(getDiscordWebhookUrl()) : "",
+    hasDiscordWebhook: !!getDiscordWebhookUrl(),
     honeypotIp: config.honeypotIp ?? process.env.HONEYPOT_IP ?? "",
     sshPort: config.sshPort ?? (Number(process.env.HONEYPOT_SSH_PORT) || 22),
     ingestPort: config.ingestPort ?? (Number(process.env.HONEYPOT_INGEST_PORT) || 8022),
@@ -35,6 +37,7 @@ export async function POST(req: NextRequest) {
   }
   if ("abuseipdbApiKey" in body) config.abuseipdbApiKey = body.abuseipdbApiKey?.trim() || undefined
   if ("ipinfoApiKey" in body) config.ipinfoApiKey = body.ipinfoApiKey?.trim() || undefined
+  if ("discordWebhookUrl" in body) config.discordWebhookUrl = body.discordWebhookUrl?.trim() || undefined
   if ("honeypotIp" in body) config.honeypotIp = body.honeypotIp?.trim() || undefined
   if ("sshPort" in body) config.sshPort = Number(body.sshPort) || 22
   if ("ingestPort" in body) config.ingestPort = Number(body.ingestPort) || 8022

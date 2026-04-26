@@ -5,6 +5,7 @@ export interface AppConfig {
   openaiApiKey?: string
   abuseipdbApiKey?: string
   ipinfoApiKey?: string
+  discordWebhookUrl?: string
   // Honeypot infrastructure
   honeypotIp?: string
   sshPort?: number
@@ -40,4 +41,10 @@ export function writeConfig(config: AppConfig): void {
 export function getOpenAiKey(): string | undefined {
   const config = readConfig()
   return config.openaiApiKey || process.env.OPENAI_API_KEY || undefined
+}
+
+/** Returns the Discord webhook URL: config file takes priority, then env var */
+export function getDiscordWebhookUrl(): string | undefined {
+  const config = readConfig()
+  return config.discordWebhookUrl || process.env.DISCORD_WEBHOOK_URL || undefined
 }

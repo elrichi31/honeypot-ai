@@ -1,15 +1,31 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { readConfig } from "@/lib/server-config"
+import { sendDiscordAlert } from "@/lib/discord"
+
+export interface AbuseReport {
+  reportedAt: string
+  comment: string
+  categories: number[]
+  reporterCountryCode: string
+  reporterCountryName: string
+}
 
 export interface AbuseIpData {
   abuseConfidenceScore: number
   totalReports: number
+  numDistinctUsers: number
   lastReportedAt: string | null
   isp: string
+  domain: string
+  hostnames: string[]
   usageType: string
-  isVpn: boolean
   countryCode: string
+  countryName: string
+  isVpn: boolean
+  isTor: boolean
+  isWhitelisted: boolean
+  reports: AbuseReport[]
 }
 
 export interface IpInfoData {
@@ -35,8 +51,8 @@ export interface IpEnrichment {
   cachedAt: string
 }
 
-const ABUSE_TTL_MS  = 7  * 24 * 60 * 60 * 1000  // 7 days
-const IPINFO_TTL_MS = 30 * 24 * 60 * 60 * 1000  // 30 days
+const ABUSE_TTL_MS  = 7  * 24 * 60 * 60 * 1000
+const IPINFO_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
 function isStale(fetchedAt: Date | null, ttl: number): boolean {
   if (!fetchedAt) return true
@@ -46,19 +62,33 @@ function isStale(fetchedAt: Date | null, ttl: number): boolean {
 async function fetchAbuseIpDb(ip: string, apiKey: string): Promise<AbuseIpData | null> {
   try {
     const res = await fetch(
-      `https://api.abuseipdb.com/api/v2/check?ipAddress=${encodeURIComponent(ip)}&maxAgeInDays=90`,
-      { headers: { Key: apiKey, Accept: "application/json" }, signal: AbortSignal.timeout(5000) }
+      `https://api.abuseipdb.com/api/v2/check?ipAddress=${encodeURIComponent(ip)}&maxAgeInDays=90&verbose`,
+      { headers: { Key: apiKey, Accept: "application/json" }, signal: AbortSignal.timeout(8000) }
     )
     if (!res.ok) return null
     const d = (await res.json()).data
+    const reports: AbuseReport[] = (d.reports ?? []).slice(0, 10).map((r: any) => ({
+      reportedAt: r.reportedAt ?? "",
+      comment: r.comment ?? "",
+      categories: r.categories ?? [],
+      reporterCountryCode: r.fromIpCountryCode ?? r.reporterCountryCode ?? "",
+      reporterCountryName: r.fromIpCountryName ?? r.reporterCountryName ?? "",
+    }))
     return {
       abuseConfidenceScore: d.abuseConfidenceScore ?? 0,
       totalReports: d.totalReports ?? 0,
+      numDistinctUsers: d.numDistinctUsers ?? 0,
       lastReportedAt: d.lastReportedAt ?? null,
       isp: d.isp ?? "",
+      domain: d.domain ?? "",
+      hostnames: d.hostnames ?? [],
       usageType: d.usageType ?? "",
-      isVpn: d.isVpn ?? false,
       countryCode: d.countryCode ?? "",
+      countryName: d.countryName ?? "",
+      isVpn: d.isVpn ?? false,
+      isTor: d.isTor ?? false,
+      isWhitelisted: d.isWhitelisted ?? false,
+      reports,
     }
   } catch { return null }
 }
@@ -101,7 +131,6 @@ export async function GET(
   const srcIp = decodeURIComponent(ip)
   const config = readConfig()
 
-  // Read existing cache row
   const { rows } = await db.query(
     `SELECT abuseipdb_data, ipinfo_data, abuseipdb_fetched_at, ipinfo_fetched_at, cached_at
      FROM ip_enrichment_cache WHERE ip = $1`,
@@ -115,9 +144,24 @@ export async function GET(
   let ipinfoFetchedAt: Date | null = row?.ipinfo_fetched_at ?? null
   let dirty = false
 
+  const wasNewAbuse = !row?.abuseipdb_data
   if (config.abuseipdbApiKey && isStale(abuseipdbFetchedAt, ABUSE_TTL_MS)) {
     const data = await fetchAbuseIpDb(srcIp, config.abuseipdbApiKey)
-    if (data) { abuseipdb = data; abuseipdbFetchedAt = new Date(); dirty = true }
+    if (data) {
+      abuseipdb = data; abuseipdbFetchedAt = new Date(); dirty = true
+      if (wasNewAbuse && data.abuseConfidenceScore >= 80) {
+        sendDiscordAlert({
+          level: "critical",
+          title: "🚨 IP altamente maliciosa detectada",
+          description: `**${srcIp}** tiene un score de abuso de **${data.abuseConfidenceScore}%** en AbuseIPDB`,
+          fields: [
+            { name: "ISP", value: data.isp || "desconocido", inline: true },
+            { name: "Reportes", value: data.totalReports.toLocaleString('en-US'), inline: true },
+            { name: "País", value: data.countryName || data.countryCode || "—", inline: true },
+          ],
+        })
+      }
+    }
   }
 
   if (isStale(ipinfoFetchedAt, IPINFO_TTL_MS)) {
@@ -143,9 +187,7 @@ export async function GET(
   }
 
   return NextResponse.json({
-    ip: srcIp,
-    abuseipdb,
-    ipinfo,
+    ip: srcIp, abuseipdb, ipinfo,
     cachedAt: cachedAt.toISOString(),
   } satisfies IpEnrichment)
 }

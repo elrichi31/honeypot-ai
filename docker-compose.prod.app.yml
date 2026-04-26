@@ -36,6 +36,7 @@ services:
     environment:
       DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot_prod
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       PORT: "3000"
       # Escucha en todas las interfaces para que el web-honeypot
       # del VPS honeypot pueda llegar por la VPN (100.x.x.x:3000).
@@ -121,6 +122,7 @@ services:
       HONEYPOT_SSH_PORT: ${HONEYPOT_SSH_PORT:-8022}
       HONEYPOT_INGEST_PORT: ${HONEYPOT_INGEST_PORT:-22}
       DASHBOARD_TIMEZONE: ${DASHBOARD_TIMEZONE:-UTC}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
     volumes:
       - dashboard_data:/app/data
     # Sin puerto publico — Caddy es el unico punto de entrada al dashboard.

@@ -4,6 +4,7 @@ import { parseLine, toNormalizedEvent, extractSessionData } from '../../lib/pars
 import { SessionRepository } from '../sessions/session.repository.js';
 import { EventRepository } from '../events/event.repository.js';
 import type { IngestSummary, CowrieRawEvent } from '../../types/index.js';
+import { sendDiscordAlert } from '../../lib/discord.js';
 
 export class IngestService {
   private sessionRepo: SessionRepository;
@@ -22,6 +23,20 @@ export class IngestService {
     const cowrieEventId = `${raw.session}:${raw.eventid}`;
     const cowrieTs = raw.timestamp;
     const { created: eventCreated } = await this.eventRepo.createIfNotExists(sessionDbId, normalized, cowrieEventId, cowrieTs);
+
+    if (eventCreated && raw.eventid === 'cowrie.login.success') {
+      sendDiscordAlert({
+        level: 'critical',
+        title: '🔓 Login exitoso en el honeypot',
+        description: `Un atacante autenticó correctamente vía **SSH**`,
+        fields: [
+          { name: 'IP',       value: raw.src_ip ?? 'desconocida', inline: true },
+          { name: 'Usuario',  value: (raw as any).username ?? '—', inline: true },
+          { name: 'Password', value: (raw as any).password ?? '—', inline: true },
+          { name: 'Sesión',   value: raw.session, inline: false },
+        ],
+      })
+    }
 
     return { sessionCreated, eventCreated };
   }

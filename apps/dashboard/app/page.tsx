@@ -3,6 +3,7 @@ import { PageShell } from "@/components/page-shell"
 import { DashboardInsightsView } from "@/components/dashboard-insights"
 import { ActivityChart } from "@/components/activity-chart"
 import { GlobeMap } from "@/components/globe-map"
+import { AttackHeatmap } from "@/components/attack-heatmap"
 import { fetchDashboardInsights, fetchOverviewStats, fetchGeoSummary } from "@/lib/api"
 import { lookupIp, geolocateIps } from "@/lib/geo"
 import { readConfig } from "@/lib/server-config"
@@ -217,6 +218,11 @@ export default async function DashboardPage({
       {/* Globe map */}
       <div className="mt-6">
         <GlobeMap countryAttacks={countryAttacks} />
+      </div>
+
+      {/* Attack heatmap */}
+      <div className="relative mt-6">
+        <AttackHeatmap days={90} />
       </div>
     </PageShell>
   )

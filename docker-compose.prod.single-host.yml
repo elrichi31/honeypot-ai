@@ -74,6 +74,7 @@ services:
     environment:
       DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot_prod
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       PORT: "3000"
       HOST: "0.0.0.0"
     healthcheck:
@@ -142,6 +143,7 @@ services:
       HONEYPOT_SSH_PORT: ${HONEYPOT_SSH_PORT:-22}
       HONEYPOT_INGEST_PORT: ${HONEYPOT_INGEST_PORT:-8022}
       DASHBOARD_TIMEZONE: ${DASHBOARD_TIMEZONE:-UTC}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
     volumes:
       - dashboard_data:/app/data
     ports:

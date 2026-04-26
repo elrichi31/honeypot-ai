@@ -4,7 +4,8 @@ import { PageShell } from "@/components/page-shell"
 import { InfrastructureForm } from "@/components/settings/infrastructure-form"
 import { OpenAiForm } from "@/components/settings/openai-form"
 import { EnrichmentForm } from "@/components/settings/enrichment-form"
-import { NotificationsCard, DataRetentionCard, SecurityCard } from "@/components/settings/static-cards"
+import { DiscordForm } from "@/components/settings/discord-form"
+import { DataRetentionCard, SecurityCard } from "@/components/settings/static-cards"
 
 export default function SettingsPage() {
   return (
@@ -16,7 +17,7 @@ export default function SettingsPage() {
 
       <div className="max-w-2xl space-y-6">
         <InfrastructureForm />
-        <NotificationsCard />
+        <DiscordForm />
         <DataRetentionCard />
         <SecurityCard />
         <OpenAiForm />
