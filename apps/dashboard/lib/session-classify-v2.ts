@@ -153,7 +153,11 @@ export function classify(session: SessionItem): Classification {
     }
   }
 
-  if (commandCount > 20 || duration >= 1800) {
+  // Bot script: DB-tagged as bot, or logged in but bailed out too fast to be human
+  // Real humans need at least 20 s to type commands; automated scripts run in <5 s
+  const isAutomated = session.sessionType === 'bot' || duration < 20
+
+  if (duration >= 1800 || (commandCount > 20 && !isAutomated)) {
     return {
       label: "Malware dropper",
       icon: Download,
@@ -163,7 +167,7 @@ export function classify(session: SessionItem): Classification {
     }
   }
 
-  if (commandCount > 8) {
+  if (commandCount > 8 && !isAutomated) {
     return {
       label: "Interactive",
       icon: Eye,
@@ -173,13 +177,23 @@ export function classify(session: SessionItem): Classification {
     }
   }
 
-  if (commandCount > 0) {
+  if (commandCount > 0 && !isAutomated) {
     return {
       label: "Recon",
       icon: Eye,
       color: "text-blue-400",
       bg: "bg-blue-400/15",
-      summary: "Acceso exitoso · reconocimiento b\u00e1sico",
+      summary: "Acceso exitoso · reconocimiento básico",
+    }
+  }
+
+  if (commandCount > 0) {
+    return {
+      label: "Bot Script",
+      icon: Cpu,
+      color: "text-slate-400",
+      bg: "bg-slate-400/10",
+      summary: `Script automatizado · ${commandCount} cmd en ${duration}s`,
     }
   }
 
