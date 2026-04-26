@@ -47,7 +47,7 @@ export function TablePagination({
   return (
     <div className="flex flex-col gap-3 border-t border-border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
       <div className="text-muted-foreground">
-        Mostrando {start}-{end} de {pagination.total.toLocaleString()}
+        Mostrando {start}-{end} de {pagination.total.toLocaleString('en-US')}
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">

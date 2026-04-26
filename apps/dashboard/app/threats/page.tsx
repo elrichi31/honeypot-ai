@@ -46,7 +46,7 @@ export default async function ThreatsPage({
           <h1 className="text-2xl font-semibold text-foreground">Threat Intelligence</h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          Correlacion cross-protocol - risk scoring por IP - {pageData.summary.total.toLocaleString()} atacantes visibles
+          Correlacion cross-protocol - risk scoring por IP - {pageData.summary.total.toLocaleString('en-US')} atacantes visibles
         </p>
       </div>
 

@@ -69,7 +69,7 @@ export function WebGeoMap({ countries, totalHits }: { countries: WebCountryAttac
             <div className="flex items-center gap-3 rounded-lg border border-border bg-secondary px-3 py-1.5 text-sm shrink-0">
               <span className="text-lg">{countryFlag(tooltip.country)}</span>
               <span className="font-semibold text-foreground">{tooltip.name}</span>
-              <span className="text-muted-foreground">{tooltip.totalHits.toLocaleString()} hits</span>
+              <span className="text-muted-foreground">{tooltip.totalHits.toLocaleString('en-US')} hits</span>
               <span className="text-muted-foreground">{tooltip.uniqueIps} IPs</span>
               <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${ATTACK_BADGE[tooltip.topType] ?? ATTACK_BADGE.recon}`}>
                 {ATTACK_LABELS[tooltip.topType] ?? tooltip.topType}
@@ -188,7 +188,7 @@ export function WebGeoMap({ countries, totalHits }: { countries: WebCountryAttac
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-4 py-2.5 font-mono text-sm font-semibold text-foreground">
-                        {c.totalHits.toLocaleString()}
+                        {c.totalHits.toLocaleString('en-US')}
                       </td>
                       <td className="whitespace-nowrap px-4 py-2.5 text-sm text-muted-foreground">
                         {c.uniqueIps}

@@ -167,23 +167,23 @@ export default async function DashboardPage({
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Sesiones totales</p>
           <p className="mt-2 text-3xl font-semibold text-foreground">
-            {insights.window.totalSessions.toLocaleString()}
+            {insights.window.totalSessions.toLocaleString('en-US')}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {insights.window.uniqueIps.toLocaleString()} IPs únicas observadas
+            {insights.window.uniqueIps.toLocaleString('en-US')} IPs únicas observadas
           </p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Tasa de compromiso</p>
           <p className="mt-2 text-3xl font-semibold text-foreground">{compromiseRate}%</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {insights.funnel.loginSuccess.toLocaleString()} logins exitosos
+            {insights.funnel.loginSuccess.toLocaleString('en-US')} logins exitosos
           </p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Alta amenaza</p>
           <p className="mt-2 text-3xl font-semibold text-foreground">
-            {insights.funnel.highSignalCompromise.toLocaleString()}
+            {insights.funnel.highSignalCompromise.toLocaleString('en-US')}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Sesiones con backdoor, miner, malware drop
@@ -192,7 +192,7 @@ export default async function DashboardPage({
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Post-login profundo</p>
           <p className="mt-2 text-3xl font-semibold text-foreground">
-            {insights.successfulDepth.interactiveSessions.toLocaleString()}
+            {insights.successfulDepth.interactiveSessions.toLocaleString('en-US')}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Sesiones con 20+ comandos · máx {insights.successfulDepth.maxCommands}

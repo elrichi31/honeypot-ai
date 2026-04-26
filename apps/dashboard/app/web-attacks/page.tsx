@@ -39,7 +39,7 @@ export default async function WebAttacksPage({
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-foreground">Web Attacks</h1>
         <p className="text-sm text-muted-foreground">
-          {stats.total.toLocaleString()} requests capturadas - {attackersPage.pagination.total.toLocaleString()} atacantes visibles
+          {stats.total.toLocaleString('en-US')} requests capturadas - {attackersPage.pagination.total.toLocaleString('en-US')} atacantes visibles
         </p>
       </div>
 
@@ -81,7 +81,7 @@ export default async function WebAttacksPage({
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-sm text-muted-foreground">Total hits</p>
-          <p className="mt-1 text-2xl font-semibold">{stats.total.toLocaleString()}</p>
+          <p className="mt-1 text-2xl font-semibold">{stats.total.toLocaleString('en-US')}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-sm text-muted-foreground">Atacantes visibles</p>

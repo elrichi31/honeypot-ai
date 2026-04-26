@@ -5,6 +5,22 @@ import { format, formatDistanceToNow } from "date-fns"
 import { ArrowLeft, ShieldAlert, Terminal, Globe, Activity } from "lucide-react"
 import { fetchThreat } from "@/lib/api"
 import { LEVEL_STYLES, CMD_COLORS, CMD_LABELS } from "@/lib/attack-types"
+import { AiThreatSummary } from "@/components/ai-threat-summary"
+import { IpEnrichment } from "@/components/ip-enrichment"
+import fs from "fs"
+import path from "path"
+import type { ThreatAnalysis } from "@/app/api/ai/threat-analysis/route"
+
+function readThreatCache(ip: string): ThreatAnalysis | null {
+  try {
+    const cachePath = path.join(process.cwd(), "data", "ai-threat-cache.json")
+    if (!fs.existsSync(cachePath)) return null
+    const cache = JSON.parse(fs.readFileSync(cachePath, "utf-8"))
+    return cache[ip] ?? null
+  } catch {
+    return null
+  }
+}
 
 export default async function ThreatDetailPage({
   params,
@@ -20,6 +36,8 @@ export default async function ThreatDetailPage({
   } catch {
     notFound()
   }
+
+  const cachedAnalysis = readThreatCache(srcIp)
 
   const s = LEVEL_STYLES[threat.risk.level]
 
@@ -73,6 +91,21 @@ export default async function ThreatDetailPage({
             </ul>
           </div>
         )}
+
+        {/* IP Enrichment — lazy, cached */}
+        <div className="mb-4">
+          <IpEnrichment ip={srcIp} />
+        </div>
+
+        {/* AI Threat Intelligence — auto-triggers if score >= 60 */}
+        <div className="mb-6">
+          <AiThreatSummary
+            ip={srcIp}
+            threat={threat}
+            initialAnalysis={cachedAnalysis}
+            autoTrigger={threat.risk.score >= 60}
+          />
+        </div>
 
         <div className="grid gap-6 xl:grid-cols-3">
           {/* Left column */}
@@ -139,7 +172,7 @@ export default async function ThreatDetailPage({
                 <div className="divide-y divide-border text-sm">
                   <div className="flex justify-between px-4 py-2.5">
                     <span className="text-muted-foreground">Total hits</span>
-                    <span className="font-mono font-semibold text-foreground">{threat.web.hits.toLocaleString()}</span>
+                    <span className="font-mono font-semibold text-foreground">{threat.web.hits.toLocaleString('en-US')}</span>
                   </div>
                   <div className="px-4 py-2.5">
                     <p className="mb-1.5 text-muted-foreground">Attack types</p>

@@ -30,7 +30,7 @@ export default async function CommandsPage({
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-foreground">Commands</h1>
         <p className="text-sm text-muted-foreground">
-          {eventsPage.pagination.total.toLocaleString()} comandos coinciden con la búsqueda actual
+          {eventsPage.pagination.total.toLocaleString('en-US')} comandos coinciden con la búsqueda actual
         </p>
       </div>
 

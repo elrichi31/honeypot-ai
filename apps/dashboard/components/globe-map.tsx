@@ -139,7 +139,7 @@ export function GlobeMap({ countryAttacks }: GlobeMapProps) {
             background:${dotColor}22;
             border-radius:4px;
             padding:1px 4px;
-          ">${ca.sessions.toLocaleString()}</span>
+          ">${ca.sessions.toLocaleString('en-US')}</span>
         </div>
         <div style="
           position:absolute;
@@ -280,7 +280,7 @@ export function GlobeMap({ countryAttacks }: GlobeMapProps) {
           <h3 className="font-semibold text-foreground">Attack Origins</h3>
           <p className="text-sm text-muted-foreground">
             {hasData
-              ? `${countryAttacks.length} países · ${totalSessions.toLocaleString()} sesiones SSH`
+              ? `${countryAttacks.length} países · ${totalSessions.toLocaleString('en-US')} sesiones SSH`
               : "Sin conexiones externas aún"}
           </p>
         </div>
@@ -353,7 +353,7 @@ export function GlobeMap({ countryAttacks }: GlobeMapProps) {
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="text-xs font-semibold text-foreground">
-                    {ca.sessions.toLocaleString()}
+                    {ca.sessions.toLocaleString('en-US')}
                   </p>
                   {ca.successfulLogins > 0 && (
                     <p className="flex items-center justify-end gap-0.5 text-[10px] text-destructive">

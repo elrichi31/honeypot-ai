@@ -3,6 +3,7 @@
 import { PageShell } from "@/components/page-shell"
 import { InfrastructureForm } from "@/components/settings/infrastructure-form"
 import { OpenAiForm } from "@/components/settings/openai-form"
+import { EnrichmentForm } from "@/components/settings/enrichment-form"
 import { NotificationsCard, DataRetentionCard, SecurityCard } from "@/components/settings/static-cards"
 
 export default function SettingsPage() {
@@ -19,6 +20,7 @@ export default function SettingsPage() {
         <DataRetentionCard />
         <SecurityCard />
         <OpenAiForm />
+        <EnrichmentForm />
       </div>
     </PageShell>
   )

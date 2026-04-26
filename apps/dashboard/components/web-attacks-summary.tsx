@@ -54,7 +54,7 @@ export function WebAttacksSummary({ total, uniqueIps, byAttackType, topIps }: Pr
       <div className="mb-4 grid grid-cols-3 gap-3">
         <div className="rounded-lg bg-muted/30 p-3">
           <p className="text-xs text-muted-foreground">Total hits</p>
-          <p className="mt-0.5 text-xl font-semibold text-foreground">{total.toLocaleString()}</p>
+          <p className="mt-0.5 text-xl font-semibold text-foreground">{total.toLocaleString('en-US')}</p>
         </div>
         <div className="rounded-lg bg-muted/30 p-3">
           <p className="text-xs text-muted-foreground">Atacantes</p>

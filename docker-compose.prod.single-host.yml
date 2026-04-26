@@ -52,7 +52,7 @@ services:
     environment:
       POSTGRES_USER: honeypot
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: honeypot
+      POSTGRES_DB: honeypot_prod
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -72,7 +72,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot
+      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot_prod
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
       PORT: "3000"
       HOST: "0.0.0.0"
@@ -135,7 +135,7 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:3000
       INTERNAL_API_URL: http://ingest-api:3000
-      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot
+      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot_prod
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:4000}
       HONEYPOT_IP: ${HONEYPOT_IP:-}

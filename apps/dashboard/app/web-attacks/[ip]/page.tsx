@@ -90,7 +90,7 @@ export default async function WebAttackerDetailPage({
 
         {/* Stat cards */}
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard icon={MousePointerClick} label="Total hits" value={attacker.totalHits.toLocaleString()} color="text-warning" bg="bg-warning/20" />
+          <StatCard icon={MousePointerClick} label="Total hits" value={attacker.totalHits.toLocaleString('en-US')} color="text-warning" bg="bg-warning/20" />
           <StatCard icon={Shield} label="Tipos de ataque" value={attacker.attackTypes.length} />
           <StatCard icon={Globe} label="Paths únicos" value={Object.keys(pathCount).length} />
           <StatCard icon={Clock} label="Duración campaña" value={(() => {

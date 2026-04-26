@@ -86,7 +86,7 @@ export default async function WebPathsPage() {
                         <span className="truncate block" title={p.path}>{p.path}</span>
                       </td>
                       <td className="whitespace-nowrap px-4 py-2.5 font-mono text-sm font-semibold text-foreground">
-                        {p.total.toLocaleString()}
+                        {p.total.toLocaleString('en-US')}
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="flex flex-wrap gap-1">

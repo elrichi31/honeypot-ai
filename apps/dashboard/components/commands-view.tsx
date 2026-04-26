@@ -106,7 +106,7 @@ export function CommandsView({ events, searchQuery, pagination }: CommandsViewPr
         <div className="rounded-xl border border-border bg-card p-4">
           <h3 className="font-semibold text-foreground">Matching Commands</h3>
           <p className="mt-2 text-4xl font-bold text-warning">
-            {pagination.total.toLocaleString()}
+            {pagination.total.toLocaleString('en-US')}
           </p>
         </div>
 

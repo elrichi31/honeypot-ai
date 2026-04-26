@@ -14,7 +14,7 @@ export default async function WebGeoPage() {
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-foreground">Web Attacks · Geo</h1>
           <p className="text-sm text-muted-foreground">
-            {countries.length} países · {attackers.length} IPs únicas · {totalHits.toLocaleString()} hits totales
+            {countries.length} países · {attackers.length} IPs únicas · {totalHits.toLocaleString('en-US')} hits totales
           </p>
         </div>
 

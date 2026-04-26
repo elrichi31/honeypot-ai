@@ -28,4 +28,8 @@ __pycache__/
 .idea/
 *.swp
 *.swo
-apps/dashboard/data/config.json
+# Dashboard runtime data (API keys, AI cache, enrichment cache)
+apps/dashboard/data/
+
+# Claude Code local settings
+.claude/settings.local.json

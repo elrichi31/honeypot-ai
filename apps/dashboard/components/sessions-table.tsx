@@ -158,7 +158,7 @@ export function SessionsTable({
           <div>
             <h3 className="font-semibold text-foreground">Sessions</h3>
             <p className="text-xs text-muted-foreground">
-              {compromisedCount.toLocaleString()} comprometidas - {scanGroupCount.toLocaleString()} IPs en escaneo
+              {compromisedCount.toLocaleString('en-US')} comprometidas - {scanGroupCount.toLocaleString('en-US')} IPs en escaneo
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

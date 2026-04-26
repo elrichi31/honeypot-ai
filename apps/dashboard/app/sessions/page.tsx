@@ -78,8 +78,8 @@ export default async function SessionsPage({
         <h1 className="text-2xl font-semibold text-foreground">Sessions</h1>
         <p className="text-sm text-muted-foreground">
           {tab === "scans"
-            ? `${sessionPage.summary.scanGroups.toLocaleString()} IPs con escaneos agrupados - vista paginada`
-            : `${sessionPage.summary.compromised.toLocaleString()} sesiones comprometidas - vista paginada`}
+            ? `${sessionPage.summary.scanGroups.toLocaleString('en-US')} IPs con escaneos agrupados - vista paginada`
+            : `${sessionPage.summary.compromised.toLocaleString('en-US')} sesiones comprometidas - vista paginada`}
         </p>
       </div>
 

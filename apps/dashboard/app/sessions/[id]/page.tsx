@@ -4,6 +4,7 @@ import Link from "next/link"
 import { formatDistanceToNow, differenceInSeconds } from "date-fns"
 import { formatDateTimeLong } from "@/lib/timezone"
 import { readConfig } from "@/lib/server-config"
+import { db } from "@/lib/db"
 import {
   ArrowLeft,
   Globe,
@@ -21,6 +22,20 @@ import { AiSummary } from "@/components/ai-summary"
 import { fetchSession, fetchThreat } from "@/lib/api"
 import { RiskBadge } from "@/components/risk-badge"
 import { StatCard } from "@/components/stat-card"
+import { IpEnrichment } from "@/components/ip-enrichment"
+import type { IpEnrichment as IpEnrichmentData } from "@/app/api/enrich/[ip]/route"
+
+async function readEnrichmentCache(ip: string): Promise<IpEnrichmentData | null> {
+  try {
+    const { rows } = await db.query(
+      `SELECT abuseipdb_data, ipinfo_data, cached_at FROM ip_enrichment_cache WHERE ip = $1`,
+      [ip]
+    )
+    const row = rows[0]
+    if (!row || (!row.abuseipdb_data && !row.ipinfo_data)) return null
+    return { ip, abuseipdb: row.abuseipdb_data, ipinfo: row.ipinfo_data, cachedAt: row.cached_at.toISOString() }
+  } catch { return null }
+}
 
 export default async function SessionReplayPage({
   params,
@@ -46,6 +61,7 @@ export default async function SessionReplayPage({
   const config = readConfig()
   const timezone = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
   const events = session.events ?? []
+  const enrichmentCache = await readEnrichmentCache(session.srcIp)
 
   const commands = events.filter((e) => e.eventType === "command.input" && e.command)
   const authAttempts = events.filter(
@@ -241,6 +257,7 @@ export default async function SessionReplayPage({
 
           {/* Right column: timeline + AI */}
           <div className="space-y-6 xl:col-span-2">
+            <IpEnrichment ip={session.srcIp} initialData={enrichmentCache} autoFetch={false} />
             <AiSummary session={session} events={events} />
 
             <div className="rounded-xl border border-border bg-card">

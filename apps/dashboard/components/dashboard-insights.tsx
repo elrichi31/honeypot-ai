@@ -197,7 +197,7 @@ export function DashboardInsightsView({ insights, countrySuccess, campaignGeo }:
                 />
               </div>
               <p className="mt-3 text-3xl font-semibold text-foreground">
-                {stage.count.toLocaleString()}
+                {stage.count.toLocaleString('en-US')}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {index === 0 ? "baseline" : `${stage.conversion}% from previous stage`}

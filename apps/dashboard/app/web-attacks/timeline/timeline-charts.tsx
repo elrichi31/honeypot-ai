@@ -108,7 +108,7 @@ export function TimelineCharts({ days, attackTypes, byAttackType }: Props) {
                       {i + 1}. {ATTACK_LABELS[a.attackType] ?? a.attackType}
                     </span>
                     <span className="text-muted-foreground">
-                      {a.count.toLocaleString()} <span className="opacity-60">({pct}%)</span>
+                      {a.count.toLocaleString('en-US')} <span className="opacity-60">({pct}%)</span>
                     </span>
                   </div>
                   <div className="h-1.5 w-full rounded-full bg-muted">

@@ -58,7 +58,7 @@ export function AttackersTable({
             </td>
 
             <td className="whitespace-nowrap px-4 py-3">
-              <span className="font-semibold text-foreground">{attacker.totalHits.toLocaleString()}</span>
+              <span className="font-semibold text-foreground">{attacker.totalHits.toLocaleString('en-US')}</span>
             </td>
 
             <td className="px-4 py-3">

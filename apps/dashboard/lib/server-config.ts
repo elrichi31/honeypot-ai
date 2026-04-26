@@ -3,6 +3,8 @@ import path from "path"
 
 export interface AppConfig {
   openaiApiKey?: string
+  abuseipdbApiKey?: string
+  ipinfoApiKey?: string
   // Honeypot infrastructure
   honeypotIp?: string
   sshPort?: number
