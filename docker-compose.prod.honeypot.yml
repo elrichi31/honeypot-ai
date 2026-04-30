@@ -64,6 +64,62 @@ services:
       - edge
     pids_limit: 128
 
+  ftp-honeypot:
+    <<: *service-defaults
+    build:
+      context: ./apps/ftp-honeypot
+    container_name: ftp-honeypot
+    environment:
+      INGEST_API_URL: ${INGEST_API_URL}
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      PORT: "21"
+      DST_PORT: "21"
+    ports:
+      - "21:21"
+    networks:
+      - edge
+    pids_limit: 128
+
+  mysql-honeypot:
+    <<: *service-defaults
+    build:
+      context: ./apps/mysql-honeypot
+    container_name: mysql-honeypot
+    environment:
+      INGEST_API_URL: ${INGEST_API_URL}
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      PORT: "3306"
+      DST_PORT: "3306"
+    ports:
+      - "3306:3306"
+    networks:
+      - edge
+    pids_limit: 128
+
+  port-honeypot:
+    <<: *service-defaults
+    build:
+      context: ./apps/port-honeypot
+    container_name: port-honeypot
+    environment:
+      INGEST_API_URL: ${INGEST_API_URL}
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      PORTS: "1433 2375 3389 4444 5900 6379 8888 9090 9200 27017"
+    ports:
+      - "1433:1433"
+      - "2375:2375"
+      - "3389:3389"
+      - "4444:4444"
+      - "5900:5900"
+      - "6379:6379"
+      - "8888:8888"
+      - "9090:9090"
+      - "9200:9200"
+      - "27017:27017"
+    networks:
+      - edge
+    pids_limit: 256
+
 volumes:
   cowrie_var:
   vector_data:

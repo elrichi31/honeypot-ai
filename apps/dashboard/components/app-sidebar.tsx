@@ -20,6 +20,7 @@ import {
   BarChart2,
   Layers3,
   Radar,
+  Network,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { signOut, useSession } from "@/lib/auth-client"
@@ -30,6 +31,7 @@ const navSections = [
     icon: BarChart2,
     items: [
       { title: "Dashboard", href: "/", icon: BarChart2 },
+      { title: "Live Attack Map", href: "/live", icon: Radar },
     ],
   },
   {
@@ -50,6 +52,13 @@ const navSections = [
       { title: "Timeline", href: "/web-attacks/timeline", icon: BarChart2 },
       { title: "Paths", href: "/web-attacks/paths", icon: FolderSearch },
       { title: "Geo", href: "/web-attacks/geo", icon: Map },
+    ],
+  },
+  {
+    title: "Network Honeypots",
+    icon: Network,
+    items: [
+      { title: "Protocol Hits", href: "/services", icon: Network },
     ],
   },
   {

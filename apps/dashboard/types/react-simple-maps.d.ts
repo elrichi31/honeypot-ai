@@ -63,8 +63,16 @@ declare module "react-simple-maps" {
     tabIndex?: number
   }
 
+  interface MarkerProps {
+    coordinates: [number, number]
+    children?: ReactNode
+    style?: CSSProperties
+    className?: string
+  }
+
   export function ComposableMap(props: ComposableMapProps): JSX.Element
   export function ZoomableGroup(props: ZoomableGroupProps): JSX.Element
   export function Geographies(props: GeographiesProps): JSX.Element
   export function Geography(props: GeographyProps): JSX.Element
+  export function Marker(props: MarkerProps): JSX.Element
 }

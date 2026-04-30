@@ -3,6 +3,8 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ensureIngestToken } from '../lib/ingest-auth.js';
 import { isWebHitBot } from '../lib/bot-detector.js';
+import { eventBus } from '../lib/event-bus.js';
+import { lookupGeo } from '../lib/geo.js';
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 5000;
@@ -132,6 +134,10 @@ export async function webRoutes(fastify: FastifyInstance) {
       `;
 
       if (createdRows[0]) {
+        const geo = lookupGeo(d.srcIp)
+        if (geo) {
+          eventBus.emit('attack', { type: 'http', ip: d.srcIp, ...geo, timestamp: d.timestamp })
+        }
         return reply.status(201).send({
           id: createdRows[0].id,
           attackType: createdRows[0].attack_type,
@@ -216,8 +222,11 @@ export async function webRoutes(fastify: FastifyInstance) {
 
     const attackTypes = [...new Set(rows.map((row) => row.attack_type))];
 
+    // Dynamic attack-type keys coexist with the string day label.
+    type WebTimelineDay = { day: string } & Record<string, string | number>;
+
     // Fill all 31 days so the chart shows a continuous series (empty days = zeros)
-    const days: ({ day: string } & Record<string, number>)[] = [];
+    const days: WebTimelineDay[] = [];
     const now = new Date();
     for (let i = 30; i >= 0; i--) {
       const d = new Date(now);

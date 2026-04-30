@@ -32,6 +32,7 @@ services:
   ingest-api:
     build:
       context: ./apps/ingest-api
+      dockerfile: Dockerfile.compose
     container_name: ingest-api
     restart: unless-stopped
     depends_on:
@@ -58,11 +59,10 @@ services:
     ports:
       - "3000:3000"
 
-  # Corre una vez al arrancar: aplica el schema y carga datos de prueba (~30 dias).
-  # Se detiene solo cuando termina. Util en dev para tener datos sin pasos manuales.
   seed:
     build:
       context: ./apps/ingest-api
+      dockerfile: Dockerfile.compose
     container_name: honeypot-seed
     restart: "no"
     depends_on:
@@ -102,6 +102,57 @@ services:
     depends_on:
       ingest-api:
         condition: service_healthy
+
+  ftp-honeypot:
+    build:
+      context: ./apps/ftp-honeypot
+    container_name: ftp-honeypot
+    restart: unless-stopped
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+    environment:
+      INGEST_API_URL: http://ingest-api:3000
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
+      PORT: "2121"   # dev uses non-privileged port
+      DST_PORT: "21"
+    ports:
+      - "2121:2121"
+
+  mysql-honeypot:
+    build:
+      context: ./apps/mysql-honeypot
+    container_name: mysql-honeypot
+    restart: unless-stopped
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+    environment:
+      INGEST_API_URL: http://ingest-api:3000
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
+      PORT: "3307"   # dev uses 3307 to avoid conflict with postgres on 3306
+      DST_PORT: "3306"
+    ports:
+      - "3307:3307"
+
+  port-honeypot:
+    build:
+      context: ./apps/port-honeypot
+    container_name: port-honeypot
+    restart: unless-stopped
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+    environment:
+      INGEST_API_URL: http://ingest-api:3000
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
+      PORTS: "6379 8888 9090 9200 27017"  # subset for dev
+    ports:
+      - "6379:6379"
+      - "8888:8888"
+      - "9090:9090"
+      - "9200:9200"
+      - "27017:27017"
 
   dashboard:
     build:

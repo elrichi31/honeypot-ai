@@ -3,6 +3,14 @@ import { ingestFileBodySchema, cowrieRawEventSchema, ingestBatchBodySchema, vect
 import { ensureIngestToken } from '../lib/ingest-auth.js';
 import { IngestService } from '../modules/ingest/ingest.service.js';
 import type { CowrieRawEvent } from '../types/index.js';
+import { eventBus } from '../lib/event-bus.js';
+import { lookupGeo } from '../lib/geo.js';
+
+function emitSsh(ip: string) {
+  const geo = lookupGeo(ip)
+  if (!geo) return
+  eventBus.emit('attack', { type: 'ssh', ip, ...geo, timestamp: new Date().toISOString() })
+}
 
 export async function ingestRoutes(fastify: FastifyInstance) {
   // Ingest from local file (dev only)
@@ -41,6 +49,7 @@ export async function ingestRoutes(fastify: FastifyInstance) {
 
     try {
       const { sessionCreated, eventCreated } = await service.processLine(parsed.data as CowrieRawEvent);
+      if (sessionCreated && parsed.data.src_ip) emitSsh(parsed.data.src_ip)
       return reply.status(eventCreated ? 201 : 200).send({
         ingested: eventCreated,
         duplicate: !eventCreated,
@@ -76,7 +85,10 @@ export async function ingestRoutes(fastify: FastifyInstance) {
         const { sessionCreated, eventCreated } = await service.processLine(raw as CowrieRawEvent);
         if (eventCreated) inserted++;
         else duplicates++;
-        if (sessionCreated) sessions++;
+        if (sessionCreated) {
+          sessions++;
+          if (raw.src_ip) emitSsh(raw.src_ip)
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         errors.push(msg);
@@ -109,7 +121,10 @@ export async function ingestRoutes(fastify: FastifyInstance) {
       try {
         const { sessionCreated, eventCreated } = await service.processLine(raw as CowrieRawEvent);
         if (eventCreated) inserted++; else duplicates++;
-        if (sessionCreated) sessions++;
+        if (sessionCreated) {
+          sessions++;
+          if (raw.src_ip) emitSsh(raw.src_ip)
+        }
       } catch (err) {
         errors.push(err instanceof Error ? err.message : String(err));
       }

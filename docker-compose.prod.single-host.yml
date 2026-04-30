@@ -67,6 +67,7 @@ services:
     <<: *service-defaults
     build:
       context: ./apps/ingest-api
+      dockerfile: Dockerfile.compose
     container_name: ingest-api
     depends_on:
       postgres:
@@ -117,6 +118,74 @@ services:
     networks:
       - honeypot_ingest
     pids_limit: 128
+
+  ftp-honeypot:
+    <<: *service-defaults
+    build:
+      context: ./apps/ftp-honeypot
+    container_name: ftp-honeypot
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+    environment:
+      INGEST_API_URL: http://ingest-api:3000
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      PORT: "21"
+      DST_PORT: "21"
+    ports:
+      - "21:21"
+    networks:
+      - edge
+      - honeypot_ingest
+    pids_limit: 128
+
+  mysql-honeypot:
+    <<: *service-defaults
+    build:
+      context: ./apps/mysql-honeypot
+    container_name: mysql-honeypot
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+    environment:
+      INGEST_API_URL: http://ingest-api:3000
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      PORT: "3306"
+      DST_PORT: "3306"
+    ports:
+      - "3306:3306"
+    networks:
+      - edge
+      - honeypot_ingest
+    pids_limit: 128
+
+  port-honeypot:
+    <<: *service-defaults
+    build:
+      context: ./apps/port-honeypot
+    container_name: port-honeypot
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+    environment:
+      INGEST_API_URL: http://ingest-api:3000
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      PORTS: "1433 2375 3389 4444 5900 6379 8888 9090 9200 27017"
+    ports:
+      - "1433:1433"
+      - "2375:2375"
+      - "3389:3389"
+      - "4444:4444"
+      - "5900:5900"
+      - "6379:6379"
+      - "8888:8888"
+      - "9090:9090"
+      - "9200:9200"
+      - "27017:27017"
+    networks:
+      - edge
+      - honeypot_ingest
+    pids_limit: 256
 
   dashboard:
     <<: *service-defaults

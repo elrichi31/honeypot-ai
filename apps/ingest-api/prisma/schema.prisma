@@ -60,6 +60,27 @@ model Event {
   @@map("events")
 }
 
+model ProtocolHit {
+  id        String   @id @default(uuid())
+  eventId   String   @unique @map("event_id")
+  protocol  String   // ftp | mysql | port-scan
+  srcIp     String   @map("src_ip")
+  srcPort   Int?     @map("src_port")
+  dstPort   Int      @map("dst_port")
+  eventType String   @map("event_type") // connect | auth | command
+  username  String?
+  password  String?
+  data      Json     @default("{}")
+  timestamp DateTime
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([srcIp])
+  @@index([protocol])
+  @@index([dstPort])
+  @@index([timestamp(sort: Desc)])
+  @@map("protocol_hits")
+}
+
 model WebHit {
   id          String   @id @default(uuid())
   eventId     String   @unique @map("event_id")

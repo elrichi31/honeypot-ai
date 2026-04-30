@@ -29,6 +29,7 @@ services:
     <<: *service-defaults
     build:
       context: ./apps/ingest-api
+      dockerfile: Dockerfile.compose
     container_name: ingest-api
     depends_on:
       postgres:
