@@ -8,6 +8,8 @@ export interface ProtocolHit {
   dst_port: number
   event_type: string
   username: string | null
+  password: string | null
+  data: Record<string, unknown>
   timestamp: string
 }
 
@@ -31,12 +33,34 @@ export interface ProtocolHitsResponse {
   meta: { page: number; limit: number; total: number }
 }
 
+export interface ProtocolInsights {
+  totals: {
+    total: number
+    uniqueIps: number
+    authAttempts: number
+    commandEvents: number
+    lastSeen: string | null
+  }
+  topIps: { srcIp: string; count: number; lastSeen: string }[]
+  topPorts: { dstPort: number; count: number; lastSeen: string }[]
+  topUsernames: { username: string; count: number }[]
+  topPasswords: { password: string; count: number }[]
+  topCommands: { command: string; count: number }[]
+  topServices: { service: string; count: number }[]
+}
+
 export async function fetchProtocolStats(): Promise<ProtocolStat[]> {
   return apiFetch<ProtocolStat[]>(`${getApiUrl()}/protocol-hits/stats`)
 }
 
 export async function fetchTargetPortStats(): Promise<TargetPortStat[]> {
   return apiFetch<TargetPortStat[]>(`${getApiUrl()}/protocol-hits/ports/stats`)
+}
+
+export async function fetchProtocolInsights(protocol: string): Promise<ProtocolInsights> {
+  const url = new URL(`${getApiUrl()}/protocol-hits/insights`)
+  url.searchParams.set('protocol', protocol)
+  return apiFetch<ProtocolInsights>(url.toString())
 }
 
 export async function fetchProtocolHits(

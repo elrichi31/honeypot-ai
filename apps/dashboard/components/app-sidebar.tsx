@@ -21,6 +21,8 @@ import {
   Layers3,
   Radar,
   Network,
+  Database,
+  Server,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { signOut, useSession } from "@/lib/auth-client"
@@ -59,6 +61,9 @@ const navSections = [
     icon: Network,
     items: [
       { title: "Protocol Hits", href: "/services", icon: Network },
+      { title: "FTP", href: "/services/ftp", icon: Server },
+      { title: "MySQL", href: "/services/mysql", icon: Database },
+      { title: "Port Scans", href: "/services/ports", icon: Radar },
     ],
   },
   {

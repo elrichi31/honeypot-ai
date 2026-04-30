@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from "react-simple-maps"
 
 const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"
-const ATTACK_TTL = 7_000
 
 type AttackType = "ssh" | "http" | "ftp" | "mysql" | "port-scan"
 
@@ -51,6 +50,17 @@ interface Attack {
   dstPort?: number
 }
 
+interface CountryAttack {
+  id: string
+  lat: number
+  lng: number
+  country: string
+  count: number
+  lastType: AttackType
+  lastSeen: number
+  types: Record<AttackType, number>
+}
+
 interface RawEvent {
   type: AttackType
   ip: string
@@ -62,20 +72,51 @@ interface RawEvent {
 }
 
 export function LiveAttackMap() {
-  const [attacks, setAttacks] = useState<Attack[]>([])
+  const [attacks, setAttacks] = useState<CountryAttack[]>([])
   const [recent, setRecent] = useState<Attack[]>([])
   const [stats, setStats] = useState<Record<AttackType, number>>({ ssh: 0, http: 0, ftp: 0, mysql: 0, "port-scan": 0 })
   const [connected, setConnected] = useState(false)
   const esRef = useRef<EventSource | null>(null)
-  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const addAttack = useCallback((event: RawEvent) => {
+    const timestamp = Date.now()
     const attack: Attack = {
       ...event,
       id: crypto.randomUUID(),
-      timestamp: Date.now(),
+      timestamp,
     }
-    setAttacks(prev => [...prev.slice(-79), attack])
+    const key = event.country || `${event.lat.toFixed(2)},${event.lng.toFixed(2)}`
+    setAttacks(prev => {
+      const existing = prev.find(a => a.id === key)
+      if (!existing) {
+        return [
+          ...prev,
+          {
+            id: key,
+            lat: event.lat,
+            lng: event.lng,
+            country: event.country || "Unknown",
+            count: 1,
+            lastType: event.type,
+            lastSeen: timestamp,
+            types: { ssh: 0, http: 0, ftp: 0, mysql: 0, "port-scan": 0, [event.type]: 1 },
+          },
+        ]
+      }
+
+      return prev.map(a => {
+        if (a.id !== key) return a
+        return {
+          ...a,
+          lat: event.lat,
+          lng: event.lng,
+          count: a.count + 1,
+          lastType: event.type,
+          lastSeen: timestamp,
+          types: { ...a.types, [event.type]: (a.types[event.type] ?? 0) + 1 },
+        }
+      })
+    })
     setRecent(prev => [attack, ...prev].slice(0, 20))
     setStats(prev => ({ ...prev, [event.type]: (prev[event.type] ?? 0) + 1 }))
   }, [])
@@ -90,16 +131,6 @@ export function LiveAttackMap() {
     }
     return () => es.close()
   }, [addAttack])
-
-  useEffect(() => {
-    tickRef.current = setInterval(() => {
-      const cutoff = Date.now() - ATTACK_TTL
-      setAttacks(prev => prev.filter(a => a.timestamp > cutoff))
-    }, 500)
-    return () => clearInterval(tickRef.current!)
-  }, [])
-
-  const now = Date.now()
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-xl border border-border bg-[#0a0a1a]">
@@ -144,16 +175,27 @@ export function LiveAttackMap() {
           </Geographies>
 
           {attacks.map(attack => {
-            const age = now - attack.timestamp
-            const opacity = Math.max(0, 1 - age / ATTACK_TTL)
-            const color = ATTACK_COLORS[attack.type] ?? "#94a3b8"
+            const radius = Math.min(30, 4 + Math.log2(attack.count + 1) * 4)
+            const color = ATTACK_COLORS[attack.lastType] ?? "#94a3b8"
             return (
               <Marker key={attack.id} coordinates={[attack.lng, attack.lat]}>
-                <circle r={10} fill={color} fillOpacity={0}>
-                  <animate attributeName="r" from="3" to="18" dur="1.8s" repeatCount="indefinite" />
-                  <animate attributeName="fill-opacity" from={`${0.35 * opacity}`} to="0" dur="1.8s" repeatCount="indefinite" />
+                <title>{`${attack.country}: ${attack.count.toLocaleString()} attacks`}</title>
+                <circle r={radius} fill={color} fillOpacity={0.2} />
+                <circle r={radius + 2} fill={color} fillOpacity={0}>
+                  <animate attributeName="r" from={`${radius}`} to={`${radius + 16}`} dur="1.8s" repeatCount="indefinite" />
+                  <animate attributeName="fill-opacity" from="0.28" to="0" dur="1.8s" repeatCount="indefinite" />
                 </circle>
-                <circle r={3} fill={color} fillOpacity={opacity} />
+                <circle r={Math.max(4, radius * 0.45)} fill={color} fillOpacity={0.9} stroke="#0f172a" strokeWidth={1.5} />
+                {attack.count > 1 && (
+                  <text
+                    y={4}
+                    textAnchor="middle"
+                    className="fill-white text-[10px] font-bold"
+                    style={{ pointerEvents: "none" }}
+                  >
+                    {attack.count > 99 ? "99+" : attack.count}
+                  </text>
+                )}
               </Marker>
             )
           })}
