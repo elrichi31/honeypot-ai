@@ -1,4 +1,4 @@
-import { fetchProtocolStats, fetchProtocolHits } from "@/lib/api"
+import { fetchProtocolStats, fetchProtocolHits, fetchTargetPortStats } from "@/lib/api"
 import { PageShell } from "@/components/page-shell"
 import { Network, Clock, Key } from "lucide-react"
 import { ProtocolHitsTable } from "./protocol-hits-table"
@@ -26,8 +26,9 @@ export default async function ServicesPage({
   const page = Number(params.page ?? "1")
   const protocol = params.protocol || undefined
 
-  const [stats, hitsPage] = await Promise.all([
+  const [stats, portStats, hitsPage] = await Promise.all([
     fetchProtocolStats(),
+    fetchTargetPortStats(),
     fetchProtocolHits({ page, limit: 50, protocol }),
   ])
 
@@ -73,6 +74,53 @@ export default async function ServicesPage({
             </div>
           )
         })}
+      </div>
+
+      {/* Target ports */}
+      <div className="mb-6 rounded-xl border border-border bg-card">
+        <div className="border-b border-border px-4 py-3">
+          <h2 className="text-sm font-semibold text-foreground">Target ports</h2>
+          <p className="text-xs text-muted-foreground">Destination ports currently receiving attacks</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                <th className="px-4 py-3 font-medium">Dst Port</th>
+                <th className="px-4 py-3 font-medium">Protocol</th>
+                <th className="px-4 py-3 font-medium">Events</th>
+                <th className="px-4 py-3 font-medium">Auth Attempts</th>
+                <th className="px-4 py-3 font-medium">Last Seen</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {portStats.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
+                    No target ports captured yet
+                  </td>
+                </tr>
+              ) : (
+                portStats.slice(0, 12).map((s) => {
+                  const c = PROTOCOL_COLORS[s.protocol] ?? defaultColor()
+                  return (
+                    <tr key={`${s.protocol}-${s.dstPort}`} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-2 font-mono text-sm font-semibold text-foreground">{s.dstPort}</td>
+                      <td className="px-4 py-2">
+                        <span className={`rounded px-1.5 py-0.5 text-[11px] font-bold uppercase ${c.bg} ${c.text}`}>
+                          {s.protocol}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-xs">{s.count.toLocaleString()}</td>
+                      <td className="px-4 py-2 text-xs text-muted-foreground">{s.authAttempts.toLocaleString()}</td>
+                      <td className="px-4 py-2 text-xs text-muted-foreground">{formatDate(s.lastSeen)}</td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Protocol filter */}

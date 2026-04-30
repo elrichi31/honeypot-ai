@@ -9,6 +9,7 @@ export interface AttackEvent {
   lng: number
   country: string
   timestamp: string
+  dstPort?: number
 }
 
 class EventBus extends EventEmitter {}

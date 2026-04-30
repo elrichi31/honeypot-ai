@@ -48,6 +48,7 @@ interface Attack {
   lng: number
   country: string
   timestamp: number
+  dstPort?: number
 }
 
 interface RawEvent {
@@ -57,6 +58,7 @@ interface RawEvent {
   lng: number
   country: string
   timestamp: string
+  dstPort?: number
 }
 
 export function LiveAttackMap() {
@@ -79,8 +81,7 @@ export function LiveAttackMap() {
   }, [])
 
   useEffect(() => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
-    const es = new EventSource(`${apiUrl}/events/live`)
+    const es = new EventSource("/api/events/live")
     esRef.current = es
     es.onopen = () => setConnected(true)
     es.onerror = () => setConnected(false)
@@ -111,7 +112,7 @@ export function LiveAttackMap() {
         <div className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] border-border bg-background/60">
           <span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-green-400 animate-pulse" : "bg-muted-foreground"}`} />
           <span className={connected ? "text-green-400" : "text-muted-foreground"}>
-            {connected ? "Live" : "Connecting…"}
+            {connected ? "Live" : "Connecting..."}
           </span>
         </div>
       </div>
@@ -165,7 +166,7 @@ export function LiveAttackMap() {
           <p className="text-xs font-semibold text-foreground">Recent attacks</p>
         </div>
         {recent.length === 0 ? (
-          <p className="px-3 py-4 text-xs text-muted-foreground">Waiting for attacks…</p>
+          <p className="px-3 py-4 text-xs text-muted-foreground">Waiting for attacks...</p>
         ) : (
           <div className="divide-y divide-border/40">
             {recent.map(a => (
@@ -174,7 +175,7 @@ export function LiveAttackMap() {
                 <span className="flex-1 truncate font-mono text-[11px] text-foreground">{a.ip}</span>
                 <span className="text-[10px] text-muted-foreground">{a.country || "??"}</span>
                 <span className={`rounded px-1 text-[9px] font-bold uppercase ${BADGE_COLORS[a.type] ?? "bg-slate-400/20 text-slate-400"}`}>
-                  {a.type}
+                  {a.dstPort ? `${a.type}:${a.dstPort}` : a.type}
                 </span>
               </div>
             ))}

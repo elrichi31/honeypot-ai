@@ -18,6 +18,14 @@ export interface ProtocolStat {
   authAttempts: number
 }
 
+export interface TargetPortStat {
+  protocol: string
+  dstPort: number
+  count: number
+  lastSeen: string
+  authAttempts: number
+}
+
 export interface ProtocolHitsResponse {
   data: ProtocolHit[]
   meta: { page: number; limit: number; total: number }
@@ -25,6 +33,10 @@ export interface ProtocolHitsResponse {
 
 export async function fetchProtocolStats(): Promise<ProtocolStat[]> {
   return apiFetch<ProtocolStat[]>(`${getApiUrl()}/protocol-hits/stats`)
+}
+
+export async function fetchTargetPortStats(): Promise<TargetPortStat[]> {
+  return apiFetch<TargetPortStat[]>(`${getApiUrl()}/protocol-hits/ports/stats`)
 }
 
 export async function fetchProtocolHits(

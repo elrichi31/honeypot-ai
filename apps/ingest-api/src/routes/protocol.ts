@@ -57,6 +57,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
             ip: d.srcIp,
             ...geo,
             timestamp: d.timestamp,
+            dstPort: d.dstPort,
           })
         }
         return reply.status(201).send({ id: rows[0].id })
@@ -112,6 +113,31 @@ export async function protocolRoutes(fastify: FastifyInstance) {
 
     return reply.send(rows.map(r => ({
       protocol: r.protocol,
+      count: Number(r.count),
+      lastSeen: r.last_seen,
+      authAttempts: Number(r.auth_attempts),
+    })))
+  })
+
+  fastify.get('/protocol-hits/ports/stats', async (_request, reply) => {
+    const rows = await fastify.prisma.$queryRaw<Array<{
+      protocol: string; dst_port: number; count: bigint; last_seen: Date; auth_attempts: bigint;
+    }>>`
+      SELECT
+        protocol,
+        dst_port,
+        COUNT(*) AS count,
+        MAX(timestamp) AS last_seen,
+        COUNT(*) FILTER (WHERE event_type = 'auth') AS auth_attempts
+      FROM protocol_hits
+      GROUP BY protocol, dst_port
+      ORDER BY count DESC, last_seen DESC
+      LIMIT 50
+    `
+
+    return reply.send(rows.map(r => ({
+      protocol: r.protocol,
+      dstPort: r.dst_port,
       count: Number(r.count),
       lastSeen: r.last_seen,
       authAttempts: Number(r.auth_attempts),
