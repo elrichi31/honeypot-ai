@@ -50,5 +50,5 @@ retry_max_duration_secs    = 10
 # Disk buffer — survives ingest-api downtime without dropping events
 [sinks.ingest_api.buffer]
 type      = "disk"
-max_size  = 268435456     # 256 MB
+max_size  = 268435488     # Vector 0.40 minimum disk buffer size
 when_full = "block"       # back-pressure instead of dropping

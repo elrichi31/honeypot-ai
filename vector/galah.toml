@@ -30,7 +30,7 @@ source        = '''
   uri = string(.httpRequest.request) ?? "/"
   uri_parts = split(uri, "?", limit: 2)
   path = uri_parts[0]
-  query = if length(uri_parts) > 1 { uri_parts[1] } else { "" }
+  query = to_string(if length(uri_parts) > 1 { uri_parts[1] } else { "" }) ?? ""
 
   user_agent = string(.httpRequest.userAgent) ?? ""
   body       = string(.httpRequest.body) ?? ""
@@ -105,5 +105,5 @@ retry_max_duration_secs    = 10
 
 [sinks.galah_ingest.buffer]
 type      = "disk"
-max_size  = 134217728   # 128 MB
+max_size  = 268435488   # Vector 0.40 minimum disk buffer size
 when_full = "block"
