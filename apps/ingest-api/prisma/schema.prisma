@@ -88,6 +88,8 @@ model Sensor {
   protocol  String
   ip        String
   version   String   @default("")
+  ports     Json     @default("[]")
+  probeHost String   @default("") @map("probe_host")
   lastSeen  DateTime @map("last_seen")
   createdAt DateTime @default(now()) @map("created_at")
 

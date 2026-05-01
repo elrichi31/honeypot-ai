@@ -17,8 +17,22 @@ INGEST_API_URL = os.getenv("INGEST_API_URL", "http://ingest-api:3000")
 INGEST_SHARED_SECRET = os.getenv("INGEST_SHARED_SECRET", "")
 SENSOR_ID = os.getenv("SENSOR_ID", f"port-{socket.gethostname()}")
 SENSOR_NAME = os.getenv("SENSOR_NAME", "Port Honeypot")
-SENSOR_IP = os.getenv("SENSOR_IP", "")
 VERSION = "1.0.0"
+
+
+def _detect_ip() -> str:
+    ip = os.getenv("SENSOR_IP", "")
+    if ip:
+        return ip
+    for url in ("http://ifconfig.me/ip", "http://api.ipify.org", "http://checkip.amazonaws.com"):
+        try:
+            return urlopen(url, timeout=4).read().decode().strip()
+        except Exception:
+            continue
+    return ""
+
+
+SENSOR_IP = _detect_ip()
 
 DEFAULT_PORTS = "1433 2375 3389 4444 5900 6379 8888 9090 9200 27017"
 PORTS = [int(p) for p in os.getenv("PORTS", DEFAULT_PORTS).split() if p.isdigit()]
@@ -83,6 +97,9 @@ def _send(src_ip: str, src_port: int, dst_port: int, client_hex: str):
     })
 
 
+_active_ports: list[int] = []
+
+
 def _send_heartbeat():
     _post("/sensors/heartbeat", {
         "sensorId": SENSOR_ID,
@@ -90,6 +107,7 @@ def _send_heartbeat():
         "protocol": "port-scan",
         "ip": SENSOR_IP,
         "version": VERSION,
+        "ports": _active_ports,
     })
 
 
@@ -133,11 +151,13 @@ def make_handler(port: int):
 
 
 async def main():
+    global _active_ports
     servers = []
     for port in PORTS:
         try:
             server = await asyncio.start_server(make_handler(port), "0.0.0.0", port)
             servers.append(server)
+            _active_ports.append(port)
             log.info("listening on %-5d (%s)", port, SERVICES.get(port, "?"))
         except OSError as exc:
             log.warning("cannot bind %d: %s", port, exc)

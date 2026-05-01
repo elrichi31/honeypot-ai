@@ -34,6 +34,7 @@ def send(ip: str) -> None:
         "protocol": "ssh",
         "ip": ip,
         "version": "cowrie",
+        "ports": [22],
     }).encode()
     req = Request(
         f"{INGEST_URL}/sensors/heartbeat",

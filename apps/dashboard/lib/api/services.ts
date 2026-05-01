@@ -56,10 +56,12 @@ export interface Sensor {
   protocol: string
   ip: string
   version: string
+  ports: number[]
   lastSeen: string
   createdAt: string
   eventsTotal: number
   online: boolean
+  portStatus: Record<number, boolean>
 }
 
 export async function fetchProtocolStats(): Promise<ProtocolStat[]> {

@@ -1,4 +1,4 @@
-import { Activity, Database, Globe, Network, Server, Wifi, WifiOff } from "lucide-react"
+import { Activity, CheckCircle2, Database, Globe, Network, Server, Wifi, WifiOff, XCircle } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { fetchSensors } from "@/lib/api"
 import type { Sensor } from "@/lib/api"
@@ -85,6 +85,33 @@ function SensorCard({ sensor }: { sensor: Sensor }) {
           <p className="text-xs text-foreground">{formatRelative(sensor.lastSeen)}</p>
         </div>
       </div>
+
+      {sensor.ports.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {sensor.ports.map(port => {
+            const up = sensor.portStatus?.[port]
+            return (
+              <span
+                key={port}
+                className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-mono font-medium ${
+                  up === true
+                    ? "bg-emerald-400/15 text-emerald-400"
+                    : up === false
+                    ? "bg-red-400/15 text-red-400"
+                    : "bg-muted/60 text-muted-foreground"
+                }`}
+              >
+                {up === true ? (
+                  <CheckCircle2 className="h-3 w-3" />
+                ) : up === false ? (
+                  <XCircle className="h-3 w-3" />
+                ) : null}
+                :{port}
+              </span>
+            )
+          })}
+        </div>
+      )}
 
       {sensor.version && (
         <div className="rounded-md bg-muted/40 px-3 py-1.5">

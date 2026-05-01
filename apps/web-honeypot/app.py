@@ -142,9 +142,10 @@ def catch_all(path: str):
 def _send_heartbeat():
     try:
         headers = {"X-Ingest-Token": INGEST_SHARED_SECRET, "Content-Type": "application/json"}
+        _listen_port = int(os.environ.get("PORT", 8080))
         requests.post(
             f"{INGEST_URL}/sensors/heartbeat",
-            json={"sensorId": SENSOR_ID, "name": SENSOR_NAME, "protocol": "http", "ip": SENSOR_IP, "version": "1.0.0"},
+            json={"sensorId": SENSOR_ID, "name": SENSOR_NAME, "protocol": "http", "ip": SENSOR_IP, "version": "1.0.0", "ports": [_listen_port]},
             headers=headers,
             timeout=5,
         )
@@ -158,9 +159,12 @@ def _heartbeat_loop():
         time.sleep(30)
 
 
+# Start heartbeat in background regardless of how the app is launched (python / gunicorn).
+# Each gunicorn worker gets its own thread but all upsert the same sensor record — harmless.
+threading.Thread(target=_heartbeat_loop, daemon=True).start()
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     log.info("Web honeypot listening on :%d  sensor=%s", port, SENSOR_ID)
-    t = threading.Thread(target=_heartbeat_loop, daemon=True)
-    t.start()
     app.run(host="0.0.0.0", port=port, debug=False)
