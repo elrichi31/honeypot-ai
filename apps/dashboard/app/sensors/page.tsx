@@ -1,4 +1,4 @@
-import { Activity, CheckCircle2, Database, Globe, Network, Server, Wifi, WifiOff, XCircle } from "lucide-react"
+import { Activity, AlertTriangle, CheckCircle2, Database, Globe, Network, Server, Wifi, WifiOff, XCircle } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { fetchSensors } from "@/lib/api"
 import type { Sensor } from "@/lib/api"
@@ -81,12 +81,15 @@ function SensorCard({ sensor }: { sensor: Sensor }) {
         <div className="flex flex-wrap gap-1.5">
           {sensor.ports.map(port => {
             const up = sensor.portStatus?.[port]
+            const probeFailedWhileOnline = sensor.online && up === false
             return (
               <span
                 key={port}
                 className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-mono font-medium ${
                   up === true
                     ? "bg-emerald-400/15 text-emerald-400"
+                    : probeFailedWhileOnline
+                    ? "bg-amber-400/15 text-amber-300"
                     : up === false
                     ? "bg-red-400/15 text-red-400"
                     : "bg-muted/60 text-muted-foreground"
@@ -94,6 +97,8 @@ function SensorCard({ sensor }: { sensor: Sensor }) {
               >
                 {up === true ? (
                   <CheckCircle2 className="h-3 w-3" />
+                ) : probeFailedWhileOnline ? (
+                  <AlertTriangle className="h-3 w-3" />
                 ) : up === false ? (
                   <XCircle className="h-3 w-3" />
                 ) : null}

@@ -20,6 +20,7 @@ DST_PORT = int(os.getenv("DST_PORT", str(PORT)))
 SENSOR_ID = os.getenv("SENSOR_ID", f"ftp-{socket.gethostname()}")
 SENSOR_NAME = os.getenv("SENSOR_NAME", "FTP Honeypot")
 VERSION = "1.0.0"
+SENSOR_HOST = os.getenv("SENSOR_HOST", socket.gethostname())
 
 
 def _detect_ip() -> str:
@@ -82,7 +83,9 @@ def _send_heartbeat():
         "protocol": "ftp",
         "ip": SENSOR_IP,
         "version": VERSION,
-        "ports": [PORT],
+        "ports": [DST_PORT],
+        "probePorts": [PORT],
+        "host": SENSOR_HOST,
     })
 
 

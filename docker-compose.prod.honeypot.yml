@@ -28,7 +28,13 @@ services:
     container_name: cowrie-beacon
     environment:
       SENSOR_ID: ${SENSOR_ID_SSH:-cowrie-ssh-01}
+      SENSOR_NAME: SSH Honeypot (Cowrie)
       SENSOR_IP: ${HONEYPOT_IP:-}
+      SENSOR_PROTOCOL: ssh
+      SENSOR_VERSION: cowrie
+      SENSOR_PORTS: "22"
+      SENSOR_PROBE_PORTS: "2222"
+      SENSOR_HOST: cowrie
       INGEST_API_URL: ${INGEST_API_URL}
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
     volumes:
@@ -70,6 +76,8 @@ services:
       SENSOR_PROTOCOL: http
       SENSOR_VERSION: galah
       SENSOR_PORTS: "80"
+      SENSOR_PROBE_PORTS: "8080"
+      SENSOR_HOST: galah
       INGEST_API_URL: ${INGEST_API_URL}
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
     volumes:

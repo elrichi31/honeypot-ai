@@ -33,6 +33,7 @@ LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 SENSOR_ID = os.environ.get("SENSOR_ID", f"http-{socket.gethostname()}")
 SENSOR_NAME = os.environ.get("SENSOR_NAME", "Web Honeypot")
 SENSOR_IP = os.environ.get("SENSOR_IP", "")
+SENSOR_HOST = os.environ.get("SENSOR_HOST", socket.gethostname())
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
@@ -146,10 +147,27 @@ def catch_all(path: str):
 def _send_heartbeat():
     try:
         headers = {"X-Ingest-Token": INGEST_SHARED_SECRET, "Content-Type": "application/json"}
-        _listen_port = int(os.environ.get("PORT", 8080))
+        listen_port = int(os.environ.get("PORT", 8080))
+        display_ports = [
+            int(p) for p in os.environ.get("SENSOR_PORTS", str(listen_port)).split()
+            if p.strip().isdigit()
+        ]
+        probe_ports = [
+            int(p) for p in os.environ.get("SENSOR_PROBE_PORTS", str(listen_port)).split()
+            if p.strip().isdigit()
+        ]
         requests.post(
             f"{INGEST_URL}/sensors/heartbeat",
-            json={"sensorId": SENSOR_ID, "name": SENSOR_NAME, "protocol": "http", "ip": SENSOR_IP, "version": "1.0.0", "ports": [_listen_port]},
+            json={
+                "sensorId": SENSOR_ID,
+                "name": SENSOR_NAME,
+                "protocol": "http",
+                "ip": SENSOR_IP,
+                "version": "1.0.0",
+                "ports": display_ports,
+                "probePorts": probe_ports,
+                "host": SENSOR_HOST,
+            },
             headers=headers,
             timeout=5,
         )

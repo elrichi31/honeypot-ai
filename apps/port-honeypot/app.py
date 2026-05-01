@@ -18,6 +18,7 @@ INGEST_SHARED_SECRET = os.getenv("INGEST_SHARED_SECRET", "")
 SENSOR_ID = os.getenv("SENSOR_ID", f"port-{socket.gethostname()}")
 SENSOR_NAME = os.getenv("SENSOR_NAME", "Port Honeypot")
 VERSION = "1.0.0"
+SENSOR_HOST = os.getenv("SENSOR_HOST", socket.gethostname())
 
 
 def _detect_ip() -> str:
@@ -108,6 +109,8 @@ def _send_heartbeat():
         "ip": SENSOR_IP,
         "version": VERSION,
         "ports": _active_ports,
+        "probePorts": _active_ports,
+        "host": SENSOR_HOST,
     })
 
 
