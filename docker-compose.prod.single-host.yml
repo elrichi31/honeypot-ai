@@ -37,6 +37,7 @@ services:
       SENSOR_PROTOCOL: ssh
       SENSOR_VERSION: cowrie
       SENSOR_PORTS: "22"
+      SENSOR_PROBE_PORTS: "2222"
       SENSOR_HOST: cowrie
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
@@ -91,6 +92,7 @@ services:
       SENSOR_PROTOCOL: http
       SENSOR_VERSION: galah
       SENSOR_PORTS: "80"
+      SENSOR_PROBE_PORTS: "8080"
       SENSOR_HOST: galah
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}

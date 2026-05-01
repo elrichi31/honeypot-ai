@@ -18,6 +18,8 @@ PROTOCOL    = os.getenv("SENSOR_PROTOCOL",       "ssh")
 VERSION     = os.getenv("SENSOR_VERSION",        "cowrie")
 _ports_raw  = os.getenv("SENSOR_PORTS",          "22")
 PORTS       = [int(p) for p in _ports_raw.split() if p.strip().isdigit()]
+_probe_raw  = os.getenv("SENSOR_PROBE_PORTS",    "")
+PROBE_PORTS = [int(p) for p in _probe_raw.split() if p.strip().isdigit()]
 # Docker service hostname of the actual honeypot container (not the beacon).
 # When set, the ingest-api uses this for TCP port probing instead of the beacon's IP.
 HOST        = os.getenv("SENSOR_HOST",           "")
@@ -38,13 +40,14 @@ def _detect_ip() -> str:
 
 def send(ip: str) -> None:
     payload = json.dumps({
-        "sensorId": SENSOR_ID,
-        "name":     SENSOR_NAME,
-        "protocol": PROTOCOL,
-        "ip":       ip,
-        "version":  VERSION,
-        "ports":    PORTS,
-        "host":     HOST,
+        "sensorId":   SENSOR_ID,
+        "name":       SENSOR_NAME,
+        "protocol":   PROTOCOL,
+        "ip":         ip,
+        "version":    VERSION,
+        "ports":      PORTS,
+        "probePorts": PROBE_PORTS,
+        "host":       HOST,
     }).encode()
     req = Request(
         f"{INGEST_URL}/sensors/heartbeat",

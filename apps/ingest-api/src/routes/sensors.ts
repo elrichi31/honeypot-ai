@@ -4,15 +4,19 @@ import { z } from 'zod'
 import { ensureIngestToken } from '../lib/ingest-auth.js'
 
 const heartbeatSchema = z.object({
-  sensorId: z.string().min(1),
-  name: z.string().min(1),
-  protocol: z.enum(['ssh', 'ftp', 'mysql', 'port-scan', 'http']),
-  ip: z.string().default(''),
-  version: z.string().default(''),
-  ports: z.array(z.number().int().min(1).max(65535)).default([]),
-  // Optional Docker service hostname — when provided, used for TCP probing instead
-  // of request.ip so beacons (sidecars) correctly point to their honeypot container.
-  host: z.string().default(''),
+  sensorId:   z.string().min(1),
+  name:       z.string().min(1),
+  protocol:   z.enum(['ssh', 'ftp', 'mysql', 'port-scan', 'http']),
+  ip:         z.string().default(''),
+  version:    z.string().default(''),
+  // Public-facing ports shown in the UI (e.g. 22 for SSH, 80 for HTTP)
+  ports:      z.array(z.number().int().min(1).max(65535)).default([]),
+  // Internal Docker ports used for TCP probing. When omitted, falls back to `ports`.
+  // Needed when the container's internal port differs from the public port
+  // (e.g. cowrie listens on 2222 internally but is exposed as 22).
+  probePorts: z.array(z.number().int().min(1).max(65535)).default([]),
+  // Docker service hostname — used for TCP probing instead of request.ip for sidecars.
+  host:       z.string().default(''),
 })
 
 function tcpProbe(host: string, port: number, timeoutMs = 2000): Promise<boolean> {
@@ -51,23 +55,27 @@ export async function sensorRoutes(fastify: FastifyInstance) {
     // Fall back to request.ip for honeypots that heartbeat themselves.
     const probeHost = d.host || normalizeIp(request.ip ?? '')
 
+    const probePorts = d.probePorts.length > 0 ? d.probePorts : d.ports
+
     await fastify.prisma.$executeRaw`
-      INSERT INTO sensors (id, sensor_id, name, protocol, ip, version, ports, probe_host, last_seen, created_at)
+      INSERT INTO sensors (id, sensor_id, name, protocol, ip, version, ports, probe_ports, probe_host, last_seen, created_at)
       VALUES (
         gen_random_uuid()::text, ${d.sensorId}, ${d.name}, ${d.protocol},
         ${d.ip}, ${d.version},
         CAST(${JSON.stringify(d.ports)} AS jsonb),
+        CAST(${JSON.stringify(probePorts)} AS jsonb),
         ${probeHost},
         ${now}, ${now}
       )
       ON CONFLICT (sensor_id) DO UPDATE SET
-        name       = EXCLUDED.name,
-        protocol   = EXCLUDED.protocol,
-        ip         = EXCLUDED.ip,
-        version    = EXCLUDED.version,
-        ports      = EXCLUDED.ports,
-        probe_host = EXCLUDED.probe_host,
-        last_seen  = EXCLUDED.last_seen
+        name        = EXCLUDED.name,
+        protocol    = EXCLUDED.protocol,
+        ip          = EXCLUDED.ip,
+        version     = EXCLUDED.version,
+        ports       = EXCLUDED.ports,
+        probe_ports = EXCLUDED.probe_ports,
+        probe_host  = EXCLUDED.probe_host,
+        last_seen   = EXCLUDED.last_seen
     `
 
     return reply.status(200).send({ ok: true })
@@ -83,6 +91,7 @@ export async function sensorRoutes(fastify: FastifyInstance) {
       ip: string
       version: string
       ports: number[]
+      probe_ports: number[]
       probe_host: string
       last_seen: Date
       created_at: Date
@@ -95,6 +104,7 @@ export async function sensorRoutes(fastify: FastifyInstance) {
         s.ip,
         s.version,
         s.ports,
+        s.probe_ports,
         s.probe_host,
         s.last_seen,
         s.created_at,
@@ -111,13 +121,21 @@ export async function sensorRoutes(fastify: FastifyInstance) {
       ORDER BY s.last_seen DESC
     `
 
-    // Probe all ports in parallel (2 s timeout each, all concurrent)
+    // Probe all ports in parallel (2 s timeout each, all concurrent).
+    // Uses probe_ports (internal Docker ports) for the TCP check, but maps results
+    // back to the public-facing ports so the UI shows the right port numbers.
     const probeResults = await Promise.all(
       sensors.map(async s => {
-        const portList: number[] = Array.isArray(s.ports) ? s.ports : []
-        if (!s.probe_host || portList.length === 0) return {}
+        const displayPorts: number[] = Array.isArray(s.ports) ? s.ports : []
+        const probePorts: number[]   = Array.isArray(s.probe_ports) && s.probe_ports.length > 0
+          ? s.probe_ports
+          : displayPorts
+        if (!s.probe_host || displayPorts.length === 0) return {}
         const pairs = await Promise.all(
-          portList.map(async port => [port, await tcpProbe(s.probe_host, port)] as const)
+          displayPorts.map(async (displayPort, i) => {
+            const probePort = probePorts[i] ?? displayPort
+            return [displayPort, await tcpProbe(s.probe_host, probePort)] as const
+          })
         )
         return Object.fromEntries(pairs)
       })

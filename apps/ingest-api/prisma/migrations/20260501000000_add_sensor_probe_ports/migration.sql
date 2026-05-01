@@ -1,0 +1,1 @@
+ALTER TABLE sensors ADD COLUMN IF NOT EXISTS probe_ports JSONB NOT NULL DEFAULT '[]'::jsonb;
