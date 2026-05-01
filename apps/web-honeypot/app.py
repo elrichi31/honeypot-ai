@@ -63,8 +63,7 @@ def get_real_ip() -> str:
     return request.remote_addr or "unknown"
 
 
-def send_to_ingest(event: dict) -> None:
-    """Fire-and-forget POST to ingest-api. Never raises."""
+def _post_to_ingest(event: dict) -> None:
     try:
         headers = {}
         if INGEST_SHARED_SECRET:
@@ -79,6 +78,11 @@ def send_to_ingest(event: dict) -> None:
             log.warning("Ingest returned %s: %s", resp.status_code, resp.text[:200])
     except Exception as exc:
         log.warning("Ingest send failed: %s", exc)
+
+
+def send_to_ingest(event: dict) -> None:
+    """Non-blocking: fires ingest POST in a daemon thread so the handler returns immediately."""
+    threading.Thread(target=_post_to_ingest, args=(event,), daemon=True).start()
 
 
 @app.route("/", defaults={"path": ""}, methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])

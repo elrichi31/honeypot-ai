@@ -20,4 +20,4 @@ USER app
 EXPOSE 8080
 
 # gunicorn for production-grade concurrency; 4 workers handles burst scans fine
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "4", "--timeout", "30", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "4", "--timeout", "30", "--worker-tmp-dir", "/tmp", "app:app"]
