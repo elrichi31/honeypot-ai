@@ -151,11 +151,11 @@ function LiveArcLine({ src, dst, type }: { src: [number, number]; dst: [number, 
 
   return (
     <g>
-      <path d={d} stroke={c} strokeWidth={0.8} fill="none" opacity={0.12} />
+      <path d={d} stroke={c} strokeWidth={1.15} fill="none" opacity={0.22} />
       <path
         d={d}
         stroke={c}
-        strokeWidth={5}
+        strokeWidth={6}
         fill="none"
         strokeDasharray="8 700"
         filter="url(#arc-glow)"
@@ -164,7 +164,7 @@ function LiveArcLine({ src, dst, type }: { src: [number, number]; dst: [number, 
         <animate attributeName="stroke-dashoffset" from="8" to="-700" dur="4.8s" fill="freeze" />
         <animate
           attributeName="opacity"
-          from="0.35"
+          from="0.5"
           to="0"
           begin="0s"
           dur="4.8s"
@@ -172,13 +172,13 @@ function LiveArcLine({ src, dst, type }: { src: [number, number]; dst: [number, 
           calcMode="spline"
           keyTimes="0;0.6;1"
           keySplines="0.4 0 0.6 1;0.4 0 0.6 1"
-          values="0;0.35;0"
+          values="0;0.5;0"
         />
       </path>
       <path
         d={d}
         stroke={c}
-        strokeWidth={1.8}
+        strokeWidth={2.4}
         fill="none"
         strokeDasharray="8 700"
         opacity={0}
@@ -186,7 +186,7 @@ function LiveArcLine({ src, dst, type }: { src: [number, number]; dst: [number, 
         <animate attributeName="stroke-dashoffset" from="8" to="-700" dur="4.8s" fill="freeze" />
         <animate
           attributeName="opacity"
-          from="0.95"
+          from="1"
           to="0"
           begin="0s"
           dur="4.8s"
