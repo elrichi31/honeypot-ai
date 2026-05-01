@@ -81,6 +81,20 @@ model ProtocolHit {
   @@map("protocol_hits")
 }
 
+model Sensor {
+  id        String   @id @default(cuid())
+  sensorId  String   @unique @map("sensor_id")
+  name      String
+  protocol  String
+  ip        String
+  version   String   @default("")
+  lastSeen  DateTime @map("last_seen")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([lastSeen(sort: Desc)])
+  @@map("sensors")
+}
+
 model WebHit {
   id          String   @id @default(uuid())
   eventId     String   @unique @map("event_id")

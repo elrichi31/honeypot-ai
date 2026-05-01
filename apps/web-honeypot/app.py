@@ -10,6 +10,9 @@ Design goals (inspired by SNARE/TANNER):
 
 import logging
 import os
+import socket
+import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from email.utils import formatdate
@@ -27,6 +30,9 @@ app.secret_key = os.environ.get("SECRET_KEY", "hp-default-secret-change-me")
 INGEST_URL = os.environ.get("INGEST_API_URL", "http://ingest-api:3000")
 INGEST_SHARED_SECRET = os.environ.get("INGEST_SHARED_SECRET", "")
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+SENSOR_ID = os.environ.get("SENSOR_ID", f"http-{socket.gethostname()}")
+SENSOR_NAME = os.environ.get("SENSOR_NAME", "Web Honeypot")
+SENSOR_IP = os.environ.get("SENSOR_IP", "")
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
@@ -133,7 +139,28 @@ def catch_all(path: str):
     return response
 
 
+def _send_heartbeat():
+    try:
+        headers = {"X-Ingest-Token": INGEST_SHARED_SECRET, "Content-Type": "application/json"}
+        requests.post(
+            f"{INGEST_URL}/sensors/heartbeat",
+            json={"sensorId": SENSOR_ID, "name": SENSOR_NAME, "protocol": "http", "ip": SENSOR_IP, "version": "1.0.0"},
+            headers=headers,
+            timeout=5,
+        )
+    except Exception as exc:
+        log.debug("heartbeat error: %s", exc)
+
+
+def _heartbeat_loop():
+    while True:
+        _send_heartbeat()
+        time.sleep(30)
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
-    log.info("Web honeypot listening on :%d", port)
+    log.info("Web honeypot listening on :%d  sensor=%s", port, SENSOR_ID)
+    t = threading.Thread(target=_heartbeat_loop, daemon=True)
+    t.start()
     app.run(host="0.0.0.0", port=port, debug=False)

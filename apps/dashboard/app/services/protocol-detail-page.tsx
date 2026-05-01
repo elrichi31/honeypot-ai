@@ -149,14 +149,18 @@ export function ProtocolDetailPage({
       {(isFtp || isMysql) && (
         <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <RankingCard
-            title={isFtp ? "Attempted passwords" : "Database users"}
-            empty={isFtp ? "No passwords captured yet" : "No database usernames captured yet"}
-            rows={(isFtp ? insights.topPasswords.map((row) => ({ label: row.password, count: row.count })) : insights.topUsernames.map((row) => ({ label: row.username, count: row.count })))}
+            title={isFtp ? "Attempted passwords" : "Attempted usernames"}
+            empty={isFtp ? "No passwords captured yet" : "No usernames captured yet"}
+            rows={isFtp
+              ? insights.topPasswords.map((row) => ({ label: row.password, count: row.count }))
+              : insights.topUsernames.map((row) => ({ label: row.username, count: row.count }))}
           />
           <RankingCard
-            title={isFtp ? "FTP commands" : "Recent auth focus"}
-            empty={isFtp ? "No FTP commands captured yet" : "No additional MySQL command data captured yet"}
-            rows={(isFtp ? insights.topCommands.map((row) => ({ label: row.command, count: row.count })) : insights.topPorts.map((row) => ({ label: `Port ${row.dstPort}`, detail: `Last seen ${formatDate(row.lastSeen)}`, count: row.count })))}
+            title={isFtp ? "FTP commands" : "Target databases"}
+            empty={isFtp ? "No FTP commands captured yet" : "No database names captured yet"}
+            rows={isFtp
+              ? insights.topCommands.map((row) => ({ label: row.command, count: row.count }))
+              : (insights.topDatabases ?? []).map((row) => ({ label: row.database, count: row.count }))}
           />
         </div>
       )}
@@ -172,7 +176,9 @@ export function ProtocolDetailPage({
                 <th className="px-4 py-3 font-medium">Source</th>
                 <th className="px-4 py-3 font-medium">Dst Port</th>
                 <th className="px-4 py-3 font-medium">Event</th>
-                <th className="px-4 py-3 font-medium">{isPortScan ? "Service / Payload" : "User / Secret"}</th>
+                <th className="px-4 py-3 font-medium">
+                  {isPortScan ? "Service / Payload" : isMysql ? "User / Database" : "User / Password or Command"}
+                </th>
                 <th className="px-4 py-3 font-medium">Timestamp</th>
               </tr>
             </thead>
@@ -203,10 +209,24 @@ export function ProtocolDetailPage({
                             <p className="font-mono text-xs text-foreground">{service ?? "unknown service"}</p>
                             {payloadHex && <p className="truncate font-mono text-[11px] text-muted-foreground">{payloadHex}</p>}
                           </div>
+                        ) : isMysql ? (
+                          <div className="min-w-0">
+                            <p className="font-mono text-xs text-foreground">{hit.username ?? "-"}</p>
+                            <p className="truncate font-mono text-[11px] text-muted-foreground">
+                              {dataValue(hit.data, "database") ?? "no db specified"}
+                            </p>
+                          </div>
+                        ) : hit.event_type === "command" ? (
+                          <div className="min-w-0">
+                            <p className="font-mono text-xs text-foreground">{command ?? "-"}</p>
+                            {hit.username && (
+                              <p className="font-mono text-[11px] text-muted-foreground">user: {hit.username}</p>
+                            )}
+                          </div>
                         ) : (
                           <div className="min-w-0">
                             <p className="font-mono text-xs text-foreground">{hit.username ?? "-"}</p>
-                            <p className="truncate font-mono text-[11px] text-muted-foreground">{hit.password ?? command ?? "-"}</p>
+                            <p className="truncate font-mono text-[11px] text-muted-foreground">{hit.password ?? "-"}</p>
                           </div>
                         )}
                       </td>

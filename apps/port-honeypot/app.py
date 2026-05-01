@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 import os
+import socket
 import uuid
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
@@ -14,6 +15,10 @@ log = logging.getLogger("port-honeypot")
 
 INGEST_API_URL = os.getenv("INGEST_API_URL", "http://ingest-api:3000")
 INGEST_SHARED_SECRET = os.getenv("INGEST_SHARED_SECRET", "")
+SENSOR_ID = os.getenv("SENSOR_ID", f"port-{socket.gethostname()}")
+SENSOR_NAME = os.getenv("SENSOR_NAME", "Port Honeypot")
+SENSOR_IP = os.getenv("SENSOR_IP", "")
+VERSION = "1.0.0"
 
 DEFAULT_PORTS = "1433 2375 3389 4444 5900 6379 8888 9090 9200 27017"
 PORTS = [int(p) for p in os.getenv("PORTS", DEFAULT_PORTS).split() if p.isdigit()]
@@ -47,9 +52,23 @@ BANNERS: dict[int, bytes] = {
 }
 
 
+def _post(path: str, payload: dict):
+    body = json.dumps(payload).encode()
+    req = Request(
+        f"{INGEST_API_URL}{path}",
+        data=body,
+        headers={"Content-Type": "application/json", "X-Ingest-Token": INGEST_SHARED_SECRET},
+        method="POST",
+    )
+    try:
+        urlopen(req, timeout=5)
+    except Exception as exc:
+        log.debug("ingest error: %s", exc)
+
+
 def _send(src_ip: str, src_port: int, dst_port: int, client_hex: str):
     service = SERVICES.get(dst_port, f"port-{dst_port}")
-    payload = {
+    _post("/ingest/protocol/event", {
         "eventId": str(uuid.uuid4()),
         "protocol": "port-scan",
         "srcIp": src_ip,
@@ -61,18 +80,24 @@ def _send(src_ip: str, src_port: int, dst_port: int, client_hex: str):
             "payloadHex": client_hex[:512],
         },
         "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
-    body = json.dumps(payload).encode()
-    req = Request(
-        f"{INGEST_API_URL}/ingest/protocol/event",
-        data=body,
-        headers={"Content-Type": "application/json", "X-Ingest-Token": INGEST_SHARED_SECRET},
-        method="POST",
-    )
-    try:
-        urlopen(req, timeout=5)
-    except Exception as exc:
-        log.debug("ingest error: %s", exc)
+    })
+
+
+def _send_heartbeat():
+    _post("/sensors/heartbeat", {
+        "sensorId": SENSOR_ID,
+        "name": SENSOR_NAME,
+        "protocol": "port-scan",
+        "ip": SENSOR_IP,
+        "version": VERSION,
+    })
+
+
+async def heartbeat():
+    loop = asyncio.get_event_loop()
+    while True:
+        await loop.run_in_executor(None, _send_heartbeat)
+        await asyncio.sleep(30)
 
 
 def make_handler(port: int):
@@ -121,8 +146,8 @@ async def main():
         log.error("no ports bound — exiting")
         return
 
-    log.info("%d ports active", len(servers))
-    await asyncio.gather(*[s.serve_forever() for s in servers])
+    log.info("%d ports active  sensor=%s", len(servers), SENSOR_ID)
+    await asyncio.gather(*[s.serve_forever() for s in servers], heartbeat())
 
 
 if __name__ == "__main__":

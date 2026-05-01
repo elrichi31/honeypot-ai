@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 import os
+import socket
 import uuid
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
@@ -16,6 +17,10 @@ INGEST_API_URL = os.getenv("INGEST_API_URL", "http://ingest-api:3000")
 INGEST_SHARED_SECRET = os.getenv("INGEST_SHARED_SECRET", "")
 PORT = int(os.getenv("PORT", "21"))
 DST_PORT = int(os.getenv("DST_PORT", str(PORT)))
+SENSOR_ID = os.getenv("SENSOR_ID", f"ftp-{socket.gethostname()}")
+SENSOR_NAME = os.getenv("SENSOR_NAME", "FTP Honeypot")
+SENSOR_IP = os.getenv("SENSOR_IP", "")
+VERSION = "1.0.0"
 
 FAKE_LISTING = (
     "drwxr-xr-x 3 root root 4096 Jan  1 00:00 .\r\n"
@@ -27,8 +32,22 @@ FAKE_LISTING = (
 )
 
 
+def _post(path: str, payload: dict):
+    body = json.dumps(payload).encode()
+    req = Request(
+        f"{INGEST_API_URL}{path}",
+        data=body,
+        headers={"Content-Type": "application/json", "X-Ingest-Token": INGEST_SHARED_SECRET},
+        method="POST",
+    )
+    try:
+        urlopen(req, timeout=5)
+    except Exception as exc:
+        log.debug("ingest error: %s", exc)
+
+
 def _send(event_type, src_ip, src_port, username=None, password=None, extra=None):
-    payload = {
+    _post("/ingest/protocol/event", {
         "eventId": str(uuid.uuid4()),
         "protocol": "ftp",
         "srcIp": src_ip,
@@ -39,18 +58,24 @@ def _send(event_type, src_ip, src_port, username=None, password=None, extra=None
         "password": password,
         "data": extra or {},
         "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
-    body = json.dumps(payload).encode()
-    req = Request(
-        f"{INGEST_API_URL}/ingest/protocol/event",
-        data=body,
-        headers={"Content-Type": "application/json", "X-Ingest-Token": INGEST_SHARED_SECRET},
-        method="POST",
-    )
-    try:
-        urlopen(req, timeout=5)
-    except Exception as exc:
-        log.debug("ingest error: %s", exc)
+    })
+
+
+def _send_heartbeat():
+    _post("/sensors/heartbeat", {
+        "sensorId": SENSOR_ID,
+        "name": SENSOR_NAME,
+        "protocol": "ftp",
+        "ip": SENSOR_IP,
+        "version": VERSION,
+    })
+
+
+async def heartbeat():
+    loop = asyncio.get_event_loop()
+    while True:
+        await loop.run_in_executor(None, _send_heartbeat)
+        await asyncio.sleep(30)
 
 
 async def handle(reader, writer):
@@ -151,9 +176,9 @@ async def handle(reader, writer):
 
 async def main():
     server = await asyncio.start_server(handle, "0.0.0.0", PORT, limit=65536)
-    log.info("FTP honeypot on :%d (logging as :%d)", PORT, DST_PORT)
+    log.info("FTP honeypot on :%d (logging as :%d) sensor=%s", PORT, DST_PORT, SENSOR_ID)
     async with server:
-        await server.serve_forever()
+        await asyncio.gather(server.serve_forever(), heartbeat())
 
 
 if __name__ == "__main__":

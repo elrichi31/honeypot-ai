@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 import os
+import socket
 import struct
 import uuid
 from datetime import datetime, timezone
@@ -17,6 +18,10 @@ INGEST_API_URL = os.getenv("INGEST_API_URL", "http://ingest-api:3000")
 INGEST_SHARED_SECRET = os.getenv("INGEST_SHARED_SECRET", "")
 PORT = int(os.getenv("PORT", "3306"))
 DST_PORT = int(os.getenv("DST_PORT", str(PORT)))
+SENSOR_ID = os.getenv("SENSOR_ID", f"mysql-{socket.gethostname()}")
+SENSOR_NAME = os.getenv("SENSOR_NAME", "MySQL Honeypot")
+SENSOR_IP = os.getenv("SENSOR_IP", "")
+VERSION = "1.0.0"
 
 
 def _server_greeting() -> bytes:
@@ -46,21 +51,47 @@ def _error_packet(code: int, msg: bytes) -> bytes:
     return header + payload
 
 
-def _send(event_type, src_ip, src_port, username=None):
-    payload = {
-        "eventId": str(uuid.uuid4()),
-        "protocol": "mysql",
-        "srcIp": src_ip,
-        "srcPort": src_port,
-        "dstPort": DST_PORT,
-        "eventType": event_type,
-        "username": username,
-        "data": {},
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
+def _parse_database(auth_data: bytes, username_end: int) -> str | None:
+    """Extract the target database from the auth packet if CLIENT_CONNECT_WITH_DB is set."""
+    if len(auth_data) < 4:
+        return None
+    caps = struct.unpack("<I", auth_data[:4])[0]
+    if not (caps & 0x0008):  # CLIENT_CONNECT_WITH_DB
+        return None
+
+    # Skip past auth_response (length-encoded string)
+    offset = username_end
+    if offset >= len(auth_data):
+        return None
+
+    first_byte = auth_data[offset]
+    if first_byte < 0xFB:
+        offset += 1 + first_byte
+    elif first_byte == 0xFC and offset + 3 <= len(auth_data):
+        auth_len = struct.unpack("<H", auth_data[offset + 1:offset + 3])[0]
+        offset += 3 + auth_len
+    elif first_byte == 0xFE and offset + 9 <= len(auth_data):
+        auth_len = struct.unpack("<Q", auth_data[offset + 1:offset + 9])[0]
+        offset += 9 + auth_len
+    else:
+        return None
+
+    if offset >= len(auth_data):
+        return None
+
+    null_pos = auth_data.find(b"\x00", offset)
+    if null_pos < offset:
+        raw = auth_data[offset:].decode(errors="replace").rstrip("\x00")
+    else:
+        raw = auth_data[offset:null_pos].decode(errors="replace")
+
+    return raw if raw else None
+
+
+def _post(path: str, payload: dict):
     body = json.dumps(payload).encode()
     req = Request(
-        f"{INGEST_API_URL}/ingest/protocol/event",
+        f"{INGEST_API_URL}{path}",
         data=body,
         headers={"Content-Type": "application/json", "X-Ingest-Token": INGEST_SHARED_SECRET},
         method="POST",
@@ -69,6 +100,40 @@ def _send(event_type, src_ip, src_port, username=None):
         urlopen(req, timeout=5)
     except Exception as exc:
         log.debug("ingest error: %s", exc)
+
+
+def _send(event_type, src_ip, src_port, username=None, database=None):
+    data: dict = {}
+    if database:
+        data["database"] = database
+    _post("/ingest/protocol/event", {
+        "eventId": str(uuid.uuid4()),
+        "protocol": "mysql",
+        "srcIp": src_ip,
+        "srcPort": src_port,
+        "dstPort": DST_PORT,
+        "eventType": event_type,
+        "username": username,
+        "data": data,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+
+
+def _send_heartbeat():
+    _post("/sensors/heartbeat", {
+        "sensorId": SENSOR_ID,
+        "name": SENSOR_NAME,
+        "protocol": "mysql",
+        "ip": SENSOR_IP,
+        "version": VERSION,
+    })
+
+
+async def heartbeat():
+    loop = asyncio.get_event_loop()
+    while True:
+        await loop.run_in_executor(None, _send_heartbeat)
+        await asyncio.sleep(30)
 
 
 async def handle(reader, writer):
@@ -103,9 +168,12 @@ async def handle(reader, writer):
 
         null_pos = auth_data.find(b"\x00", offset)
         username = auth_data[offset:null_pos].decode(errors="replace") if null_pos > offset else ""
+        username_end = (null_pos + 1) if null_pos > offset else (offset + 1)
 
-        log.info("auth user='%s' from %s", username, src_ip)
-        await loop.run_in_executor(None, _send, "auth", src_ip, src_port, username)
+        database = _parse_database(auth_data, username_end)
+
+        log.info("auth user='%s' db='%s' from %s", username, database, src_ip)
+        await loop.run_in_executor(None, _send, "auth", src_ip, src_port, username, database)
 
         err_msg = f"Access denied for user '{username}'@'{src_ip}' (using password: YES)".encode()
         writer.write(_error_packet(1045, err_msg))
@@ -124,9 +192,9 @@ async def handle(reader, writer):
 
 async def main():
     server = await asyncio.start_server(handle, "0.0.0.0", PORT)
-    log.info("MySQL honeypot on :%d (logging as :%d)", PORT, DST_PORT)
+    log.info("MySQL honeypot on :%d (logging as :%d) sensor=%s", PORT, DST_PORT, SENSOR_ID)
     async with server:
-        await server.serve_forever()
+        await asyncio.gather(server.serve_forever(), heartbeat())
 
 
 if __name__ == "__main__":

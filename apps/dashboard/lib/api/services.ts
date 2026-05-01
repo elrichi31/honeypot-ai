@@ -47,6 +47,19 @@ export interface ProtocolInsights {
   topPasswords: { password: string; count: number }[]
   topCommands: { command: string; count: number }[]
   topServices: { service: string; count: number }[]
+  topDatabases: { database: string; count: number }[]
+}
+
+export interface Sensor {
+  sensorId: string
+  name: string
+  protocol: string
+  ip: string
+  version: string
+  lastSeen: string
+  createdAt: string
+  eventsTotal: number
+  online: boolean
 }
 
 export async function fetchProtocolStats(): Promise<ProtocolStat[]> {
@@ -61,6 +74,10 @@ export async function fetchProtocolInsights(protocol: string): Promise<ProtocolI
   const url = new URL(`${getApiUrl()}/protocol-hits/insights`)
   url.searchParams.set('protocol', protocol)
   return apiFetch<ProtocolInsights>(url.toString())
+}
+
+export async function fetchSensors(): Promise<Sensor[]> {
+  return apiFetch<Sensor[]>(`${getApiUrl()}/sensors`)
 }
 
 export async function fetchProtocolHits(

@@ -104,7 +104,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
   fastify.get('/protocol-hits/insights', async (request, reply) => {
     const q = insightsQuerySchema.parse(request.query)
 
-    const [totals, topIps, topPorts, topUsernames, topPasswords, topCommands, topServices] = await Promise.all([
+    const [totals, topIps, topPorts, topUsernames, topPasswords, topCommands, topServices, topDatabases] = await Promise.all([
       fastify.prisma.$queryRaw<Array<{
         total: number; unique_ips: number; auth_attempts: number; command_events: number; last_seen: Date | null;
       }>>`
@@ -165,6 +165,14 @@ export async function protocolRoutes(fastify: FastifyInstance) {
         ORDER BY count DESC
         LIMIT 10
       `,
+      fastify.prisma.$queryRaw<Array<{ database: string; count: number }>>`
+        SELECT data->>'database' AS database, COUNT(*)::int AS count
+        FROM protocol_hits
+        WHERE protocol = ${q.protocol} AND data ? 'database' AND data->>'database' <> ''
+        GROUP BY data->>'database'
+        ORDER BY count DESC
+        LIMIT 10
+      `,
     ])
 
     const total = totals[0]
@@ -183,6 +191,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
       topPasswords,
       topCommands,
       topServices,
+      topDatabases,
     })
   })
 

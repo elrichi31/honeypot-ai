@@ -22,19 +22,34 @@ services:
       - edge
     pids_limit: 256
 
+  cowrie-beacon:
+    <<: *service-defaults
+    image: python:3.12-alpine
+    container_name: cowrie-beacon
+    environment:
+      SENSOR_ID: ${SENSOR_ID_SSH:-cowrie-ssh-01}
+      SENSOR_IP: ${HONEYPOT_IP:-}
+      INGEST_API_URL: ${INGEST_API_URL}
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+    volumes:
+      - ./cowrie/heartbeat.py:/heartbeat.py:ro
+    command: ["python3", "/heartbeat.py"]
+    networks:
+      - edge
+    pids_limit: 16
+
   web-honeypot:
     <<: *service-defaults
     build:
       context: ./apps/web-honeypot
     container_name: web-honeypot
     environment:
-      # IP VPN del servidor app (Tailscale / WireGuard).
-      # El web-honeypot envia eventos a ingest-api por la red privada,
-      # nunca por internet publico.
-      # Ejemplo Tailscale: http://100.x.y.z:3000
       INGEST_API_URL: ${INGEST_API_URL}
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
       PORT: "8080"
+      SENSOR_ID: ${SENSOR_ID_HTTP:-web-01}
+      SENSOR_NAME: Web Honeypot
+      SENSOR_IP: ${HONEYPOT_IP:-}
     ports:
       - "80:8080"     # HTTP honeypot — visible en port scan publico
       - "8443:8080"   # HTTPS alternativo para atrapar scans de puertos
@@ -74,6 +89,9 @@ services:
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
       PORT: "21"
       DST_PORT: "21"
+      SENSOR_ID: ${SENSOR_ID_FTP:-ftp-01}
+      SENSOR_NAME: FTP Honeypot
+      SENSOR_IP: ${HONEYPOT_IP:-}
     ports:
       - "21:21"
     networks:
@@ -90,6 +108,9 @@ services:
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
       PORT: "3306"
       DST_PORT: "3306"
+      SENSOR_ID: ${SENSOR_ID_MYSQL:-mysql-01}
+      SENSOR_NAME: MySQL Honeypot
+      SENSOR_IP: ${HONEYPOT_IP:-}
     ports:
       - "3306:3306"
     networks:
@@ -105,6 +126,9 @@ services:
       INGEST_API_URL: ${INGEST_API_URL}
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
       PORTS: "1433 2375 3389 4444 5900 6379 8888 9090 9200 27017"
+      SENSOR_ID: ${SENSOR_ID_PORT:-port-01}
+      SENSOR_NAME: Port Honeypot
+      SENSOR_IP: ${HONEYPOT_IP:-}
     ports:
       - "1433:1433"
       - "2375:2375"

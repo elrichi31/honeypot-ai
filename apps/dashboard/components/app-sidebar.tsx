@@ -72,6 +72,11 @@ const navSections = [
     items: [{ title: "Threats", href: "/threats", icon: ShieldAlert }],
   },
   {
+    title: "Infrastructure",
+    icon: Server,
+    items: [{ title: "Sensors", href: "/sensors", icon: Server }],
+  },
+  {
     title: "System",
     icon: Settings,
     items: [{ title: "Settings", href: "/settings", icon: Settings }],

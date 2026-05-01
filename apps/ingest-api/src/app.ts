@@ -9,7 +9,8 @@ import { statsRoutes } from './routes/stats/index.js';
 import { webRoutes } from './routes/web.js';
 import { threatRoutes } from './routes/threats.js';
 import { liveRoutes } from './routes/live.js';
-import { protocolRoutes } from './routes/protocol.js';
+import { protocolRoutes } from './routes/protocol.js'
+import { sensorRoutes } from './routes/sensors.js';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -25,6 +26,7 @@ export async function buildApp() {
   await app.register(threatRoutes);
   await app.register(liveRoutes);
   await app.register(protocolRoutes);
+  await app.register(sensorRoutes);
 
   return app;
 }
