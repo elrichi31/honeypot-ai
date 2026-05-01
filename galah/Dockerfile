@@ -1,12 +1,12 @@
 FROM golang:1.23-alpine AS builder
-RUN apk add --no-cache git ca-certificates
+RUN apk add --no-cache git ca-certificates gcc musl-dev
 WORKDIR /src
 RUN git clone --depth 1 https://github.com/0x4D31/galah.git .
 RUN go mod download
-RUN CGO_ENABLED=0 GOOS=linux go build -o /galah ./cmd/galah
+RUN CGO_ENABLED=1 GOOS=linux go build -o /galah ./cmd/galah
 
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates tzdata jq
+RUN apk add --no-cache ca-certificates tzdata jq sqlite-libs libgcc
 WORKDIR /galah
 COPY --from=builder /galah .
 COPY entrypoint.sh .
