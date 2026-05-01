@@ -26,7 +26,7 @@ source = '''
   if length(uri_parts) > 1 {
     raw_query = uri_parts[1]
   }
-  query_text = to_string(raw_query) ?? ""
+  query_text = to_string(raw_query)
 
   user_agent = string(.httpRequest.userAgent) ?? ""
   body = string(.httpRequest.body) ?? ""
