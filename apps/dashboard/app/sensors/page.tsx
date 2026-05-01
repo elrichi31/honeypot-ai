@@ -159,8 +159,8 @@ export default async function SensorsPage() {
           <p className="text-sm font-medium text-foreground mb-1">No sensors registered yet</p>
           <p className="text-sm text-muted-foreground max-w-sm mx-auto">
             Sensors register automatically via heartbeat when the honeypot services start.
-            Set <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">SENSOR_ID</code> and{" "}
-            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">SENSOR_IP</code> env vars on each service.
+            Set <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">SENSOR_ID</code> on each service.
+            Public IP is auto-detected, and <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">SENSOR_IP</code> is only needed to override it.
           </p>
         </div>
       ) : (

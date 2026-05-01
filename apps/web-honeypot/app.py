@@ -16,6 +16,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from email.utils import formatdate
+from urllib.request import urlopen
 
 import requests
 from flask import Flask, request, Response, session
@@ -32,7 +33,6 @@ INGEST_SHARED_SECRET = os.environ.get("INGEST_SHARED_SECRET", "")
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 SENSOR_ID = os.environ.get("SENSOR_ID", f"http-{socket.gethostname()}")
 SENSOR_NAME = os.environ.get("SENSOR_NAME", "Web Honeypot")
-SENSOR_IP = os.environ.get("SENSOR_IP", "")
 SENSOR_HOST = os.environ.get("SENSOR_HOST", socket.gethostname())
 
 logging.basicConfig(
@@ -40,6 +40,23 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
 log = logging.getLogger("web-honeypot")
+
+
+def _detect_ip() -> str:
+    ip = os.environ.get("SENSOR_IP", "")
+    if ip:
+        return ip
+    for url in ("http://ifconfig.me/ip", "http://api.ipify.org", "http://checkip.amazonaws.com"):
+        try:
+            detected = urlopen(url, timeout=4).read().decode().strip()
+            if detected:
+                return detected
+        except Exception:
+            continue
+    return ""
+
+
+SENSOR_IP = _detect_ip()
 
 # Static headers that every response carries — mimics a typical Ubuntu/Apache/PHP stack.
 # Keep these consistent across requests so fingerprinting tools see a stable identity.
