@@ -2,6 +2,7 @@ import net from 'net'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { ensureIngestToken } from '../lib/ingest-auth.js'
+import { clearSensorOfflineAlert } from '../lib/threat-alerts.js'
 
 const heartbeatSchema = z.object({
   sensorId:   z.string().min(1),
@@ -77,6 +78,8 @@ export async function sensorRoutes(fastify: FastifyInstance) {
         probe_host  = EXCLUDED.probe_host,
         last_seen   = EXCLUDED.last_seen
     `
+
+    clearSensorOfflineAlert(d.sensorId)
 
     return reply.status(200).send({ ok: true })
   })

@@ -17,9 +17,19 @@ interface AlertOptions {
   fields?: Field[]
 }
 
-export async function sendDiscordAlert(opts: AlertOptions): Promise<void> {
+const DISCORD_FAILURE_LOG_COOLDOWN_MS = 15 * 60 * 1000
+let lastDiscordFailureLogAt = 0
+
+function logDiscordFailure(message: string, extra?: string) {
+  const now = Date.now()
+  if (now - lastDiscordFailureLogAt < DISCORD_FAILURE_LOG_COOLDOWN_MS) return
+  lastDiscordFailureLogAt = now
+  console.error(`[discord] ${message}${extra ? `: ${extra}` : ''}`)
+}
+
+export async function sendDiscordAlert(opts: AlertOptions): Promise<boolean> {
   const webhookUrl = getDiscordWebhookUrl()
-  if (!webhookUrl) return
+  if (!webhookUrl) return false
 
   const body = {
     embeds: [{
@@ -40,9 +50,13 @@ export async function sendDiscordAlert(opts: AlertOptions): Promise<void> {
       signal: AbortSignal.timeout(5000),
     })
     if (!response.ok) {
-      console.warn(`[discord] webhook returned ${response.status}`)
+      logDiscordFailure(`webhook returned ${response.status}`, response.statusText)
+      return false
     }
-  } catch {
-    // best-effort
+    return true
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    logDiscordFailure('webhook delivery failed', msg)
+    return false
   }
 }
