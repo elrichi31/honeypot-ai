@@ -8,26 +8,25 @@ type SensorRow = { ip: string; protocol: string }
 
 export async function attacksTodayRoutes(fastify: FastifyInstance) {
   fastify.get('/attacks/today', async (_request, reply) => {
-    const midnight = new Date()
-    midnight.setUTCHours(0, 0, 0, 0)
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
     const [sshRows, webRows, protocolRows, sensors] = await Promise.all([
       fastify.prisma.$queryRaw<SessionRow[]>`
         SELECT src_ip, COUNT(*)::bigint AS count
         FROM sessions
-        WHERE started_at >= ${midnight}
+        WHERE started_at >= ${since}
         GROUP BY src_ip
       `,
       fastify.prisma.$queryRaw<WebRow[]>`
         SELECT src_ip, COUNT(*)::bigint AS count
         FROM web_hits
-        WHERE timestamp >= ${midnight}
+        WHERE timestamp >= ${since}
         GROUP BY src_ip
       `,
       fastify.prisma.$queryRaw<ProtocolRow[]>`
         SELECT src_ip, protocol, COUNT(*)::bigint AS count
         FROM protocol_hits
-        WHERE timestamp >= ${midnight}
+        WHERE timestamp >= ${since}
         GROUP BY src_ip, protocol
       `,
       fastify.prisma.$queryRaw<SensorRow[]>`
