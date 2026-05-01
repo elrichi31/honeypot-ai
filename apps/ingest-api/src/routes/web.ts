@@ -151,6 +151,53 @@ export async function webRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // Batch endpoint used by Vector to ship Galah events
+  fastify.post('/ingest/web/vector', async (request, reply) => {
+    if (!ensureIngestToken(request, reply)) return reply;
+
+    const raw = Array.isArray(request.body) ? request.body : [request.body];
+    const events = raw
+      .map((item) => webHitSchema.safeParse(item))
+      .filter((r): r is { success: true; data: z.infer<typeof webHitSchema> } => r.success)
+      .map((r) => r.data);
+
+    if (events.length === 0) {
+      return reply.status(200).send({ inserted: 0 });
+    }
+
+    let inserted = 0;
+    for (const d of events) {
+      try {
+        const rows = await fastify.prisma.$queryRaw<Array<{ id: string }>>`
+          INSERT INTO web_hits (
+            event_id, src_ip, method, path, query,
+            user_agent, headers, body, attack_type, timestamp
+          )
+          VALUES (
+            ${d.eventId}, ${d.srcIp}, ${d.method}, ${d.path}, ${d.query},
+            ${d.userAgent},
+            CAST(${JSON.stringify(d.headers)} AS jsonb),
+            ${d.body}, ${d.attackType},
+            ${new Date(d.timestamp)}
+          )
+          ON CONFLICT (event_id) DO NOTHING
+          RETURNING id
+        `;
+        if (rows[0]) {
+          inserted++;
+          const geo = lookupGeo(d.srcIp);
+          if (geo) {
+            eventBus.emit('attack', { type: 'http', ip: d.srcIp, ...geo, timestamp: d.timestamp });
+          }
+        }
+      } catch {
+        // skip malformed individual events
+      }
+    }
+
+    return reply.status(200).send({ inserted, total: events.length });
+  });
+
   fastify.get('/web-hits', async (request, reply) => {
     const querySchema = z.object({
       limit: z.coerce.number().min(1).max(500).default(100),

@@ -38,27 +38,43 @@ services:
       - edge
     pids_limit: 16
 
-  web-honeypot:
+  galah:
     <<: *service-defaults
     build:
-      context: ./apps/web-honeypot
-    container_name: web-honeypot
+      context: ./galah
+    container_name: galah
     environment:
-      INGEST_API_URL: ${INGEST_API_URL}
-      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
-      PORT: "8080"
-      SENSOR_ID: ${SENSOR_ID_HTTP:-web-01}
-      SENSOR_NAME: Web Honeypot
-      SENSOR_IP: ${HONEYPOT_IP:-}
+      LLM_API_KEY: ${OPENAI_API_KEY}
+      LLM_PROVIDER: openai
+      LLM_MODEL: ${GALAH_MODEL:-gpt-4o-mini}
+      LLM_TEMPERATURE: "0.7"
+    command: ["-o", "logs/galah.json", "-c", "config/config.yaml", "-d", "168"]
     ports:
-      - "80:8080"     # HTTP honeypot — visible en port scan publico
-      - "8443:8080"   # HTTPS alternativo para atrapar scans de puertos
+      - "80:8080"
+      - "8443:8080"
+    volumes:
+      - ./galah/config:/galah/config:ro
+      - galah_logs:/galah/logs
     networks:
       - edge
-    read_only: true
-    tmpfs:
-      - /tmp
     pids_limit: 256
+
+  galah-beacon:
+    <<: *service-defaults
+    image: python:3.12-alpine
+    container_name: galah-beacon
+    environment:
+      SENSOR_ID: ${SENSOR_ID_HTTP:-web-01}
+      SENSOR_NAME: Web Honeypot (Galah)
+      SENSOR_IP: ${HONEYPOT_IP:-}
+      INGEST_API_URL: ${INGEST_API_URL}
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+    volumes:
+      - ./cowrie/heartbeat.py:/heartbeat.py:ro
+    command: ["python3", "/heartbeat.py"]
+    networks:
+      - edge
+    pids_limit: 16
 
   vector:
     <<: *service-defaults
@@ -68,11 +84,13 @@ services:
       - cowrie
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var:ro
-      - ./vector/cowrie.toml:/etc/vector/vector.toml:ro
+      - galah_logs:/galah/logs:ro
+      - ./vector:/etc/vector/conf.d:ro
       - vector_data:/var/lib/vector
+    command: ["--config-dir", "/etc/vector/conf.d"]
     environment:
       COWRIE_LOG_PATH: /cowrie/cowrie-git/var/log/cowrie/cowrie.json
-      # IP VPN del servidor app (Tailscale / WireGuard), ej: http://100.x.y.z:3000
+      GALAH_LOG_PATH: /galah/logs/galah.json
       INGEST_API_URL: ${INGEST_API_URL}
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
     networks:
@@ -146,6 +164,7 @@ services:
 
 volumes:
   cowrie_var:
+  galah_logs:
   vector_data:
 
 networks:

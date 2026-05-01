@@ -41,31 +41,54 @@ services:
       - honeypot_ingest
     pids_limit: 16
 
-  web-honeypot:
+  galah:
     <<: *service-defaults
     build:
-      context: ./apps/web-honeypot
-    container_name: web-honeypot
+      context: ./galah
+    container_name: galah
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+      dashboard:
+        condition: service_healthy
+    environment:
+      # LLM_API_KEY is read automatically from the dashboard config file.
+      # Override here only if you want to use a different key.
+      LLM_API_KEY: ${OPENAI_API_KEY:-}
+      LLM_PROVIDER: openai
+      LLM_MODEL: ${GALAH_MODEL:-gpt-4o-mini}
+      LLM_TEMPERATURE: "0.7"
+    command: ["-o", "logs/galah.json", "-c", "config/config.yaml", "-d", "168"]
+    ports:
+      - "80:8080"
+      - "8443:8080"
+    volumes:
+      - ./galah/config:/galah/config:ro
+      - galah_logs:/galah/logs
+      - dashboard_data:/dashboard_data:ro
+    networks:
+      - edge
+    pids_limit: 256
+
+  galah-beacon:
+    <<: *service-defaults
+    image: python:3.12-alpine
+    container_name: galah-beacon
     depends_on:
       ingest-api:
         condition: service_healthy
     environment:
+      SENSOR_ID: ${SENSOR_ID_HTTP:-web-01}
+      SENSOR_NAME: Web Honeypot (Galah)
+      SENSOR_IP: ${HONEYPOT_IP:-}
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
-      PORT: "8080"
-      SENSOR_ID: ${SENSOR_ID_HTTP:-web-01}
-      SENSOR_NAME: Web Honeypot
-      SENSOR_IP: ${HONEYPOT_IP:-}
-    ports:
-      - "80:8080"
-      - "8443:8080"
+    volumes:
+      - ./cowrie/heartbeat.py:/heartbeat.py:ro
+    command: ["python3", "/heartbeat.py"]
     networks:
-      - edge
       - honeypot_ingest
-    read_only: true
-    tmpfs:
-      - /tmp
-    pids_limit: 256
+    pids_limit: 16
 
   postgres:
     image: postgres:16-alpine
@@ -131,10 +154,13 @@ services:
         condition: service_healthy
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var:ro
-      - ./vector/cowrie.toml:/etc/vector/vector.toml:ro
+      - galah_logs:/galah/logs:ro
+      - ./vector:/etc/vector/conf.d:ro
       - vector_data:/var/lib/vector
+    command: ["--config-dir", "/etc/vector/conf.d"]
     environment:
       COWRIE_LOG_PATH: /cowrie/cowrie-git/var/log/cowrie/cowrie.json
+      GALAH_LOG_PATH: /galah/logs/galah.json
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
     networks:
@@ -264,6 +290,7 @@ services:
 
 volumes:
   cowrie_var:
+  galah_logs:
   pg_data:
   dashboard_data:
   vector_data:
