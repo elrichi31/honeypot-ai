@@ -67,6 +67,9 @@ services:
       SENSOR_ID: ${SENSOR_ID_HTTP:-web-01}
       SENSOR_NAME: Web Honeypot (Galah)
       SENSOR_IP: ${HONEYPOT_IP:-}
+      SENSOR_PROTOCOL: http
+      SENSOR_VERSION: galah
+      SENSOR_PORTS: "80"
       INGEST_API_URL: ${INGEST_API_URL}
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
     volumes:

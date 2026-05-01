@@ -31,7 +31,11 @@ services:
         condition: service_healthy
     environment:
       SENSOR_ID: ${SENSOR_ID_SSH:-cowrie-ssh-01}
+      SENSOR_NAME: SSH Honeypot (Cowrie)
       SENSOR_IP: ${HONEYPOT_IP:-}
+      SENSOR_PROTOCOL: ssh
+      SENSOR_VERSION: cowrie
+      SENSOR_PORTS: "22"
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
     volumes:
@@ -81,6 +85,9 @@ services:
       SENSOR_ID: ${SENSOR_ID_HTTP:-web-01}
       SENSOR_NAME: Web Honeypot (Galah)
       SENSOR_IP: ${HONEYPOT_IP:-}
+      SENSOR_PROTOCOL: http
+      SENSOR_VERSION: galah
+      SENSOR_PORTS: "80"
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
     volumes:
