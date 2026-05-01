@@ -1,3 +1,5 @@
+import { getDiscordWebhookUrl } from './runtime-config.js'
+
 type AlertLevel = "critical" | "high" | "info"
 
 const COLORS: Record<AlertLevel, number> = {
@@ -16,7 +18,7 @@ interface AlertOptions {
 }
 
 export async function sendDiscordAlert(opts: AlertOptions): Promise<void> {
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL
+  const webhookUrl = getDiscordWebhookUrl()
   if (!webhookUrl) return
 
   const body = {
@@ -31,12 +33,15 @@ export async function sendDiscordAlert(opts: AlertOptions): Promise<void> {
   }
 
   try {
-    await fetch(webhookUrl, {
+    const response = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(5000),
     })
+    if (!response.ok) {
+      console.warn(`[discord] webhook returned ${response.status}`)
+    }
   } catch {
     // best-effort
   }

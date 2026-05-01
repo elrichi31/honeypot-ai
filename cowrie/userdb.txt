@@ -1,277 +1,548 @@
 # Cowrie credential database
-# Format: username:unused:password
-#   field 2 is always x (unused)
-#   password = *       -> accept ANY password not already denied
-#   password = !text   -> DENY when password matches "text" (order matters)
+# Format: username:x:password
 #
-# Strategy: block (1) trivially weak passwords any hardened server would reject,
-# (2) username=password patterns, and (3) high-frequency credential pairs seen
-# in scan traffic -- automated noise that yields no real intelligence.
+# Policy:
+# - Only the exact passwords listed below are accepted.
+# - No wildcard catch-all is present.
+# - Passwords shorter than 8 characters are also rejected by patch_auth.py.
 #
-# Passwords < 8 chars are rejected by patch_auth.py at Docker build time.
-# The explicit short-password denies below are a SAFETY NET for when the
-# image hasn't been rebuilt yet. Run:
-#   docker compose build --no-cache cowrie && docker compose up -d cowrie
-# to activate the length check in auth.py.
+# This keeps post-auth telemetry possible, but cuts down the flood of trivial
+# successful logins from common internet spray traffic.
+
+# Shared whitelist of accepted passwords (40 total, all > 8 chars):
+# AtlasNode91
+# CedarRoot88
+# DeltaForge73
+# EmberStack64
+# FalconMesh52
+# GraniteKey47
+# HarborPulse39
+# IronVector28
+# JadeMatrix84
+# KiloBridge76
+# LunarCache68
+# MantisVault57
+# NimbusCore49
+# OnyxSignal38
+# PrismAnchor27
+# QuartzShift95
+# RocketFrame83
+# SierraRelay71
+# TitanMirror62
+# UmberShield54
+# VortexBeacon46
+# WillowCipher37
+# XenonCluster29
+# YukonThread18
+# ZephyrConsole96
+# AuroraSocket85
+# BinaryHarbor74
+# CinderKernel63
+# DriftScanner56
+# EchoLantern45
+# FluxGateway34
+# GlacierTunnel26
+# HelixMonitor17
+# IonCascade93
+# JigsawVector82
+# KernelHarbor69
+# LedgerBeacon58
+# MosaicSignal44
+# NovaTransit33
+# OrbitSentinel24
 
 # --- root --------------------------------------------------------------------
-
-# Safety net: most-common short passwords (patch_auth.py handles these at build time)
-root:x:!root
-root:x:!admin
-root:x:!pass
-root:x:!0
-root:x:!1
-root:x:!123
-root:x:!1234
-root:x:!12345
-root:x:!123456
-root:x:!1234567
-root:x:!toor
-root:x:!0000
-root:x:!ubuntu
-root:x:!redhat
-root:x:!centos
-root:x:!debian
-root:x:!linux
-root:x:!rock
-root:x:!eve
-root:x:!null
-root:x:!abc
-root:x:!abc123
-root:x:!test
-root:x:!qwe
-root:x:!qwe123
-root:x:!asd
-root:x:!asd123
-root:x:!passwd
-
-# High-frequency 8+ char passwords seen in scan traffic (> 25 hits in telemetry)
-root:x:!password
-root:x:!password1
-root:x:!password123
-root:x:!Password
-root:x:!Password1
-root:x:!Password@123
-root:x:!P@ssw0rd
-root:x:!P@ssw0rd123
-root:x:!P@ssw0rd2026
-root:x:!P@ssword
-root:x:!Passw0rd
-root:x:!passw0rd
-root:x:!p@ssw0rd
-root:x:!P@55w0rd
-root:x:!Pass@123
-root:x:!!Q2w3e4r
-root:x:!!Q@W3e4r
-root:x:!!QAZ2wsx
-root:x:!!Qaz@Wsx
-root:x:!!qaz@WSX
-root:x:!!QAZ@WSX
-root:x:!1qaz@WSX
-root:x:!1qaz@wsx
-root:x:!1qazXSW@
-root:x:!1qazxsw2
-root:x:!1qaz2wsx
-root:x:!1qaz@WSX3edc
-root:x:!1q2w3e4r
-root:x:!1Q2w3e4r
-root:x:!1Q2W3E4R
-root:x:!1qaz!QAZ
-root:x:!aA123456
-root:x:!Aa123456
-root:x:!Aa123456@
-root:x:!Aa123456.
-root:x:!Aa123321
-root:x:!Aa@123456
-root:x:!Aa1234567890
-root:x:!aa123456
-root:x:!qq123456
-root:x:!Qq123456
-root:x:!qQ123456
-root:x:!QQ123456
-root:x:!QWEqwe123
-root:x:!qwerty12
-root:x:!qwerty123
-root:x:!qwerty1234
-root:x:!qwe123!@
-root:x:!qwer1234
-root:x:!qwe123456
-root:x:!ab123456
-root:x:!Ab123456
-root:x:!aB123456
-root:x:!abc12345
-root:x:!abc123456
-root:x:!abcd1234
-root:x:!abcd@1234
-root:x:!a123456A
-root:x:!A123456a
-root:x:!Abc12345
-root:x:!Abc123456
-root:x:!Admin123
-root:x:!Admin123!
-root:x:!Admin@123
-root:x:!Admin@123456
-root:x:!admin123
-root:x:!admin1234
-root:x:!admin@123
-root:x:!12345678
-root:x:!12345679
-root:x:!12345690
-root:x:!123456789
-root:x:!1234567890
-root:x:!123321123
-root:x:!123123123
-root:x:!123qwe!@
-root:x:!123@@@
-root:x:!11111111
-root:x:!00000000
-root:x:!rootroot
-root:x:!root1234
-root:x:!root@123
-root:x:!Root@123
-root:x:!letmein1
-root:x:!welcome1
-root:x:!welcome123
-root:x:!Welcome@123
-root:x:!Welcome123
-root:x:!iloveyou
-root:x:!sunshine
-root:x:!princess
-root:x:!changeme
-root:x:!raspberry
-root:x:!default1
-root:x:!superman1
-root:x:!monkey123
-root:x:!Huawei123
-root:x:!Huawei@123
-root:x:!huawei@123
-root:x:!t0talc0ntr0l4!
-root:x:!LeitboGi0ro
-root:x:!nPSpP4PBW0
-root:x:!Test1234
-root:x:!test1234
-root:x:!test@123
-root:x:!test123
-root:x:!Pass@123
-root:x:!q1w2e3r4
-root:x:!qwer1234
-root:x:!1029384756
-root:x:!12qwaszx
-root:x:!tesTtest123a
-root:x:!qwe123456
-
-# Accept everything else (non-obvious passwords -- genuine attack intel)
-root:x:*
+root:x:AtlasNode91
+root:x:CedarRoot88
+root:x:DeltaForge73
+root:x:EmberStack64
+root:x:FalconMesh52
+root:x:GraniteKey47
+root:x:HarborPulse39
+root:x:IronVector28
+root:x:JadeMatrix84
+root:x:KiloBridge76
+root:x:LunarCache68
+root:x:MantisVault57
+root:x:NimbusCore49
+root:x:OnyxSignal38
+root:x:PrismAnchor27
+root:x:QuartzShift95
+root:x:RocketFrame83
+root:x:SierraRelay71
+root:x:TitanMirror62
+root:x:UmberShield54
+root:x:VortexBeacon46
+root:x:WillowCipher37
+root:x:XenonCluster29
+root:x:YukonThread18
+root:x:ZephyrConsole96
+root:x:AuroraSocket85
+root:x:BinaryHarbor74
+root:x:CinderKernel63
+root:x:DriftScanner56
+root:x:EchoLantern45
+root:x:FluxGateway34
+root:x:GlacierTunnel26
+root:x:HelixMonitor17
+root:x:IonCascade93
+root:x:JigsawVector82
+root:x:KernelHarbor69
+root:x:LedgerBeacon58
+root:x:MosaicSignal44
+root:x:NovaTransit33
+root:x:OrbitSentinel24
 
 # --- ubuntu ------------------------------------------------------------------
-ubuntu:x:!ubuntu
-ubuntu:x:!123456
-ubuntu:x:!password
-ubuntu:x:!12345678
-ubuntu:x:!123456789
-ubuntu:x:!11111111
-ubuntu:x:!password1
-ubuntu:x:!ubuntu12
-ubuntu:x:!P@ssw0rd
-ubuntu:x:!1qaz@WSX
-ubuntu:x:!Aa123456
-ubuntu:x:!solana
-ubuntu:x:*
+ubuntu:x:AtlasNode91
+ubuntu:x:CedarRoot88
+ubuntu:x:DeltaForge73
+ubuntu:x:EmberStack64
+ubuntu:x:FalconMesh52
+ubuntu:x:GraniteKey47
+ubuntu:x:HarborPulse39
+ubuntu:x:IronVector28
+ubuntu:x:JadeMatrix84
+ubuntu:x:KiloBridge76
+ubuntu:x:LunarCache68
+ubuntu:x:MantisVault57
+ubuntu:x:NimbusCore49
+ubuntu:x:OnyxSignal38
+ubuntu:x:PrismAnchor27
+ubuntu:x:QuartzShift95
+ubuntu:x:RocketFrame83
+ubuntu:x:SierraRelay71
+ubuntu:x:TitanMirror62
+ubuntu:x:UmberShield54
+ubuntu:x:VortexBeacon46
+ubuntu:x:WillowCipher37
+ubuntu:x:XenonCluster29
+ubuntu:x:YukonThread18
+ubuntu:x:ZephyrConsole96
+ubuntu:x:AuroraSocket85
+ubuntu:x:BinaryHarbor74
+ubuntu:x:CinderKernel63
+ubuntu:x:DriftScanner56
+ubuntu:x:EchoLantern45
+ubuntu:x:FluxGateway34
+ubuntu:x:GlacierTunnel26
+ubuntu:x:HelixMonitor17
+ubuntu:x:IonCascade93
+ubuntu:x:JigsawVector82
+ubuntu:x:KernelHarbor69
+ubuntu:x:LedgerBeacon58
+ubuntu:x:MosaicSignal44
+ubuntu:x:NovaTransit33
+ubuntu:x:OrbitSentinel24
 
 # --- admin -------------------------------------------------------------------
-admin:x:!admin
-admin:x:!1234
-admin:x:!1111
-admin:x:!admin123
-admin:x:!admin1234
-admin:x:!admin123456
-admin:x:!Admin@123
-admin:x:!admin@123
-admin:x:!password
-admin:x:!12345678
-admin:x:!adminadmin
-admin:x:!administrator
-admin:x:*
+admin:x:AtlasNode91
+admin:x:CedarRoot88
+admin:x:DeltaForge73
+admin:x:EmberStack64
+admin:x:FalconMesh52
+admin:x:GraniteKey47
+admin:x:HarborPulse39
+admin:x:IronVector28
+admin:x:JadeMatrix84
+admin:x:KiloBridge76
+admin:x:LunarCache68
+admin:x:MantisVault57
+admin:x:NimbusCore49
+admin:x:OnyxSignal38
+admin:x:PrismAnchor27
+admin:x:QuartzShift95
+admin:x:RocketFrame83
+admin:x:SierraRelay71
+admin:x:TitanMirror62
+admin:x:UmberShield54
+admin:x:VortexBeacon46
+admin:x:WillowCipher37
+admin:x:XenonCluster29
+admin:x:YukonThread18
+admin:x:ZephyrConsole96
+admin:x:AuroraSocket85
+admin:x:BinaryHarbor74
+admin:x:CinderKernel63
+admin:x:DriftScanner56
+admin:x:EchoLantern45
+admin:x:FluxGateway34
+admin:x:GlacierTunnel26
+admin:x:HelixMonitor17
+admin:x:IonCascade93
+admin:x:JigsawVector82
+admin:x:KernelHarbor69
+admin:x:LedgerBeacon58
+admin:x:MosaicSignal44
+admin:x:NovaTransit33
+admin:x:OrbitSentinel24
 
-# --- service accounts -- reject username=password and high-frequency patterns --
-oracle:x:!oracle
-oracle:x:!123456
-oracle:x:!oracle12
-oracle:x:!oracle123
-oracle:x:!oracledb
-oracle:x:!password
-oracle:x:!12345678
-oracle:x:*
+# --- service accounts --------------------------------------------------------
+oracle:x:AtlasNode91
+oracle:x:CedarRoot88
+oracle:x:DeltaForge73
+oracle:x:EmberStack64
+oracle:x:FalconMesh52
+oracle:x:GraniteKey47
+oracle:x:HarborPulse39
+oracle:x:IronVector28
+oracle:x:JadeMatrix84
+oracle:x:KiloBridge76
+oracle:x:LunarCache68
+oracle:x:MantisVault57
+oracle:x:NimbusCore49
+oracle:x:OnyxSignal38
+oracle:x:PrismAnchor27
+oracle:x:QuartzShift95
+oracle:x:RocketFrame83
+oracle:x:SierraRelay71
+oracle:x:TitanMirror62
+oracle:x:UmberShield54
+oracle:x:VortexBeacon46
+oracle:x:WillowCipher37
+oracle:x:XenonCluster29
+oracle:x:YukonThread18
+oracle:x:ZephyrConsole96
+oracle:x:AuroraSocket85
+oracle:x:BinaryHarbor74
+oracle:x:CinderKernel63
+oracle:x:DriftScanner56
+oracle:x:EchoLantern45
+oracle:x:FluxGateway34
+oracle:x:GlacierTunnel26
+oracle:x:HelixMonitor17
+oracle:x:IonCascade93
+oracle:x:JigsawVector82
+oracle:x:KernelHarbor69
+oracle:x:LedgerBeacon58
+oracle:x:MosaicSignal44
+oracle:x:NovaTransit33
+oracle:x:OrbitSentinel24
 
-postgres:x:!postgres
-postgres:x:!123456
-postgres:x:!123
-postgres:x:!1
-postgres:x:!postgres1
-postgres:x:!postgres123
-postgres:x:!password
-postgres:x:!12345678
-postgres:x:*
+postgres:x:AtlasNode91
+postgres:x:CedarRoot88
+postgres:x:DeltaForge73
+postgres:x:EmberStack64
+postgres:x:FalconMesh52
+postgres:x:GraniteKey47
+postgres:x:HarborPulse39
+postgres:x:IronVector28
+postgres:x:JadeMatrix84
+postgres:x:KiloBridge76
+postgres:x:LunarCache68
+postgres:x:MantisVault57
+postgres:x:NimbusCore49
+postgres:x:OnyxSignal38
+postgres:x:PrismAnchor27
+postgres:x:QuartzShift95
+postgres:x:RocketFrame83
+postgres:x:SierraRelay71
+postgres:x:TitanMirror62
+postgres:x:UmberShield54
+postgres:x:VortexBeacon46
+postgres:x:WillowCipher37
+postgres:x:XenonCluster29
+postgres:x:YukonThread18
+postgres:x:ZephyrConsole96
+postgres:x:AuroraSocket85
+postgres:x:BinaryHarbor74
+postgres:x:CinderKernel63
+postgres:x:DriftScanner56
+postgres:x:EchoLantern45
+postgres:x:FluxGateway34
+postgres:x:GlacierTunnel26
+postgres:x:HelixMonitor17
+postgres:x:IonCascade93
+postgres:x:JigsawVector82
+postgres:x:KernelHarbor69
+postgres:x:LedgerBeacon58
+postgres:x:MosaicSignal44
+postgres:x:NovaTransit33
+postgres:x:OrbitSentinel24
 
-git:x:!git
-git:x:!123
-git:x:!123456
-git:x:!git123
-git:x:!gitadmin
-git:x:!git12345
-git:x:!password
-git:x:!12345678
-git:x:*
+git:x:AtlasNode91
+git:x:CedarRoot88
+git:x:DeltaForge73
+git:x:EmberStack64
+git:x:FalconMesh52
+git:x:GraniteKey47
+git:x:HarborPulse39
+git:x:IronVector28
+git:x:JadeMatrix84
+git:x:KiloBridge76
+git:x:LunarCache68
+git:x:MantisVault57
+git:x:NimbusCore49
+git:x:OnyxSignal38
+git:x:PrismAnchor27
+git:x:QuartzShift95
+git:x:RocketFrame83
+git:x:SierraRelay71
+git:x:TitanMirror62
+git:x:UmberShield54
+git:x:VortexBeacon46
+git:x:WillowCipher37
+git:x:XenonCluster29
+git:x:YukonThread18
+git:x:ZephyrConsole96
+git:x:AuroraSocket85
+git:x:BinaryHarbor74
+git:x:CinderKernel63
+git:x:DriftScanner56
+git:x:EchoLantern45
+git:x:FluxGateway34
+git:x:GlacierTunnel26
+git:x:HelixMonitor17
+git:x:IonCascade93
+git:x:JigsawVector82
+git:x:KernelHarbor69
+git:x:LedgerBeacon58
+git:x:MosaicSignal44
+git:x:NovaTransit33
+git:x:OrbitSentinel24
 
-deploy:x:!deploy
-deploy:x:!1
-deploy:x:!123456
-deploy:x:!deploy12
-deploy:x:!deploy123
-deploy:x:!deploy@123
-deploy:x:!password
-deploy:x:!12345678
-deploy:x:*
+deploy:x:AtlasNode91
+deploy:x:CedarRoot88
+deploy:x:DeltaForge73
+deploy:x:EmberStack64
+deploy:x:FalconMesh52
+deploy:x:GraniteKey47
+deploy:x:HarborPulse39
+deploy:x:IronVector28
+deploy:x:JadeMatrix84
+deploy:x:KiloBridge76
+deploy:x:LunarCache68
+deploy:x:MantisVault57
+deploy:x:NimbusCore49
+deploy:x:OnyxSignal38
+deploy:x:PrismAnchor27
+deploy:x:QuartzShift95
+deploy:x:RocketFrame83
+deploy:x:SierraRelay71
+deploy:x:TitanMirror62
+deploy:x:UmberShield54
+deploy:x:VortexBeacon46
+deploy:x:WillowCipher37
+deploy:x:XenonCluster29
+deploy:x:YukonThread18
+deploy:x:ZephyrConsole96
+deploy:x:AuroraSocket85
+deploy:x:BinaryHarbor74
+deploy:x:CinderKernel63
+deploy:x:DriftScanner56
+deploy:x:EchoLantern45
+deploy:x:FluxGateway34
+deploy:x:GlacierTunnel26
+deploy:x:HelixMonitor17
+deploy:x:IonCascade93
+deploy:x:JigsawVector82
+deploy:x:KernelHarbor69
+deploy:x:LedgerBeacon58
+deploy:x:MosaicSignal44
+deploy:x:NovaTransit33
+deploy:x:OrbitSentinel24
 
-centos:x:!centos
-centos:x:!123456
-centos:x:!centos12
-centos:x:!centos123
-centos:x:!password
-centos:x:!12345678
-centos:x:*
+centos:x:AtlasNode91
+centos:x:CedarRoot88
+centos:x:DeltaForge73
+centos:x:EmberStack64
+centos:x:FalconMesh52
+centos:x:GraniteKey47
+centos:x:HarborPulse39
+centos:x:IronVector28
+centos:x:JadeMatrix84
+centos:x:KiloBridge76
+centos:x:LunarCache68
+centos:x:MantisVault57
+centos:x:NimbusCore49
+centos:x:OnyxSignal38
+centos:x:PrismAnchor27
+centos:x:QuartzShift95
+centos:x:RocketFrame83
+centos:x:SierraRelay71
+centos:x:TitanMirror62
+centos:x:UmberShield54
+centos:x:VortexBeacon46
+centos:x:WillowCipher37
+centos:x:XenonCluster29
+centos:x:YukonThread18
+centos:x:ZephyrConsole96
+centos:x:AuroraSocket85
+centos:x:BinaryHarbor74
+centos:x:CinderKernel63
+centos:x:DriftScanner56
+centos:x:EchoLantern45
+centos:x:FluxGateway34
+centos:x:GlacierTunnel26
+centos:x:HelixMonitor17
+centos:x:IonCascade93
+centos:x:JigsawVector82
+centos:x:KernelHarbor69
+centos:x:LedgerBeacon58
+centos:x:MosaicSignal44
+centos:x:NovaTransit33
+centos:x:OrbitSentinel24
 
-ansible:x:!ansible
-ansible:x:!ansible1
-ansible:x:!ansible123
-ansible:x:!password
-ansible:x:!12345678
-ansible:x:*
+ansible:x:AtlasNode91
+ansible:x:CedarRoot88
+ansible:x:DeltaForge73
+ansible:x:EmberStack64
+ansible:x:FalconMesh52
+ansible:x:GraniteKey47
+ansible:x:HarborPulse39
+ansible:x:IronVector28
+ansible:x:JadeMatrix84
+ansible:x:KiloBridge76
+ansible:x:LunarCache68
+ansible:x:MantisVault57
+ansible:x:NimbusCore49
+ansible:x:OnyxSignal38
+ansible:x:PrismAnchor27
+ansible:x:QuartzShift95
+ansible:x:RocketFrame83
+ansible:x:SierraRelay71
+ansible:x:TitanMirror62
+ansible:x:UmberShield54
+ansible:x:VortexBeacon46
+ansible:x:WillowCipher37
+ansible:x:XenonCluster29
+ansible:x:YukonThread18
+ansible:x:ZephyrConsole96
+ansible:x:AuroraSocket85
+ansible:x:BinaryHarbor74
+ansible:x:CinderKernel63
+ansible:x:DriftScanner56
+ansible:x:EchoLantern45
+ansible:x:FluxGateway34
+ansible:x:GlacierTunnel26
+ansible:x:HelixMonitor17
+ansible:x:IonCascade93
+ansible:x:JigsawVector82
+ansible:x:KernelHarbor69
+ansible:x:LedgerBeacon58
+ansible:x:MosaicSignal44
+ansible:x:NovaTransit33
+ansible:x:OrbitSentinel24
 
-ec2-user:x:!ec2-user
-ec2-user:x:!123456
-ec2-user:x:!password
-ec2-user:x:!12345678
-ec2-user:x:*
+ec2-user:x:AtlasNode91
+ec2-user:x:CedarRoot88
+ec2-user:x:DeltaForge73
+ec2-user:x:EmberStack64
+ec2-user:x:FalconMesh52
+ec2-user:x:GraniteKey47
+ec2-user:x:HarborPulse39
+ec2-user:x:IronVector28
+ec2-user:x:JadeMatrix84
+ec2-user:x:KiloBridge76
+ec2-user:x:LunarCache68
+ec2-user:x:MantisVault57
+ec2-user:x:NimbusCore49
+ec2-user:x:OnyxSignal38
+ec2-user:x:PrismAnchor27
+ec2-user:x:QuartzShift95
+ec2-user:x:RocketFrame83
+ec2-user:x:SierraRelay71
+ec2-user:x:TitanMirror62
+ec2-user:x:UmberShield54
+ec2-user:x:VortexBeacon46
+ec2-user:x:WillowCipher37
+ec2-user:x:XenonCluster29
+ec2-user:x:YukonThread18
+ec2-user:x:ZephyrConsole96
+ec2-user:x:AuroraSocket85
+ec2-user:x:BinaryHarbor74
+ec2-user:x:CinderKernel63
+ec2-user:x:DriftScanner56
+ec2-user:x:EchoLantern45
+ec2-user:x:FluxGateway34
+ec2-user:x:GlacierTunnel26
+ec2-user:x:HelixMonitor17
+ec2-user:x:IonCascade93
+ec2-user:x:JigsawVector82
+ec2-user:x:KernelHarbor69
+ec2-user:x:LedgerBeacon58
+ec2-user:x:MosaicSignal44
+ec2-user:x:NovaTransit33
+ec2-user:x:OrbitSentinel24
 
-# --- other common users -------------------------------------------------------
-pi:x:!pi
-pi:x:!raspberry
-pi:x:!raspberryraspberry993311
-pi:x:!password
-pi:x:!12345678
-pi:x:*
+pi:x:AtlasNode91
+pi:x:CedarRoot88
+pi:x:DeltaForge73
+pi:x:EmberStack64
+pi:x:FalconMesh52
+pi:x:GraniteKey47
+pi:x:HarborPulse39
+pi:x:IronVector28
+pi:x:JadeMatrix84
+pi:x:KiloBridge76
+pi:x:LunarCache68
+pi:x:MantisVault57
+pi:x:NimbusCore49
+pi:x:OnyxSignal38
+pi:x:PrismAnchor27
+pi:x:QuartzShift95
+pi:x:RocketFrame83
+pi:x:SierraRelay71
+pi:x:TitanMirror62
+pi:x:UmberShield54
+pi:x:VortexBeacon46
+pi:x:WillowCipher37
+pi:x:XenonCluster29
+pi:x:YukonThread18
+pi:x:ZephyrConsole96
+pi:x:AuroraSocket85
+pi:x:BinaryHarbor74
+pi:x:CinderKernel63
+pi:x:DriftScanner56
+pi:x:EchoLantern45
+pi:x:FluxGateway34
+pi:x:GlacierTunnel26
+pi:x:HelixMonitor17
+pi:x:IonCascade93
+pi:x:JigsawVector82
+pi:x:KernelHarbor69
+pi:x:LedgerBeacon58
+pi:x:MosaicSignal44
+pi:x:NovaTransit33
+pi:x:OrbitSentinel24
 
-user:x:!user
-user:x:!123
-user:x:!1234
-user:x:!123456
-user:x:!111111
-user:x:!password
-user:x:!12345678
-user:x:!useruser
-user:x:!user1234
-user:x:!user123456
-user:x:!1qaz@WSX
-user:x:*
+user:x:AtlasNode91
+user:x:CedarRoot88
+user:x:DeltaForge73
+user:x:EmberStack64
+user:x:FalconMesh52
+user:x:GraniteKey47
+user:x:HarborPulse39
+user:x:IronVector28
+user:x:JadeMatrix84
+user:x:KiloBridge76
+user:x:LunarCache68
+user:x:MantisVault57
+user:x:NimbusCore49
+user:x:OnyxSignal38
+user:x:PrismAnchor27
+user:x:QuartzShift95
+user:x:RocketFrame83
+user:x:SierraRelay71
+user:x:TitanMirror62
+user:x:UmberShield54
+user:x:VortexBeacon46
+user:x:WillowCipher37
+user:x:XenonCluster29
+user:x:YukonThread18
+user:x:ZephyrConsole96
+user:x:AuroraSocket85
+user:x:BinaryHarbor74
+user:x:CinderKernel63
+user:x:DriftScanner56
+user:x:EchoLantern45
+user:x:FluxGateway34
+user:x:GlacierTunnel26
+user:x:HelixMonitor17
+user:x:IonCascade93
+user:x:JigsawVector82
+user:x:KernelHarbor69
+user:x:LedgerBeacon58
+user:x:MosaicSignal44
+user:x:NovaTransit33
+user:x:OrbitSentinel24

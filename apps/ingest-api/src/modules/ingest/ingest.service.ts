@@ -5,12 +5,15 @@ import { SessionRepository } from '../sessions/session.repository.js';
 import { EventRepository } from '../events/event.repository.js';
 import type { IngestSummary, CowrieRawEvent } from '../../types/index.js';
 import { sendDiscordAlert } from '../../lib/discord.js';
+import { evaluateThreatAlert } from '../../lib/threat-alerts.js';
 
 export class IngestService {
+  private prisma: PrismaClient;
   private sessionRepo: SessionRepository;
   private eventRepo: EventRepository;
 
   constructor(prisma: PrismaClient) {
+    this.prisma = prisma;
     this.sessionRepo = new SessionRepository(prisma);
     this.eventRepo = new EventRepository(prisma);
   }
@@ -36,6 +39,14 @@ export class IngestService {
           { name: 'Sesión',   value: raw.session, inline: false },
         ],
       })
+    }
+
+    if (
+      eventCreated &&
+      raw.src_ip &&
+      ['cowrie.login.success', 'cowrie.login.failed', 'cowrie.command.input'].includes(raw.eventid)
+    ) {
+      void evaluateThreatAlert(this.prisma, raw.src_ip)
     }
 
     return { sessionCreated, eventCreated };

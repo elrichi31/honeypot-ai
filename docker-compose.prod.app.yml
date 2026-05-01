@@ -43,6 +43,8 @@ services:
       # del VPS honeypot pueda llegar por la VPN (100.x.x.x:3000).
       # El firewall del servidor app debe bloquear :3000 desde internet publico.
       HOST: "0.0.0.0"
+    volumes:
+      - dashboard_data:/app/data
     healthcheck:
       test:
         [

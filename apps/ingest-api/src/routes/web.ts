@@ -5,6 +5,7 @@ import { ensureIngestToken } from '../lib/ingest-auth.js';
 import { isWebHitBot } from '../lib/bot-detector.js';
 import { eventBus } from '../lib/event-bus.js';
 import { lookupGeo } from '../lib/geo.js';
+import { evaluateThreatAlert } from '../lib/threat-alerts.js';
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 5000;
@@ -181,6 +182,7 @@ export async function webRoutes(fastify: FastifyInstance) {
         if (geo) {
           eventBus.emit('attack', { type: 'http', ip: d.srcIp, ...geo, timestamp: d.timestamp })
         }
+        void evaluateThreatAlert(fastify.prisma, d.srcIp)
         return reply.status(201).send({
           id: createdRows[0].id,
           attackType: createdRows[0].attack_type,
@@ -249,6 +251,7 @@ export async function webRoutes(fastify: FastifyInstance) {
           if (geo) {
             eventBus.emit('attack', { type: 'http', ip: d.srcIp, ...geo, timestamp: d.timestamp });
           }
+          void evaluateThreatAlert(fastify.prisma, d.srcIp);
         }
       } catch {
         // skip malformed individual events

@@ -110,6 +110,8 @@ services:
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       PORT: "3000"
       HOST: "0.0.0.0"
+    volumes:
+      - dashboard_data:/app/data
     healthcheck:
       test:
         [
