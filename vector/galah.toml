@@ -1,40 +1,36 @@
-# vector/galah.toml — Galah web honeypot log shipper
+# vector/galah.toml - Galah web honeypot log shipper
 #
 # Tails galah.json (JSONL), transforms each event to the web_hits ingest schema,
-# and POSTs to the ingest-api. Shares data_dir and disk buffer with cowrie.toml.
-#
-# Environment variables (required):
-#   GALAH_LOG_PATH       — path to galah.json inside the container
-#   INGEST_API_URL       — base URL of ingest-api (e.g. http://ingest-api:3000)
-#   INGEST_SHARED_SECRET — shared secret for X-Ingest-Token header
+# and POSTs to the ingest-api.
 
-# ── Source: tail galah.json (JSONL) ────────────────────────────────────────────
 [sources.galah_file]
-type     = "file"
-include  = ["${GALAH_LOG_PATH}"]
+type = "file"
+include = ["${GALAH_LOG_PATH}"]
 read_from = "end"
 fingerprint.strategy = "device_and_inode"
 
-# ── Transform: map Galah event → web_hits ingest schema ────────────────────────
 [transforms.transform_galah]
-type          = "remap"
-inputs        = ["galah_file"]
+type = "remap"
+inputs = ["galah_file"]
 drop_on_error = true
-source        = '''
+source = '''
   . = parse_json!(string!(.message))
 
-  # Normalize IPv4-mapped IPv6 (::ffff:1.2.3.4 → 1.2.3.4)
   src_ip = replace(string(.srcIP) ?? "unknown", r'^::ffff:', "")
 
-  # Split URI into path and query
   uri = string(.httpRequest.request) ?? "/"
   uri_parts = split(uri, "?", limit: 2)
   path = uri_parts[0]
-  query = to_string(if length(uri_parts) > 1 { uri_parts[1] } else { "" }) ?? ""
+
+  raw_query = ""
+  if length(uri_parts) > 1 {
+    raw_query = uri_parts[1]
+  }
+  query_text = to_string(raw_query) ?? ""
 
   user_agent = string(.httpRequest.userAgent) ?? ""
-  body       = string(.httpRequest.body) ?? ""
-  timestamp  = string(.eventTime) ?? string(.time) ?? "1970-01-01T00:00:00Z"
+  body = string(.httpRequest.body) ?? ""
+  event_ts = string(.eventTime) ?? string(.time) ?? "1970-01-01T00:00:00Z"
 
   headers = if is_object(.httpRequest.headers) {
     .httpRequest.headers
@@ -50,15 +46,14 @@ source        = '''
     headers."x-galah-error-type" = galah_error_type
   }
 
-  # Classify attack type by path / query / user-agent
   attack_type = "recon"
-  if match(path, r'(?i)(union.{0,20}select|select.{0,20}from|insert\s+into|drop\s+table|exec\s*\(|sleep\s*\()') || match(query, r'(?i)(union.{0,20}select|sleep\s*\()') {
+  if match(path, r'(?i)(union.{0,20}select|select.{0,20}from|insert\s+into|drop\s+table|exec\s*\(|sleep\s*\()') || match(query_text, r'(?i)(union.{0,20}select|sleep\s*\()') {
     attack_type = "sqli"
-  } else if match(path, r'(?i)(<script|javascript:|onerror=|onload=)') || match(query, r'(?i)(<script|javascript:)') {
+  } else if match(path, r'(?i)(<script|javascript:|onerror=|onload=)') || match(query_text, r'(?i)(<script|javascript:)') {
     attack_type = "xss"
-  } else if match(path, r'(?i)(\.\./|%2e%2e%2f|%252e%252e)') || match(query, r'(?i)(\.\./|%2e%2e%2f|%252e%252e)') {
+  } else if match(path, r'(?i)(\.\./|%2e%2e%2f|%252e%252e)') || match(query_text, r'(?i)(\.\./|%2e%2e%2f|%252e%252e)') {
     attack_type = "lfi"
-  } else if match(path, r'(?i)(cmd\s*=|exec\s*=|/bin/sh|/bin/bash|system\s*\()') || match(query, r'(?i)(cmd\s*=|exec\s*=|/bin/sh|/bin/bash|system\s*\()') || match(body, r'(?i)(/bin/sh|cmd\.exe|wget\s+http|curl\s+http)') {
+  } else if match(path, r'(?i)(cmd\s*=|exec\s*=|/bin/sh|/bin/bash|system\s*\()') || match(query_text, r'(?i)(cmd\s*=|exec\s*=|/bin/sh|/bin/bash|system\s*\()') || match(body, r'(?i)(/bin/sh|cmd\.exe|wget\s+http|curl\s+http)') {
     attack_type = "cmdi"
   } else if match(path, r'(?i)(\.env$|\.git/|\.htaccess|wp-config\.php|config\.php|credentials|/\.aws/|/id_rsa|/known_hosts)') {
     attack_type = "info_disclosure"
@@ -68,42 +63,39 @@ source        = '''
     attack_type = "recon"
   }
 
-  # Rebuild as web event expected by /ingest/web/event
-  . = {
-    "eventId":    uuid_v4(),
-    "timestamp":  timestamp,
-    "srcIp":      src_ip,
-    "method":     string(.httpRequest.method) ?? "GET",
-    "path":       path,
-    "query":      query,
-    "userAgent":  user_agent,
-    "headers":    headers,
-    "body":       body,
-    "attackType": attack_type
-  }
+  . = {}
+  .eventId = uuid_v4()
+  .timestamp = event_ts
+  .srcIp = src_ip
+  .method = string(.httpRequest.method) ?? "GET"
+  .path = path
+  .query = query_text
+  .userAgent = user_agent
+  .headers = headers
+  .body = body
+  .attackType = attack_type
 '''
 
-# ── Sink: POST batches to ingest-api ───────────────────────────────────────────
 [sinks.galah_ingest]
-type   = "http"
+type = "http"
 inputs = ["transform_galah"]
-uri    = "${INGEST_API_URL}/ingest/web/vector"
+uri = "${INGEST_API_URL}/ingest/web/vector"
 method = "post"
 
 encoding.codec = "json"
 
 [sinks.galah_ingest.batch]
-max_events   = 50
+max_events = 50
 timeout_secs = 2
 
 [sinks.galah_ingest.request]
-headers.Content-Type   = "application/json"
+headers.Content-Type = "application/json"
 headers.X-Ingest-Token = "${INGEST_SHARED_SECRET}"
-retry_attempts             = 360
+retry_attempts = 360
 retry_initial_backoff_secs = 1
-retry_max_duration_secs    = 10
+retry_max_duration_secs = 10
 
 [sinks.galah_ingest.buffer]
-type      = "disk"
-max_size  = 268435488   # Vector 0.40 minimum disk buffer size
+type = "disk"
+max_size = 268435488
 when_full = "block"
