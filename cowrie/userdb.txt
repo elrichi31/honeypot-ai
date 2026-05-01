@@ -10,6 +10,7 @@
 # successful logins from common internet spray traffic.
 
 # Shared whitelist of accepted passwords (40 total, all > 8 chars):
+# HoneyTrap2026!
 # AtlasNode91
 # CedarRoot88
 # DeltaForge73
@@ -52,6 +53,7 @@
 # OrbitSentinel24
 
 # --- root --------------------------------------------------------------------
+root:x:HoneyTrap2026!
 root:x:AtlasNode91
 root:x:CedarRoot88
 root:x:DeltaForge73
@@ -94,6 +96,7 @@ root:x:NovaTransit33
 root:x:OrbitSentinel24
 
 # --- ubuntu ------------------------------------------------------------------
+ubuntu:x:HoneyTrap2026!
 ubuntu:x:AtlasNode91
 ubuntu:x:CedarRoot88
 ubuntu:x:DeltaForge73
@@ -136,6 +139,7 @@ ubuntu:x:NovaTransit33
 ubuntu:x:OrbitSentinel24
 
 # --- admin -------------------------------------------------------------------
+admin:x:HoneyTrap2026!
 admin:x:AtlasNode91
 admin:x:CedarRoot88
 admin:x:DeltaForge73

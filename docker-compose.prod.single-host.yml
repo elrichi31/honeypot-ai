@@ -14,6 +14,7 @@ services:
     container_name: cowrie
     ports:
       - "22:2222"
+      - "2222:2222"
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var
       - ./cowrie/cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
@@ -36,8 +37,8 @@ services:
       SENSOR_IP: ${HONEYPOT_IP:-}
       SENSOR_PROTOCOL: ssh
       SENSOR_VERSION: cowrie
-      SENSOR_PORTS: "22"
-      SENSOR_PROBE_PORTS: "2222"
+      SENSOR_PORTS: "22 2222"
+      SENSOR_PROBE_PORTS: "2222 2222"
       SENSOR_HOST: cowrie
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
