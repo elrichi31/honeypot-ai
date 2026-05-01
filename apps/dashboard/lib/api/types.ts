@@ -299,23 +299,61 @@ export interface ThreatSummary {
   ip:           string
   score:        number
   level:        RiskLevel
+  protocolsSeen: string[]
   crossProtocol: boolean
   topFactors:   string[]
-  breakdown:    { ssh: number; web: number; commands: number; crossProto: number }
+  breakdown:    { ssh: number; web: number; protocols: number; commands: number; crossProto: number }
   commandCategories: Record<string, number>
   ssh: { sessions: number; authAttempts: number; loginSuccess: boolean; commandCount: number } | null
   web: { hits: number; attackTypes: string[] } | null
+  protocols: {
+    names: string[]
+    totalHits: number
+    authAttempts: number
+    commandEvents: number
+    connectEvents: number
+    uniquePorts: number
+    credentialReuse: boolean
+    byService: Record<string, {
+      hits: number
+      authAttempts: number
+      commandEvents: number
+      connectEvents: number
+      ports: number[]
+    }>
+    usernames: string[]
+    passwords: string[]
+  } | null
 }
 
 export interface ThreatDetail {
   ip:           string
+  protocolsSeen: string[]
   crossProtocol: boolean
   ssh: { sessions: number; authAttempts: number; loginSuccess: boolean } | null
   web: { hits: number; attackTypes: string[] } | null
+  protocols: {
+    names: string[]
+    totalHits: number
+    authAttempts: number
+    commandEvents: number
+    connectEvents: number
+    uniquePorts: number
+    credentialReuse: boolean
+    byService: Record<string, {
+      hits: number
+      authAttempts: number
+      commandEvents: number
+      connectEvents: number
+      ports: number[]
+    }>
+    usernames: string[]
+    passwords: string[]
+  } | null
   risk: {
     score:      number
     level:      RiskLevel
-    breakdown:  { ssh: number; web: number; commands: number; crossProto: number }
+    breakdown:  { ssh: number; web: number; protocols: number; commands: number; crossProto: number }
     topFactors: string[]
     commandCategories: Record<string, string[]>
   }

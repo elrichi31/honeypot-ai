@@ -5,6 +5,22 @@ import { TablePagination } from "@/components/table-pagination"
 import type { PaginationMeta, ThreatSummary } from "@/lib/api"
 import { LEVEL_STYLES, CMD_COLORS, CMD_LABELS_SHORT as CMD_LABELS } from "@/lib/attack-types"
 
+const PROTOCOL_LABELS: Record<string, string> = {
+  ssh: "SSH",
+  http: "HTTP",
+  ftp: "FTP",
+  mysql: "MYSQL",
+  "port-scan": "PORT-SCAN",
+}
+
+const PROTOCOL_STYLES: Record<string, string> = {
+  ssh: "border-cyan-500/20 bg-cyan-500/10 text-cyan-400",
+  http: "border-blue-500/20 bg-blue-500/10 text-blue-400",
+  ftp: "border-amber-500/20 bg-amber-500/10 text-amber-400",
+  mysql: "border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-400",
+  "port-scan": "border-emerald-500/20 bg-emerald-500/10 text-emerald-400",
+}
+
 export function ThreatsTable({
   threats,
   pagination,
@@ -25,7 +41,7 @@ export function ThreatsTable({
         {threats.length === 0 ? (
           <div className="p-12 text-center">
             <p className="text-sm text-muted-foreground">No hay datos de amenazas aun.</p>
-            <p className="mt-1 text-xs text-muted-foreground/60">Apareceran aqui cuando se detecten atacantes SSH o HTTP.</p>
+            <p className="mt-1 text-xs text-muted-foreground/60">Apareceran aqui cuando se detecten atacantes en SSH, HTTP o servicios correlacionados.</p>
           </div>
         ) : (
           <table className="min-w-[1180px] w-full text-sm">
@@ -44,6 +60,17 @@ export function ThreatsTable({
               {threats.map((threat, index) => {
                 const style = LEVEL_STYLES[threat.level]
                 const activeCommands = Object.entries(threat.commandCategories).filter(([, value]) => value > 0)
+                const protocolBadges = threat.protocolsSeen.map((protocol) => {
+                  const label = PROTOCOL_LABELS[protocol] ?? protocol.toUpperCase()
+                  const badgeStyle = PROTOCOL_STYLES[protocol] ?? "border-border bg-muted/10 text-muted-foreground"
+                  const protocolStats = threat.protocols?.byService?.[protocol]
+                  const value =
+                    protocol === "ssh" ? `${threat.ssh?.sessions ?? 0}s`
+                    : protocol === "http" ? `${threat.web?.hits ?? 0}h`
+                    : `${protocolStats?.hits ?? 0}e`
+
+                  return { protocol, label, badgeStyle, value }
+                })
 
                 return (
                   <tr
@@ -59,7 +86,7 @@ export function ThreatsTable({
                         <span className="font-mono text-sm font-medium text-foreground">{threat.ip}</span>
                         {threat.crossProtocol && (
                           <span className="inline-flex items-center rounded-full border border-purple-500/30 bg-purple-500/15 px-1.5 py-0.5 text-[10px] font-medium text-purple-400">
-                            SSH+HTTP
+                            MULTI {threat.protocolsSeen.length}
                           </span>
                         )}
                       </div>
@@ -81,17 +108,15 @@ export function ThreatsTable({
                     </td>
 
                     <td className="px-4 py-3">
-                      <div className="flex gap-1">
-                        {threat.ssh && (
-                          <span className="inline-flex items-center rounded border border-cyan-500/20 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-medium text-cyan-400">
-                            SSH {threat.ssh.sessions}s
+                      <div className="flex flex-wrap gap-1">
+                        {protocolBadges.map(({ protocol, label, badgeStyle, value }) => (
+                          <span
+                            key={protocol}
+                            className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium ${badgeStyle}`}
+                          >
+                            {label} {value}
                           </span>
-                        )}
-                        {threat.web && (
-                          <span className="inline-flex items-center rounded border border-blue-500/20 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-400">
-                            HTTP {threat.web.hits}h
-                          </span>
-                        )}
+                        ))}
                       </div>
                     </td>
 

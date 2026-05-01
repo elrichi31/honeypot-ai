@@ -46,6 +46,7 @@ export default async function ThreatDetailPage({
   const breakdownItems = [
     { label: "SSH",           value: threat.risk.breakdown.ssh,        color: "bg-cyan-500" },
     { label: "Web",           value: threat.risk.breakdown.web,        color: "bg-blue-500" },
+    { label: "Services",      value: threat.risk.breakdown.protocols,  color: "bg-emerald-500" },
     { label: "Commands",      value: threat.risk.breakdown.commands,   color: "bg-orange-500" },
     { label: "Cross-protocol",value: threat.risk.breakdown.crossProto, color: "bg-purple-500" },
   ]
@@ -69,7 +70,7 @@ export default async function ThreatDetailPage({
                 </span>
                 {threat.crossProtocol && (
                   <span className="inline-flex items-center rounded-full bg-purple-500/15 border border-purple-500/30 px-2.5 py-1 text-xs font-medium text-purple-400">
-                    SSH + HTTP
+                    Multi-service x{threat.protocolsSeen.length}
                   </span>
                 )}
               </div>
@@ -158,6 +159,80 @@ export default async function ThreatDetailPage({
                       {threat.ssh.loginSuccess ? "Sí" : "No"}
                     </span>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {threat.protocols && (
+              <div className="rounded-xl border border-border bg-card">
+                <div className="border-b border-border p-4 flex items-center gap-2">
+                  <ShieldAlert className="h-4 w-4 text-emerald-400" />
+                  <h3 className="font-semibold text-foreground">Service Honeypots</h3>
+                </div>
+                <div className="space-y-4 p-4 text-sm">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-lg border border-border bg-secondary/30 p-3">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Protocols seen</p>
+                      <p className="mt-1 font-mono text-lg font-semibold text-foreground">{threat.protocols.names.length}</p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-secondary/30 p-3">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Unique ports</p>
+                      <p className="mt-1 font-mono text-lg font-semibold text-foreground">{threat.protocols.uniquePorts}</p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-secondary/30 p-3">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Service auth</p>
+                      <p className="mt-1 font-mono text-lg font-semibold text-foreground">{threat.protocols.authAttempts}</p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-secondary/30 p-3">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Service commands</p>
+                      <p className="mt-1 font-mono text-lg font-semibold text-foreground">{threat.protocols.commandEvents}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="mb-2 text-muted-foreground">By service</p>
+                    <div className="space-y-2">
+                      {Object.entries(threat.protocols.byService).map(([protocol, stats]) => (
+                        <div key={protocol} className="rounded-lg border border-border bg-secondary/20 p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="font-mono text-xs font-semibold uppercase tracking-wide text-foreground">{protocol}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {stats.ports.length > 0 ? `ports ${stats.ports.join(", ")}` : "no port data"}
+                            </span>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                            <span>events {stats.hits}</span>
+                            <span>auth {stats.authAttempts}</span>
+                            <span>commands {stats.commandEvents}</span>
+                            <span>connect {stats.connectEvents}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {(threat.protocols.usernames.length > 0 || threat.protocols.passwords.length > 0) && (
+                    <div className="space-y-2">
+                      <p className="text-muted-foreground">Credential signal</p>
+                      <div className="flex flex-wrap gap-2">
+                        {threat.protocols.credentialReuse && (
+                          <span className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-400">
+                            Reused across services
+                          </span>
+                        )}
+                        {threat.protocols.usernames.slice(0, 6).map((username) => (
+                          <span key={`u-${username}`} className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs text-foreground">
+                            user {username}
+                          </span>
+                        ))}
+                        {threat.protocols.passwords.slice(0, 4).map((password) => (
+                          <span key={`p-${password}`} className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs text-foreground">
+                            pass {password}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
