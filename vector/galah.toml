@@ -32,7 +32,12 @@ source = '''
 
   user_agent = string(.httpRequest.userAgent) ?? ""
   body = string(.httpRequest.body) ?? ""
-  event_ts = string(.eventTime) ?? string(.time) ?? "1970-01-01T00:00:00Z"
+  event_time_raw = string(.eventTime) ?? string(.time) ?? ""
+  event_time_parts = split(event_time_raw, " ")
+  event_date = string!(event_time_parts[0])
+  event_clock = string!(event_time_parts[1])
+  event_offset = string!(event_time_parts[2])
+  event_ts = event_date + "T" + event_clock + slice!(event_offset, 0, 3) + ":" + slice!(event_offset, 3, 5)
 
   headers = if is_object(.httpRequest.headers) {
     .httpRequest.headers
