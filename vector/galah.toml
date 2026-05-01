@@ -20,13 +20,13 @@ source = '''
 
   uri = string(.httpRequest.request) ?? "/"
   uri_parts = split(uri, "?", limit: 2)
-  path = uri_parts[0]
+  path_text = string!(uri_parts[0])
 
   raw_query = ""
   if length(uri_parts) > 1 {
     raw_query = uri_parts[1]
   }
-  query_text = to_string(raw_query)
+  query_text = string!(to_string(raw_query))
 
   user_agent = string(.httpRequest.userAgent) ?? ""
   body = string(.httpRequest.body) ?? ""
@@ -47,19 +47,19 @@ source = '''
   }
 
   attack_type = "recon"
-  if match(path, r'(?i)(union.{0,20}select|select.{0,20}from|insert\s+into|drop\s+table|exec\s*\(|sleep\s*\()') || match(query_text, r'(?i)(union.{0,20}select|sleep\s*\()') {
+  if match(path_text, r'(?i)(union.{0,20}select|select.{0,20}from|insert\s+into|drop\s+table|exec\s*\(|sleep\s*\()') || match(query_text, r'(?i)(union.{0,20}select|sleep\s*\()') {
     attack_type = "sqli"
-  } else if match(path, r'(?i)(<script|javascript:|onerror=|onload=)') || match(query_text, r'(?i)(<script|javascript:)') {
+  } else if match(path_text, r'(?i)(<script|javascript:|onerror=|onload=)') || match(query_text, r'(?i)(<script|javascript:)') {
     attack_type = "xss"
-  } else if match(path, r'(?i)(\.\./|%2e%2e%2f|%252e%252e)') || match(query_text, r'(?i)(\.\./|%2e%2e%2f|%252e%252e)') {
+  } else if match(path_text, r'(?i)(\.\./|%2e%2e%2f|%252e%252e)') || match(query_text, r'(?i)(\.\./|%2e%2e%2f|%252e%252e)') {
     attack_type = "lfi"
-  } else if match(path, r'(?i)(cmd\s*=|exec\s*=|/bin/sh|/bin/bash|system\s*\()') || match(query_text, r'(?i)(cmd\s*=|exec\s*=|/bin/sh|/bin/bash|system\s*\()') || match(body, r'(?i)(/bin/sh|cmd\.exe|wget\s+http|curl\s+http)') {
+  } else if match(path_text, r'(?i)(cmd\s*=|exec\s*=|/bin/sh|/bin/bash|system\s*\()') || match(query_text, r'(?i)(cmd\s*=|exec\s*=|/bin/sh|/bin/bash|system\s*\()') || match(body, r'(?i)(/bin/sh|cmd\.exe|wget\s+http|curl\s+http)') {
     attack_type = "cmdi"
-  } else if match(path, r'(?i)(\.env$|\.git/|\.htaccess|wp-config\.php|config\.php|credentials|/\.aws/|/id_rsa|/known_hosts)') {
+  } else if match(path_text, r'(?i)(\.env$|\.git/|\.htaccess|wp-config\.php|config\.php|credentials|/\.aws/|/id_rsa|/known_hosts)') {
     attack_type = "info_disclosure"
   } else if match(user_agent, r'(?i)(nikto|nmap|sqlmap|masscan|zgrab|nuclei|dirbuster|gobuster|nessus|openvas|python-requests|go-http-client|libwww-perl|scrapy|curl/)') {
     attack_type = "scanner"
-  } else if match(path, r'(?i)(wp-login|wp-admin|xmlrpc\.php|wp-content|wp-includes|wordpress|/api/|/graphql|/rest/|/v[0-9]+/|/swagger|/openapi)') {
+  } else if match(path_text, r'(?i)(wp-login|wp-admin|xmlrpc\.php|wp-content|wp-includes|wordpress|/api/|/graphql|/rest/|/v[0-9]+/|/swagger|/openapi)') {
     attack_type = "recon"
   }
 
@@ -68,7 +68,7 @@ source = '''
   .timestamp = event_ts
   .srcIp = src_ip
   .method = string(.httpRequest.method) ?? "GET"
-  .path = path
+  .path = path_text
   .query = query_text
   .userAgent = user_agent
   .headers = headers
