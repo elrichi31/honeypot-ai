@@ -2,6 +2,8 @@ import { fetchProtocolStats, fetchProtocolHits, fetchTargetPortStats } from "@/l
 import { PageShell } from "@/components/page-shell"
 import { Network, Clock, Key } from "lucide-react"
 import { ProtocolHitsTable } from "./protocol-hits-table"
+import { readConfig } from "@/lib/server-config"
+import { formatInTimezone } from "@/lib/timezone"
 
 const PROTOCOL_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   ftp: { bg: "bg-yellow-400/10", text: "text-yellow-400", border: "border-yellow-400/30" },
@@ -13,10 +15,6 @@ function defaultColor() {
   return { bg: "bg-slate-400/10", text: "text-slate-400", border: "border-slate-400/30" }
 }
 
-function formatDate(d: string) {
-  return new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-}
-
 export default async function ServicesPage({
   searchParams,
 }: {
@@ -25,6 +23,11 @@ export default async function ServicesPage({
   const params = await searchParams
   const page = Number(params.page ?? "1")
   const protocol = params.protocol || undefined
+
+  const config = readConfig()
+  const tz = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
+  const formatDate = (d: string) =>
+    formatInTimezone(d, tz, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
 
   const [stats, portStats, hitsPage] = await Promise.all([
     fetchProtocolStats(),

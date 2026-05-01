@@ -2,6 +2,8 @@ import Link from "next/link"
 import { ArrowLeft, Clock, Fingerprint, Key, Network } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { StatCard } from "@/components/stat-card"
+import { readConfig } from "@/lib/server-config"
+import { formatInTimezone } from "@/lib/timezone"
 import type { ProtocolHit, ProtocolInsights } from "@/lib/api"
 
 type ProtocolKind = "ftp" | "mysql" | "port-scan"
@@ -30,14 +32,11 @@ const COPY: Record<ProtocolKind, { title: string; description: string }> = {
   },
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return "-"
-  return new Date(value).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
+function makeFormatDate(tz: string) {
+  return (value: string | null | undefined) => {
+    if (!value) return "-"
+    return formatInTimezone(value, tz, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+  }
 }
 
 function dataValue(data: Record<string, unknown> | null | undefined, key: string) {
@@ -89,6 +88,10 @@ export function ProtocolDetailPage({
   insights: ProtocolInsights
   hits: ProtocolHit[]
 }) {
+  const config = readConfig()
+  const tz = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
+  const formatDate = makeFormatDate(tz)
+
   const copy = COPY[protocol]
   const isFtp = protocol === "ftp"
   const isMysql = protocol === "mysql"

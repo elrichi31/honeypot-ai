@@ -1,3 +1,5 @@
+import { readConfig } from "@/lib/server-config"
+import { formatInTimezone } from "@/lib/timezone"
 import type { ProtocolHit } from "@/lib/api"
 
 const PROTOCOL_BADGE: Record<string, string> = {
@@ -19,6 +21,11 @@ interface Props {
 }
 
 export function ProtocolHitsTable({ hits, meta, protocol }: Props) {
+  const config = readConfig()
+  const tz = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
+  const formatDate = (v: string) =>
+    formatInTimezone(v, tz, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+
   const totalPages = Math.ceil(meta.total / meta.limit)
   const buildHref = (p: number) =>
     `/services?page=${p}${protocol ? `&protocol=${protocol}` : ""}`
@@ -63,10 +70,7 @@ export function ProtocolHitsTable({ hits, meta, protocol }: Props) {
                   </td>
                   <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{hit.username ?? "—"}</td>
                   <td className="px-4 py-2 text-xs text-muted-foreground">
-                    {new Date(hit.timestamp).toLocaleString("en-US", {
-                      month: "short", day: "numeric",
-                      hour: "2-digit", minute: "2-digit", second: "2-digit",
-                    })}
+                    {formatDate(hit.timestamp)}
                   </td>
                 </tr>
               ))

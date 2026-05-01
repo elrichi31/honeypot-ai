@@ -11,15 +11,6 @@ const PROTOCOL_META: Record<string, { label: string; icon: React.ElementType; co
   http:       { label: "HTTP",      icon: Globe,    color: "text-green-400",   bg: "bg-green-400/10" },
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value || new Date(value).getTime() === 0) return "-"
-  return new Date(value).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-}
 
 function formatRelative(value: string | null | undefined) {
   if (!value || new Date(value).getTime() === 0) return "-"
