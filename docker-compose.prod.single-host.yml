@@ -20,6 +20,7 @@ services:
       - ./cowrie/userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
     networks:
       - edge
+      - honeypot_ingest
     pids_limit: 256
 
   cowrie-beacon:
@@ -36,6 +37,7 @@ services:
       SENSOR_PROTOCOL: ssh
       SENSOR_VERSION: cowrie
       SENSOR_PORTS: "22"
+      SENSOR_HOST: cowrie
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
     volumes:
@@ -72,6 +74,7 @@ services:
       - dashboard_data:/dashboard_data:ro
     networks:
       - edge
+      - honeypot_ingest
     pids_limit: 256
 
   galah-beacon:
@@ -88,6 +91,7 @@ services:
       SENSOR_PROTOCOL: http
       SENSOR_VERSION: galah
       SENSOR_PORTS: "80"
+      SENSOR_HOST: galah
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
     volumes:

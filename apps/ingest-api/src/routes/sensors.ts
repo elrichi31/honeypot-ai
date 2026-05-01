@@ -10,6 +10,9 @@ const heartbeatSchema = z.object({
   ip: z.string().default(''),
   version: z.string().default(''),
   ports: z.array(z.number().int().min(1).max(65535)).default([]),
+  // Optional Docker service hostname — when provided, used for TCP probing instead
+  // of request.ip so beacons (sidecars) correctly point to their honeypot container.
+  host: z.string().default(''),
 })
 
 function tcpProbe(host: string, port: number, timeoutMs = 2000): Promise<boolean> {
@@ -43,10 +46,10 @@ export async function sensorRoutes(fastify: FastifyInstance) {
 
     const d = parsed.data
     const now = new Date()
-    // Capture the actual TCP source IP — used later for port probing.
-    // In single-host Docker this is the container's internal IP.
-    // In multi-host VPN setups this is the VPN interface IP of the remote server.
-    const probeHost = normalizeIp(request.ip ?? '')
+    // Use explicit Docker hostname if provided (beacon sidecars must set this so the
+    // probe reaches the actual honeypot container, not the beacon).
+    // Fall back to request.ip for honeypots that heartbeat themselves.
+    const probeHost = d.host || normalizeIp(request.ip ?? '')
 
     await fastify.prisma.$executeRaw`
       INSERT INTO sensors (id, sensor_id, name, protocol, ip, version, ports, probe_host, last_seen, created_at)
