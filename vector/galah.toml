@@ -20,13 +20,15 @@ source = '''
 
   uri = string(.httpRequest.request) ?? "/"
   uri_parts = split(uri, "?", limit: 2)
-  path_text = string!(uri_parts[0])
-
-  raw_query = ""
-  if length(uri_parts) > 1 {
-    raw_query = uri_parts[1]
+  path_text = "/"
+  if length(uri_parts) > 0 {
+    path_text = string!(uri_parts[0])
   }
-  query_text = string!(to_string(raw_query))
+
+  query_text = ""
+  if length(uri_parts) > 1 {
+    query_text = string!(uri_parts[1])
+  }
 
   user_agent = string(.httpRequest.userAgent) ?? ""
   body = string(.httpRequest.body) ?? ""
