@@ -143,6 +143,7 @@ export async function webRoutes(fastify: FastifyInstance) {
     try {
       const createdRows = await fastify.prisma.$queryRaw<Array<{ id: string; attack_type: string }>>`
         INSERT INTO web_hits (
+          id,
           event_id,
           src_ip,
           method,
@@ -155,6 +156,7 @@ export async function webRoutes(fastify: FastifyInstance) {
           timestamp
         )
         VALUES (
+          gen_random_uuid()::text,
           ${d.eventId},
           ${d.srcIp},
           ${d.method},
@@ -212,10 +214,12 @@ export async function webRoutes(fastify: FastifyInstance) {
       try {
         const rows = await fastify.prisma.$queryRaw<Array<{ id: string }>>`
           INSERT INTO web_hits (
+            id,
             event_id, src_ip, method, path, query,
             user_agent, headers, body, attack_type, timestamp
           )
           VALUES (
+            gen_random_uuid()::text,
             ${d.eventId}, ${d.srcIp}, ${d.method}, ${d.path}, ${d.query},
             ${d.userAgent},
             CAST(${JSON.stringify(d.headers)} AS jsonb),
