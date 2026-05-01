@@ -34,6 +34,21 @@ source        = '''
 
   user_agent = string(.httpRequest.userAgent) ?? ""
   body       = string(.httpRequest.body) ?? ""
+  timestamp  = string(.eventTime) ?? string(.time) ?? "1970-01-01T00:00:00Z"
+
+  headers = if is_object(.httpRequest.headers) {
+    .httpRequest.headers
+  } else {
+    {}
+  }
+
+  galah_msg = string(.msg) ?? ""
+  headers."x-galah-result" = galah_msg
+
+  galah_error_type = string(.error.type) ?? ""
+  if galah_error_type != "" {
+    headers."x-galah-error-type" = galah_error_type
+  }
 
   # Classify attack type by path / query / user-agent
   attack_type = "recon"
@@ -41,30 +56,28 @@ source        = '''
     attack_type = "sqli"
   } else if match(path, r'(?i)(<script|javascript:|onerror=|onload=)') || match(query, r'(?i)(<script|javascript:)') {
     attack_type = "xss"
-  } else if match(path, r'(?i)(\.\./|%2e%2e%2f|%252e%252e)') {
-    attack_type = "traversal"
-  } else if match(path, r'(?i)(cmd\s*=|exec\s*=|/bin/sh|/bin/bash|system\s*\()') || match(body, r'(?i)(/bin/sh|cmd\.exe)') {
-    attack_type = "rce"
-  } else if match(path, r'(?i)(wp-login|wp-admin|xmlrpc\.php|wp-content|wp-includes|wordpress)') {
-    attack_type = "wordpress"
-  } else if match(path, r'(?i)(\.env$|\.git/|\.htaccess|wp-config\.php|config\.php|credentials)') {
-    attack_type = "config-exposure"
-  } else if match(path, r'(?i)(/api/|/graphql|/rest/|/v[0-9]+/|/swagger|/openapi)') {
-    attack_type = "api-probe"
+  } else if match(path, r'(?i)(\.\./|%2e%2e%2f|%252e%252e)') || match(query, r'(?i)(\.\./|%2e%2e%2f|%252e%252e)') {
+    attack_type = "lfi"
+  } else if match(path, r'(?i)(cmd\s*=|exec\s*=|/bin/sh|/bin/bash|system\s*\()') || match(query, r'(?i)(cmd\s*=|exec\s*=|/bin/sh|/bin/bash|system\s*\()') || match(body, r'(?i)(/bin/sh|cmd\.exe|wget\s+http|curl\s+http)') {
+    attack_type = "cmdi"
+  } else if match(path, r'(?i)(\.env$|\.git/|\.htaccess|wp-config\.php|config\.php|credentials|/\.aws/|/id_rsa|/known_hosts)') {
+    attack_type = "info_disclosure"
   } else if match(user_agent, r'(?i)(nikto|nmap|sqlmap|masscan|zgrab|nuclei|dirbuster|gobuster|nessus|openvas|python-requests|go-http-client|libwww-perl|scrapy|curl/)') {
     attack_type = "scanner"
+  } else if match(path, r'(?i)(wp-login|wp-admin|xmlrpc\.php|wp-content|wp-includes|wordpress|/api/|/graphql|/rest/|/v[0-9]+/|/swagger|/openapi)') {
+    attack_type = "recon"
   }
 
   # Rebuild as web event expected by /ingest/web/event
   . = {
     "eventId":    uuid_v4(),
-    "timestamp":  string!(.timestamp),
+    "timestamp":  timestamp,
     "srcIp":      src_ip,
     "method":     string(.httpRequest.method) ?? "GET",
     "path":       path,
     "query":      query,
     "userAgent":  user_agent,
-    "headers":    {},
+    "headers":    headers,
     "body":       body,
     "attackType": attack_type
   }

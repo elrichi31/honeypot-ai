@@ -50,6 +50,8 @@ type WebHitRow = {
   userAgent: string;
   attackType: string;
   timestamp: Date;
+  galahResult: string | null;
+  galahErrorType: string | null;
   isBot: boolean;
 };
 
@@ -230,6 +232,8 @@ export async function webRoutes(fastify: FastifyInstance) {
           user_agent AS "userAgent",
           attack_type AS "attackType",
           timestamp,
+          headers->>'x-galah-result' AS "galahResult",
+          headers->>'x-galah-error-type' AS "galahErrorType",
           FALSE AS "isBot"
         FROM web_hits
         ${whereSql}

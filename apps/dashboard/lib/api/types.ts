@@ -268,6 +268,8 @@ export interface WebHit {
   userAgent:  string
   attackType: string
   timestamp:  string
+  galahResult?: string | null
+  galahErrorType?: string | null
 }
 
 export interface WebHitByIp {

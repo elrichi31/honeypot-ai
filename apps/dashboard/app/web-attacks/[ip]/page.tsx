@@ -47,6 +47,7 @@ export default async function WebAttackerDetailPage({
     .slice(0, 15)
 
   const uniqueUAs = [...new Set(attacker.userAgents)]
+  const galahFailures = hits.filter((hit) => hit.galahResult?.includes("failedResponse")).length
 
   return (
     <PageShell>
@@ -93,7 +94,7 @@ export default async function WebAttackerDetailPage({
           <StatCard icon={MousePointerClick} label="Total hits" value={attacker.totalHits.toLocaleString('en-US')} color="text-warning" bg="bg-warning/20" />
           <StatCard icon={Shield} label="Tipos de ataque" value={attacker.attackTypes.length} />
           <StatCard icon={Globe} label="Paths únicos" value={Object.keys(pathCount).length} />
-          <StatCard icon={Clock} label="Duración campaña" value={(() => {
+          <StatCard icon={Clock} label={galahFailures > 0 ? "Fallos Galah" : "Duración campaña"} value={galahFailures > 0 ? galahFailures : (() => {
             const ms = new Date(attacker.lastSeen).getTime() - new Date(attacker.firstSeen).getTime()
             const h = Math.floor(ms / 3_600_000)
             const m = Math.floor((ms % 3_600_000) / 60_000)
@@ -171,6 +172,7 @@ export default async function WebAttackerDetailPage({
                     <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Método</th>
                     <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Path</th>
                     <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Tipo</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Resultado</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -194,6 +196,19 @@ export default async function WebAttackerDetailPage({
                           <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-medium ${ATTACK_COLORS[hit.attackType] ?? ATTACK_COLORS.recon}`}>
                             {ATTACK_LABELS[hit.attackType] ?? hit.attackType}
                           </span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-2">
+                          {hit.galahResult?.includes("failedResponse") ? (
+                            <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-xs font-medium text-amber-300">
+                              {hit.galahErrorType ?? "failedResponse"}
+                            </span>
+                          ) : hit.galahResult ? (
+                            <span className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-xs font-medium text-emerald-300">
+                              ok
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
                         </td>
                       </tr>
                     )
