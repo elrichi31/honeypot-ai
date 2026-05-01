@@ -17,7 +17,7 @@ const webHitSchema = z.object({
   path: z.string().min(1),
   query: z.string().default(''),
   userAgent: z.string().default(''),
-  headers: z.record(z.string()).default({}),
+  headers: z.unknown().default({}),
   body: z.string().default(''),
   attackType: z.string().min(1),
 });
@@ -65,6 +65,40 @@ type IpStatRow = {
   count: number;
 };
 
+export function normalizeHeaders(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return {};
+  }
+
+  const result: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === 'string') {
+      result[key] = value;
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      result[key] = value
+        .filter((item): item is string | number | boolean => ['string', 'number', 'boolean'].includes(typeof item))
+        .map(String)
+        .join(', ');
+      continue;
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      result[key] = String(value);
+      continue;
+    }
+
+    if (value && typeof value === 'object') {
+      result[key] = JSON.stringify(value);
+    }
+  }
+
+  return result;
+}
+
 function buildByIpWhereSql(query?: string) {
   const clauses: Prisma.Sql[] = [Prisma.sql`1 = 1`];
 
@@ -104,6 +138,7 @@ export async function webRoutes(fastify: FastifyInstance) {
     }
 
     const d = parsed.data;
+    const headers = normalizeHeaders(d.headers);
 
     try {
       const createdRows = await fastify.prisma.$queryRaw<Array<{ id: string; attack_type: string }>>`
@@ -126,7 +161,7 @@ export async function webRoutes(fastify: FastifyInstance) {
           ${d.path},
           ${d.query},
           ${d.userAgent},
-          CAST(${JSON.stringify(d.headers)} AS jsonb),
+          CAST(${JSON.stringify(headers)} AS jsonb),
           ${d.body},
           ${d.attackType},
           ${new Date(d.timestamp)}
@@ -158,13 +193,18 @@ export async function webRoutes(fastify: FastifyInstance) {
     if (!ensureIngestToken(request, reply)) return reply;
 
     const raw = Array.isArray(request.body) ? request.body : [request.body];
-    const events = raw
-      .map((item) => webHitSchema.safeParse(item))
+    const parsedEvents = raw.map((item) => webHitSchema.safeParse(item));
+    const events = parsedEvents
       .filter((r): r is { success: true; data: z.infer<typeof webHitSchema> } => r.success)
-      .map((r) => r.data);
+      .map((r) => ({ ...r.data, headers: normalizeHeaders(r.data.headers) }));
+    const invalid = parsedEvents.length - events.length;
+
+    if (invalid > 0) {
+      fastify.log.warn({ invalid, total: parsedEvents.length }, 'Rejected invalid Galah web events');
+    }
 
     if (events.length === 0) {
-      return reply.status(200).send({ inserted: 0 });
+      return reply.status(200).send({ inserted: 0, invalid });
     }
 
     let inserted = 0;
@@ -197,7 +237,7 @@ export async function webRoutes(fastify: FastifyInstance) {
       }
     }
 
-    return reply.status(200).send({ inserted, total: events.length });
+    return reply.status(200).send({ inserted, total: events.length, invalid });
   });
 
   fastify.get('/web-hits', async (request, reply) => {
