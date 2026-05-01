@@ -352,6 +352,13 @@ export function LiveAttackMap() {
         </div>
       </div>
 
+      {hoverCountry && (
+        <div className="absolute bottom-4 left-4 z-20 rounded-md border border-white/10 bg-[#0a1020]/92 px-3 py-2 text-xs text-slate-200 shadow-2xl backdrop-blur-sm">
+          <p className="font-medium">{countryLabel(hoverCountry.country)}</p>
+          <p className="text-slate-400">{hoverCountry.count.toLocaleString()} attacks · last 24h</p>
+        </div>
+      )}
+
       <ComposableMap
         projection="geoMercator"
         style={{ width: "100%", height: "100%" }}
@@ -438,20 +445,6 @@ export function LiveAttackMap() {
           ))}
         </ZoomableGroup>
       </ComposableMap>
-
-      {hoverCountry && (
-        <div
-          className="pointer-events-none absolute z-30 rounded-md border border-white/10 bg-[#0a1020]/92 px-3 py-2 text-xs text-slate-200 shadow-2xl backdrop-blur-sm"
-          style={{
-            left: hoverCountry.x + 12,
-            top: hoverCountry.y - 12,
-            transform: "translateY(-100%)",
-          }}
-        >
-          <p className="font-medium">{countryLabel(hoverCountry.country)}</p>
-          <p className="text-slate-400">{hoverCountry.count.toLocaleString()} attacks · last 24h</p>
-        </div>
-      )}
 
       <div className="absolute right-4 top-4 z-20 w-56 overflow-hidden rounded-xl border border-white/8 bg-[#0a1020]/85 backdrop-blur-sm">
         <div className="border-b border-white/8 px-3 py-2">
