@@ -131,6 +131,10 @@ export async function webRoutes(fastify: FastifyInstance) {
     const parsed = webHitSchema.safeParse(request.body);
 
     if (!parsed.success) {
+      fastify.log.warn(
+        { details: parsed.error.flatten().fieldErrors, body: request.body },
+        'Rejected invalid web event'
+      );
       return reply.status(400).send({
         error: 'Invalid web event',
         details: parsed.error.flatten().fieldErrors,
@@ -186,6 +190,16 @@ export async function webRoutes(fastify: FastifyInstance) {
       return reply.status(200).send({ duplicate: true });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
+      fastify.log.error(
+        {
+          err,
+          srcIp: d.srcIp,
+          path: d.path,
+          userAgent: d.userAgent,
+          attackType: d.attackType,
+        },
+        'Failed to insert web hit'
+      );
       return reply.status(500).send({ error: msg });
     }
   });
