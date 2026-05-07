@@ -25,7 +25,7 @@ services:
     volumes:
       - dionaea_var:/opt/dionaea/var/lib/dionaea
       - ./dionaea.cfg:/opt/dionaea/etc/dionaea/dionaea.cfg:ro
-      - ./log_json.yaml:/opt/dionaea/etc/dionaea/ihandlers-enabled/log_json.yaml:ro
+      - ./log_json.yaml:/opt/dionaea/etc/dionaea/ihandlers/log_json.yaml:ro
       - ./services-enabled:/opt/dionaea/etc/dionaea/services-enabled:ro
     pids_limit: 256
 
