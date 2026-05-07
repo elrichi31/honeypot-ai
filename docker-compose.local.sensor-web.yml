@@ -1,0 +1,22 @@
+services:
+  web-honeypot:
+    build:
+      context: ./apps/web-honeypot
+    container_name: web-honeypot
+    restart: unless-stopped
+    environment:
+      INGEST_API_URL: ${INGEST_API_URL}
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      PORT: "8080"
+      SENSOR_ID: ${SENSOR_ID_HTTP:-web-local-01}
+      SENSOR_NAME: ${SENSOR_NAME_HTTP:-Web Honeypot - Local VM}
+      SENSOR_IP: ${HONEYPOT_IP:-}
+      SENSOR_HOST: web-honeypot
+      SENSOR_PORTS: "8080 8443"
+      SENSOR_PROBE_PORTS: "8080 8080"
+    ports:
+      - "8080:8080"
+      - "8443:8080"
+    read_only: true
+    tmpfs:
+      - /tmp

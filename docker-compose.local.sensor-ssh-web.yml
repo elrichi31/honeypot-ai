@@ -1,0 +1,75 @@
+services:
+  cowrie:
+    build:
+      context: ./cowrie
+    container_name: cowrie
+    restart: unless-stopped
+    ports:
+      - "2222:2222"
+    volumes:
+      - cowrie_var:/cowrie/cowrie-git/var
+      - ./cowrie/cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
+      - ./cowrie/userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
+
+  cowrie-beacon:
+    image: python:3.12-alpine
+    container_name: cowrie-beacon
+    restart: unless-stopped
+    depends_on:
+      - cowrie
+    environment:
+      SENSOR_ID: ${SENSOR_ID_SSH:-cowrie-ssh-local-01}
+      SENSOR_NAME: ${SENSOR_NAME_SSH:-SSH Honeypot (Cowrie) - Local VM}
+      SENSOR_IP: ${HONEYPOT_IP:-}
+      SENSOR_PROTOCOL: ssh
+      SENSOR_VERSION: cowrie
+      SENSOR_PORTS: "2222"
+      SENSOR_PROBE_PORTS: "2222"
+      SENSOR_HOST: cowrie
+      INGEST_API_URL: ${INGEST_API_URL}
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+    volumes:
+      - ./cowrie/heartbeat.py:/heartbeat.py:ro
+    command: ["python3", "/heartbeat.py"]
+
+  vector:
+    image: timberio/vector:0.40.0-alpine
+    container_name: vector
+    restart: unless-stopped
+    depends_on:
+      - cowrie
+    volumes:
+      - cowrie_var:/cowrie/cowrie-git/var:ro
+      - ./vector/cowrie.toml:/etc/vector/vector.toml:ro
+      - vector_data:/var/lib/vector
+    command: ["--config", "/etc/vector/vector.toml"]
+    environment:
+      COWRIE_LOG_PATH: /cowrie/cowrie-git/var/log/cowrie/cowrie.json
+      INGEST_API_URL: ${INGEST_API_URL}
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+
+  web-honeypot:
+    build:
+      context: ./apps/web-honeypot
+    container_name: web-honeypot
+    restart: unless-stopped
+    environment:
+      INGEST_API_URL: ${INGEST_API_URL}
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      PORT: "8080"
+      SENSOR_ID: ${SENSOR_ID_HTTP:-web-local-01}
+      SENSOR_NAME: ${SENSOR_NAME_HTTP:-Web Honeypot - Local VM}
+      SENSOR_IP: ${HONEYPOT_IP:-}
+      SENSOR_HOST: web-honeypot
+      SENSOR_PORTS: "8080 8443"
+      SENSOR_PROBE_PORTS: "8080 8080"
+    ports:
+      - "8080:8080"
+      - "8443:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+
+volumes:
+  cowrie_var:
+  vector_data:
