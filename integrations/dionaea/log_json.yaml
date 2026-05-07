@@ -1,4 +1,7 @@
----
+# SPDX-FileCopyrightText: none
+# SPDX-License-Identifier: CC0-1.0
+
 - name: log_json
   config:
-    path: /opt/dionaea/var/lib/dionaea/dionaea.json
+    handlers:
+      - file:///opt/dionaea/var/lib/dionaea/dionaea.json

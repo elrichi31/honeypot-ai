@@ -9,6 +9,8 @@ services:
     <<: *service-defaults
     image: ghcr.io/telekom-security/dionaea:24.04.1
     container_name: dionaea-local
+    cap_add:
+      - NET_BIND_SERVICE
     ports:
       - "2021:21"
       - "2042:42"
@@ -21,7 +23,7 @@ services:
       - "28081:8081"
       - "2069:69/udp"
     volumes:
-      - dionaea_local_var:/opt/dionaea/var
+      - dionaea_local_var:/opt/dionaea/var/lib/dionaea
       - ./log_json.yaml:/opt/dionaea/etc/dionaea/ihandlers-enabled/log_json.yaml:ro
     pids_limit: 256
 
@@ -48,7 +50,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - dionaea_local_var:/opt/dionaea/var:ro
+      - dionaea_local_var:/opt/dionaea/var/lib/dionaea:ro
       - dionaea_local_shipper_state:/state
       - ./shipper.py:/shipper.py:ro
     command: ["python3", "/shipper.py"]

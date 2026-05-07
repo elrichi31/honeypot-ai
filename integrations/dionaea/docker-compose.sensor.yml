@@ -9,6 +9,8 @@ services:
     <<: *service-defaults
     image: ghcr.io/telekom-security/dionaea:24.04.1
     container_name: dionaea
+    cap_add:
+      - NET_BIND_SERVICE
     ports:
       - "21:21"
       - "42:42"
@@ -21,7 +23,7 @@ services:
       - "8081:8081"
       - "69:69/udp"
     volumes:
-      - dionaea_var:/opt/dionaea/var
+      - dionaea_var:/opt/dionaea/var/lib/dionaea
       - ./log_json.yaml:/opt/dionaea/etc/dionaea/ihandlers-enabled/log_json.yaml:ro
     pids_limit: 256
 
@@ -46,7 +48,7 @@ services:
       DIONAEA_OFFSET_FILE: /state/dionaea.offset
       READ_FROM_END: "1"
     volumes:
-      - dionaea_var:/opt/dionaea/var:ro
+      - dionaea_var:/opt/dionaea/var/lib/dionaea:ro
       - dionaea_shipper_state:/state
       - ./shipper.py:/shipper.py:ro
     command: ["python3", "/shipper.py"]
