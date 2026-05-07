@@ -1,0 +1,59 @@
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  init: true
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  dionaea:
+    <<: *service-defaults
+    image: ghcr.io/telekom-security/dionaea:24.04.1
+    container_name: dionaea-local
+    ports:
+      - "2021:21"
+      - "2042:42"
+      - "2135:135"
+      - "2445:445"
+      - "21433:1433"
+      - "21723:1723"
+      - "21883:1883"
+      - "3308:3306"
+      - "28081:8081"
+      - "2069:69/udp"
+    volumes:
+      - dionaea_local_var:/opt/dionaea/var
+      - ./log_json.yaml:/opt/dionaea/etc/dionaea/ihandlers-enabled/log_json.yaml:ro
+    pids_limit: 256
+
+  dionaea-shipper:
+    <<: *service-defaults
+    image: python:3.12-alpine
+    container_name: dionaea-shipper-local
+    depends_on:
+      - dionaea
+    environment:
+      INGEST_API_URL: ${INGEST_API_URL:-http://host.docker.internal:3000}
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
+      SENSOR_ID: ${SENSOR_ID_DIONAEA:-dionaea-local-01}
+      SENSOR_NAME: ${SENSOR_NAME_DIONAEA:-Dionaea Local Sensor}
+      SENSOR_PROTOCOL: dionaea
+      SENSOR_VERSION: ${SENSOR_VERSION_DIONAEA:-dionaea}
+      SENSOR_IP: ${SENSOR_IP_DIONAEA:-}
+      SENSOR_HOST: dionaea
+      SENSOR_PORTS: "2021 2042 2069 2135 2445 21433 21723 21883 3308 28081"
+      SENSOR_PROBE_PORTS: "21 42 69 135 445 1433 1723 1883 3306 8081"
+      DIONAEA_LOG_PATH: /opt/dionaea/var/lib/dionaea/dionaea.json
+      DIONAEA_OFFSET_FILE: /state/dionaea.offset
+      READ_FROM_END: "1"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - dionaea_local_var:/opt/dionaea/var:ro
+      - dionaea_local_shipper_state:/state
+      - ./shipper.py:/shipper.py:ro
+    command: ["python3", "/shipper.py"]
+    pids_limit: 64
+
+volumes:
+  dionaea_local_var:
+  dionaea_local_shipper_state:

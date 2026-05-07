@@ -6,6 +6,12 @@ const PROTOCOL_BADGE: Record<string, string> = {
   ftp: "bg-yellow-400/20 text-yellow-400",
   mysql: "bg-purple-400/20 text-purple-400",
   "port-scan": "bg-blue-400/20 text-blue-400",
+  dionaea: "bg-red-400/20 text-red-400",
+  smb: "bg-orange-400/20 text-orange-400",
+  mssql: "bg-pink-400/20 text-pink-400",
+  rpc: "bg-indigo-400/20 text-indigo-400",
+  tftp: "bg-lime-400/20 text-lime-400",
+  mqtt: "bg-teal-400/20 text-teal-400",
 }
 
 const EVENT_BADGE: Record<string, string> = {

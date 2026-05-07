@@ -155,51 +155,63 @@ services:
       - honeypot_ingest
     pids_limit: 128
 
-  ftp-honeypot:
+  dionaea:
     <<: *service-defaults
-    build:
-      context: ./apps/ftp-honeypot
-    container_name: ftp-honeypot
+    image: ghcr.io/telekom-security/dionaea:24.04.1
+    container_name: dionaea
     depends_on:
       ingest-api:
         condition: service_healthy
-    environment:
-      INGEST_API_URL: http://ingest-api:3000
-      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
-      PORT: "21"
-      DST_PORT: "21"
-      SENSOR_ID: ${SENSOR_ID_FTP:-ftp-01}
-      SENSOR_NAME: FTP Honeypot
-      SENSOR_IP: ${HONEYPOT_IP:-}
     ports:
       - "21:21"
+      - "42:42"
+      - "69:69/udp"
+      - "135:135"
+      - "445:445"
+      - "1433:1433"
+      - "1723:1723"
+      - "1883:1883"
+      - "3306:3306"
+      - "8081:8081"
+    volumes:
+      - dionaea_var:/opt/dionaea/var
+      - ./integrations/dionaea/log_json.yaml:/opt/dionaea/etc/dionaea/ihandlers-enabled/log_json.yaml:ro
     networks:
       - edge
       - honeypot_ingest
-    pids_limit: 128
+    pids_limit: 256
 
-  mysql-honeypot:
+  dionaea-shipper:
     <<: *service-defaults
-    build:
-      context: ./apps/mysql-honeypot
-    container_name: mysql-honeypot
+    image: python:3.12-alpine
+    container_name: dionaea-shipper
     depends_on:
+      dionaea:
+        condition: service_started
       ingest-api:
         condition: service_healthy
     environment:
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
-      PORT: "3306"
-      DST_PORT: "3306"
-      SENSOR_ID: ${SENSOR_ID_MYSQL:-mysql-01}
-      SENSOR_NAME: MySQL Honeypot
+      SENSOR_ID: ${SENSOR_ID_DIONAEA:-dionaea-01}
+      SENSOR_NAME: ${SENSOR_NAME_DIONAEA:-Dionaea Multi-Protocol Honeypot}
+      SENSOR_PROTOCOL: dionaea
+      SENSOR_VERSION: ${SENSOR_VERSION_DIONAEA:-dionaea}
       SENSOR_IP: ${HONEYPOT_IP:-}
-    ports:
-      - "3306:3306"
+      SENSOR_HOST: dionaea
+      SENSOR_PORTS: "21 42 135 445 1433 1723 1883 3306 8081"
+      SENSOR_PROBE_PORTS: "21 42 135 445 1433 1723 1883 3306 8081"
+      DIONAEA_LOG_PATH: /opt/dionaea/var/lib/dionaea/dionaea.json
+      DIONAEA_OFFSET_FILE: /state/dionaea.offset
+      READ_FROM_END: "1"
+    volumes:
+      - dionaea_var:/opt/dionaea/var:ro
+      - dionaea_shipper_state:/state
+      - ./integrations/dionaea/shipper.py:/shipper.py:ro
+    command: ["python3", "/shipper.py"]
     networks:
-      - edge
       - honeypot_ingest
-    pids_limit: 128
+    pids_limit: 64
 
   port-honeypot:
     <<: *service-defaults
@@ -212,12 +224,11 @@ services:
     environment:
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
-      PORTS: "1433 2375 3389 4444 5900 6379 8888 9090 9200 27017"
+      PORTS: "2375 3389 4444 5900 6379 8888 9090 9200 27017"
       SENSOR_ID: ${SENSOR_ID_PORT:-port-01}
       SENSOR_NAME: Port Honeypot
       SENSOR_IP: ${HONEYPOT_IP:-}
     ports:
-      - "1433:1433"
       - "2375:2375"
       - "3389:3389"
       - "4444:4444"
@@ -278,6 +289,8 @@ services:
 
 volumes:
   cowrie_var:
+  dionaea_var:
+  dionaea_shipper_state:
   pg_data:
   dashboard_data:
   vector_data:

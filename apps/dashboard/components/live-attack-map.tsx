@@ -40,6 +40,12 @@ const TYPE_COLOR: Record<string, string> = {
   ftp: "#facc15",
   mysql: "#c084fc",
   "port-scan": "#38bdf8",
+  dionaea: "#ef4444",
+  smb: "#f97316",
+  mssql: "#ec4899",
+  rpc: "#818cf8",
+  tftp: "#a3e635",
+  mqtt: "#14b8a6",
 }
 
 const CHIP_COLORS = {
@@ -56,6 +62,12 @@ const DOT_CLS: Record<string, string> = {
   ftp: "bg-yellow-400",
   mysql: "bg-purple-400",
   "port-scan": "bg-sky-400",
+  dionaea: "bg-red-400",
+  smb: "bg-orange-400",
+  mssql: "bg-pink-400",
+  rpc: "bg-indigo-400",
+  tftp: "bg-lime-400",
+  mqtt: "bg-teal-400",
 }
 
 type AttackType = keyof typeof CHIP_COLORS

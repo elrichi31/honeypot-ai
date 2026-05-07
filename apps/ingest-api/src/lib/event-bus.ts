@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events'
 
-export type AttackType = 'ssh' | 'http' | 'ftp' | 'mysql' | 'port-scan'
+export type AttackType = string
 
 export interface AttackEvent {
   type: AttackType

@@ -9,6 +9,12 @@ const PROTOCOL_COLORS: Record<string, { bg: string; text: string; border: string
   ftp: { bg: "bg-yellow-400/10", text: "text-yellow-400", border: "border-yellow-400/30" },
   mysql: { bg: "bg-purple-400/10", text: "text-purple-400", border: "border-purple-400/30" },
   "port-scan": { bg: "bg-blue-400/10", text: "text-blue-400", border: "border-blue-400/30" },
+  dionaea: { bg: "bg-red-400/10", text: "text-red-400", border: "border-red-400/30" },
+  smb: { bg: "bg-orange-400/10", text: "text-orange-400", border: "border-orange-400/30" },
+  mssql: { bg: "bg-pink-400/10", text: "text-pink-400", border: "border-pink-400/30" },
+  rpc: { bg: "bg-indigo-400/10", text: "text-indigo-400", border: "border-indigo-400/30" },
+  tftp: { bg: "bg-lime-400/10", text: "text-lime-400", border: "border-lime-400/30" },
+  mqtt: { bg: "bg-teal-400/10", text: "text-teal-400", border: "border-teal-400/30" },
 }
 
 function defaultColor() {

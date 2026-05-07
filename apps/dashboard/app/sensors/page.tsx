@@ -9,6 +9,12 @@ const PROTOCOL_META: Record<string, { label: string; icon: React.ElementType; co
   mysql:      { label: "MySQL",     icon: Database, color: "text-purple-400",  bg: "bg-purple-400/10" },
   "port-scan":{ label: "Port Scan", icon: Network,  color: "text-blue-400",    bg: "bg-blue-400/10" },
   http:       { label: "HTTP",      icon: Globe,    color: "text-green-400",   bg: "bg-green-400/10" },
+  dionaea:    { label: "Dionaea",   icon: Network,  color: "text-red-400",     bg: "bg-red-400/10" },
+  smb:        { label: "SMB",       icon: Server,   color: "text-orange-400",  bg: "bg-orange-400/10" },
+  mssql:      { label: "MSSQL",     icon: Database, color: "text-pink-400",    bg: "bg-pink-400/10" },
+  rpc:        { label: "RPC",       icon: Network,  color: "text-indigo-400",  bg: "bg-indigo-400/10" },
+  tftp:       { label: "TFTP",      icon: Server,   color: "text-lime-400",    bg: "bg-lime-400/10" },
+  mqtt:       { label: "MQTT",      icon: Network,  color: "text-teal-400",    bg: "bg-teal-400/10" },
 }
 
 

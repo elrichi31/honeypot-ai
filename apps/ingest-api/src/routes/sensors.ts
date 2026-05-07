@@ -7,7 +7,7 @@ import { clearSensorOfflineAlert } from '../lib/threat-alerts.js'
 const heartbeatSchema = z.object({
   sensorId:   z.string().min(1),
   name:       z.string().min(1),
-  protocol:   z.enum(['ssh', 'ftp', 'mysql', 'port-scan', 'http']),
+  protocol:   z.string().min(1),
   ip:         z.string().default(''),
   version:    z.string().default(''),
   // Public-facing ports shown in the UI (e.g. 22 for SSH, 80 for HTTP)

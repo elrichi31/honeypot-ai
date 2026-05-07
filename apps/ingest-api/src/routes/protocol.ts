@@ -7,7 +7,7 @@ import { evaluateThreatAlert } from '../lib/threat-alerts.js'
 
 const protocolEventSchema = z.object({
   eventId: z.string().uuid(),
-  protocol: z.enum(['ftp', 'mysql', 'port-scan']),
+  protocol: z.string().min(1),
   srcIp: z.string().min(1),
   srcPort: z.number().int().nullable().optional(),
   dstPort: z.number().int(),
@@ -25,7 +25,7 @@ const listQuerySchema = z.object({
 })
 
 const insightsQuerySchema = z.object({
-  protocol: z.enum(['ftp', 'mysql', 'port-scan']),
+  protocol: z.string().min(1),
 })
 
 export async function protocolRoutes(fastify: FastifyInstance) {
@@ -58,7 +58,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
         const geo = lookupGeo(d.srcIp)
         if (geo) {
           eventBus.emit('attack', {
-            type: d.protocol as 'ftp' | 'mysql' | 'port-scan',
+            type: d.protocol,
             ip: d.srcIp,
             ...geo,
             timestamp: d.timestamp,

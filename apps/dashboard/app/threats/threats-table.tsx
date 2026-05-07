@@ -11,6 +11,12 @@ const PROTOCOL_LABELS: Record<string, string> = {
   ftp: "FTP",
   mysql: "MYSQL",
   "port-scan": "PORT-SCAN",
+  dionaea: "DIONAEA",
+  smb: "SMB",
+  mssql: "MSSQL",
+  rpc: "RPC",
+  tftp: "TFTP",
+  mqtt: "MQTT",
 }
 
 const PROTOCOL_STYLES: Record<string, string> = {
@@ -19,6 +25,12 @@ const PROTOCOL_STYLES: Record<string, string> = {
   ftp: "border-amber-500/20 bg-amber-500/10 text-amber-400",
   mysql: "border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-400",
   "port-scan": "border-emerald-500/20 bg-emerald-500/10 text-emerald-400",
+  dionaea: "border-red-500/20 bg-red-500/10 text-red-400",
+  smb: "border-orange-500/20 bg-orange-500/10 text-orange-400",
+  mssql: "border-pink-500/20 bg-pink-500/10 text-pink-400",
+  rpc: "border-indigo-500/20 bg-indigo-500/10 text-indigo-400",
+  tftp: "border-lime-500/20 bg-lime-500/10 text-lime-400",
+  mqtt: "border-teal-500/20 bg-teal-500/10 text-teal-400",
 }
 
 export function ThreatsTable({
