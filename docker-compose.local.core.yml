@@ -1,10 +1,5 @@
 x-service-defaults: &service-defaults
   restart: unless-stopped
-  init: true
-  security_opt:
-    - no-new-privileges:true
-  cap_drop:
-    - ALL
 
 services:
   postgres:
