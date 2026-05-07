@@ -128,20 +128,45 @@ def _extract_connection(raw):
     connection = raw.get("connection")
     if not isinstance(connection, dict):
         return None
-    local = connection.get("local") or {}
-    remote = connection.get("remote") or {}
-    dst_port = _to_int(local.get("port"))
-    if dst_port is None:
-        return None
 
-    src_port = _to_int(remote.get("port"))
-    src_ip = str(remote.get("address") or "").strip()
-    if not src_ip:
+    # Dionaea's official log_json handler emits flattened connection fields:
+    # src_ip/src_port/dst_ip/dst_port plus a lightweight connection object
+    # containing protocol/transport/type.
+    dst_port = _to_int(raw.get("dst_port"))
+    src_port = _to_int(raw.get("src_port"))
+    src_ip = str(raw.get("src_ip") or "").strip()
+    dst_ip = str(raw.get("dst_ip") or "").strip()
+    src_hostname = str(raw.get("src_hostname") or "").strip()
+
+    # Keep backward compatibility with the older nested format we initially
+    # assumed for the integration.
+    if dst_port is None or not src_ip:
+        local = connection.get("local") or {}
+        remote = connection.get("remote") or {}
+        dst_port = _to_int(local.get("port"))
+        src_port = _to_int(remote.get("port"))
+        src_ip = str(remote.get("address") or "").strip()
+        dst_ip = str(local.get("address") or "").strip()
+        src_hostname = str(remote.get("hostname") or "").strip()
+
+    if dst_port is None or not src_ip:
         return None
 
     protocol_name = PORT_PROTOCOLS.get(dst_port)
     if not protocol_name:
-        protocol_name = str(connection.get("protocol") or SENSOR_PROTOCOL or "dionaea").strip().lower()
+        raw_proto = str(connection.get("protocol") or SENSOR_PROTOCOL or "dionaea").strip().lower()
+        protocol_name = {
+            "ftpd": "ftp",
+            "epmapper": "rpc",
+            "smbd": "smb",
+            "mssqld": "mssql",
+            "mysqld": "mysql",
+            "mqttd": "mqtt",
+            "pptpd": "pptp",
+            "httpd": "http-alt",
+            "tftpd": "tftp",
+            "mirror": "wins",
+        }.get(raw_proto, raw_proto)
 
     return {
         "srcIp": src_ip,
@@ -150,12 +175,12 @@ def _extract_connection(raw):
         "protocol": protocol_name,
         "connectionType": str(connection.get("type") or "").strip().lower(),
         "transport": str(connection.get("transport") or "").strip().lower(),
-        "localAddress": str(local.get("address") or "").strip(),
-        "remoteHostname": str(remote.get("hostname") or "").strip(),
+        "localAddress": dst_ip,
+        "remoteHostname": src_hostname,
     }
 
 
-def _to_protocol_event(raw):
+def _event_base(raw):
     conn = _extract_connection(raw)
     if not conn:
         return None
@@ -180,12 +205,78 @@ def _to_protocol_event(raw):
         "srcIp": conn["srcIp"],
         "srcPort": conn["srcPort"],
         "dstPort": conn["dstPort"],
+        "timestamp": timestamp,
+        "data": data,
+    }
+
+
+def _to_protocol_events(raw):
+    base = _event_base(raw)
+    if not base:
+        return []
+
+    events = [{
+        "eventId": base["eventId"],
+        "protocol": base["protocol"],
+        "srcIp": base["srcIp"],
+        "srcPort": base["srcPort"],
+        "dstPort": base["dstPort"],
         "eventType": "connect",
         "username": None,
         "password": None,
-        "data": data,
-        "timestamp": timestamp,
-    }
+        "data": base["data"],
+        "timestamp": base["timestamp"],
+    }]
+
+    credentials = raw.get("credentials")
+    if isinstance(credentials, list):
+        for idx, cred in enumerate(credentials):
+            if not isinstance(cred, dict):
+                continue
+            events.append({
+                "eventId": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{base['eventId']}:auth:{idx}")),
+                "protocol": base["protocol"],
+                "srcIp": base["srcIp"],
+                "srcPort": base["srcPort"],
+                "dstPort": base["dstPort"],
+                "eventType": "auth",
+                "username": None if cred.get("username") is None else str(cred.get("username")),
+                "password": None if cred.get("password") is None else str(cred.get("password")),
+                "data": {
+                    **base["data"],
+                    "credentialIndex": idx,
+                },
+                "timestamp": base["timestamp"],
+            })
+
+    ftp_commands = ((raw.get("ftp") or {}).get("commands")) if isinstance(raw.get("ftp"), dict) else None
+    if isinstance(ftp_commands, list):
+        for idx, cmd in enumerate(ftp_commands):
+            if not isinstance(cmd, dict):
+                continue
+            command = str(cmd.get("command") or "").strip()
+            arguments = cmd.get("arguments")
+            if not command:
+                continue
+            events.append({
+                "eventId": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{base['eventId']}:command:{idx}")),
+                "protocol": base["protocol"],
+                "srcIp": base["srcIp"],
+                "srcPort": base["srcPort"],
+                "dstPort": base["dstPort"],
+                "eventType": "command",
+                "username": None,
+                "password": None,
+                "data": {
+                    **base["data"],
+                    "commandIndex": idx,
+                    "command": command,
+                    "arguments": None if arguments is None else str(arguments),
+                },
+                "timestamp": base["timestamp"],
+            })
+
+    return events
 
 
 def _ship_event(event):
@@ -249,11 +340,12 @@ def _tail_loop():
                     except Exception:
                         continue
 
-                    event = _to_protocol_event(raw)
-                    if not event:
+                    events = _to_protocol_events(raw)
+                    if not events:
                         continue
 
-                    _ship_event(event)
+                    for event in events:
+                        _ship_event(event)
         except Exception as exc:
             print(f"[dionaea-shipper] tail loop error: {exc}", flush=True)
             time.sleep(2)
