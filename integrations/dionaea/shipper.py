@@ -28,6 +28,7 @@ PORT_PROTOCOLS = {
     21: "ftp",
     42: "wins",
     69: "tftp",
+    81: "http-alt",
     135: "rpc",
     445: "smb",
     1433: "mssql",

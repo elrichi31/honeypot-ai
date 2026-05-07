@@ -14,17 +14,22 @@ services:
     ports:
       - "2021:21"
       - "2042:42"
+      - "28081:81"
       - "2135:135"
       - "2445:445"
       - "21433:1433"
       - "21723:1723"
       - "21883:1883"
       - "3308:3306"
-      - "28081:8081"
       - "2069:69/udp"
     volumes:
       - dionaea_local_var:/opt/dionaea/var/lib/dionaea
+      - ./dionaea.cfg:/opt/dionaea/etc/dionaea/dionaea.cfg:ro
       - ./log_json.yaml:/opt/dionaea/etc/dionaea/ihandlers-enabled/log_json.yaml:ro
+      - ./services/http.yaml:/opt/dionaea/etc/dionaea/services/http.yaml:ro
+      - ./services/ftp.yaml:/opt/dionaea/etc/dionaea/services/ftp.yaml:ro
+      - ./services/tftp.yaml:/opt/dionaea/etc/dionaea/services/tftp.yaml:ro
+      - ./services/sip.yaml:/opt/dionaea/etc/dionaea/services/sip.yaml:ro
     pids_limit: 256
 
   dionaea-shipper:
@@ -42,8 +47,8 @@ services:
       SENSOR_VERSION: ${SENSOR_VERSION_DIONAEA:-dionaea}
       SENSOR_IP: ${SENSOR_IP_DIONAEA:-}
       SENSOR_HOST: dionaea
-      SENSOR_PORTS: "2021 2042 2069 2135 2445 21433 21723 21883 3308 28081"
-      SENSOR_PROBE_PORTS: "21 42 69 135 445 1433 1723 1883 3306 8081"
+      SENSOR_PORTS: "2021 2042 2135 2445 21433 21723 21883 3308 28081"
+      SENSOR_PROBE_PORTS: "21 42 135 445 1433 1723 1883 3306 81"
       DIONAEA_LOG_PATH: /opt/dionaea/var/lib/dionaea/dionaea.json
       DIONAEA_OFFSET_FILE: /state/dionaea.offset
       READ_FROM_END: "1"

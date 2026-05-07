@@ -167,6 +167,7 @@ services:
     ports:
       - "21:21"
       - "42:42"
+      - "8081:81"
       - "69:69/udp"
       - "135:135"
       - "445:445"
@@ -174,10 +175,14 @@ services:
       - "1723:1723"
       - "1883:1883"
       - "3306:3306"
-      - "8081:8081"
     volumes:
       - dionaea_var:/opt/dionaea/var/lib/dionaea
+      - ./integrations/dionaea/dionaea.cfg:/opt/dionaea/etc/dionaea/dionaea.cfg:ro
       - ./integrations/dionaea/log_json.yaml:/opt/dionaea/etc/dionaea/ihandlers-enabled/log_json.yaml:ro
+      - ./integrations/dionaea/services/http.yaml:/opt/dionaea/etc/dionaea/services/http.yaml:ro
+      - ./integrations/dionaea/services/ftp.yaml:/opt/dionaea/etc/dionaea/services/ftp.yaml:ro
+      - ./integrations/dionaea/services/tftp.yaml:/opt/dionaea/etc/dionaea/services/tftp.yaml:ro
+      - ./integrations/dionaea/services/sip.yaml:/opt/dionaea/etc/dionaea/services/sip.yaml:ro
     networks:
       - edge
       - honeypot_ingest
@@ -202,7 +207,7 @@ services:
       SENSOR_IP: ${HONEYPOT_IP:-}
       SENSOR_HOST: dionaea
       SENSOR_PORTS: "21 42 135 445 1433 1723 1883 3306 8081"
-      SENSOR_PROBE_PORTS: "21 42 135 445 1433 1723 1883 3306 8081"
+      SENSOR_PROBE_PORTS: "21 42 135 445 1433 1723 1883 3306 81"
       DIONAEA_LOG_PATH: /opt/dionaea/var/lib/dionaea/dionaea.json
       DIONAEA_OFFSET_FILE: /state/dionaea.offset
       READ_FROM_END: "1"

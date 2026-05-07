@@ -1,0 +1,31 @@
+- name: sip
+  config:
+    udp_ports:
+      - 5060
+    tcp_ports:
+      - 5060
+    tls_ports:
+      - 5061
+    users: "/opt/dionaea/var/lib/dionaea/sip/accounts.sqlite"
+    rtp:
+      enable: true
+      modes:
+        - bistream
+        - pcap
+      pcap:
+        path: "var/dionaea/rtp/{personality}/%Y-%m-%d/"
+        filename: "%H:%M:%S_{remote_host}_{remote_port}_in.pcap"
+    personalities:
+      default:
+        domain: "localhost"
+        name: "softphone"
+        personality: "generic"
+
+    actions:
+      bank-redirect:
+        do: "redirect"
+        params:
+      play-hello:
+        do: "play"
+        params:
+          file: "var/dionaea/.../file.ext"
