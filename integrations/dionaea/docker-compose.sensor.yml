@@ -26,10 +26,7 @@ services:
       - dionaea_var:/opt/dionaea/var/lib/dionaea
       - ./dionaea.cfg:/opt/dionaea/etc/dionaea/dionaea.cfg:ro
       - ./log_json.yaml:/opt/dionaea/etc/dionaea/ihandlers-enabled/log_json.yaml:ro
-      - ./services/http.yaml:/opt/dionaea/etc/dionaea/services/http.yaml:ro
-      - ./services/ftp.yaml:/opt/dionaea/etc/dionaea/services/ftp.yaml:ro
-      - ./services/tftp.yaml:/opt/dionaea/etc/dionaea/services/tftp.yaml:ro
-      - ./services/sip.yaml:/opt/dionaea/etc/dionaea/services/sip.yaml:ro
+      - ./services-enabled:/opt/dionaea/etc/dionaea/services-enabled:ro
     pids_limit: 256
 
   dionaea-shipper:

@@ -179,10 +179,7 @@ services:
       - dionaea_var:/opt/dionaea/var/lib/dionaea
       - ./integrations/dionaea/dionaea.cfg:/opt/dionaea/etc/dionaea/dionaea.cfg:ro
       - ./integrations/dionaea/log_json.yaml:/opt/dionaea/etc/dionaea/ihandlers-enabled/log_json.yaml:ro
-      - ./integrations/dionaea/services/http.yaml:/opt/dionaea/etc/dionaea/services/http.yaml:ro
-      - ./integrations/dionaea/services/ftp.yaml:/opt/dionaea/etc/dionaea/services/ftp.yaml:ro
-      - ./integrations/dionaea/services/tftp.yaml:/opt/dionaea/etc/dionaea/services/tftp.yaml:ro
-      - ./integrations/dionaea/services/sip.yaml:/opt/dionaea/etc/dionaea/services/sip.yaml:ro
+      - ./integrations/dionaea/services-enabled:/opt/dionaea/etc/dionaea/services-enabled:ro
     networks:
       - edge
       - honeypot_ingest

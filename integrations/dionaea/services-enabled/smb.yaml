@@ -1,0 +1,25 @@
+- name: smb
+  config:
+    os_type: 4
+    primary_domain: DACH
+    oem_domain_name: DACH
+    server_name: ADFS
+    native_os: Windows 7 Professional 7600
+    native_lan_manager: Windows 7 Professional 6.1
+    shares:
+      ADMIN$:
+        comment: Remote Admin
+        path: C:\\Windows
+        type: disktree
+      C$:
+        comment: Default Share
+        path: C:\\
+        type:
+          - disktree
+          - special
+      IPC$:
+        comment: Remote IPC
+        type: ipc
+      Printer:
+        comment: Microsoft XPS Document Writer
+        type: printq

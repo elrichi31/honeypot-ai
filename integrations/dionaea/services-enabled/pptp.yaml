@@ -1,0 +1,5 @@
+- name: pptp
+  config:
+    firmware: 1
+    hostname: local
+    vendor_name: linux
