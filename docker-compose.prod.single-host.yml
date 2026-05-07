@@ -159,6 +159,8 @@ services:
     <<: *service-defaults
     image: ghcr.io/telekom-security/dionaea:24.04.1
     container_name: dionaea
+    cap_add:
+      - NET_BIND_SERVICE
     depends_on:
       ingest-api:
         condition: service_healthy
