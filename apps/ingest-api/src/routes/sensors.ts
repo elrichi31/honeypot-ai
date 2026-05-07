@@ -114,6 +114,16 @@ export async function sensorRoutes(fastify: FastifyInstance) {
         CASE
           WHEN s.protocol = 'ssh' THEN (SELECT COUNT(*)::bigint FROM sessions)
           WHEN s.protocol = 'http' THEN (SELECT COUNT(*)::bigint FROM web_hits)
+          WHEN EXISTS (
+            SELECT 1
+            FROM protocol_hits ph_sensor
+            WHERE ph_sensor.data->>'sensor' = s.sensor_id
+            LIMIT 1
+          ) THEN (
+            SELECT COUNT(*)::bigint
+            FROM protocol_hits ph_sensor
+            WHERE ph_sensor.data->>'sensor' = s.sensor_id
+          )
           ELSE COALESCE(ph.cnt, 0)
         END AS event_count
       FROM sensors s
