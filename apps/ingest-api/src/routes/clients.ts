@@ -195,4 +195,26 @@ export async function clientRoutes(fastify: FastifyInstance) {
       createdAt: client.created_at,
     })
   })
+
+  fastify.delete('/clients/:clientId', async (request, reply) => {
+    if (!ensureIngestToken(request, reply)) return reply
+
+    const params = z.object({ clientId: z.string().trim().min(1) }).safeParse(request.params)
+    if (!params.success) return reply.status(400).send({ error: 'Invalid client id' })
+
+    const existing = await fastify.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM clients WHERE id = ${params.data.clientId} LIMIT 1
+    `
+    if (!existing[0]) return reply.status(404).send({ error: 'Client not found' })
+
+    await fastify.prisma.$executeRaw`
+      UPDATE sensors SET client_id = NULL WHERE client_id = ${params.data.clientId}
+    `
+
+    await fastify.prisma.$executeRaw`
+      DELETE FROM clients WHERE id = ${params.data.clientId}
+    `
+
+    return reply.status(204).send()
+  })
 }

@@ -30,3 +30,23 @@ export async function PATCH(
     headers: { "Content-Type": res.headers.get("content-type") || "application/json" },
   })
 }
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ clientId: string }> },
+) {
+  const { clientId } = await params
+
+  const res = await fetch(`${INTERNAL_API}/clients/${encodeURIComponent(clientId)}`, {
+    method: "DELETE",
+    headers: ingestHeaders(),
+  })
+
+  if (res.status === 204) return new NextResponse(null, { status: 204 })
+
+  const responseBody = await res.text()
+  return new NextResponse(responseBody, {
+    status: res.status,
+    headers: { "Content-Type": res.headers.get("content-type") || "application/json" },
+  })
+}
