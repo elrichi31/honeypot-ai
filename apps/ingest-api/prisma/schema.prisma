@@ -106,12 +106,14 @@ model Client {
   id          String   @id @default(cuid())
   name        String
   slug        String   @unique
+  code        String   @default("")
   description String   @default("")
   forwardUrl  String   @default("") @map("forward_url")
   createdAt   DateTime @default(now()) @map("created_at")
 
   sensors Sensor[]
 
+  @@index([code])
   @@index([name])
   @@map("clients")
 }

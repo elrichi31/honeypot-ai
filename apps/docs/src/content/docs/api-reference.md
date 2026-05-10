@@ -28,6 +28,12 @@ graph LR
     subgraph Sensores
         S1[POST /sensors/heartbeat]
         S2[GET /sensors]
+        S3[PUT /sensors/:sensorId/client]
+    end
+    subgraph Clientes
+        C1[GET /clients]
+        C2[POST /clients]
+        C3[PATCH /clients/:clientId]
     end
     subgraph Consultas
         Q1[GET /sessions]
@@ -152,12 +158,15 @@ Ingesta un hit HTTP del web honeypot.
 **Body:**
 ```json
 {
-  "ip": "1.2.3.4",
+  "eventId": "0d04c3f9-7303-4f8b-b0f1-55817d58cbd7",
+  "sensorId": "web-prod-01",
+  "srcIp": "1.2.3.4",
   "method": "GET",
   "path": "/wp-login.php",
   "query": "",
   "userAgent": "sqlmap/1.7",
-  "statusCode": 200,
+  "headers": {},
+  "body": "",
   "attackType": "scanner",
   "timestamp": "2024-01-15T10:30:00.000Z"
 }
@@ -203,6 +212,8 @@ Registra o actualiza un sensor. Llamado por `heartbeat.py` cada 30 segundos desd
   "sensorId": "cowrie-ssh-prod-01",
   "name": "SSH Honeypot (Cowrie) - VPS Berlin",
   "protocol": "ssh",
+  "clientSlug": "cliente-a",
+  "clientName": "Cliente A",
   "ip": "1.2.3.4",
   "version": "cowrie",
   "ports": [22],
@@ -226,18 +237,123 @@ Lista todos los sensores registrados con su estado online/offline y contador de 
 ```json
 [
   {
-    "id": "cowrie-ssh-prod-01",
+    "sensorId": "cowrie-ssh-prod-01",
+    "clientId": "cl_123",
+    "clientName": "Cliente A",
+    "clientSlug": "cliente-a",
     "name": "SSH Honeypot (Cowrie) - VPS Berlin",
     "protocol": "ssh",
     "ip": "1.2.3.4",
     "version": "cowrie",
     "ports": [22],
+    "probeHost": "cowrie",
     "online": true,
     "lastSeen": "2024-01-15T10:29:45.000Z",
-    "eventCount": 1543
+    "createdAt": "2024-01-15T08:00:00.000Z",
+    "eventsTotal": 1543,
+    "portStatus": {
+      "22": true
+    }
   }
 ]
 ```
+
+---
+
+### `PUT /sensors/:sensorId/client`
+
+Asigna o desasigna un sensor manualmente desde la vista de cliente.
+
+**Headers:** `X-Ingest-Token: <secret>`
+
+Asignar:
+
+```json
+{
+  "clientId": "cl_123"
+}
+```
+
+Desasignar:
+
+```json
+{
+  "clientId": null
+}
+```
+
+**Respuesta:**
+
+```json
+{
+  "sensorId": "cowrie-ssh-prod-01",
+  "clientId": "cl_123",
+  "clientName": "Cliente A",
+  "clientSlug": "cliente-a"
+}
+```
+
+---
+
+## Clientes
+
+### `GET /clients`
+
+Lista todos los clientes registrados.
+
+**Respuesta:**
+
+```json
+[
+  {
+    "id": "cl_123",
+    "name": "Cliente A",
+    "slug": "cliente-a",
+    "description": "SOC retail Ecuador",
+    "forwardUrl": "https://ingestapi.com/alerts/cop-pz",
+    "createdAt": "2026-05-10T15:00:00.000Z"
+  }
+]
+```
+
+---
+
+### `POST /clients`
+
+Crea un cliente o actualiza uno existente si el `slug` ya existe.
+
+**Headers:** `X-Ingest-Token: <secret>`
+
+**Body:**
+
+```json
+{
+  "name": "Cliente A",
+  "slug": "cliente-a",
+  "description": "SOC retail Ecuador",
+  "forwardUrl": "https://ingestapi.com/alerts/cop-pz"
+}
+```
+
+`forwardUrl` es opcional, pero si se define debe empezar con `http://` o `https://`.
+
+---
+
+### `PATCH /clients/:clientId`
+
+Actualiza `name`, `description` o `forwardUrl`.
+
+**Headers:** `X-Ingest-Token: <secret>`
+
+**Body:**
+
+```json
+{
+  "forwardUrl": "https://ingestapi.com/alerts/cop-pz"
+}
+```
+
+Si `forwardUrl` llega vacio, el forwarding para ese cliente queda deshabilitado.
 
 ---
 

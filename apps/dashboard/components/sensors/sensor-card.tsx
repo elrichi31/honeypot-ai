@@ -29,7 +29,7 @@ function formatRelative(value: string | null | undefined) {
   return `${Math.floor(hr / 24)}d ago`
 }
 
-export function SensorCard({ sensor }: { sensor: Sensor }) {
+export function SensorCard({ sensor, clientCode }: { sensor: Sensor; clientCode?: string }) {
   const meta = PROTOCOL_META[sensor.protocol] ?? {
     label: sensor.protocol,
     icon: Server,
@@ -79,7 +79,9 @@ export function SensorCard({ sensor }: { sensor: Sensor }) {
         </div>
         <div>
           <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-0.5">Sensor ID</p>
-          <p className="font-mono text-[11px] text-muted-foreground truncate">{sensor.sensorId}</p>
+          <p className="font-mono text-[11px] text-muted-foreground truncate">
+            {clientCode ? `${sensor.sensorId}-${clientCode}` : sensor.sensorId}
+          </p>
         </div>
         <div>
           <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-0.5">Last seen</p>

@@ -1,11 +1,11 @@
 ---
 title: Dashboard
-description: Todas las paginas del dashboard Next.js — sesiones, web attacks, threat intelligence, sensores, configuracion y mas.
+description: Paginas del dashboard Next.js para sesiones, web attacks, clientes, sensores y threat intelligence.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-El dashboard es una aplicacion Next.js 16 con App Router. Consulta datos a `ingest-api` desde el servidor (Server Components) y los presenta en vistas especializadas por tipo de ataque.
+El dashboard es una aplicacion Next.js 16 con App Router. Consulta datos a `ingest-api` desde el servidor y los presenta en vistas especializadas por tipo de ataque, por protocolo y ahora tambien por cliente.
 
 ---
 
@@ -28,6 +28,8 @@ graph TD
     SERVICES --> SVC_FTP[/services/ftp]
     SERVICES --> SVC_SQL[/services/mysql]
     SERVICES --> SVC_PORT[/services/ports]
+    ROOT --> CLIENTS[/clients\nClient inventory]
+    CLIENTS --> CLIENT_DETAIL[/clients/:slug\nAssign sensors + forwarding]
     ROOT --> SENSORS[/sensors\nEstado de sensores]
     ROOT --> CREDS[/credentials]
     ROOT --> CMDS[/commands]
@@ -44,11 +46,11 @@ graph TD
 
 Vista de resumen global:
 
-- KPIs: sesiones totales, eventos, IPs unicas, logins exitosos, ataques hoy
-- Activity timeline — SSH + web hits por dia (ultimos 30 dias)
-- Mapa de ataques por pais
-- Heatmap 7×24 (dia de semana × hora)
-- Top IPs, top comandos, top credenciales
+- KPIs: sesiones totales, eventos, IPs unicas, logins exitosos y ataques hoy.
+- Timeline de actividad SSH y web.
+- Mapa de ataques por pais.
+- Heatmap 7x24.
+- Top IPs, top comandos y top credenciales.
 
 ### Feed en tiempo real (`/live`)
 
@@ -58,104 +60,101 @@ Stream de eventos a medida que llegan al ingest-api. Cada linea muestra protocol
 
 Divide el trafico en dos tabs:
 
-**Sesiones** — conexiones autenticadas (`loginSuccess = true`)
-- Timeline de eventos expandible por sesion
-- Replay de comandos ejecutados
-- Badge de riesgo con link al perfil de amenaza
-- AI summary (si OpenAI esta configurado)
-
-**Escaneos** — conexiones fallidas agrupadas por IP
-- Credenciales probadas
-- Version del cliente SSH detectada
-- Numero de intentos
+- **Sesiones**: conexiones autenticadas, con replay de comandos y badge de riesgo.
+- **Escaneos**: conexiones fallidas agrupadas por IP, credenciales probadas y numero de intentos.
 
 ### Detalle de sesion (`/sessions/:id`)
 
 Vista completa de una sesion individual:
-- Todos los eventos ordenados cronologicamente
-- Comandos clasificados por tipo (recon, malware, persistence, etc.)
-- Credenciales usadas
-- AI threat analysis con TTPs detectadas
+
+- eventos ordenados cronologicamente
+- comandos clasificados por tipo
+- credenciales usadas
+- AI threat analysis si OpenAI esta configurado
 
 ### Web Attacks (`/web-attacks`)
 
 ```mermaid
 graph LR
-    WEB[/web-attacks] --> AT[Attackers\nTop IPs]
-    WEB --> TL[Timeline\nBarras por dia]
-    WEB --> PA[Paths\nTop 50]
-    WEB --> GE[Geo\nMapa mundial]
-    AT --> IP[/web-attacks/:ip\nDetalle completo]
+    WEB[/web-attacks] --> AT[Attackers]
+    WEB --> TL[Timeline]
+    WEB --> PA[Paths]
+    WEB --> GE[Geo]
+    AT --> IP[/web-attacks/:ip]
 ```
 
 | Sub-vista | Descripcion |
 |-----------|-------------|
-| **Attackers** | IPs agrupadas con total de hits, tipos de ataque, primera/ultima vez |
-| **Timeline** | Grafica apilada por dia y tipo de ataque + pie chart |
+| **Attackers** | IPs agrupadas con total de hits, tipos de ataque, primera y ultima vez |
+| **Timeline** | Grafica apilada por dia y tipo de ataque |
 | **Paths** | Top 50 paths mas atacados |
-| **Geo** | Mapa mundial con intensidad por pais (escala logaritmica) |
-
-### Detalle de IP web (`/web-attacks/:ip`)
-
-Perfil completo de un atacante HTTP: todos sus hits, paths intentados, user agents, distribucion de tipos de ataque y timeline de actividad.
+| **Geo** | Mapa mundial con intensidad por pais |
 
 ### Threat Intelligence (`/threats`)
 
 Correlacion cross-protocol y risk scoring:
 
-- Ranking de todas las IPs por risk score (0–100)
-- Filtros por nivel de riesgo (CRITICAL / HIGH / MEDIUM / LOW / INFO)
-- Columnas: score, protocolos vistos, primera/ultima actividad, pais
-
-**Niveles de riesgo:**
-
-| Nivel | Score | Criterio tipico |
-|-------|-------|-----------------|
-| CRITICAL | 80–100 | Login SSH + comandos de malware/persistencia |
-| HIGH | 60–79 | Multiples vectores de ataque graves |
-| MEDIUM | 40–59 | Ataques web severos o SSH con comandos |
-| LOW | 20–39 | Reconocimiento basico |
-| INFO | 0–19 | Escaneo puntual sin actividad relevante |
-
-### Perfil de amenaza (`/threats/:ip`)
-
-Vista completa por IP:
-- Score breakdown por categoria
-- Comandos ejecutados clasificados por tipo
-- Timeline SSH y web en una misma vista
-- IP enrichment (AbuseIPDB, ipinfo.io) si esta configurado
+- ranking de todas las IPs por risk score
+- filtros por nivel de riesgo
+- columnas de score, protocolos vistos, primera y ultima actividad, pais
 
 ### Protocol Hits (`/services`)
 
-Actividad de protocolos de red capturados por ftp-honeypot, mysql-honeypot, port-honeypot y Dionaea:
+Actividad de protocolos de red capturados por FTP, MySQL, port-honeypot y Dionaea.
 
 | Sub-vista | Descripcion |
 |-----------|-------------|
-| `/services/ftp` | Hits FTP: IPs, puertos, timestamps |
-| `/services/mysql` | Hits MySQL: intentos de conexion |
-| `/services/ports` | Port scans: puertos sondeados, IPs |
+| `/services/ftp` | Hits FTP |
+| `/services/mysql` | Intentos de conexion MySQL |
+| `/services/ports` | Port scans y puertos sondeados |
 
 ### Sensores (`/sensors`)
 
 Estado en tiempo real de todos los sensores registrados:
 
-- Tarjeta por sensor con estado Online/Offline (indicador animado)
-- Protocolo, IP, puertos, version
-- Ultimo heartbeat (relativo: "2m ago")
-- Contador de eventos del periodo
+- tarjeta por sensor con estado Online o Offline
+- protocolo, IP, puertos y version
+- ultimo heartbeat
+- contador de eventos
 
-Ver [Sensor Health Monitoring](/services/sensors/) para la arquitectura completa.
+Si el sensor pertenece a un cliente, la vista tambien refleja esa separacion para que el inventario operativo coincida con `/clients`.
+
+### Clientes (`/clients`)
+
+Nueva vista de inventario multi-cliente:
+
+- boton `+ Add Client`
+- modal para crear `name`, `slug`, `description` y `forwardUrl`
+- resumen por cliente con cantidad de sensores, online y eventos
+- entrada al detalle del cliente
+
+### Detalle de cliente (`/clients/:slug`)
+
+Cada cliente tiene su propia vista operativa:
+
+- bloque `Assigned Sensors`
+- bloque `Unassigned Sensors`
+- accion `Assign`
+- accion `Unassign`
+- seccion `Client Forwarding` para definir la URL de reenvio
+
+Flujo sugerido:
+
+1. creas el cliente
+2. entras al cliente
+3. asignas sensores
+4. si quieres, activas forwarding
 
 ### Configuracion (`/settings`)
 
-Organizadas en secciones:
+Organizada en secciones:
 
 | Seccion | Que configura |
 |---------|--------------|
-| **Infrastructure** | IP del honeypot, puertos SSH e ingest |
-| **Notifications** | Discord webhook URL, umbral de alertas |
-| **AI Analysis** | OpenAI API key, modelo |
-| **Enrichment** | AbuseIPDB API key, ipinfo token |
+| **Infrastructure** | IP del honeypot y puertos |
+| **Notifications** | Discord webhook y umbral de alertas |
+| **AI Analysis** | OpenAI API key y modelo |
+| **Enrichment** | AbuseIPDB API key e ipinfo token |
 | **Timezone** | Zona horaria IANA para las graficas |
 
 <Aside type="note">
@@ -165,21 +164,33 @@ Las configuraciones guardadas en `/settings` se almacenan en PostgreSQL y tienen
 ### Setup inicial (`/setup`)
 
 Wizard que guia al usuario en la primera configuracion:
-1. Crear cuenta de usuario
-2. Configurar infraestructura (IPs, puertos)
-3. Verificar conectividad con el ingest-api
-4. Configurar notificaciones opcionales (Discord)
 
-Redirige al dashboard una vez completado.
+1. crear cuenta de usuario
+2. configurar infraestructura
+3. verificar conectividad con el ingest-api
+4. configurar notificaciones opcionales
+
+---
+
+## Navegacion y estados de carga
+
+El dashboard ahora incluye loaders compartidos en `app/loading.tsx` y en subrutas clave para que la transicion entre paginas no se sienta congelada.
+
+El patron visual actual usa:
+
+- fondo igual al shell principal
+- spinner neutro gris
+- skeletons grises y negros
+- versiones especificas para subpaginas como `/clients/:slug`, `/sessions/:id` y `/web-attacks/:ip`
 
 ---
 
 ## Auth
 
-El dashboard usa [better-auth](https://www.better-auth.com/) para autenticacion. Las sesiones se almacenan en PostgreSQL. 
+El dashboard usa [better-auth](https://www.better-auth.com/) para autenticacion. Las sesiones se almacenan en PostgreSQL.
 
 <Aside type="caution">
-`BETTER_AUTH_URL` debe coincidir **exactamente** con el origen desde el que accedes al dashboard (protocolo + host + puerto). Si accedes via un tunnel SSH en un puerto diferente al 4000, actualiza esta variable.
+`BETTER_AUTH_URL` debe coincidir exactamente con el origen desde el que accedes al dashboard. Si accedes via un tunnel SSH en un puerto diferente al 4000, actualiza esta variable.
 </Aside>
 
 ---
@@ -191,7 +202,7 @@ El dashboard usa [better-auth](https://www.better-auth.com/) para autenticacion.
 ```yaml
 dashboard:
   ports:
-    - "127.0.0.1:4000:4000"   # solo loopback
+    - "127.0.0.1:4000:4000"
   environment:
     INTERNAL_API_URL: http://ingest-api:3000
     DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot_prod
@@ -199,9 +210,6 @@ dashboard:
     BETTER_AUTH_URL: ${BETTER_AUTH_URL}
     DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
     DASHBOARD_TIMEZONE: ${DASHBOARD_TIMEZONE:-UTC}
-  networks:
-    - app_api
-    - db_private
 ```
 
 ### Multi-VM local core
@@ -209,7 +217,7 @@ dashboard:
 ```yaml
 dashboard:
   ports:
-    - "4000:4000"              # accesible en la red local
+    - "4000:4000"
   environment:
     HONEYPOT_IP: ${HONEYPOT_IP:-}
     HONEYPOT_SSH_PORT: ${HONEYPOT_SSH_PORT:-22}
@@ -223,8 +231,7 @@ dashboard:
 ```bash
 cd apps/dashboard
 npm install
-npm run dev      # http://localhost:4000
-
-npm run build    # build de produccion
-npm run start    # sirve el build
+npm run dev
+npm run build
+npm run start
 ```

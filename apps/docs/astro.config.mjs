@@ -10,23 +10,12 @@ export default defineConfig({
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/elrichi31/honeypot-ai' }],
 			head: [
 				{
+					tag: 'link',
+					attrs: { rel: 'stylesheet', href: '/styles/mermaid.css' },
+				},
+				{
 					tag: 'script',
-					attrs: { type: 'module' },
-					content: `
-						import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-						mermaid.initialize({ startOnLoad: false, theme: 'dark' });
-						document.addEventListener('DOMContentLoaded', () => {
-							document.querySelectorAll('pre code.language-mermaid').forEach((el) => {
-								const pre = el.parentElement;
-								const wrapper = pre.parentElement;
-								const div = document.createElement('div');
-								div.className = 'mermaid';
-								div.textContent = el.textContent;
-								wrapper.replaceChild(div, pre);
-							});
-							mermaid.run();
-						});
-					`,
+					attrs: { type: 'module', src: '/scripts/mermaid-init.js' },
 				},
 			],
 			sidebar: [
@@ -62,6 +51,7 @@ export default defineConfig({
 					label: 'Platform',
 					items: [
 						{ label: 'Ingest API', slug: 'services/ingest-api' },
+						{ label: 'Clients and Sensor Routing', slug: 'services/clients' },
 						{ label: 'Dashboard', slug: 'services/dashboard' },
 						{ label: 'Discord Alerts', slug: 'services/discord-alerts' },
 					],

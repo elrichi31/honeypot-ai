@@ -69,6 +69,13 @@ docker compose -f docker-compose.prod.single-host.yml up --build -d
 docker compose -f docker-compose.prod.single-host.yml ps
 ```
 
+Si ese stack corresponde a un cliente concreto, define antes:
+
+```bash
+CLIENT_SLUG=cliente-a
+CLIENT_NAME=Cliente A
+```
+
 Espera a que todos los servicios esten `healthy` antes de continuar. El orden de arranque es:
 
 1. `postgres` — espera healthcheck `pg_isready`
@@ -159,6 +166,22 @@ docker compose -f docker-compose.prod.single-host.yml down -v
 ```
 
 ## Recomendaciones de seguridad
+
+### Limpieza de cache Docker
+
+La plataforma ahora incluye `scripts/docker-maintenance.sh` para limpiar build cache, imagenes colgantes, contenedores detenidos y redes sin uso sin tocar los volumenes de Postgres.
+
+```bash
+bash scripts/docker-maintenance.sh
+```
+
+Si quieres truncar logs grandes ya existentes:
+
+```bash
+sudo TRUNCATE_LOGS=1 bash scripts/docker-maintenance.sh
+```
+
+Si piensas hospedar sensores de clientes distintos en el mismo host, evita un solo `.env` global. Separalos en stacks o `compose` diferentes para que cada uno tenga su propio `CLIENT_SLUG`.
 
 - No expongas los puertos `4000`, `3000` ni `5432` publicamente
 - Si quieres acceso remoto comodo al dashboard, usa Tailscale, WireGuard o Cloudflare Tunnel antes de abrir `:4000`

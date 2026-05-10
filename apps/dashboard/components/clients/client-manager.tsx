@@ -33,10 +33,24 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "")
 }
 
+function normalizeClientCode(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[^\w\s-]/g, "")
+    .replace(/[\s_-]+/g, "")
+    .trim()
+    .toUpperCase()
+}
+
+function deriveClientCode(value: string) {
+  return normalizeClientCode(value).slice(0, 12)
+}
+
 export function ClientManager({ initialClients, initialSensors }: Props) {
   const [clients, setClients] = useState(initialClients)
   const [name, setName] = useState("")
   const [slug, setSlug] = useState("")
+  const [code, setCode] = useState("")
   const [description, setDescription] = useState("")
   const [forwardUrl, setForwardUrl] = useState("")
   const [creating, setCreating] = useState(false)
@@ -62,6 +76,7 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
   function resetForm() {
     setName("")
     setSlug("")
+    setCode("")
     setDescription("")
     setForwardUrl("")
   }
@@ -78,6 +93,7 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
         body: JSON.stringify({
           name,
           slug: slug || slugify(name),
+          code: code || deriveClientCode(slug || name),
           description,
           forwardUrl,
         }),
@@ -154,6 +170,17 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="client-code">Client Code</Label>
+                  <Input
+                    id="client-code"
+                    value={code}
+                    onChange={(e) => setCode(normalizeClientCode(e.target.value))}
+                    placeholder="SLSA"
+                    className="font-mono uppercase"
+                  />
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="client-description">Description</Label>
                   <Textarea
                     id="client-description"
@@ -216,7 +243,12 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
                       <h3 className="font-semibold text-foreground">{client.name}</h3>
                       <span className="text-xs font-medium text-cyan-400">Open</span>
                     </div>
-                    <p className="font-mono text-xs text-muted-foreground">{client.slug}</p>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <p className="font-mono">{client.slug}</p>
+                      <span className="rounded border border-border/70 bg-card px-1.5 py-0.5 font-mono text-[10px] text-foreground/90">
+                        {client.code}
+                      </span>
+                    </div>
                   </div>
                   <p className="text-sm text-muted-foreground min-h-10">
                     {client.description || "No description yet."}

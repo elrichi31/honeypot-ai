@@ -42,6 +42,10 @@ INGEST_API_URL=http://100.a.b.c:3000
 
 # Mismo secret que usaras en el servidor app
 INGEST_SHARED_SECRET=<genera con openssl rand -base64 32>
+
+# Cliente al que pertenece este stack de sensores
+CLIENT_SLUG=cliente-a
+CLIENT_NAME=Cliente A
 ```
 
 ### En el servidor app (`.env`)
@@ -109,6 +113,8 @@ DISCORD_WEBHOOK_URL=
 
    Servicios que deben estar `running`: `cowrie`, `web-honeypot`, `vector`.
 </Steps>
+
+Si el mismo VPS va a exponer sensores de mas de un cliente, divide la captura en stacks distintos para no compartir un unico `CLIENT_SLUG`.
 
 ## Paso 2 — Servidor app: DNS y levantar servicios
 
@@ -242,3 +248,13 @@ docker compose -f docker-compose.prod.app.yml exec caddy caddy list-certificates
 # Estado de todos los servicios del servidor app
 docker compose -f docker-compose.prod.app.yml ps
 ```
+
+### Limpieza periodica de Docker
+
+En cualquiera de los dos hosts puedes ejecutar:
+
+```bash
+bash scripts/docker-maintenance.sh
+```
+
+El script limpia cache e imagenes no usadas, y no borra volumenes. Es buena practica correrlo por cron cada semana o cada dos semanas.

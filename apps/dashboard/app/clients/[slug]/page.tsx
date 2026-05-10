@@ -4,6 +4,7 @@ import { ArrowLeft, Server, Wifi } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { ClientSensorAssignment } from "@/components/clients/client-sensor-assignment"
 import { ClientForwardingSettings } from "@/components/clients/client-forwarding-settings"
+import { ClientSensorCatalog } from "@/components/clients/client-sensor-catalog"
 import { fetchClients, fetchSensors } from "@/lib/api"
 
 export default async function ClientDetailPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -52,6 +53,10 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ s
 
       <div className="mb-6">
         <ClientForwardingSettings client={client} />
+      </div>
+
+      <div className="mb-6">
+        <ClientSensorCatalog client={client} assignedSensors={clientSensors} />
       </div>
 
       <ClientSensorAssignment

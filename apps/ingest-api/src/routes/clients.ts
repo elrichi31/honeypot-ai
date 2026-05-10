@@ -5,6 +5,7 @@ import { ensureIngestToken } from '../lib/ingest-auth.js'
 const clientSchema = z.object({
   name: z.string().trim().min(1),
   slug: z.string().trim().default(''),
+  code: z.string().trim().default(''),
   description: z.string().trim().default(''),
   forwardUrl: z.string().trim().default(''),
 })
@@ -19,17 +20,31 @@ function slugifyClient(value: string): string {
     .replace(/^-+|-+$/g, '')
 }
 
+function normalizeClientCode(value: string): string {
+  return value
+    .normalize('NFKD')
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '')
+    .trim()
+    .toUpperCase()
+}
+
+function deriveClientCode(value: string): string {
+  return normalizeClientCode(value).slice(0, 12)
+}
+
 export async function clientRoutes(fastify: FastifyInstance) {
   fastify.get('/clients', async (_request, reply) => {
     const clients = await fastify.prisma.$queryRaw<Array<{
       id: string
       name: string
       slug: string
+      code: string
       description: string
       forward_url: string
       created_at: Date
     }>>`
-      SELECT id, name, slug, description, forward_url, created_at
+      SELECT id, name, slug, code, description, forward_url, created_at
       FROM clients
       ORDER BY name ASC, created_at ASC
     `
@@ -39,6 +54,7 @@ export async function clientRoutes(fastify: FastifyInstance) {
         id: client.id,
         name: client.name,
         slug: client.slug,
+        code: client.code || deriveClientCode(client.slug || client.name),
         description: client.description,
         forwardUrl: client.forward_url,
         createdAt: client.created_at,
@@ -57,6 +73,8 @@ export async function clientRoutes(fastify: FastifyInstance) {
     const name = parsed.data.name
     const slug = slugifyClient(parsed.data.slug || name)
     if (!slug) return reply.status(400).send({ error: 'Invalid client slug' })
+    const code = normalizeClientCode(parsed.data.code || deriveClientCode(slug || name))
+    if (!code) return reply.status(400).send({ error: 'Invalid client code' })
 
     const description = parsed.data.description
     const forwardUrl = parsed.data.forwardUrl
@@ -69,17 +87,19 @@ export async function clientRoutes(fastify: FastifyInstance) {
       id: string
       name: string
       slug: string
+      code: string
       description: string
       forward_url: string
       created_at: Date
     }>>`
-      INSERT INTO clients (id, name, slug, description, forward_url, created_at)
-      VALUES (gen_random_uuid()::text, ${name}, ${slug}, ${description}, ${forwardUrl}, ${now})
+      INSERT INTO clients (id, name, slug, code, description, forward_url, created_at)
+      VALUES (gen_random_uuid()::text, ${name}, ${slug}, ${code}, ${description}, ${forwardUrl}, ${now})
       ON CONFLICT (slug) DO UPDATE SET
         name = EXCLUDED.name,
+        code = EXCLUDED.code,
         description = EXCLUDED.description,
         forward_url = EXCLUDED.forward_url
-      RETURNING id, name, slug, description, forward_url, created_at
+      RETURNING id, name, slug, code, description, forward_url, created_at
     `
 
     const client = rows[0]
@@ -88,6 +108,7 @@ export async function clientRoutes(fastify: FastifyInstance) {
       id: client.id,
       name: client.name,
       slug: client.slug,
+      code: client.code || code,
       description: client.description,
       forwardUrl: client.forward_url,
       createdAt: client.created_at,
@@ -103,6 +124,7 @@ export async function clientRoutes(fastify: FastifyInstance) {
     const parsed = z
       .object({
         name: z.string().trim().min(1).optional(),
+        code: z.string().trim().optional(),
         description: z.string().trim().optional(),
         forwardUrl: z.string().trim().optional(),
       })
@@ -116,11 +138,12 @@ export async function clientRoutes(fastify: FastifyInstance) {
       id: string
       name: string
       slug: string
+      code: string
       description: string
       forward_url: string
       created_at: Date
     }>>`
-      SELECT id, name, slug, description, forward_url, created_at
+      SELECT id, name, slug, code, description, forward_url, created_at
       FROM clients
       WHERE id = ${params.data.clientId}
       LIMIT 1
@@ -130,8 +153,13 @@ export async function clientRoutes(fastify: FastifyInstance) {
     if (!current) return reply.status(404).send({ error: 'Client not found' })
 
     const nextName = parsed.data.name ?? current.name
+    const nextCode =
+      parsed.data.code !== undefined
+        ? normalizeClientCode(parsed.data.code || deriveClientCode(current.slug || nextName))
+        : current.code || deriveClientCode(current.slug || nextName)
     const nextDescription = parsed.data.description ?? current.description
     const nextForwardUrl = parsed.data.forwardUrl ?? current.forward_url
+    if (!nextCode) return reply.status(400).send({ error: 'Invalid client code' })
 
     if (nextForwardUrl && !/^https?:\/\//i.test(nextForwardUrl)) {
       return reply.status(400).send({ error: 'Forward URL must start with http:// or https://' })
@@ -141,6 +169,7 @@ export async function clientRoutes(fastify: FastifyInstance) {
       id: string
       name: string
       slug: string
+      code: string
       description: string
       forward_url: string
       created_at: Date
@@ -148,10 +177,11 @@ export async function clientRoutes(fastify: FastifyInstance) {
       UPDATE clients
       SET
         name = ${nextName},
+        code = ${nextCode},
         description = ${nextDescription},
         forward_url = ${nextForwardUrl}
       WHERE id = ${params.data.clientId}
-      RETURNING id, name, slug, description, forward_url, created_at
+      RETURNING id, name, slug, code, description, forward_url, created_at
     `
 
     const client = rows[0]
@@ -159,6 +189,7 @@ export async function clientRoutes(fastify: FastifyInstance) {
       id: client.id,
       name: client.name,
       slug: client.slug,
+      code: client.code || nextCode,
       description: client.description,
       forwardUrl: client.forward_url,
       createdAt: client.created_at,

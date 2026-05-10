@@ -248,6 +248,24 @@ sequenceDiagram
     I->>DASH: [{id, name, protocol, online, lastSeen, eventCount}]
 ```
 
+### Multi-cliente y forwarding
+
+```mermaid
+sequenceDiagram
+    participant Sensor as Sensor or shipper
+    participant API as ingest-api
+    participant DB as PostgreSQL
+    participant ClientAPI as Client endpoint
+
+    Sensor->>API: heartbeat with clientSlug
+    API->>DB: upsert client
+    API->>DB: upsert sensor -> client_id
+    Sensor->>API: new event with sensorId
+    API->>DB: insert local event
+    API->>DB: lookup sensor -> client
+    API->>ClientAPI: POST forwardUrl
+```
+
 ---
 
 ## Redes Docker

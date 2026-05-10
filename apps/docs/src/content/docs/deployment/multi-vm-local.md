@@ -3,8 +3,6 @@ title: Lab Multi-VM Local
 description: Simula la topologia de produccion con VMs separadas usando VirtualBox o VMware para desarrollo y pruebas.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
-
 El lab multi-VM local permite simular la arquitectura distribuida de produccion en tu maquina usando VMs separadas. Es util para probar la comunicacion entre sensores y el core antes de hacer un deploy real en VPS.
 
 ---
@@ -43,9 +41,7 @@ graph TD
     POSTGRES --> DASH
 ```
 
-<Aside type="tip">
-Puedes tambien usar `docker-compose.local.sensor-ssh-web.yml` en una sola VM para tener Cowrie + web-honeypot juntos, si quieres ahorrar VMs.
-</Aside>
+> Puedes tambien usar `docker-compose.local.sensor-ssh-web.yml` en una sola VM para tener Cowrie + web-honeypot juntos, si quieres ahorrar VMs.
 
 ---
 
@@ -183,9 +179,7 @@ nc -vz 192.168.56.13 9200
 | Dashboard | Accesible en :4000 directamente | Solo via HTTPS o tunnel |
 | Ingest API | Accesible en :3000 directamente | Solo via VPN |
 
-<Aside type="caution">
-Los `.env.local.*.example` usan IPs de ejemplo `192.168.56.x` (red host-only de VirtualBox). Ajustalas a las IPs reales de tu entorno. En VMware o WSL2, los rangos de red son distintos.
-</Aside>
+> Los `.env.local.*.example` usan IPs de ejemplo `192.168.56.x` (red host-only de VirtualBox). Ajustalas a las IPs reales de tu entorno. En VMware o WSL2, los rangos de red son distintos.
 
 ---
 
