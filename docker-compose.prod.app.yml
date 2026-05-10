@@ -6,8 +6,15 @@ x-service-defaults: &service-defaults
   cap_drop:
     - ALL
 
+x-json-logging: &json-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   postgres:
+    logging: *json-logging
     image: postgres:16-alpine
     container_name: honeypot-postgres
     restart: unless-stopped
@@ -27,6 +34,7 @@ services:
 
   ingest-api:
     <<: *service-defaults
+    logging: *json-logging
     build:
       context: ./apps/ingest-api
       dockerfile: Dockerfile.compose
@@ -71,6 +79,7 @@ services:
 
   dashboard:
     <<: *service-defaults
+    logging: *json-logging
     build:
       context: ./apps/dashboard
       args:
@@ -106,6 +115,7 @@ services:
     pids_limit: 256
 
   caddy:
+    logging: *json-logging
     image: caddy:2-alpine
     container_name: honeypot-caddy
     restart: unless-stopped

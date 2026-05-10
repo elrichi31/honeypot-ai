@@ -6,9 +6,16 @@ x-service-defaults: &service-defaults
   cap_drop:
     - ALL
 
+x-json-logging: &json-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   cowrie:
     <<: *service-defaults
+    logging: *json-logging
     build:
       context: ./sensors/cowrie
     container_name: cowrie
@@ -25,6 +32,7 @@ services:
 
   cowrie-beacon:
     <<: *service-defaults
+    logging: *json-logging
     image: python:3.12-alpine
     container_name: cowrie-beacon
     environment:
@@ -49,6 +57,7 @@ services:
 
   web-honeypot:
     <<: *service-defaults
+    logging: *json-logging
     build:
       context: ./sensors/web-honeypot
     container_name: web-honeypot
@@ -76,6 +85,7 @@ services:
 
   vector:
     <<: *service-defaults
+    logging: *json-logging
     image: timberio/vector:0.40.0-alpine
     container_name: vector
     depends_on:
@@ -95,6 +105,7 @@ services:
 
   ftp-honeypot:
     <<: *service-defaults
+    logging: *json-logging
     build:
       context: ./sensors/ftp-honeypot
     container_name: ftp-honeypot
@@ -116,6 +127,7 @@ services:
 
   mysql-honeypot:
     <<: *service-defaults
+    logging: *json-logging
     build:
       context: ./sensors/mysql-honeypot
     container_name: mysql-honeypot
@@ -137,6 +149,7 @@ services:
 
   port-honeypot:
     <<: *service-defaults
+    logging: *json-logging
     build:
       context: ./sensors/port-honeypot
     container_name: port-honeypot

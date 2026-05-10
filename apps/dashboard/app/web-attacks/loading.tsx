@@ -3,9 +3,9 @@ import { RouteLoadingShell } from "@/components/route-loading-shell"
 export default function Loading() {
   return (
     <RouteLoadingShell
-      label="Navigating"
-      title="Loading dashboard view"
-      description="Preparing the next page and syncing the latest honeypot telemetry."
+      label="Web Attacks"
+      title="Loading HTTP attack telemetry"
+      description="Preparing request patterns, attacker clusters, and traffic summaries."
       variant="overview"
     />
   )

@@ -345,6 +345,64 @@ Antes del primer deploy, confirma esto:
 - `curl http://127.0.0.1:3000/health` responde `{"status":"ok"}` en el servidor app.
 - Al menos una conexion de prueba a FTP, MySQL y port-scan aparece en `/protocol-hits` y `/protocol-hits/stats`.
 
+## Mantenimiento de Docker
+
+Si ves que `docker system df` reporta decenas de GB mientras PostgreSQL apenas pesa unos cientos de MB, casi siempre el espacio extra viene de:
+
+- cache de build de BuildKit
+- imagenes viejas sin uso tras varios `up --build`
+- logs `json-file` de los contenedores
+
+Para reducir eso sin tocar volumenes ni la base de datos:
+
+1. Actualiza el repo y recrea los servicios para aplicar la rotacion de logs nueva:
+
+```bash
+docker compose -f docker-compose.prod.single-host.yml up -d --force-recreate
+# o
+docker compose -f docker-compose.prod.app.yml up -d --force-recreate
+docker compose -f docker-compose.prod.honeypot.yml up -d --force-recreate
+```
+
+2. Ejecuta el script de limpieza segura:
+
+```bash
+bash scripts/docker-maintenance.sh
+```
+
+Ese script:
+
+- limpia build cache antigua
+- elimina imagenes no usadas
+- elimina contenedores detenidos
+- elimina redes sin uso
+- no toca volumenes
+
+Si algun dia quieres truncar logs gigantes ya existentes, hazlo de forma explicita:
+
+```bash
+sudo TRUNCATE_LOGS=1 bash scripts/docker-maintenance.sh
+```
+
+Para automatizarlo cada domingo a las 03:15:
+
+```bash
+crontab -e
+```
+
+```cron
+15 3 * * 0 cd /opt/honeypot-pr && /usr/bin/bash scripts/docker-maintenance.sh >> /var/log/honeypot-docker-maintenance.log 2>&1
+```
+
+Comandos utiles para diagnosticar espacio:
+
+```bash
+docker system df
+docker system df -v
+du -sh /var/lib/docker/containers
+du -sh /var/lib/docker/volumes
+```
+
 ### Nota para Windows local
 
 En este checkout hay archivos marcados como `reparse point`, y Docker BuildKit puede fallar al construir algunas imagenes desde Windows. En Linux de produccion normalmente no pasa. Si necesitas probar el deploy desde Windows local, usa:

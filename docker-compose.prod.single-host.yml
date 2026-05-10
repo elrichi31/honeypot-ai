@@ -6,9 +6,16 @@ x-service-defaults: &service-defaults
   cap_drop:
     - ALL
 
+x-json-logging: &json-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   cowrie:
     <<: *service-defaults
+    logging: *json-logging
     build:
       context: ./sensors/cowrie
     container_name: cowrie
@@ -26,6 +33,7 @@ services:
 
   cowrie-beacon:
     <<: *service-defaults
+    logging: *json-logging
     image: python:3.12-alpine
     container_name: cowrie-beacon
     depends_on:
@@ -53,6 +61,7 @@ services:
 
   web-honeypot:
     <<: *service-defaults
+    logging: *json-logging
     build:
       context: ./sensors/web-honeypot
     container_name: web-honeypot
@@ -83,6 +92,7 @@ services:
     pids_limit: 128
 
   postgres:
+    logging: *json-logging
     image: postgres:16-alpine
     container_name: honeypot-postgres
     restart: unless-stopped
@@ -102,6 +112,7 @@ services:
 
   ingest-api:
     <<: *service-defaults
+    logging: *json-logging
     build:
       context: ./apps/ingest-api
       dockerfile: Dockerfile.compose
@@ -139,6 +150,7 @@ services:
 
   vector:
     <<: *service-defaults
+    logging: *json-logging
     image: timberio/vector:0.40.0-alpine
     container_name: vector
     depends_on:
@@ -161,6 +173,7 @@ services:
 
   dionaea:
     <<: *service-defaults
+    logging: *json-logging
     image: ghcr.io/telekom-security/dionaea:24.04.1
     container_name: dionaea
     cap_add:
@@ -191,6 +204,7 @@ services:
 
   dionaea-shipper:
     <<: *service-defaults
+    logging: *json-logging
     image: python:3.12-alpine
     container_name: dionaea-shipper
     depends_on:
@@ -225,6 +239,7 @@ services:
 
   port-honeypot:
     <<: *service-defaults
+    logging: *json-logging
     build:
       context: ./sensors/port-honeypot
     container_name: port-honeypot
@@ -257,6 +272,7 @@ services:
 
   dashboard:
     <<: *service-defaults
+    logging: *json-logging
     build:
       context: ./apps/dashboard
       args:
