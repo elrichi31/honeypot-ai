@@ -289,6 +289,7 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
         {clients.length === 0 ? (
           <p className="text-sm text-muted-foreground">No clients created yet.</p>
         ) : (
+          <>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {clients.map((client) => {
               const stats = clientStats.get(client.id) ?? { sensors: 0, online: 0, events: 0 }
@@ -467,6 +468,7 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          </>
         )}
       </section>
     </div>
