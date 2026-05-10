@@ -72,6 +72,7 @@ export interface Client {
   name: string
   slug: string
   description: string
+  forwardUrl: string
   createdAt: string
 }
 

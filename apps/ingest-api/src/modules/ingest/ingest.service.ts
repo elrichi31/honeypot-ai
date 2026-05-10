@@ -6,6 +6,7 @@ import { EventRepository } from '../events/event.repository.js';
 import type { IngestSummary, CowrieRawEvent } from '../../types/index.js';
 import { sendDiscordAlert } from '../../lib/discord.js';
 import { evaluateThreatAlert } from '../../lib/threat-alerts.js';
+import { forwardClientEventBySensorId } from '../../lib/client-forward.js';
 
 export class IngestService {
   private prisma: PrismaClient;
@@ -38,6 +39,25 @@ export class IngestService {
           { name: 'Password', value: (raw as any).password ?? '—', inline: true },
           { name: 'Sesión',   value: raw.session, inline: false },
         ],
+      })
+    }
+
+    if (eventCreated) {
+      void forwardClientEventBySensorId(this.prisma, typeof raw.sensor === 'string' ? raw.sensor : null, {
+        kind: 'cowrie.event',
+        event: {
+          eventId: cowrieEventId,
+          sensorId: typeof raw.sensor === 'string' ? raw.sensor : null,
+          session: raw.session,
+          srcIp: raw.src_ip,
+          timestamp: raw.timestamp,
+          eventid: raw.eventid,
+          username: raw.username ?? null,
+          password: raw.password ?? null,
+          command: raw.input ?? null,
+          raw,
+          normalized: normalized.normalizedJson,
+        },
       })
     }
 

@@ -1,0 +1,2 @@
+ALTER TABLE clients
+ADD COLUMN IF NOT EXISTS forward_url text NOT NULL DEFAULT '';

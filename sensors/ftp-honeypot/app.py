@@ -66,6 +66,7 @@ def _post(path: str, payload: dict):
 def _send(event_type, src_ip, src_port, username=None, password=None, extra=None):
     _post("/ingest/protocol/event", {
         "eventId": str(uuid.uuid4()),
+        "sensorId": SENSOR_ID,
         "protocol": "ftp",
         "srcIp": src_ip,
         "srcPort": src_port,

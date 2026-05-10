@@ -38,6 +38,7 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
   const [name, setName] = useState("")
   const [slug, setSlug] = useState("")
   const [description, setDescription] = useState("")
+  const [forwardUrl, setForwardUrl] = useState("")
   const [creating, setCreating] = useState(false)
   const [open, setOpen] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -62,6 +63,7 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
     setName("")
     setSlug("")
     setDescription("")
+    setForwardUrl("")
   }
 
   async function handleCreateClient(e: React.FormEvent) {
@@ -77,6 +79,7 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
           name,
           slug: slug || slugify(name),
           description,
+          forwardUrl,
         }),
       })
 
@@ -160,6 +163,17 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
                   />
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="client-forward-url">Forward URL</Label>
+                  <Input
+                    id="client-forward-url"
+                    value={forwardUrl}
+                    onChange={(e) => setForwardUrl(e.target.value)}
+                    placeholder="https://ingestapi.com/alerts/cop-pz"
+                    className="font-mono text-sm"
+                  />
+                </div>
+
                 <DialogFooter>
                   <Button
                     type="button"
@@ -207,6 +221,12 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
                   <p className="text-sm text-muted-foreground min-h-10">
                     {client.description || "No description yet."}
                   </p>
+                  <div className="rounded-lg border border-border/70 bg-card px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Forwarding</p>
+                    <p className="mt-1 truncate font-mono text-xs text-foreground">
+                      {client.forwardUrl || "disabled"}
+                    </p>
+                  </div>
                   <div className="grid grid-cols-3 gap-3 text-sm">
                     <div>
                       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Sensors</p>

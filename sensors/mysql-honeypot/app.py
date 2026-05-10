@@ -125,6 +125,7 @@ def _send(event_type, src_ip, src_port, username=None, database=None):
         data["database"] = database
     _post("/ingest/protocol/event", {
         "eventId": str(uuid.uuid4()),
+        "sensorId": SENSOR_ID,
         "protocol": "mysql",
         "srcIp": src_ip,
         "srcPort": src_port,

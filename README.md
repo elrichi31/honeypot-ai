@@ -429,6 +429,51 @@ docker compose up -d --build
 | `API_DOMAIN` | Dominio o subdominio publico del API si lo separas |
 | `NEXT_PUBLIC_API_URL` | URL publica del API usada por el dashboard |
 | `DASHBOARD_TIMEZONE` | Zona horaria IANA, por ejemplo `America/Bogota` |
+
+## Forwarding por cliente
+
+Cada cliente puede tener una `Forward URL` propia, por ejemplo:
+
+```text
+https://ingestapi.com/alerts/cop-pz
+```
+
+Cuando esa URL esta configurada en el cliente, el `ingest-api` hace `POST` de cada evento nuevo recibido desde los sensores asignados a ese cliente. El payload llega en JSON con esta forma:
+
+```json
+{
+  "kind": "protocol.event",
+  "receivedAt": "2026-05-10T18:30:00.000Z",
+  "client": {
+    "id": "clx123",
+    "name": "COP PZ",
+    "slug": "cop-pz"
+  },
+  "sensor": {
+    "sensorId": "ftp-01",
+    "name": "FTP Honeypot",
+    "protocol": "ftp",
+    "ip": "203.0.113.10"
+  },
+  "event": {
+    "eventId": "4d2f...",
+    "sensorId": "ftp-01",
+    "protocol": "ftp",
+    "srcIp": "198.51.100.7",
+    "dstPort": 21,
+    "eventType": "auth",
+    "timestamp": "2026-05-10T18:29:58.120Z"
+  }
+}
+```
+
+Tipos actuales de `kind`:
+
+- `cowrie.event`
+- `web.event`
+- `protocol.event`
+
+Si quieres desactivarlo para un cliente, deja su `Forward URL` vacia.
 | `CLIENT_SLUG` | Slug del cliente al que pertenece ese stack de sensores, por ejemplo `cliente-a` |
 | `CLIENT_NAME` | Nombre legible del cliente, por ejemplo `Cliente A` |
 | `SENSOR_ID` | ID unico del sensor para el beacon/heartbeat |

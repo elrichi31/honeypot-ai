@@ -25,6 +25,7 @@ inputs        = ["cowrie_file"]
 drop_on_error = true          # discard malformed lines silently
 source        = '''
   . = parse_json!(string!(.message))
+  .sensor = "${SENSOR_ID}"
 '''
 
 # ── Sink: POST batches to ingest-api ───────────────────────────────────────

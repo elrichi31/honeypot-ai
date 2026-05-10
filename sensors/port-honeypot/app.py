@@ -87,6 +87,7 @@ def _send(src_ip: str, src_port: int, dst_port: int, client_hex: str):
     service = SERVICES.get(dst_port, f"port-{dst_port}")
     _post("/ingest/protocol/event", {
         "eventId": str(uuid.uuid4()),
+        "sensorId": SENSOR_ID,
         "protocol": "port-scan",
         "srcIp": src_ip,
         "srcPort": src_port,

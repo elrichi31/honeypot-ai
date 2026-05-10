@@ -4,9 +4,11 @@ import { ensureIngestToken } from '../lib/ingest-auth.js'
 import { eventBus } from '../lib/event-bus.js'
 import { lookupGeo } from '../lib/geo.js'
 import { evaluateThreatAlert } from '../lib/threat-alerts.js'
+import { forwardClientEventBySensorId } from '../lib/client-forward.js'
 
 const protocolEventSchema = z.object({
   eventId: z.string().uuid(),
+  sensorId: z.string().min(1).optional(),
   protocol: z.string().min(1),
   srcIp: z.string().min(1),
   srcPort: z.number().int().nullable().optional(),
@@ -38,6 +40,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
     }
 
     const d = parsed.data
+    const sensorId = d.sensorId ?? (typeof d.data?.sensor === 'string' ? d.data.sensor : null)
 
     try {
       const rows = await fastify.prisma.$queryRaw<Array<{ id: string }>>`
@@ -65,6 +68,22 @@ export async function protocolRoutes(fastify: FastifyInstance) {
             dstPort: d.dstPort,
           })
         }
+        void forwardClientEventBySensorId(fastify.prisma, sensorId, {
+          kind: 'protocol.event',
+          event: {
+            eventId: d.eventId,
+            sensorId,
+            protocol: d.protocol,
+            srcIp: d.srcIp,
+            srcPort: d.srcPort ?? null,
+            dstPort: d.dstPort,
+            eventType: d.eventType,
+            username: d.username ?? null,
+            password: d.password ?? null,
+            data: d.data,
+            timestamp: d.timestamp,
+          },
+        })
         void evaluateThreatAlert(fastify.prisma, d.srcIp)
         return reply.status(201).send({ id: rows[0].id })
       }

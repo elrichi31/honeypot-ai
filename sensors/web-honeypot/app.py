@@ -125,6 +125,7 @@ def catch_all(path: str):
     # Build ingest event
     event = {
         "eventId":    str(uuid.uuid4()),
+        "sensorId":   SENSOR_ID,
         "timestamp":  datetime.now(timezone.utc).isoformat(),
         "srcIp":      src_ip,
         "method":     method,

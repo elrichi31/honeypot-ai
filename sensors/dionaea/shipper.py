@@ -205,6 +205,7 @@ def _event_base(raw):
 
     return {
         "eventId": event_id,
+        "sensorId": SENSOR_ID,
         "protocol": conn["protocol"],
         "srcIp": conn["srcIp"],
         "srcPort": conn["srcPort"],
@@ -221,6 +222,7 @@ def _to_protocol_events(raw):
 
     events = [{
         "eventId": base["eventId"],
+        "sensorId": base["sensorId"],
         "protocol": base["protocol"],
         "srcIp": base["srcIp"],
         "srcPort": base["srcPort"],
@@ -239,6 +241,7 @@ def _to_protocol_events(raw):
                 continue
             events.append({
                 "eventId": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{base['eventId']}:auth:{idx}")),
+                "sensorId": base["sensorId"],
                 "protocol": base["protocol"],
                 "srcIp": base["srcIp"],
                 "srcPort": base["srcPort"],
@@ -264,6 +267,7 @@ def _to_protocol_events(raw):
                 continue
             events.append({
                 "eventId": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{base['eventId']}:command:{idx}")),
+                "sensorId": base["sensorId"],
                 "protocol": base["protocol"],
                 "srcIp": base["srcIp"],
                 "srcPort": base["srcPort"],

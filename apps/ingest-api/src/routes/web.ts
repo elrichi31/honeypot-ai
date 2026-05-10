@@ -6,12 +6,14 @@ import { isWebHitBot } from '../lib/bot-detector.js';
 import { eventBus } from '../lib/event-bus.js';
 import { lookupGeo } from '../lib/geo.js';
 import { evaluateThreatAlert } from '../lib/threat-alerts.js';
+import { forwardClientEventBySensorId } from '../lib/client-forward.js';
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 5000;
 
 const webHitSchema = z.object({
   eventId: z.string().uuid(),
+  sensorId: z.string().min(1).optional(),
   timestamp: z.string().datetime({ offset: true }),
   srcIp: z.string().min(1),
   method: z.string().min(1),
@@ -143,6 +145,7 @@ export async function webRoutes(fastify: FastifyInstance) {
     }
 
     const d = parsed.data;
+    const sensorId = d.sensorId ?? null
     const headers = normalizeHeaders(d.headers);
 
     try {
@@ -182,6 +185,22 @@ export async function webRoutes(fastify: FastifyInstance) {
         if (geo) {
           eventBus.emit('attack', { type: 'http', ip: d.srcIp, ...geo, timestamp: d.timestamp })
         }
+        void forwardClientEventBySensorId(fastify.prisma, sensorId, {
+          kind: 'web.event',
+          event: {
+            eventId: d.eventId,
+            sensorId,
+            timestamp: d.timestamp,
+            srcIp: d.srcIp,
+            method: d.method,
+            path: d.path,
+            query: d.query,
+            userAgent: d.userAgent,
+            headers,
+            body: d.body,
+            attackType: d.attackType,
+          },
+        })
         void evaluateThreatAlert(fastify.prisma, d.srcIp)
         return reply.status(201).send({
           id: createdRows[0].id,
@@ -251,6 +270,22 @@ export async function webRoutes(fastify: FastifyInstance) {
           if (geo) {
             eventBus.emit('attack', { type: 'http', ip: d.srcIp, ...geo, timestamp: d.timestamp });
           }
+          void forwardClientEventBySensorId(fastify.prisma, d.sensorId ?? null, {
+            kind: 'web.event',
+            event: {
+              eventId: d.eventId,
+              sensorId: d.sensorId ?? null,
+              timestamp: d.timestamp,
+              srcIp: d.srcIp,
+              method: d.method,
+              path: d.path,
+              query: d.query,
+              userAgent: d.userAgent,
+              headers: d.headers,
+              body: d.body,
+              attackType: d.attackType,
+            },
+          })
           void evaluateThreatAlert(fastify.prisma, d.srcIp);
         }
       } catch {

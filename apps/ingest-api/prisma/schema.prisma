@@ -107,6 +107,7 @@ model Client {
   name        String
   slug        String   @unique
   description String   @default("")
+  forwardUrl  String   @default("") @map("forward_url")
   createdAt   DateTime @default(now()) @map("created_at")
 
   sensors Sensor[]
