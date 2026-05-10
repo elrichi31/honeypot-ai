@@ -74,7 +74,10 @@ const navSections = [
   {
     title: "Infrastructure",
     icon: Server,
-    items: [{ title: "Sensors", href: "/sensors", icon: Server }],
+    items: [
+      { title: "Clients", href: "/clients", icon: Layers3 },
+      { title: "Sensors", href: "/sensors", icon: Server },
+    ],
   },
   {
     title: "System",

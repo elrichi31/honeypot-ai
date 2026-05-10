@@ -17,6 +17,8 @@ INGEST_API_URL = os.getenv("INGEST_API_URL", "http://ingest-api:3000")
 INGEST_SHARED_SECRET = os.getenv("INGEST_SHARED_SECRET", "")
 SENSOR_ID = os.getenv("SENSOR_ID", f"port-{socket.gethostname()}")
 SENSOR_NAME = os.getenv("SENSOR_NAME", "Port Honeypot")
+CLIENT_SLUG = os.getenv("CLIENT_SLUG", "")
+CLIENT_NAME = os.getenv("CLIENT_NAME", "")
 VERSION = "1.0.0"
 SENSOR_HOST = os.getenv("SENSOR_HOST", socket.gethostname())
 
@@ -105,6 +107,8 @@ def _send_heartbeat():
     _post("/sensors/heartbeat", {
         "sensorId": SENSOR_ID,
         "name": SENSOR_NAME,
+        "clientSlug": CLIENT_SLUG,
+        "clientName": CLIENT_NAME,
         "protocol": "port-scan",
         "ip": SENSOR_IP,
         "version": VERSION,

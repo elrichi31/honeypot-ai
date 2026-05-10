@@ -56,7 +56,8 @@ Todos los sensors -> heartbeat.py sidecar -> POST /sensors/heartbeat (cada 30s)
                                       PostgreSQL
                                            |
                                       dashboard (:4000)
-                                      /sensors   /threats
+                                      /clients   /sensors
+                                      /threats
                                       /campaigns /web-attacks
                                       /settings  /setup
 ```
@@ -263,6 +264,8 @@ docker compose -f deploy/local/sensor-port.yml up --build -d
 
 Cada sensor VM levanta automaticamente un `heartbeat.py` sidecar que registra el sensor en el core cada 30 segundos. Los sensores aparecen en el dashboard en `/sensors` con estado online/offline y ultimo heartbeat.
 
+Si quieres separar por clientes, define `CLIENT_SLUG` y opcionalmente `CLIENT_NAME` en el `.env` de cada VM sensor. Todos los sensores de esa VM quedaran agrupados bajo el mismo cliente en `/clients` y `/sensors`.
+
 ## Cowrie personalizado
 
 El directorio `cowrie/` contiene una imagen custom de Cowrie con:
@@ -368,6 +371,8 @@ docker compose up -d --build
 | `API_DOMAIN` | Dominio o subdominio publico del API si lo separas |
 | `NEXT_PUBLIC_API_URL` | URL publica del API usada por el dashboard |
 | `DASHBOARD_TIMEZONE` | Zona horaria IANA, por ejemplo `America/Bogota` |
+| `CLIENT_SLUG` | Slug del cliente al que pertenece ese stack de sensores, por ejemplo `cliente-a` |
+| `CLIENT_NAME` | Nombre legible del cliente, por ejemplo `Cliente A` |
 | `SENSOR_ID` | ID unico del sensor para el beacon/heartbeat |
 | `SENSOR_NAME` | Nombre legible del sensor que aparece en `/sensors` |
 | `SENSOR_PROTOCOL` | Protocolo principal del sensor (`ssh`, `http`, `port-scan`, etc.) |
@@ -454,6 +459,8 @@ docker compose up -d --build
 | `/services/ftp` | Hits de FTP |
 | `/services/mysql` | Hits de MySQL |
 | `/services/ports` | Hits de port scanner |
+| `/clients` | Gestion de clientes y asignacion manual de sensores |
+| `/clients/[slug]` | Vista de sensores de un cliente concreto |
 | `/threats` | Tabla de IPs con mayor risk score |
 | `/threats/[ip]` | Perfil completo de amenaza por IP |
 | `/sensors` | Estado online/offline de todos los sensores registrados |
@@ -484,6 +491,11 @@ La pagina `/sensors` del dashboard muestra todos los sensores con:
 - Ultimo heartbeat
 - Protocolo, IP, puertos y version del honeypot
 - Contador de eventos del periodo
+
+La pagina `/clients` permite:
+- Crear clientes
+- Asignar sensores ya registrados a un cliente
+- Entrar a cada cliente y ver solo sus sensores
 
 ## Tests
 

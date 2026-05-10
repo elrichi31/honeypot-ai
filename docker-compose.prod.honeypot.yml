@@ -30,6 +30,8 @@ services:
     environment:
       SENSOR_ID: ${SENSOR_ID_SSH:-cowrie-ssh-01}
       SENSOR_NAME: SSH Honeypot (Cowrie)
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
       SENSOR_IP: ${HONEYPOT_IP:-}
       SENSOR_PROTOCOL: ssh
       SENSOR_VERSION: cowrie
@@ -56,6 +58,8 @@ services:
       PORT: "8080"
       SENSOR_ID: ${SENSOR_ID_HTTP:-web-01}
       SENSOR_NAME: Web Honeypot
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
       SENSOR_IP: ${HONEYPOT_IP:-}
       SENSOR_HOST: web-honeypot
       SENSOR_PORTS: "80 8443"
@@ -101,6 +105,8 @@ services:
       DST_PORT: "21"
       SENSOR_ID: ${SENSOR_ID_FTP:-ftp-01}
       SENSOR_NAME: FTP Honeypot
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
       SENSOR_IP: ${HONEYPOT_IP:-}
     ports:
       - "21:21"
@@ -120,6 +126,8 @@ services:
       DST_PORT: "3306"
       SENSOR_ID: ${SENSOR_ID_MYSQL:-mysql-01}
       SENSOR_NAME: MySQL Honeypot
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
       SENSOR_IP: ${HONEYPOT_IP:-}
     ports:
       - "3306:3306"
@@ -138,6 +146,8 @@ services:
       PORTS: "1433 2375 3389 4444 5900 6379 8888 9090 9200 27017"
       SENSOR_ID: ${SENSOR_ID_PORT:-port-01}
       SENSOR_NAME: Port Honeypot
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
       SENSOR_IP: ${HONEYPOT_IP:-}
     ports:
       - "1433:1433"

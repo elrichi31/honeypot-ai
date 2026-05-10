@@ -13,6 +13,8 @@ SECRET = os.getenv("INGEST_SHARED_SECRET", "")
 
 SENSOR_ID = os.getenv("SENSOR_ID", f"dionaea-{socket.gethostname()}")
 SENSOR_NAME = os.getenv("SENSOR_NAME", "Dionaea Multi-Protocol Honeypot")
+CLIENT_SLUG = os.getenv("CLIENT_SLUG", "")
+CLIENT_NAME = os.getenv("CLIENT_NAME", "")
 SENSOR_PROTOCOL = os.getenv("SENSOR_PROTOCOL", "dionaea")
 SENSOR_VERSION = os.getenv("SENSOR_VERSION", "dionaea")
 SENSOR_IP = os.getenv("SENSOR_IP", "")
@@ -70,6 +72,8 @@ def _send_heartbeat(ip):
     payload = {
         "sensorId": SENSOR_ID,
         "name": SENSOR_NAME,
+        "clientSlug": CLIENT_SLUG,
+        "clientName": CLIENT_NAME,
         "protocol": SENSOR_PROTOCOL,
         "ip": ip,
         "version": SENSOR_VERSION,

@@ -52,6 +52,9 @@ export interface ProtocolInsights {
 
 export interface Sensor {
   sensorId: string
+  clientId: string | null
+  clientName: string | null
+  clientSlug: string | null
   name: string
   protocol: string
   ip: string
@@ -62,6 +65,14 @@ export interface Sensor {
   eventsTotal: number
   online: boolean
   portStatus: Record<number, boolean>
+}
+
+export interface Client {
+  id: string
+  name: string
+  slug: string
+  description: string
+  createdAt: string
 }
 
 export async function fetchProtocolStats(): Promise<ProtocolStat[]> {
@@ -80,6 +91,10 @@ export async function fetchProtocolInsights(protocol: string): Promise<ProtocolI
 
 export async function fetchSensors(): Promise<Sensor[]> {
   return apiFetch<Sensor[]>(`${getApiUrl()}/sensors`)
+}
+
+export async function fetchClients(): Promise<Client[]> {
+  return apiFetch<Client[]>(`${getApiUrl()}/clients`)
 }
 
 export async function fetchProtocolHits(

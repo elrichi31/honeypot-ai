@@ -10,6 +10,8 @@ HONEYPOT_IP=192.168.56.11
 
 SENSOR_ID_SSH=cowrie-ssh-local-01
 SENSOR_NAME_SSH=SSH Honeypot (Cowrie) - Local VM
+CLIENT_SLUG=
+CLIENT_NAME=
 
 SENSOR_ID_HTTP=web-local-01
 SENSOR_NAME_HTTP=Web Honeypot - Local VM

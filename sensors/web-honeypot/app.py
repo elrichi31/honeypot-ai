@@ -33,6 +33,8 @@ INGEST_SHARED_SECRET = os.environ.get("INGEST_SHARED_SECRET", "")
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 SENSOR_ID = os.environ.get("SENSOR_ID", f"http-{socket.gethostname()}")
 SENSOR_NAME = os.environ.get("SENSOR_NAME", "Web Honeypot")
+CLIENT_SLUG = os.environ.get("CLIENT_SLUG", "")
+CLIENT_NAME = os.environ.get("CLIENT_NAME", "")
 SENSOR_HOST = os.environ.get("SENSOR_HOST", socket.gethostname())
 
 logging.basicConfig(
@@ -178,6 +180,8 @@ def _send_heartbeat():
             json={
                 "sensorId": SENSOR_ID,
                 "name": SENSOR_NAME,
+                "clientSlug": CLIENT_SLUG,
+                "clientName": CLIENT_NAME,
                 "protocol": "http",
                 "ip": SENSOR_IP,
                 "version": "1.0.0",

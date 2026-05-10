@@ -34,6 +34,8 @@ services:
     environment:
       SENSOR_ID: ${SENSOR_ID_SSH:-cowrie-ssh-01}
       SENSOR_NAME: SSH Honeypot (Cowrie)
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
       SENSOR_IP: ${HONEYPOT_IP:-}
       SENSOR_PROTOCOL: ssh
       SENSOR_VERSION: cowrie
@@ -63,6 +65,8 @@ services:
       PORT: "8080"
       SENSOR_ID: ${SENSOR_ID_HTTP:-web-01}
       SENSOR_NAME: Web Honeypot
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
       SENSOR_IP: ${HONEYPOT_IP:-}
       SENSOR_HOST: web-honeypot
       SENSOR_PORTS: "80 8443"
@@ -199,6 +203,8 @@ services:
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
       SENSOR_ID: ${SENSOR_ID_DIONAEA:-dionaea-01}
       SENSOR_NAME: ${SENSOR_NAME_DIONAEA:-Dionaea Multi-Protocol Honeypot}
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
       SENSOR_PROTOCOL: dionaea
       SENSOR_VERSION: ${SENSOR_VERSION_DIONAEA:-dionaea}
       SENSOR_IP: ${HONEYPOT_IP:-}
@@ -231,6 +237,8 @@ services:
       PORTS: "2375 3389 4444 5900 6379 8888 9090 9200 27017"
       SENSOR_ID: ${SENSOR_ID_PORT:-port-01}
       SENSOR_NAME: Port Honeypot
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
       SENSOR_IP: ${HONEYPOT_IP:-}
     ports:
       - "2375:2375"
@@ -260,6 +268,7 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:3000
       INTERNAL_API_URL: http://ingest-api:3000
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
       DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot_prod
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:4000}

@@ -94,6 +94,8 @@ services:
     container_name: web-honeypot
     restart: unless-stopped
     environment:
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
       PORT: "8080"
@@ -112,6 +114,8 @@ services:
       ingest-api:
         condition: service_healthy
     environment:
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
       PORT: "2121"   # dev uses non-privileged port
@@ -128,6 +132,8 @@ services:
       ingest-api:
         condition: service_healthy
     environment:
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
       PORT: "3307"   # dev uses 3307 to avoid conflict with postgres on 3306
@@ -144,6 +150,8 @@ services:
       ingest-api:
         condition: service_healthy
     environment:
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
       PORTS: "6379 8888 9090 9200 27017"  # subset for dev
@@ -169,6 +177,7 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:3000
       INTERNAL_API_URL: http://ingest-api:3000
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
       HONEYPOT_IP: ${HONEYPOT_IP:-}
       HONEYPOT_SSH_PORT: ${HONEYPOT_SSH_PORT:-22}
       HONEYPOT_INGEST_PORT: ${HONEYPOT_INGEST_PORT:-8022}

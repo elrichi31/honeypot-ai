@@ -13,6 +13,8 @@ INGEST_URL  = os.getenv("INGEST_API_URL",       "http://ingest-api:3000")
 SECRET      = os.getenv("INGEST_SHARED_SECRET",  "")
 SENSOR_ID   = os.getenv("SENSOR_ID",             f"sensor-{socket.gethostname()}")
 SENSOR_NAME = os.getenv("SENSOR_NAME",           "SSH Honeypot (Cowrie)")
+CLIENT_SLUG = os.getenv("CLIENT_SLUG",           "")
+CLIENT_NAME = os.getenv("CLIENT_NAME",           "")
 SENSOR_IP   = os.getenv("SENSOR_IP",             "")
 PROTOCOL    = os.getenv("SENSOR_PROTOCOL",       "ssh")
 VERSION     = os.getenv("SENSOR_VERSION",        "cowrie")
@@ -42,6 +44,8 @@ def send(ip: str) -> None:
     payload = json.dumps({
         "sensorId":   SENSOR_ID,
         "name":       SENSOR_NAME,
+        "clientSlug": CLIENT_SLUG,
+        "clientName": CLIENT_NAME,
         "protocol":   PROTOCOL,
         "ip":         ip,
         "version":    VERSION,

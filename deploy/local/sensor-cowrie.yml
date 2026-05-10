@@ -20,6 +20,8 @@ services:
     environment:
       SENSOR_ID: ${SENSOR_ID_SSH:-cowrie-ssh-local-01}
       SENSOR_NAME: ${SENSOR_NAME_SSH:-SSH Honeypot (Cowrie) - Local VM}
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
       SENSOR_IP: ${HONEYPOT_IP:-}
       SENSOR_PROTOCOL: ssh
       SENSOR_VERSION: cowrie

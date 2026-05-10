@@ -5,29 +5,38 @@ import { ensureIngestToken } from '../lib/ingest-auth.js'
 import { clearSensorOfflineAlert } from '../lib/threat-alerts.js'
 
 const heartbeatSchema = z.object({
-  sensorId:   z.string().min(1),
-  name:       z.string().min(1),
-  protocol:   z.string().min(1),
-  ip:         z.string().default(''),
-  version:    z.string().default(''),
-  // Public-facing ports shown in the UI (e.g. 22 for SSH, 80 for HTTP)
-  ports:      z.array(z.number().int().min(1).max(65535)).default([]),
-  // Internal Docker ports used for TCP probing. When omitted, falls back to `ports`.
-  // Needed when the container's internal port differs from the public port
-  // (e.g. cowrie listens on 2222 internally but is exposed as 22).
+  sensorId: z.string().min(1),
+  name: z.string().min(1),
+  protocol: z.string().min(1),
+  clientSlug: z.string().default(''),
+  clientName: z.string().default(''),
+  ip: z.string().default(''),
+  version: z.string().default(''),
+  ports: z.array(z.number().int().min(1).max(65535)).default([]),
   probePorts: z.array(z.number().int().min(1).max(65535)).default([]),
-  // Docker service hostname — used for TCP probing instead of request.ip for sidecars.
-  host:       z.string().default(''),
+  host: z.string().default(''),
+})
+
+const assignSensorClientSchema = z.object({
+  clientId: z.string().trim().nullable().optional(),
+  clientSlug: z.string().trim().nullable().optional(),
 })
 
 function tcpProbe(host: string, port: number, timeoutMs = 2000): Promise<boolean> {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     if (!host) return resolve(false)
+
     const sock = new net.Socket()
     let settled = false
+
     const finish = (up: boolean) => {
-      if (!settled) { settled = true; sock.destroy(); resolve(up) }
+      if (!settled) {
+        settled = true
+        sock.destroy()
+        resolve(up)
+      }
     }
+
     sock.setTimeout(timeoutMs)
     sock.connect(port, host, () => finish(true))
     sock.on('error', () => finish(false))
@@ -36,8 +45,61 @@ function tcpProbe(host: string, port: number, timeoutMs = 2000): Promise<boolean
 }
 
 function normalizeIp(raw: string): string {
-  // Strip IPv6-mapped IPv4 prefix (::ffff:1.2.3.4 → 1.2.3.4)
   return raw.replace(/^::ffff:/, '')
+}
+
+function normalizeSlug(raw: string): string {
+  return raw
+    .normalize('NFKD')
+    .replace(/[^\w\s-]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function clientNameFromSlug(slug: string): string {
+  return slug
+    .split('-')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+async function resolveClientId(
+  fastify: FastifyInstance,
+  slugOrId: { slug?: string | null; name?: string | null; id?: string | null },
+): Promise<{ id: string | null; name: string | null; slug: string | null }> {
+  if (slugOrId.id) {
+    const rows = await fastify.prisma.$queryRaw<Array<{ id: string; name: string; slug: string }>>`
+      SELECT id, name, slug
+      FROM clients
+      WHERE id = ${slugOrId.id}
+      LIMIT 1
+    `
+    const client = rows[0]
+    return client
+      ? { id: client.id, name: client.name, slug: client.slug }
+      : { id: null, name: null, slug: null }
+  }
+
+  const normalizedSlug = normalizeSlug(slugOrId.slug ?? '')
+  if (!normalizedSlug) return { id: null, name: null, slug: null }
+
+  const now = new Date()
+  const displayName = (slugOrId.name ?? '').trim() || clientNameFromSlug(normalizedSlug)
+  const rows = await fastify.prisma.$queryRaw<Array<{ id: string; name: string; slug: string }>>`
+    INSERT INTO clients (id, name, slug, description, created_at)
+    VALUES (gen_random_uuid()::text, ${displayName}, ${normalizedSlug}, '', ${now})
+    ON CONFLICT (slug) DO UPDATE SET
+      name = COALESCE(NULLIF(EXCLUDED.name, ''), clients.name)
+    RETURNING id, name, slug
+  `
+
+  const client = rows[0]
+  return client
+    ? { id: client.id, name: client.name, slug: client.slug }
+    : { id: null, name: null, slug: null }
 }
 
 export async function sensorRoutes(fastify: FastifyInstance) {
@@ -51,17 +113,17 @@ export async function sensorRoutes(fastify: FastifyInstance) {
 
     const d = parsed.data
     const now = new Date()
-    // Use explicit Docker hostname if provided (beacon sidecars must set this so the
-    // probe reaches the actual honeypot container, not the beacon).
-    // Fall back to request.ip for honeypots that heartbeat themselves.
     const probeHost = d.host || normalizeIp(request.ip ?? '')
-
     const probePorts = d.probePorts.length > 0 ? d.probePorts : d.ports
+    const client = await resolveClientId(fastify, { slug: d.clientSlug, name: d.clientName })
 
     await fastify.prisma.$executeRaw`
-      INSERT INTO sensors (id, sensor_id, name, protocol, ip, version, ports, probe_ports, probe_host, last_seen, created_at)
+      INSERT INTO sensors (
+        id, sensor_id, client_id, name, protocol, ip, version,
+        ports, probe_ports, probe_host, last_seen, created_at
+      )
       VALUES (
-        gen_random_uuid()::text, ${d.sensorId}, ${d.name}, ${d.protocol},
+        gen_random_uuid()::text, ${d.sensorId}, ${client.id}, ${d.name}, ${d.protocol},
         ${d.ip}, ${d.version},
         CAST(${JSON.stringify(d.ports)} AS jsonb),
         CAST(${JSON.stringify(probePorts)} AS jsonb),
@@ -69,6 +131,7 @@ export async function sensorRoutes(fastify: FastifyInstance) {
         ${now}, ${now}
       )
       ON CONFLICT (sensor_id) DO UPDATE SET
+        client_id   = COALESCE(EXCLUDED.client_id, sensors.client_id),
         name        = EXCLUDED.name,
         protocol    = EXCLUDED.protocol,
         ip          = EXCLUDED.ip,
@@ -80,7 +143,6 @@ export async function sensorRoutes(fastify: FastifyInstance) {
     `
 
     clearSensorOfflineAlert(d.sensorId)
-
     return reply.status(200).send({ ok: true })
   })
 
@@ -89,6 +151,9 @@ export async function sensorRoutes(fastify: FastifyInstance) {
 
     const sensors = await fastify.prisma.$queryRaw<Array<{
       sensor_id: string
+      client_id: string | null
+      client_name: string | null
+      client_slug: string | null
       name: string
       protocol: string
       ip: string
@@ -102,6 +167,9 @@ export async function sensorRoutes(fastify: FastifyInstance) {
     }>>`
       SELECT
         s.sensor_id,
+        c.id AS client_id,
+        c.name AS client_name,
+        c.slug AS client_slug,
         s.name,
         s.protocol,
         s.ip,
@@ -127,6 +195,7 @@ export async function sensorRoutes(fastify: FastifyInstance) {
           ELSE COALESCE(ph.cnt, 0)
         END AS event_count
       FROM sensors s
+      LEFT JOIN clients c ON c.id = s.client_id
       LEFT JOIN (
         SELECT protocol, COUNT(*) AS cnt
         FROM protocol_hits
@@ -135,43 +204,46 @@ export async function sensorRoutes(fastify: FastifyInstance) {
       ORDER BY s.last_seen DESC
     `
 
-    // Probe all ports in parallel (2 s timeout each, all concurrent).
-    // Uses probe_ports (internal Docker ports) for the TCP check, but maps results
-    // back to the public-facing ports so the UI shows the right port numbers.
     const probeResults = await Promise.all(
-      sensors.map(async s => {
-        const displayPorts: number[] = Array.isArray(s.ports) ? s.ports : []
-        const probePorts: number[]   = Array.isArray(s.probe_ports) && s.probe_ports.length > 0
-          ? s.probe_ports
-          : displayPorts
-        if (!s.probe_host || displayPorts.length === 0) return {}
+      sensors.map(async (sensor) => {
+        const displayPorts = Array.isArray(sensor.ports) ? sensor.ports : []
+        const probePortsForSensor =
+          Array.isArray(sensor.probe_ports) && sensor.probe_ports.length > 0
+            ? sensor.probe_ports
+            : displayPorts
+
+        if (!sensor.probe_host || displayPorts.length === 0) return {}
+
         const pairs = await Promise.all(
-          displayPorts.map(async (displayPort, i) => {
-            const probePort = probePorts[i] ?? displayPort
-            return [displayPort, await tcpProbe(s.probe_host, probePort)] as const
-          })
+          displayPorts.map(async (displayPort, index) => {
+            const probePort = probePortsForSensor[index] ?? displayPort
+            return [displayPort, await tcpProbe(sensor.probe_host, probePort)] as const
+          }),
         )
+
         return Object.fromEntries(pairs)
-      })
+      }),
     )
 
-    const result = sensors.map((s, i) => ({
-      sensorId: s.sensor_id,
-      name: s.name,
-      protocol: s.protocol,
-      ip: s.ip,
-      version: s.version,
-      ports: Array.isArray(s.ports) ? s.ports : [],
-      probeHost: s.probe_host,
-      lastSeen: s.last_seen,
-      createdAt: s.created_at,
-      eventsTotal: Number(s.event_count),
-      online: s.last_seen > twoMinutesAgo,
-      portStatus: probeResults[i] as Record<number, boolean>,
+    const result = sensors.map((sensor, index) => ({
+      sensorId: sensor.sensor_id,
+      clientId: sensor.client_id,
+      clientName: sensor.client_name,
+      clientSlug: sensor.client_slug,
+      name: sensor.name,
+      protocol: sensor.protocol,
+      ip: sensor.ip,
+      version: sensor.version,
+      ports: Array.isArray(sensor.ports) ? sensor.ports : [],
+      probeHost: sensor.probe_host,
+      lastSeen: sensor.last_seen,
+      createdAt: sensor.created_at,
+      eventsTotal: Number(sensor.event_count),
+      online: sensor.last_seen > twoMinutesAgo,
+      portStatus: probeResults[index] as Record<number, boolean>,
     }))
 
-    // Only add synthetic SSH entry if no SSH beacon is registered yet
-    const hasRegisteredSsh = result.some(s => s.protocol === 'ssh')
+    const hasRegisteredSsh = result.some((sensor) => sensor.protocol === 'ssh')
     if (!hasRegisteredSsh) {
       const sshStats = await fastify.prisma.$queryRaw<Array<{
         count: bigint
@@ -180,10 +252,14 @@ export async function sensorRoutes(fastify: FastifyInstance) {
         SELECT COUNT(*) AS count, MAX(started_at) AS last_seen
         FROM sessions
       `
+
       const ssh = sshStats[0]
       if (ssh && ssh.count > 0n) {
         result.push({
           sensorId: 'cowrie-ssh',
+          clientId: null,
+          clientName: null,
+          clientSlug: null,
           name: 'SSH Honeypot (Cowrie)',
           protocol: 'ssh',
           ip: '-',
@@ -200,5 +276,60 @@ export async function sensorRoutes(fastify: FastifyInstance) {
     }
 
     return reply.send(result)
+  })
+
+  fastify.put('/sensors/:sensorId/client', async (request, reply) => {
+    if (!ensureIngestToken(request, reply)) return reply
+
+    const params = z.object({ sensorId: z.string().min(1) }).safeParse(request.params)
+    const body = assignSensorClientSchema.safeParse(request.body)
+
+    if (!params.success || !body.success) {
+      return reply.status(400).send({ error: 'Invalid assignment payload' })
+    }
+
+    let client: { id: string | null; name: string | null; slug: string | null } = {
+      id: null,
+      name: null,
+      slug: null,
+    }
+
+    if (body.data.clientId) {
+      client = await resolveClientId(fastify, { id: body.data.clientId })
+      if (!client.id) return reply.status(404).send({ error: 'Client not found' })
+    } else if (body.data.clientSlug) {
+      const slug = normalizeSlug(body.data.clientSlug)
+      if (!slug) return reply.status(400).send({ error: 'Invalid client slug' })
+
+      const rows = await fastify.prisma.$queryRaw<Array<{ id: string; name: string; slug: string }>>`
+        SELECT id, name, slug
+        FROM clients
+        WHERE slug = ${slug}
+        LIMIT 1
+      `
+
+      const existing = rows[0]
+      client = existing
+        ? { id: existing.id, name: existing.name, slug: existing.slug }
+        : { id: null, name: null, slug: null }
+
+      if (!client.id) return reply.status(404).send({ error: 'Client not found' })
+    }
+
+    const updated = await fastify.prisma.$queryRaw<Array<{ sensor_id: string }>>`
+      UPDATE sensors
+      SET client_id = ${client.id}
+      WHERE sensor_id = ${params.data.sensorId}
+      RETURNING sensor_id
+    `
+
+    if (updated.length === 0) return reply.status(404).send({ error: 'Sensor not found' })
+
+    return reply.send({
+      sensorId: updated[0].sensor_id,
+      clientId: client.id,
+      clientName: client.name,
+      clientSlug: client.slug,
+    })
   })
 }

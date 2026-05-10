@@ -10,6 +10,8 @@ services:
       PORTS: ${PORTS:-6379 8888 9090 9200 27017}
       SENSOR_ID: ${SENSOR_ID_PORT:-port-local-01}
       SENSOR_NAME: ${SENSOR_NAME_PORT:-Port Honeypot - Local VM}
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
       SENSOR_IP: ${HONEYPOT_IP:-}
     ports:
       - "6379:6379"
