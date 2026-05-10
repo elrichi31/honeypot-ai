@@ -19,19 +19,19 @@ function LoadingCard({
   return (
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <Skeleton className="h-4 w-32 rounded-full bg-accent/60" />
-        <Skeleton className="h-3 w-14 rounded-full bg-accent/40" />
+        <Skeleton className="h-4 w-32 rounded-full bg-muted/80" />
+        <Skeleton className="h-3 w-14 rounded-full bg-muted/60" />
       </div>
       <div className="space-y-3">
         {Array.from({ length: lines }).map((_, index) => (
           <Skeleton
             key={index}
-            className={`h-3 rounded-full bg-accent/40 ${
+            className={`h-3 rounded-full bg-muted/60 ${
               index === lines - 1 ? "w-2/3" : "w-full"
             }`}
           />
         ))}
-        {tall ? <Skeleton className="mt-4 h-40 w-full rounded-xl bg-accent/25" /> : null}
+        {tall ? <Skeleton className="mt-4 h-40 w-full rounded-xl bg-muted/45" /> : null}
       </div>
     </div>
   )
@@ -49,12 +49,12 @@ export function RouteLoadingShell({
         <section className="rounded-2xl border border-border bg-card/80 p-5 shadow-sm backdrop-blur">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10">
-                <Spinner className="size-6 text-cyan-300" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-background/80">
+                <Spinner className="size-6 text-foreground/80" />
               </div>
               <div className="space-y-2">
-                <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background/70 px-3 py-1 text-[11px] uppercase tracking-[0.28em] text-cyan-300">
-                  <span className="h-2 w-2 rounded-full bg-cyan-300" />
+                <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background/70 px-3 py-1 text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
+                  <span className="h-2 w-2 rounded-full bg-muted-foreground/70" />
                   {label}
                 </div>
                 <div>
@@ -65,18 +65,18 @@ export function RouteLoadingShell({
             </div>
 
             <div className="grid grid-cols-3 gap-3 self-start md:self-auto">
-              <Skeleton className="h-12 w-20 rounded-xl bg-accent/35" />
-              <Skeleton className="h-12 w-20 rounded-xl bg-accent/35" />
-              <Skeleton className="h-12 w-20 rounded-xl bg-accent/35" />
+              <Skeleton className="h-12 w-20 rounded-xl bg-muted/55" />
+              <Skeleton className="h-12 w-20 rounded-xl bg-muted/55" />
+              <Skeleton className="h-12 w-20 rounded-xl bg-muted/55" />
             </div>
           </div>
         </section>
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Skeleton className="h-28 rounded-xl bg-accent/30" />
-          <Skeleton className="h-28 rounded-xl bg-accent/30" />
-          <Skeleton className="h-28 rounded-xl bg-accent/30" />
-          <Skeleton className="h-28 rounded-xl bg-accent/30" />
+          <Skeleton className="h-28 rounded-xl bg-muted/50" />
+          <Skeleton className="h-28 rounded-xl bg-muted/50" />
+          <Skeleton className="h-28 rounded-xl bg-muted/50" />
+          <Skeleton className="h-28 rounded-xl bg-muted/50" />
         </div>
 
         {variant === "detail" ? (
