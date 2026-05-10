@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Link2, Server } from "lucide-react"
+import { Link2, Server, Unlink2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SensorCard } from "@/components/sensors/sensor-card"
 import type { Client, Sensor } from "@/lib/api"
@@ -19,7 +19,7 @@ export function ClientSensorAssignment({
 }: Props) {
   const [assignedSensors, setAssignedSensors] = useState(initialAssignedSensors)
   const [unassignedSensors, setUnassignedSensors] = useState(initialUnassignedSensors)
-  const [assigningSensorId, setAssigningSensorId] = useState<string | null>(null)
+  const [pendingSensorId, setPendingSensorId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
   const sortedAssigned = useMemo(
@@ -36,7 +36,7 @@ export function ClientSensorAssignment({
   )
 
   async function assignSensor(sensor: Sensor) {
-    setAssigningSensorId(sensor.sensorId)
+    setPendingSensorId(sensor.sensorId)
     setMessage(null)
 
     try {
@@ -62,7 +62,38 @@ export function ClientSensorAssignment({
     } catch {
       setMessage("Could not assign the sensor.")
     } finally {
-      setAssigningSensorId(null)
+      setPendingSensorId(null)
+    }
+  }
+
+  async function unassignSensor(sensor: Sensor) {
+    setPendingSensorId(sensor.sensorId)
+    setMessage(null)
+
+    try {
+      const res = await fetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/client`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: null }),
+      })
+
+      if (!res.ok) throw new Error("Could not unassign sensor")
+
+      setAssignedSensors((current) => current.filter((item) => item.sensorId !== sensor.sensorId))
+      setUnassignedSensors((current) => [
+        ...current,
+        {
+          ...sensor,
+          clientId: null,
+          clientName: null,
+          clientSlug: null,
+        },
+      ])
+      setMessage(`Sensor ${sensor.name} unassigned from ${client.name}.`)
+    } catch {
+      setMessage("Could not unassign the sensor.")
+    } finally {
+      setPendingSensorId(null)
     }
   }
 
@@ -93,7 +124,18 @@ export function ClientSensorAssignment({
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {sortedAssigned.map((sensor) => (
-              <SensorCard key={sensor.sensorId} sensor={sensor} />
+              <div key={sensor.sensorId} className="space-y-3">
+                <SensorCard sensor={sensor} />
+                <Button
+                  variant="outline"
+                  onClick={() => unassignSensor(sensor)}
+                  disabled={pendingSensorId === sensor.sensorId}
+                  className="w-full gap-2 border-border bg-card text-foreground hover:bg-muted"
+                >
+                  <Unlink2 className="h-4 w-4" />
+                  {pendingSensorId === sensor.sensorId ? "Unassigning..." : "Unassign"}
+                </Button>
+              </div>
             ))}
           </div>
         )}
@@ -132,11 +174,11 @@ export function ClientSensorAssignment({
 
                 <Button
                   onClick={() => assignSensor(sensor)}
-                  disabled={assigningSensorId === sensor.sensorId}
+                  disabled={pendingSensorId === sensor.sensorId}
                   className="gap-2 self-start md:self-auto"
                 >
                   <Link2 className="h-4 w-4" />
-                  {assigningSensorId === sensor.sensorId ? "Assigning..." : "Assign"}
+                  {pendingSensorId === sensor.sensorId ? "Assigning..." : "Assign"}
                 </Button>
               </div>
             ))}
