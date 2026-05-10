@@ -3,108 +3,135 @@ title: Introduccion
 description: Que es Honeypot Platform, para que sirve y que tecnologias usa.
 ---
 
-Honeypot Platform es una plataforma de investigacion de seguridad que captura trafico SSH y HTTP malicioso, normaliza los eventos en una API centralizada y los visualiza en un dashboard con analisis de amenazas, correlacion cross-protocol, risk scoring por IP, clasificacion automatica de sesiones con IA y alertas en Discord.
+Honeypot Platform es una plataforma de investigacion de seguridad que captura trafico SSH, HTTP, FTP, MySQL y port scans maliciosos, normaliza los eventos en una API centralizada y los visualiza en un dashboard con analisis de amenazas, correlacion cross-protocol, risk scoring por IP, clasificacion automatica de sesiones con IA y alertas en Discord.
 
 El objetivo es observar comportamiento real de atacantes: que credenciales prueban, que comandos ejecutan, que rutas web escanean, y con que herramientas operan — todo desde una sola interfaz.
+
+---
 
 ## Stack
 
 | Capa | Tecnologia | Por que |
 |------|-----------|---------|
-| Honeypot SSH | [Cowrie](https://github.com/cowrie/cowrie) | Honeypot SSH/Telnet de media interaccion. Simula un shell real, registra todo. |
-| Honeypot HTTP | Flask + Gunicorn | Servidor web propio con rutas falsas que responden de forma realista a scanners. |
-| Log shipper | [Vector](https://vector.dev) | Tail de logs con offset persistente en disco, buffer de 256 MB, retry automatico. Reemplaza el bash puller anterior. |
+| Honeypot SSH | [Cowrie](https://github.com/cowrie/cowrie) (custom build) | SSH/Telnet de media interaccion con honeyfs y txtcmds personalizados. |
+| Honeypot HTTP | Flask + Gunicorn | Rutas falsas con respuestas realisticas a scanners. |
+| Honeypot HTTP AI | [Galah](https://github.com/0x4D31/galah) | Genera respuestas HTTP via LLM — cualquier path, cualquier payload. |
+| Honeypot multi-protocolo | [Dionaea](https://github.com/DinoTools/dionaea) | FTP, MySQL, SMB, MSSQL, RPC, TFTP, MQTT, PPTP desde un solo sensor. |
+| Honeypots de red | Python asyncio | Emulaciones ligeras para FTP, MySQL y puertos comunmente escaneados. |
+| Log shipper | [Vector 0.40](https://vector.dev) | Tail con offset persistente en disco, buffer 256 MB, retry automatico. Configs para Cowrie y Galah. |
+| Sensor beacon | Python (`heartbeat.py`) | Sidecar generico que registra cada sensor via `POST /sensors/heartbeat`. |
 | API de ingesta | Fastify + TypeScript | Alta performance, schema validation, healthcheck nativo. |
 | ORM / DB | Prisma + PostgreSQL | Migraciones declarativas, type-safety end-to-end. |
-| Dashboard | Next.js 15 (App Router) | Server Components, fetch en el servidor, sin estado client-side innecesario. |
+| Dashboard | Next.js 16 (App Router) | Server Components, fetch en el servidor. |
 | Auth | better-auth | Sesiones seguras con soporte de multiples providers. |
-| Graficas | recharts | Componentes React composables, buen soporte de time series. |
+| Alertas | Discord webhooks | Alertas con risk scoring, cooldowns y detalle de amenaza. |
+| Graficas | recharts | Time series composables. |
 | Mapas | react-simple-maps + geoip-lite | Geolocalizacion offline sin API keys externas. |
 | Contenedores | Docker Compose | Entorno reproducible, networks aisladas, hardening declarativo. |
+| Documentacion | Astro Starlight | Este sitio (`apps/docs/`). |
+
+---
 
 ## Funcionalidades principales
 
 - **Dashboard en tiempo real** — sesiones, comandos, credenciales, campanas, web attacks, amenazas
-- **Clasificacion de sesiones** — Bot, Bot Script, Scanner, Brute-Force, Interactive, Recon, Malware Dropper y mas
-- **Risk scoring por IP** — score 0-100 basado en comandos ejecutados, protocolos usados y comportamiento
-- **IP Enrichment** — integracion con AbuseIPDB (score, reportes, categorias) e ipinfo.io (ASN, geolocalizacion, privacy flags)
-- **AI threat analysis** — resumen de sesiones con OpenAI, incluyendo TTPs y nivel de peligro
-- **Alertas Discord** — notificacion instantanea en login exitoso y cuando una IP tiene score >= 80% en AbuseIPDB
-- **Attack heatmap** — mapa de calor 7x24 mostrando cuando atacan mas (dia de semana x hora)
-- **Multi-sensor** — arquitectura preparada para multiples VPS honeypots enviando a un master centralizado
+- **Sensor health monitoring** — estado online/offline de todos los sensores con heartbeat cada 30s
+- **Multi-sensor** — Cowrie, web-honeypot, Galah, Dionaea, ftp/mysql/port-honeypot en paralelo
+- **Clasificacion de sesiones** — Bot, Bot Script, Scanner, Brute-Force, Interactive, Recon, Malware Dropper
+- **Risk scoring por IP** — score 0-100 basado en comandos, protocolos y comportamiento cross-protocol
+- **IP Enrichment** — AbuseIPDB e ipinfo.io (ASN, geolocalizacion, privacy flags)
+- **AI threat analysis** — resumen de sesiones con OpenAI, TTPs y nivel de peligro
+- **Alertas Discord** — notificacion instantanea con breakdown de riesgo y cooldown por IP
+- **Attack heatmap** — mapa de calor 7x24 de cuando atacan mas
+- **Lab multi-VM** — topologia local para desarrollo con VMs separadas
+
+---
 
 ## Flujo de datos
 
+```mermaid
+graph LR
+    subgraph Sensores
+        C[Cowrie SSH]
+        W[web-honeypot HTTP]
+        G[Galah HTTP+AI]
+        D[Dionaea\nFTP/SMB/MySQL/...]
+        FTP[ftp-honeypot]
+        SQL[mysql-honeypot]
+        PORT[port-honeypot]
+    end
+
+    subgraph Shippers
+        VC[Vector cowrie.toml]
+        VG[Vector galah.toml]
+        DS[Dionaea shipper.py]
+        HB[heartbeat.py\nsidecar]
+    end
+
+    subgraph Core
+        API[ingest-api :3000]
+        DB[(PostgreSQL)]
+        DASH[Dashboard :4000]
+        DISC[Discord]
+    end
+
+    C --> VC --> API
+    G --> VG --> API
+    D --> DS --> API
+    W & FTP & SQL & PORT --> API
+    HB -->|cada 30s| API
+    API --> DB --> DASH
+    API --> DISC
 ```
-Atacante SSH  ──▶  Cowrie (:22)  ──▶  cowrie.json (volumen Docker)
-                                              │
-                                         Vector (sidecar)
-                                         tail + parse + buffer en disco
-                                              │
-                                    POST /ingest/cowrie/vector
-                                              │
-Atacante HTTP ──▶  web-honeypot (:80) ──▶  POST /ingest/web/event
-                                              │
-                                        ingest-api (:3000)
-                                        risk-score engine
-                                        bot-detector
-                                              │
-                                        PostgreSQL (honeypot_prod)
-                                              │
-                                        dashboard (:4000)
-                                        + Discord alerts
-                                        + AI analysis
-```
+
+---
 
 ## Estructura del repositorio
 
-```text
+```
 .
-├── docker-compose.yml                     # Dev: todos los servicios juntos
-├── docker-compose.prod.honeypot.yml       # Prod: VPS sensor (Cowrie + web-honeypot + Vector)
-├── docker-compose.prod.app.yml            # Prod: servidor app (postgres + ingest-api + dashboard + Caddy)
-├── docker-compose.prod.single-host.yml    # Prod: un solo VPS con redes separadas
+├── docker-compose.yml                     # Dev: todo en un host
+├── docker-compose.local.core.yml          # Lab multi-VM: VM central
+├── docker-compose.local.sensor-cowrie.yml # Lab multi-VM: sensor SSH
+├── docker-compose.local.sensor-web.yml    # Lab multi-VM: sensor HTTP
+├── docker-compose.local.sensor-ssh-web.yml
+├── docker-compose.local.sensor-port.yml
+├── docker-compose.prod.single-host.yml    # Prod: un solo VPS
+├── docker-compose.prod.honeypot.yml       # Prod: VPS sensor
+├── docker-compose.prod.app.yml            # Prod: servidor app
+├── cowrie/                                # Cowrie custom build
+│   ├── Dockerfile
+│   ├── cowrie.cfg
+│   ├── userdb.txt
+│   ├── heartbeat.py                       # Beacon sidecar (reutilizable)
+│   ├── patch_auth.py
+│   ├── honeyfs/                           # Filesystem falso (/etc, /home, /proc)
+│   └── txtcmds/                           # Salidas falsas de comandos
+├── galah/                                 # Honeypot HTTP con IA
+│   ├── Dockerfile
+│   └── config/config.yaml
 ├── vector/
-│   └── cowrie.toml                        # Configuracion Vector: tail, parse, batch, retry
+│   ├── cowrie.toml                        # Shipper para Cowrie
+│   └── galah.toml                         # Shipper para Galah
+├── integrations/
+│   └── dionaea/                           # Sensor multi-protocolo
+│       ├── docker-compose.local.yml
+│       ├── docker-compose.sensor.yml
+│       ├── shipper.py
+│       └── services-enabled/
 └── apps/
-    ├── web-honeypot/                      # HTTP honeypot (Flask)
-    │   ├── app.py                         # Catch-all route, envia hits a ingest-api
-    │   ├── classifier.py                  # Clasificador de ataques HTTP por regex
-    │   └── responses.py                   # Respuestas falsas realistas
-    ├── ingest-api/                        # Fastify API (TypeScript)
+    ├── web-honeypot/
+    ├── ftp-honeypot/
+    ├── mysql-honeypot/
+    ├── port-honeypot/
+    ├── ingest-api/
     │   ├── src/
-    │   │   ├── routes/
-    │   │   │   ├── ingest.ts              # POST /ingest/cowrie/* y /ingest/web/event
-    │   │   │   ├── sessions.ts            # GET /sessions
-    │   │   │   ├── events.ts              # GET /events
-    │   │   │   ├── threats.ts             # GET /threats
-    │   │   │   ├── web.ts                 # GET /web-hits/*
-    │   │   │   └── stats/                 # GET /stats/* (modulos separados)
-    │   │   │       ├── timeline.ts        # /stats/overview
-    │   │   │       ├── dashboard.ts       # /stats/dashboards
-    │   │   │       ├── credentials.ts     # /stats/credentials
-    │   │   │       └── misc.ts            # /stats/geo, heatmap, session-commands
-    │   │   └── lib/
-    │   │       ├── risk-score.ts          # Motor de scoring + clasificador de comandos
-    │   │       ├── bot-detector.ts        # Deteccion de sesiones automatizadas
-    │   │       └── discord.ts             # Alertas Discord
+    │   │   ├── routes/          # ingest, protocol, sensors, threats, web, sessions, stats
+    │   │   └── lib/             # risk-score, bot-detector, threat-alerts, discord, cron
     │   └── prisma/
-    │       ├── schema.prisma
-    │       └── seed.ts
-    ├── dashboard/                         # Next.js 15 App Router
-    │   ├── app/
-    │   │   ├── page.tsx                   # Overview + KPIs + heatmap
-    │   │   ├── sessions/                  # Lista y detalle de sesiones SSH
-    │   │   ├── web-attacks/               # Ataques HTTP, timeline, paths, geomap
-    │   │   ├── threats/                   # Threat intelligence por IP
-    │   │   ├── commands/                  # Comandos ejecutados
-    │   │   ├── credentials/               # Credenciales probadas
-    │   │   ├── campaigns/                 # Campanas de ataque detectadas
-    │   │   └── settings/                  # Configuracion (API keys, Discord webhook)
+    ├── dashboard/
+    │   ├── app/                 # /sensors /threats /campaigns /web-attacks /settings /setup
+    │   ├── components/
     │   └── lib/
-    │       ├── api/                       # Funciones fetch separadas por dominio
-    │       ├── session-classify-v2.ts     # Clasificacion de sesiones (bot/human/interactive)
-    │       ├── discord.ts                 # Alertas Discord desde el dashboard
-    │       └── db.ts                      # Pool PostgreSQL compartido
-    └── docs/                              # Esta documentacion (Astro Starlight)
+    └── docs/                    # Esta documentacion (Astro Starlight)
 ```

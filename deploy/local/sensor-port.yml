@@ -1,7 +1,7 @@
 services:
   port-honeypot:
     build:
-      context: ./apps/port-honeypot
+      context: ../../sensors/port-honeypot
     container_name: port-honeypot
     restart: unless-stopped
     environment:

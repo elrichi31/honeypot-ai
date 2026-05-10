@@ -10,15 +10,15 @@ services:
   cowrie:
     <<: *service-defaults
     build:
-      context: ./cowrie
+      context: ./sensors/cowrie
     container_name: cowrie
     ports:
       - "22:2222"
       - "2222:2222"
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var
-      - ./cowrie/cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
-      - ./cowrie/userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
+      - ./sensors/cowrie/cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
+      - ./sensors/cowrie/userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
     networks:
       - edge
       - honeypot_ingest
@@ -43,7 +43,7 @@ services:
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
     volumes:
-      - ./cowrie/heartbeat.py:/heartbeat.py:ro
+      - ./sensors/cowrie/heartbeat.py:/heartbeat.py:ro
     command: ["python3", "/heartbeat.py"]
     networks:
       - honeypot_ingest
@@ -52,7 +52,7 @@ services:
   web-honeypot:
     <<: *service-defaults
     build:
-      context: ./apps/web-honeypot
+      context: ./sensors/web-honeypot
     container_name: web-honeypot
     depends_on:
       ingest-api:
@@ -177,9 +177,9 @@ services:
       - "3306:3306"
     volumes:
       - dionaea_var:/opt/dionaea/var/lib/dionaea
-      - ./integrations/dionaea/dionaea.cfg:/opt/dionaea/etc/dionaea/dionaea.cfg:ro
-      - ./integrations/dionaea/log_json.yaml:/opt/dionaea/etc/dionaea/ihandlers/log_json.yaml:ro
-      - ./integrations/dionaea/services-enabled:/opt/dionaea/etc/dionaea/services-enabled:ro
+      - ./sensors/dionaea/dionaea.cfg:/opt/dionaea/etc/dionaea/dionaea.cfg:ro
+      - ./sensors/dionaea/log_json.yaml:/opt/dionaea/etc/dionaea/ihandlers/log_json.yaml:ro
+      - ./sensors/dionaea/services-enabled:/opt/dionaea/etc/dionaea/services-enabled:ro
     networks:
       - edge
       - honeypot_ingest
@@ -211,7 +211,7 @@ services:
     volumes:
       - dionaea_var:/opt/dionaea/var/lib/dionaea:ro
       - dionaea_shipper_state:/state
-      - ./integrations/dionaea/shipper.py:/shipper.py:ro
+      - ./sensors/dionaea/shipper.py:/shipper.py:ro
     command: ["python3", "/shipper.py"]
     networks:
       - honeypot_ingest
@@ -220,7 +220,7 @@ services:
   port-honeypot:
     <<: *service-defaults
     build:
-      context: ./apps/port-honeypot
+      context: ./sensors/port-honeypot
     container_name: port-honeypot
     depends_on:
       ingest-api:

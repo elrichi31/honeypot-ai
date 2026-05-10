@@ -1,15 +1,15 @@
 services:
   cowrie:
     build:
-      context: ./cowrie
+      context: ./sensors/cowrie
     container_name: cowrie
     restart: unless-stopped
     ports:
       - "2222:2222"
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var
-      - ./cowrie/cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
-      - ./cowrie/userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
+      - ./sensors/cowrie/cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
+      - ./sensors/cowrie/userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
 
   postgres:
     image: postgres:16-alpine
@@ -90,7 +90,7 @@ services:
 
   web-honeypot:
     build:
-      context: ./apps/web-honeypot
+      context: ./sensors/web-honeypot
     container_name: web-honeypot
     restart: unless-stopped
     environment:
@@ -105,7 +105,7 @@ services:
 
   ftp-honeypot:
     build:
-      context: ./apps/ftp-honeypot
+      context: ./sensors/ftp-honeypot
     container_name: ftp-honeypot
     restart: unless-stopped
     depends_on:
@@ -121,7 +121,7 @@ services:
 
   mysql-honeypot:
     build:
-      context: ./apps/mysql-honeypot
+      context: ./sensors/mysql-honeypot
     container_name: mysql-honeypot
     restart: unless-stopped
     depends_on:
@@ -137,7 +137,7 @@ services:
 
   port-honeypot:
     build:
-      context: ./apps/port-honeypot
+      context: ./sensors/port-honeypot
     container_name: port-honeypot
     restart: unless-stopped
     depends_on:

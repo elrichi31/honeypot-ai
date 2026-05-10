@@ -17,6 +17,9 @@ cowrie.json
 cowrie-live.json
 cowrie-data/
 
+# Temp build artifacts
+.tmp/
+
 # OS
 .DS_Store
 Thumbs.db

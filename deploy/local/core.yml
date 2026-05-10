@@ -23,7 +23,7 @@ services:
   ingest-api:
     <<: *service-defaults
     build:
-      context: ./apps/ingest-api
+      context: ../../apps/ingest-api
       dockerfile: Dockerfile.compose
     container_name: ingest-api
     depends_on:
@@ -61,7 +61,7 @@ services:
   dashboard:
     <<: *service-defaults
     build:
-      context: ./apps/dashboard
+      context: ../../apps/dashboard
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     container_name: honeypot-dashboard

@@ -1,15 +1,15 @@
 services:
   cowrie:
     build:
-      context: ./cowrie
+      context: ../../sensors/cowrie
     container_name: cowrie
     restart: unless-stopped
     ports:
       - "2222:2222"
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var
-      - ./cowrie/cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
-      - ./cowrie/userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
+      - ../../sensors/cowrie/cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
+      - ../../sensors/cowrie/userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
 
   cowrie-beacon:
     image: python:3.12-alpine
@@ -29,7 +29,7 @@ services:
       INGEST_API_URL: ${INGEST_API_URL}
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
     volumes:
-      - ./cowrie/heartbeat.py:/heartbeat.py:ro
+      - ../../sensors/cowrie/heartbeat.py:/heartbeat.py:ro
     command: ["python3", "/heartbeat.py"]
 
   vector:
@@ -40,7 +40,7 @@ services:
       - cowrie
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var:ro
-      - ./vector/cowrie.toml:/etc/vector/vector.toml:ro
+      - ../../vector/cowrie.toml:/etc/vector/vector.toml:ro
       - vector_data:/var/lib/vector
     command: ["--config", "/etc/vector/vector.toml"]
     environment:
@@ -50,7 +50,7 @@ services:
 
   web-honeypot:
     build:
-      context: ./apps/web-honeypot
+      context: ../../sensors/web-honeypot
     container_name: web-honeypot
     restart: unless-stopped
     environment:

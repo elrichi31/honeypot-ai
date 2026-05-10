@@ -8,8 +8,35 @@ import { Aside } from '@astrojs/starlight/components';
 La ingest-api escucha en el puerto `3000`. En produccion solo es accesible desde la red interna Docker o via VPN — no esta expuesta a internet.
 
 <Aside>
-Los endpoints `POST /ingest/*` requieren el header `X-Ingest-Token: <INGEST_SHARED_SECRET>` si la variable esta definida. Los endpoints `GET` no requieren autenticacion.
+Los endpoints `POST /ingest/*` y `POST /sensors/*` requieren el header `X-Ingest-Token: <INGEST_SHARED_SECRET>` si la variable esta definida. Los endpoints `GET` no requieren autenticacion.
 </Aside>
+
+---
+
+## Mapa de endpoints
+
+```mermaid
+graph LR
+    subgraph Ingesta
+        I1[POST /ingest/cowrie/vector]
+        I2[POST /ingest/cowrie/event]
+        I3[POST /ingest/cowrie/batch]
+        I4[POST /ingest/web/event]
+        I5[POST /ingest/web/vector]
+        I6[POST /ingest/protocol/event]
+    end
+    subgraph Sensores
+        S1[POST /sensors/heartbeat]
+        S2[GET /sensors]
+    end
+    subgraph Consultas
+        Q1[GET /sessions]
+        Q2[GET /threats]
+        Q3[GET /web-hits]
+        Q4[GET /stats/*]
+        Q5[GET /attacks/today]
+    end
+```
 
 ---
 
@@ -108,6 +135,14 @@ Sube un archivo `cowrie.json` completo (una linea JSON por evento).
 
 ## Ingesta Web
 
+### `POST /ingest/web/vector`
+
+Ingesta batch de hits HTTP enviados por **Vector** (galah.toml). Acepta el mismo schema que `/ingest/web/event` pero en array, procesado tras la transformacion de Vector.
+
+**Headers:** `X-Ingest-Token: <secret>`, `Content-Type: application/json`
+
+---
+
 ### `POST /ingest/web/event`
 
 Ingesta un hit HTTP del web honeypot.
@@ -126,6 +161,82 @@ Ingesta un hit HTTP del web honeypot.
   "attackType": "scanner",
   "timestamp": "2024-01-15T10:30:00.000Z"
 }
+```
+
+---
+
+## Ingesta de protocolos de red
+
+### `POST /ingest/protocol/event`
+
+Ingesta un evento de protocolo de red (FTP, MySQL, SMB, port scan, etc.). Usado por ftp-honeypot, mysql-honeypot, port-honeypot y el shipper de Dionaea.
+
+**Headers:** `X-Ingest-Token: <secret>`
+
+**Body:**
+```json
+{
+  "sensorId": "dionaea-sensor-01",
+  "protocol": "smb",
+  "srcIp": "1.2.3.4",
+  "srcPort": 54321,
+  "dstPort": 445,
+  "eventType": "connect",
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "data": {}
+}
+```
+
+---
+
+## Sensores
+
+### `POST /sensors/heartbeat`
+
+Registra o actualiza un sensor. Llamado por `heartbeat.py` cada 30 segundos desde cada sensor activo.
+
+**Headers:** `X-Ingest-Token: <secret>`
+
+**Body:**
+```json
+{
+  "sensorId": "cowrie-ssh-prod-01",
+  "name": "SSH Honeypot (Cowrie) - VPS Berlin",
+  "protocol": "ssh",
+  "ip": "1.2.3.4",
+  "version": "cowrie",
+  "ports": [22],
+  "probePorts": [22],
+  "host": "cowrie"
+}
+```
+
+**Respuesta:**
+```json
+{ "ok": true }
+```
+
+---
+
+### `GET /sensors`
+
+Lista todos los sensores registrados con su estado online/offline y contador de eventos.
+
+**Respuesta:**
+```json
+[
+  {
+    "id": "cowrie-ssh-prod-01",
+    "name": "SSH Honeypot (Cowrie) - VPS Berlin",
+    "protocol": "ssh",
+    "ip": "1.2.3.4",
+    "version": "cowrie",
+    "ports": [22],
+    "online": true,
+    "lastSeen": "2024-01-15T10:29:45.000Z",
+    "eventCount": 1543
+  }
+]
 ```
 
 ---
@@ -286,3 +397,23 @@ Conteo de ataques por dia de semana y hora del dia — matriz 7x24 para el heatm
 ### `GET /stats/session-commands`
 
 Comandos ejecutados en sesiones SSH, agrupados por tipo y frecuencia.
+
+---
+
+## Ataques del dia
+
+### `GET /attacks/today`
+
+Total de ataques (sesiones SSH + web hits + protocol hits) en las ultimas 24 horas.
+
+**Respuesta:**
+```json
+{
+  "total": 342,
+  "ssh": 120,
+  "web": 198,
+  "protocol": 24,
+  "from": "2024-01-14T10:30:00.000Z",
+  "to": "2024-01-15T10:30:00.000Z"
+}
+```
