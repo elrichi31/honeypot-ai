@@ -2,8 +2,17 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
-import { Building2, Save, Server } from "lucide-react"
+import { Building2, Plus, Save, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -26,30 +35,19 @@ function slugify(value: string) {
 
 export function ClientManager({ initialClients, initialSensors }: Props) {
   const [clients, setClients] = useState(initialClients)
-  const [sensors, setSensors] = useState(initialSensors)
   const [name, setName] = useState("")
   const [slug, setSlug] = useState("")
   const [description, setDescription] = useState("")
   const [creating, setCreating] = useState(false)
-  const [assigningSensorId, setAssigningSensorId] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
-
-  const sortedSensors = useMemo(
-    () =>
-      [...sensors].sort((a, b) => {
-        const clientA = a.clientName ?? "ZZZ"
-        const clientB = b.clientName ?? "ZZZ"
-        return clientA.localeCompare(clientB) || a.name.localeCompare(b.name)
-      }),
-    [sensors],
-  )
 
   const clientStats = useMemo(() => {
     const stats = new Map<string, { sensors: number; online: number; events: number }>()
     for (const client of clients) {
       stats.set(client.id, { sensors: 0, online: 0, events: 0 })
     }
-    for (const sensor of sensors) {
+    for (const sensor of initialSensors) {
       if (!sensor.clientId) continue
       const current = stats.get(sensor.clientId)
       if (!current) continue
@@ -58,7 +56,13 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
       current.events += sensor.eventsTotal
     }
     return stats
-  }, [clients, sensors])
+  }, [clients, initialSensors])
+
+  function resetForm() {
+    setName("")
+    setSlug("")
+    setDescription("")
+  }
 
   async function handleCreateClient(e: React.FormEvent) {
     e.preventDefault()
@@ -83,10 +87,9 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
           a.name.localeCompare(b.name),
         ),
       )
-      setName("")
-      setSlug("")
-      setDescription("")
-      setMessage(`Client ${client.name} is ready.`)
+      resetForm()
+      setOpen(false)
+      setMessage(`Client ${client.name} created.`)
     } catch {
       setMessage("Could not create the client.")
     } finally {
@@ -94,108 +97,92 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
     }
   }
 
-  async function handleAssignSensor(sensorId: string, clientId: string) {
-    setAssigningSensorId(sensorId)
-    setMessage(null)
-
-    try {
-      const res = await fetch(`/api/sensors/${encodeURIComponent(sensorId)}/client`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId: clientId || null }),
-      })
-
-      if (!res.ok) throw new Error("Could not assign sensor")
-      const updated = (await res.json()) as {
-        sensorId: string
-        clientId: string | null
-        clientName: string | null
-        clientSlug: string | null
-      }
-
-      setSensors((current) =>
-        current.map((sensor) =>
-          sensor.sensorId === sensorId
-            ? {
-                ...sensor,
-                clientId: updated.clientId,
-                clientName: updated.clientName,
-                clientSlug: updated.clientSlug,
-              }
-            : sensor,
-        ),
-      )
-
-      setMessage("Sensor assignment updated.")
-    } catch {
-      setMessage("Could not update the sensor assignment.")
-    } finally {
-      setAssigningSensorId(null)
-    }
-  }
-
   return (
     <div className="space-y-6">
-      <form onSubmit={handleCreateClient} className="rounded-xl border border-border bg-card p-5 space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-400/10">
-            <Building2 className="h-5 w-5 text-cyan-400" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">Create Client</h2>
-            <p className="text-sm text-muted-foreground">
-              Use one client per tenant, company, or environment.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="client-name">Name</Label>
-            <Input id="client-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Client A" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="client-slug">Slug</Label>
-            <Input
-              id="client-slug"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-              placeholder="client-a"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="client-description">Description</Label>
-          <Textarea
-            id="client-description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Optional notes about this customer or deployment."
-          />
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button type="submit" disabled={creating || !name.trim()}>
-            <Save className="h-4 w-4" />
-            {creating ? "Creating..." : "Create Client"}
-          </Button>
-          {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
-        </div>
-      </form>
-
       <section className="rounded-xl border border-border bg-card p-5 space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-400/10">
-            <Server className="h-5 w-5 text-emerald-400" />
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-400/10">
+              <Building2 className="h-5 w-5 text-emerald-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Client Inventory</h2>
+              <p className="text-sm text-muted-foreground">
+                Create clients first, then open each one to assign unassigned sensors.
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">Client Inventory</h2>
-            <p className="text-sm text-muted-foreground">
-              Every client groups one or more sensors under the same deployment owner.
-            </p>
-          </div>
+
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2 self-start md:self-auto">
+                <Plus className="h-4 w-4" />
+                Add Client
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-xl">
+              <form onSubmit={handleCreateClient} className="space-y-5">
+                <DialogHeader>
+                  <DialogTitle>Create Client</DialogTitle>
+                  <DialogDescription>
+                    Create the tenant first. Sensor assignment happens inside the client detail.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="client-name">Name</Label>
+                    <Input
+                      id="client-name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Client A"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="client-slug">Slug</Label>
+                    <Input
+                      id="client-slug"
+                      value={slug}
+                      onChange={(e) => setSlug(e.target.value)}
+                      placeholder="client-a"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="client-description">Description</Label>
+                  <Textarea
+                    id="client-description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Optional notes about this customer or deployment."
+                  />
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      resetForm()
+                      setOpen(false)
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={creating || !name.trim()}>
+                    <Save className="h-4 w-4" />
+                    {creating ? "Creating..." : "Create Client"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
+
+        {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
 
         {clients.length === 0 ? (
           <p className="text-sm text-muted-foreground">No clients created yet.</p>
@@ -205,13 +192,15 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
               const stats = clientStats.get(client.id) ?? { sensors: 0, online: 0, events: 0 }
 
               return (
-                <div key={client.id} className="rounded-xl border border-border/70 bg-background/60 p-4 space-y-3">
+                <Link
+                  key={client.id}
+                  href={`/clients/${client.slug}`}
+                  className="rounded-xl border border-border/70 bg-background/60 p-4 space-y-3 transition-colors hover:border-cyan-400/50 hover:bg-background"
+                >
                   <div>
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="font-semibold text-foreground">{client.name}</h3>
-                      <Link href={`/clients/${client.slug}`} className="text-xs font-medium text-cyan-400 hover:text-cyan-300">
-                        Open
-                      </Link>
+                      <span className="text-xs font-medium text-cyan-400">Open</span>
                     </div>
                     <p className="font-mono text-xs text-muted-foreground">{client.slug}</p>
                   </div>
@@ -232,55 +221,11 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
                       <p className="font-semibold text-foreground">{stats.events.toLocaleString()}</p>
                     </div>
                   </div>
-                </div>
+                </Link>
               )
             })}
           </div>
         )}
-      </section>
-
-      <section className="rounded-xl border border-border bg-card p-5 space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Assign Sensors</h2>
-          <p className="text-sm text-muted-foreground">
-            Reassign existing sensors without restarting the honeypot containers.
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          {sortedSensors.map((sensor) => (
-            <div
-              key={sensor.sensorId}
-              className="flex flex-col gap-3 rounded-xl border border-border/70 bg-background/60 p-4 md:flex-row md:items-center md:justify-between"
-            >
-              <div>
-                <p className="font-medium text-foreground">{sensor.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {sensor.sensorId} | {sensor.protocol.toUpperCase()} | {sensor.ip || "no-ip"}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <select
-                  className="flex h-10 min-w-52 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={sensor.clientId ?? ""}
-                  onChange={(e) => handleAssignSensor(sensor.sensorId, e.target.value)}
-                  disabled={assigningSensorId === sensor.sensorId}
-                >
-                  <option value="">Unassigned</option>
-                  {clients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.name}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-xs text-muted-foreground">
-                  {assigningSensorId === sensor.sensorId ? "Saving..." : sensor.clientName ?? "No client"}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
       </section>
     </div>
   )

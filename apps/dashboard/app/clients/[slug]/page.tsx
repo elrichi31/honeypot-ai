@@ -2,7 +2,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ArrowLeft, Server, Wifi } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
-import { SensorCard } from "@/components/sensors/sensor-card"
+import { ClientSensorAssignment } from "@/components/clients/client-sensor-assignment"
 import { fetchClients, fetchSensors } from "@/lib/api"
 
 export default async function ClientDetailPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -16,6 +16,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ s
   const clientSensors = sensors
     .filter((sensor) => sensor.clientSlug === slug)
     .sort((a, b) => (b.online ? 1 : 0) - (a.online ? 1 : 0) || b.eventsTotal - a.eventsTotal)
+  const unassignedSensors = sensors.filter((sensor) => !sensor.clientId)
 
   const online = clientSensors.filter((sensor) => sensor.online).length
   const totalEvents = clientSensors.reduce((sum, sensor) => sum + sensor.eventsTotal, 0)
@@ -48,20 +49,11 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ s
         </div>
       </div>
 
-      {clientSensors.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card px-6 py-16 text-center">
-          <p className="text-sm font-medium text-foreground mb-1">No sensors assigned yet</p>
-          <p className="text-sm text-muted-foreground">
-            Assign a sensor from the clients page or set CLIENT_SLUG on the sensor stack.
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {clientSensors.map((sensor) => (
-            <SensorCard key={sensor.sensorId} sensor={sensor} />
-          ))}
-        </div>
-      )}
+      <ClientSensorAssignment
+        client={client}
+        initialAssignedSensors={clientSensors}
+        initialUnassignedSensors={unassignedSensors}
+      />
     </PageShell>
   )
 }
