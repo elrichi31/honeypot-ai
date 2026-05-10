@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client'
 import { classifyCommands, computeRiskScore, type CommandCategory } from './risk-score.js'
 import { sendDiscordAlert } from './discord.js'
+import { getAlertConfig } from './runtime-config.js'
 
 type SshAggRow = {
   sessions: bigint
@@ -67,17 +68,7 @@ const SUSPICIOUS_COMMAND_CATEGORIES: CommandCategory[] = [
   'solana_targeting',
 ]
 
-const ALERT_COOLDOWN_MS = {
-  threat_high: 30 * 60 * 1000,
-  threat_critical: 15 * 60 * 1000,
-  multi_service_high: 20 * 60 * 1000,
-  multi_service_critical: 15 * 60 * 1000,
-  auth_burst_high: 15 * 60 * 1000,
-  auth_burst_critical: 10 * 60 * 1000,
-  post_auth_critical: 15 * 60 * 1000,
-  sequence_critical: 15 * 60 * 1000,
-  sensor_offline_high: 30 * 60 * 1000,
-} as const
+const SENSOR_OFFLINE_COOLDOWN_MS = 2 * 60 * 60 * 1000
 
 const lastAlertSent = new Map<string, number>()
 
@@ -211,10 +202,13 @@ export async function checkSensorHealthAlerts(prisma: PrismaClient): Promise<voi
     ORDER BY last_seen ASC
   `
 
+  const sensorCfg = getAlertConfig()
+  if (!sensorCfg.types.sensorOffline) return
+
   for (const sensor of offlineSensors) {
     await sendAlertOnce({
       key: `sensor-offline:${sensor.sensor_id}`,
-      cooldownMs: ALERT_COOLDOWN_MS.sensor_offline_high,
+      cooldownMs: SENSOR_OFFLINE_COOLDOWN_MS,
       level: 'high',
       title: 'Sensor heartbeat missing',
       description: `Sensor \`${sensor.name}\` has stopped reporting heartbeats.`,
@@ -395,14 +389,16 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
     ),
   })
 
-  if (risk.level === 'HIGH' || risk.level === 'CRITICAL') {
-    const cooldownKey = risk.level === 'CRITICAL' ? 'threat_critical' : 'threat_high'
-    const levelLabel = risk.level === 'CRITICAL' ? 'Critical' : 'High'
+  const alertCfg = getAlertConfig()
+  const levelPasses = (level: 'HIGH' | 'CRITICAL') =>
+    level === 'CRITICAL' || alertCfg.minLevel === 'high'
+
+  if (alertCfg.types.threatScore && levelPasses(risk.level as 'HIGH' | 'CRITICAL') && (risk.level === 'CRITICAL' || risk.level === 'HIGH')) {
     await sendAlertOnce({
-      key: `${cooldownKey}:${ip}`,
-      cooldownMs: ALERT_COOLDOWN_MS[cooldownKey],
+      key: `threat_score:${ip}`,
+      cooldownMs: alertCfg.cooldownMs,
       level: risk.level === 'CRITICAL' ? 'critical' : 'high',
-      title: `${risk.level === 'CRITICAL' ? 'CRITICAL' : 'HIGH'} threat detected`,
+      title: `${risk.level} threat detected`,
       description: `Attacker \`${ip}\` reached **${risk.score}/100** across ${protocolsSeen.length} service family${protocolsSeen.length === 1 ? '' : 'ies'}.`,
       fields: [
         { name: 'IP', value: ip, inline: true },
@@ -427,11 +423,10 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
   const recentServiceFamilyCount = new Set(recentFamilies).size
 
   const multiServiceLevel = deriveMultiServiceLevel(recentServiceFamilyCount)
-  if (multiServiceLevel) {
-    const key = multiServiceLevel === 'CRITICAL' ? 'multi_service_critical' : 'multi_service_high'
+  if (alertCfg.types.multiService && multiServiceLevel && levelPasses(multiServiceLevel)) {
     await sendAlertOnce({
-      key: `${key}:${ip}`,
-      cooldownMs: ALERT_COOLDOWN_MS[key],
+      key: `multi_service:${ip}`,
+      cooldownMs: alertCfg.cooldownMs,
       level: multiServiceLevel === 'CRITICAL' ? 'critical' : 'high',
       title: 'Multi-service attack correlation',
       description: `Attacker \`${ip}\` touched ${recentServiceFamilyCount} service families in the last 10 minutes.`,
@@ -466,11 +461,10 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
   ]).size
 
   const authBurstLevel = deriveAuthBurstLevel(totalAuthAttempts)
-  if (authBurstLevel) {
-    const key = authBurstLevel === 'CRITICAL' ? 'auth_burst_critical' : 'auth_burst_high'
+  if (alertCfg.types.authBurst && authBurstLevel && levelPasses(authBurstLevel)) {
     await sendAlertOnce({
-      key: `${key}:${ip}`,
-      cooldownMs: ALERT_COOLDOWN_MS[key],
+      key: `auth_burst:${ip}`,
+      cooldownMs: alertCfg.cooldownMs,
       level: authBurstLevel === 'CRITICAL' ? 'critical' : 'high',
       title: 'Authentication burst detected',
       description: `Attacker \`${ip}\` generated ${totalAuthAttempts} auth attempts in the last 5 minutes.`,
@@ -484,15 +478,15 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
     })
   }
 
-  if (Number(recentSsh?.login_successes ?? 0) > 0 && hasSuspiciousPostAuthActivity(recentCommandCategories)) {
+  if (alertCfg.types.postAuth && Number(recentSsh?.login_successes ?? 0) > 0 && hasSuspiciousPostAuthActivity(recentCommandCategories)) {
     const suspiciousFactors = SUSPICIOUS_COMMAND_CATEGORIES
       .filter((category) => recentCommandCategories[category].length > 0)
       .map((category) => `${category}: ${recentCommandCategories[category][0]}`)
       .slice(0, 4)
 
     await sendAlertOnce({
-      key: `post_auth_critical:${ip}`,
-      cooldownMs: ALERT_COOLDOWN_MS.post_auth_critical,
+      key: `post_auth:${ip}`,
+      cooldownMs: alertCfg.cooldownMs,
       level: 'critical',
       title: 'Successful login followed by malicious activity',
       description: `Attacker \`${ip}\` authenticated and then executed suspicious post-auth commands.`,
@@ -505,6 +499,7 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
   }
 
   if (
+    alertCfg.types.attackChain &&
     hasExploitAuthSequence({
       hasPortScan: recentProtocolSummary.names.includes('port-scan'),
       webAttackTypes: recentWeb?.attack_types ?? [],
@@ -513,8 +508,8 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
   ) {
     const webTypes = (recentWeb?.attack_types ?? []).filter((type) => WEB_EXPLOIT_TYPES.includes(type))
     await sendAlertOnce({
-      key: `sequence_critical:${ip}`,
-      cooldownMs: ALERT_COOLDOWN_MS.sequence_critical,
+      key: `attack_chain:${ip}`,
+      cooldownMs: alertCfg.cooldownMs,
       level: 'critical',
       title: 'Attack chain detected',
       description: `Attacker \`${ip}\` matched the sequence scan -> exploit -> auth in a short window.`,

@@ -23,6 +23,17 @@ export async function GET() {
     ingestPort: config.ingestPort ?? (Number(process.env.HONEYPOT_INGEST_PORT) || 8022),
     ingestApiUrl: config.ingestApiUrl ?? process.env.INTERNAL_API_URL ?? "http://localhost:3000",
     timezone: config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC",
+    alertMinLevel: config.alertMinLevel ?? "critical",
+    alertCooldownMinutes: config.alertCooldownMinutes ?? 60,
+    alertEnabledTypes: {
+      threatScore: config.alertEnabledTypes?.threatScore ?? true,
+      multiService: config.alertEnabledTypes?.multiService ?? true,
+      authBurst: config.alertEnabledTypes?.authBurst ?? true,
+      postAuth: config.alertEnabledTypes?.postAuth ?? true,
+      attackChain: config.alertEnabledTypes?.attackChain ?? true,
+      sensorOffline: config.alertEnabledTypes?.sensorOffline ?? true,
+    },
+    reportIntervalHours: config.reportIntervalHours ?? 8,
   })
 }
 
@@ -43,6 +54,10 @@ export async function POST(req: NextRequest) {
   if ("ingestPort" in body) config.ingestPort = Number(body.ingestPort) || 8022
   if ("ingestApiUrl" in body) config.ingestApiUrl = body.ingestApiUrl?.trim() || undefined
   if ("timezone" in body) config.timezone = body.timezone?.trim() || undefined
+  if ("alertMinLevel" in body) config.alertMinLevel = body.alertMinLevel === 'high' ? 'high' : 'critical'
+  if ("alertCooldownMinutes" in body) config.alertCooldownMinutes = Math.max(1, Number(body.alertCooldownMinutes) || 60)
+  if ("alertEnabledTypes" in body && typeof body.alertEnabledTypes === 'object') config.alertEnabledTypes = body.alertEnabledTypes
+  if ("reportIntervalHours" in body) config.reportIntervalHours = Number(body.reportIntervalHours) || 0
 
   writeConfig(config)
   return NextResponse.json({ ok: true })

@@ -88,17 +88,20 @@ function shortDate(d: Date) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-export async function sendWeeklyReport(prisma: PrismaClient): Promise<void> {
+export async function sendPeriodicReport(prisma: PrismaClient): Promise<void> {
   const now = new Date()
-  const since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const since = new Date(now.getTime() - 8 * 60 * 60 * 1000)
 
   let stats: WeeklyStats
   try {
     stats = await collectStats(prisma, since)
   } catch (err) {
-    console.error('[weekly-report] Failed to collect stats:', err)
+    console.error('[periodic-report] Failed to collect stats:', err)
     return
   }
+
+  const total = stats.sshSessions + stats.webHits
+  if (total === 0) return
 
   const sshLines = [
     `🔗 **${fmt(stats.sshSessions)}** sessions  |  ✅ **${fmt(stats.successfulLogins)}** logins  |  🌐 **${fmt(stats.uniqueSshIps)}** unique IPs`,
@@ -121,17 +124,17 @@ export async function sendWeeklyReport(prisma: PrismaClient): Promise<void> {
       : '',
   ].filter(Boolean).join('\n')
 
-  const total = stats.sshSessions + stats.webHits
   const level = total > 5000 ? 'critical' : total > 1000 ? 'high' : 'info'
+  const timeLabel = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' })
 
   await sendDiscordAlert({
     level,
-    title: `📊 Weekly Report — ${shortDate(since)} → ${shortDate(now)}`,
-    description: `Total activity: **${fmt(total)}** events across SSH and HTTP.`,
+    title: `📊 8h Report — last 8 hours (as of ${timeLabel} UTC)`,
+    description: `**${fmt(total)}** events captured across SSH and HTTP in the last 8 hours.`,
     fields: [
-      { name: '🔐 SSH Honeypot', value: sshLines, inline: false },
+      { name: '🔐 SSH Honeypot', value: sshLines || 'No activity', inline: false },
       { name: '💻 Top Commands', value: commandLines, inline: true },
-      { name: '🕸️ Web Honeypot', value: webLines, inline: false },
+      { name: '🕸️ Web Honeypot', value: webLines || 'No activity', inline: false },
       ...(stats.highRiskSessions > 0
         ? [{ name: '⚠️ High-Risk IPs', value: `${stats.highRiskSessions} IPs with successful login + active commands`, inline: false }]
         : []),

@@ -1,6 +1,15 @@
 import fs from "fs"
 import path from "path"
 
+export interface AlertEnabledTypes {
+  threatScore?: boolean
+  multiService?: boolean
+  authBurst?: boolean
+  postAuth?: boolean
+  attackChain?: boolean
+  sensorOffline?: boolean
+}
+
 export interface AppConfig {
   openaiApiKey?: string
   abuseipdbApiKey?: string
@@ -13,6 +22,11 @@ export interface AppConfig {
   ingestApiUrl?: string
   // Display
   timezone?: string
+  // Alert configuration
+  alertMinLevel?: 'critical' | 'high'
+  alertCooldownMinutes?: number
+  alertEnabledTypes?: AlertEnabledTypes
+  reportIntervalHours?: number
 }
 
 const CONFIG_PATH = path.join(process.cwd(), "data", "config.json")
