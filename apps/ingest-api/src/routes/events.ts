@@ -1,28 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { toOffsetISOString } from '../lib/date-utils.js';
+import { basePaginationSchema, getPagination, buildPaginationResponse } from '../lib/pagination.js';
 
-const UTC_OFFSET_HOURS = -5;
-const DEFAULT_PAGE_SIZE = 50;
-const MAX_PAGE_SIZE = 5000;
-
-const eventListQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).optional(),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
-  limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
-  offset: z.coerce.number().int().min(0).optional(),
+const eventListQuerySchema = basePaginationSchema.extend({
   type: z.string().trim().min(1).optional(),
   q: z.string().trim().min(1).optional(),
   startDate: z.string().datetime({ offset: true }).optional(),
   endDate: z.string().datetime({ offset: true }).optional(),
 });
-
-function toOffsetISOString(date: Date): string {
-  const offsetMs = UTC_OFFSET_HOURS * 60 * 60 * 1000;
-  const local = new Date(date.getTime() + offsetMs);
-  const sign = UTC_OFFSET_HOURS >= 0 ? '+' : '-';
-  const abs = Math.abs(UTC_OFFSET_HOURS).toString().padStart(2, '0');
-  return local.toISOString().replace('Z', `${sign}${abs}:00`);
-}
 
 export async function eventRoutes(fastify: FastifyInstance) {
   fastify.get('/events', async (request, reply) => {
@@ -35,12 +21,7 @@ export async function eventRoutes(fastify: FastifyInstance) {
       });
     }
 
-    const pageSize = Math.min(
-      parsed.data.pageSize ?? parsed.data.limit ?? DEFAULT_PAGE_SIZE,
-      MAX_PAGE_SIZE,
-    );
-    const offset = parsed.data.offset ?? ((parsed.data.page ?? 1) - 1) * pageSize;
-    const page = parsed.data.page ?? Math.floor(offset / pageSize) + 1;
+    const { page, pageSize, offset } = getPagination(parsed.data);
     const search = parsed.data.q?.trim();
 
     const where = {
@@ -76,8 +57,6 @@ export async function eventRoutes(fastify: FastifyInstance) {
       fastify.prisma.event.count({ where }),
     ]);
 
-    const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize);
-
     return {
       items: events.map((e) => ({
         ...e,
@@ -85,14 +64,7 @@ export async function eventRoutes(fastify: FastifyInstance) {
         createdAt: toOffsetISOString(e.createdAt),
         cowrieTs: toOffsetISOString(new Date(e.cowrieTs as string)),
       })),
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1,
-      },
+      pagination: buildPaginationResponse(total, page, pageSize),
     };
   });
 }

@@ -1,0 +1,46 @@
+"use client"
+
+import { Route } from "lucide-react"
+import type { DashboardInsights } from "@/lib/api"
+
+function truncateSequence(sequence: string, max = 96) {
+  if (sequence.length <= max) return sequence
+  return `${sequence.slice(0, max - 1)}...`
+}
+
+type Props = { patterns: DashboardInsights["commandPatterns"] }
+
+export function CommandPaths({ patterns }: Props) {
+  return (
+    <section className="rounded-xl border border-border bg-card p-5">
+      <div className="mb-5 flex items-center gap-2">
+        <Route className="h-4 w-4 text-cyan-400" />
+        <div>
+          <h2 className="font-semibold text-foreground">Post-Login Command Paths</h2>
+          <p className="text-sm text-muted-foreground">
+            Secuencias de comandos más frecuentes en sesiones exitosas
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {patterns.map((pattern, index) => (
+          <div key={`${pattern.sequence}-${index}`} className="rounded-xl border border-border bg-background/40 p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Patrón #{index + 1}</p>
+                <code className="mt-2 block truncate font-mono text-sm text-foreground" title={pattern.sequence}>
+                  {truncateSequence(pattern.sequence)}
+                </code>
+              </div>
+              <div className="shrink-0 rounded-full bg-secondary px-3 py-1 text-xs text-muted-foreground">
+                {pattern.sessions}
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">{pattern.uniqueIps} IPs origen</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}

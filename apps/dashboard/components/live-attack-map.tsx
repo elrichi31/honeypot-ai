@@ -2,6 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from "react-simple-maps"
+import {
+  PROTOCOL_CHIP_CLASS,
+  getProtocolChipClass,
+  getProtocolDotClass,
+  getProtocolMarkerColor,
+} from "@/lib/protocol-colors"
 
 const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"
 
@@ -34,43 +40,7 @@ const NUM_TO_ISO2 = Object.fromEntries(
 
 const COUNTRY_NAMES = new Intl.DisplayNames(["en"], { type: "region" })
 
-const TYPE_COLOR: Record<string, string> = {
-  ssh: "#f43f5e",
-  http: "#fb923c",
-  ftp: "#facc15",
-  mysql: "#c084fc",
-  "port-scan": "#38bdf8",
-  dionaea: "#ef4444",
-  smb: "#f97316",
-  mssql: "#ec4899",
-  rpc: "#818cf8",
-  tftp: "#a3e635",
-  mqtt: "#14b8a6",
-}
-
-const CHIP_COLORS = {
-  ssh: "text-rose-400 border-rose-500/40 bg-rose-500/10",
-  http: "text-orange-400 border-orange-500/40 bg-orange-500/10",
-  ftp: "text-yellow-400 border-yellow-500/40 bg-yellow-500/10",
-  mysql: "text-purple-400 border-purple-500/40 bg-purple-500/10",
-  "port-scan": "text-sky-400 border-sky-500/40 bg-sky-500/10",
-} as const
-
-const DOT_CLS: Record<string, string> = {
-  ssh: "bg-rose-400",
-  http: "bg-orange-400",
-  ftp: "bg-yellow-400",
-  mysql: "bg-purple-400",
-  "port-scan": "bg-sky-400",
-  dionaea: "bg-red-400",
-  smb: "bg-orange-400",
-  mssql: "bg-pink-400",
-  rpc: "bg-indigo-400",
-  tftp: "bg-lime-400",
-  mqtt: "bg-teal-400",
-}
-
-type AttackType = keyof typeof CHIP_COLORS
+type AttackType = keyof typeof PROTOCOL_CHIP_CLASS
 
 interface SensorLocation {
   ip: string
@@ -140,7 +110,7 @@ function project(coords: [number, number]): [number, number] {
 }
 
 function typeColor(type: string) {
-  return TYPE_COLOR[type] ?? "#94a3b8"
+  return getProtocolMarkerColor(type)
 }
 
 function arcPath(src: [number, number], dst: [number, number]): string | null {
@@ -336,10 +306,10 @@ export function LiveAttackMap() {
     <div className="relative h-full w-full overflow-hidden rounded-xl border border-white/5 bg-[#060b18]">
       <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
         <div className="flex items-center gap-2 flex-wrap">
-          {(Object.keys(CHIP_COLORS) as AttackType[]).map((t) => (
+          {(Object.keys(PROTOCOL_CHIP_CLASS) as AttackType[]).map((t) => (
             <div
               key={t}
-              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-medium tracking-wide ${CHIP_COLORS[t]}`}
+              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-medium tracking-wide ${getProtocolChipClass(t)}`}
             >
               <span className="opacity-60 uppercase">{t}</span>
               <span className="font-bold">{(stats[t] ?? 0).toLocaleString()}</span>
@@ -468,7 +438,7 @@ export function LiveAttackMap() {
           <div className="max-h-[65vh] divide-y divide-white/5 overflow-y-auto">
             {recent.map((a) => (
               <div key={a.id} className="flex items-center gap-2 px-3 py-1.5">
-                <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${DOT_CLS[a.type] ?? "bg-slate-400"}`} />
+                <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${getProtocolDotClass(a.type)}`} />
                 <span className="flex-1 truncate font-mono text-[10px] text-slate-200">{a.ip}</span>
                 <span className="flex-shrink-0 text-[9px] text-slate-500">{a.country || "??"}</span>
                 <span

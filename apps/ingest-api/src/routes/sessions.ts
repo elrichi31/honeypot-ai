@@ -2,16 +2,10 @@ import { Prisma } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { detectBot } from '../lib/bot-detector.js';
+import { toOffsetISOString } from '../lib/date-utils.js';
+import { basePaginationSchema, getPagination, buildPaginationResponse } from '../lib/pagination.js';
 
-const UTC_OFFSET_HOURS = -5;
-const DEFAULT_PAGE_SIZE = 50;
-const MAX_PAGE_SIZE = 5000;
-
-const sessionListQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).optional(),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
-  limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
-  offset: z.coerce.number().int().min(0).optional(),
+const sessionListQuerySchema = basePaginationSchema.extend({
   startDate: z.string().datetime({ offset: true }).optional(),
   endDate: z.string().datetime({ offset: true }).optional(),
   q: z.string().trim().min(1).optional(),
@@ -48,14 +42,6 @@ type SessionListRow = {
   commandCount: number;
   threatTags: string[];
 };
-
-function toOffsetISOString(date: Date): string {
-  const offsetMs = UTC_OFFSET_HOURS * 60 * 60 * 1000;
-  const local = new Date(date.getTime() + offsetMs);
-  const sign = UTC_OFFSET_HOURS >= 0 ? '+' : '-';
-  const abs = Math.abs(UTC_OFFSET_HOURS).toString().padStart(2, '0');
-  return local.toISOString().replace('Z', `${sign}${abs}:00`);
-}
 
 function toDurationSec(startedAt: Date, endedAt: Date | null): number | null {
   if (!endedAt) return null;
@@ -146,13 +132,6 @@ function buildWhereSql(clauses: Prisma.Sql[]) {
   return Prisma.sql`WHERE ${Prisma.join(clauses, ' AND ')}`;
 }
 
-function getPagination(params: z.infer<typeof sessionListQuerySchema>) {
-  const pageSize = Math.min(params.pageSize ?? params.limit ?? DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
-  const offset = params.offset ?? ((params.page ?? 1) - 1) * pageSize;
-  const page = params.page ?? Math.floor(offset / pageSize) + 1;
-
-  return { page, pageSize, offset };
-}
 
 export async function sessionRoutes(fastify: FastifyInstance) {
   fastify.get('/sessions', async (request, reply) => {
@@ -264,19 +243,11 @@ export async function sessionRoutes(fastify: FastifyInstance) {
         : parsed.data.outcome === 'blocked'
           ? summary.blocked
           : summary.total;
-    const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize);
 
     return {
       items: sessionRows.map(formatSession),
       summary,
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1,
-      },
+      pagination: buildPaginationResponse(total, page, pageSize),
     };
   });
 
@@ -379,19 +350,11 @@ export async function sessionRoutes(fastify: FastifyInstance) {
 
     const summary = summaryRows[0] ?? { total: 0, compromised: 0, blocked: 0, scanGroups: 0 };
     const total = totalGroupRows[0]?.count ?? 0;
-    const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize);
 
     return {
       items: sessionRows.map(formatSession),
       summary,
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1,
-      },
+      pagination: buildPaginationResponse(total, page, pageSize),
     };
   });
 

@@ -1,7 +1,8 @@
 import type { PrismaClient } from '@prisma/client'
 import { classifyCommands, computeRiskScore, type CommandCategory } from './risk-score.js'
 import { sendDiscordAlert } from './discord.js'
-import { getAlertConfig } from './runtime-config.js'
+import { getAlertConfig, getTimezone } from './runtime-config.js'
+import { formatInTimezone } from './date-utils.js'
 
 type SshAggRow = {
   sessions: bigint
@@ -195,15 +196,20 @@ export function clearSensorOfflineAlert(sensorId: string) {
 }
 
 export async function checkSensorHealthAlerts(prisma: PrismaClient): Promise<void> {
+  const sensorCfg = getAlertConfig()
+  if (!sensorCfg.types.sensorOffline) return
+
+  // Only alert for sensors that recently went offline (2 min – 2 days).
+  // Sensors silent for more than 2 days are considered intentionally disabled.
   const offlineSensors = await prisma.$queryRaw<Array<SensorOfflineRow>>`
     SELECT sensor_id, name, protocol, ip, last_seen
     FROM sensors
     WHERE last_seen < NOW() - INTERVAL '2 minutes'
+      AND last_seen > NOW() - INTERVAL '2 days'
     ORDER BY last_seen ASC
   `
 
-  const sensorCfg = getAlertConfig()
-  if (!sensorCfg.types.sensorOffline) return
+  const timezone = getTimezone()
 
   for (const sensor of offlineSensors) {
     await sendAlertOnce({
@@ -216,7 +222,7 @@ export async function checkSensorHealthAlerts(prisma: PrismaClient): Promise<voi
         { name: 'Sensor', value: sensor.sensor_id, inline: true },
         { name: 'Protocol', value: sensor.protocol.toUpperCase(), inline: true },
         { name: 'IP', value: sensor.ip || 'unknown', inline: true },
-        { name: 'Last seen', value: sensor.last_seen.toISOString(), inline: false },
+        { name: 'Last seen', value: formatInTimezone(sensor.last_seen, timezone), inline: false },
       ],
     })
   }

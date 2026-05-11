@@ -1,15 +1,9 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { computeRiskScore, classifyCommands } from '../lib/risk-score.js'
+import { basePaginationSchema, getPagination, buildPaginationResponse } from '../lib/pagination.js'
 
-const DEFAULT_PAGE_SIZE = 50
-const MAX_PAGE_SIZE = 5000
-
-const threatListQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).optional(),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
-  limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
-  offset: z.coerce.number().int().min(0).optional(),
+const threatListQuerySchema = basePaginationSchema.extend({
   q: z.string().trim().min(1).optional(),
   level: z.enum(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO']).optional(),
   crossProtocol: z.coerce.boolean().optional(),
@@ -245,12 +239,7 @@ export async function threatRoutes(fastify: FastifyInstance) {
       })
     }
 
-    const pageSize = Math.min(
-      parsed.data.pageSize ?? parsed.data.limit ?? DEFAULT_PAGE_SIZE,
-      MAX_PAGE_SIZE,
-    )
-    const offset = parsed.data.offset ?? ((parsed.data.page ?? 1) - 1) * pageSize
-    const page = parsed.data.page ?? Math.floor(offset / pageSize) + 1
+    const { page, pageSize, offset } = getPagination(parsed.data)
     const search = parsed.data.q?.toLowerCase()
 
     const [sshRows, cmdRows, webRows, protocolRows] = await Promise.all([
@@ -346,7 +335,6 @@ export async function threatRoutes(fastify: FastifyInstance) {
     })
 
     const total = filteredThreats.length
-    const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize)
     const items = filteredThreats.slice(offset, offset + pageSize)
 
     return reply.send({
@@ -357,14 +345,7 @@ export async function threatRoutes(fastify: FastifyInstance) {
         high: filteredThreats.filter((threat) => threat.level === 'HIGH').length,
         crossProtocol: filteredThreats.filter((threat) => threat.crossProtocol).length,
       },
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1,
-      },
+      pagination: buildPaginationResponse(total, page, pageSize),
     })
   })
 

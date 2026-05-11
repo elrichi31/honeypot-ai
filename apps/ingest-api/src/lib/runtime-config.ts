@@ -16,6 +16,7 @@ interface RuntimeConfig {
   alertCooldownMinutes?: number
   alertEnabledTypes?: AlertEnabledTypes
   reportIntervalHours?: number
+  timezone?: string
 }
 
 export interface ResolvedAlertConfig {
@@ -39,6 +40,11 @@ function readConfig(): RuntimeConfig {
 export function getDiscordWebhookUrl(): string | undefined {
   const config = readConfig()
   return config.discordWebhookUrl || process.env.DISCORD_WEBHOOK_URL || undefined
+}
+
+export function getTimezone(): string {
+  const config = readConfig()
+  return config.timezone || process.env.TZ || 'UTC'
 }
 
 export function getAlertConfig(): ResolvedAlertConfig {

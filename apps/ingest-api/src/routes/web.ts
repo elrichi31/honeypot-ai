@@ -7,9 +7,7 @@ import { eventBus } from '../lib/event-bus.js';
 import { lookupGeo } from '../lib/geo.js';
 import { evaluateThreatAlert } from '../lib/threat-alerts.js';
 import { forwardClientEventBySensorId } from '../lib/client-forward.js';
-
-const DEFAULT_PAGE_SIZE = 50;
-const MAX_PAGE_SIZE = 5000;
+import { basePaginationSchema, getPagination, buildPaginationResponse } from '../lib/pagination.js';
 
 const webHitSchema = z.object({
   eventId: z.string().uuid(),
@@ -25,11 +23,7 @@ const webHitSchema = z.object({
   attackType: z.string().min(1),
 });
 
-const byIpQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).optional(),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
-  limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
-  offset: z.coerce.number().int().min(0).optional(),
+const byIpQuerySchema = basePaginationSchema.extend({
   q: z.string().trim().min(1).optional(),
 });
 
@@ -428,12 +422,7 @@ export async function webRoutes(fastify: FastifyInstance) {
       });
     }
 
-    const pageSize = Math.min(
-      parsed.data.pageSize ?? parsed.data.limit ?? DEFAULT_PAGE_SIZE,
-      MAX_PAGE_SIZE,
-    );
-    const offset = parsed.data.offset ?? ((parsed.data.page ?? 1) - 1) * pageSize;
-    const page = parsed.data.page ?? Math.floor(offset / pageSize) + 1;
+    const { page, pageSize, offset } = getPagination(parsed.data);
     const whereSql = buildByIpWhereSql(parsed.data.q);
 
     const [countRows, rows] = await Promise.all([
@@ -474,7 +463,6 @@ export async function webRoutes(fastify: FastifyInstance) {
     ]);
 
     const total = countRows[0]?.total ?? 0;
-    const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize);
 
     return reply.send({
       items: rows.map((row) => ({
@@ -488,14 +476,7 @@ export async function webRoutes(fastify: FastifyInstance) {
         botHits: row.bot_hits ?? 0,
         isBot: (row.bot_hits ?? 0) >= row.total_hits * 0.8,
       })),
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1,
-      },
+      pagination: buildPaginationResponse(total, page, pageSize),
     });
   });
 

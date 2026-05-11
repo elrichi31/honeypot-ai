@@ -1,5 +1,7 @@
 import type { PrismaClient } from '@prisma/client'
 import { sendDiscordAlert } from './discord.js'
+import { getAlertConfig, getTimezone } from './runtime-config.js'
+import { formatTimeInTimezone } from './date-utils.js'
 
 interface WeeklyStats {
   sshSessions: number
@@ -89,8 +91,10 @@ function shortDate(d: Date) {
 }
 
 export async function sendPeriodicReport(prisma: PrismaClient): Promise<void> {
+  const { reportIntervalHours } = getAlertConfig()
+  const timezone = getTimezone()
   const now = new Date()
-  const since = new Date(now.getTime() - 8 * 60 * 60 * 1000)
+  const since = new Date(now.getTime() - reportIntervalHours * 60 * 60 * 1000)
 
   let stats: WeeklyStats
   try {
@@ -125,12 +129,13 @@ export async function sendPeriodicReport(prisma: PrismaClient): Promise<void> {
   ].filter(Boolean).join('\n')
 
   const level = total > 5000 ? 'critical' : total > 1000 ? 'high' : 'info'
-  const timeLabel = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' })
+  const timeLabel = formatTimeInTimezone(now, timezone)
+  const intervalLabel = reportIntervalHours === 1 ? '1 hora' : `${reportIntervalHours} horas`
 
   await sendDiscordAlert({
     level,
-    title: `📊 8h Report — last 8 hours (as of ${timeLabel} UTC)`,
-    description: `**${fmt(total)}** events captured across SSH and HTTP in the last 8 hours.`,
+    title: `📊 Reporte cada ${intervalLabel} — (as of ${timeLabel})`,
+    description: `**${fmt(total)}** eventos capturados en SSH y HTTP en las últimas ${intervalLabel}.`,
     fields: [
       { name: '🔐 SSH Honeypot', value: sshLines || 'No activity', inline: false },
       { name: '💻 Top Commands', value: commandLines, inline: true },
