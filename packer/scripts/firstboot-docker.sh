@@ -19,7 +19,7 @@ echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.d
 apt-get update -qq
 apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin open-vm-tools
 
-usermod -aG docker admin
+usermod -aG docker sensor
 systemctl enable docker
 
 chown -R root:docker /opt/sensor
