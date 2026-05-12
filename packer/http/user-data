@@ -1,0 +1,44 @@
+#cloud-config
+autoinstall:
+  version: 1
+  locale: en_US
+  keyboard:
+    layout: us
+
+  network:
+    network:
+      version: 2
+      ethernets:
+        ens3:
+          dhcp4: true
+
+  storage:
+    layout:
+      name: direct
+
+  identity:
+    hostname: honeypot-sensor
+    username: admin
+    # Password: honeypot  —  generated with: openssl passwd -6 'honeypot'
+    password: "$6$rounds=656000$NaCl$F3yXIYO0qFQjSmGO1X.WnC0GmP7uW.xTNVoAe/o1pkbivTZRHBenT3oqH/WpBbMYE7gWO0WtCEv0IJzXdqpZ11"
+
+  ssh:
+    install-server: true
+    allow-pw: true
+
+  packages:
+    - curl
+    - ca-certificates
+    - open-vm-tools
+
+  user-data:
+    disable_root: false
+    write_files:
+      - path: /etc/ssh/sshd_config.d/10-packer.conf
+        content: |
+          PermitRootLogin no
+          PasswordAuthentication yes
+
+  late-commands:
+    - echo 'admin ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/admin
+    - chmod 440 /target/etc/sudoers.d/admin

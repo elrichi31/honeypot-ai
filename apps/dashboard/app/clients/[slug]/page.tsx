@@ -5,6 +5,7 @@ import { PageShell } from "@/components/page-shell"
 import { ClientSensorAssignment } from "@/components/clients/client-sensor-assignment"
 import { ClientForwardingSettings } from "@/components/clients/client-forwarding-settings"
 import { ClientSensorCatalog } from "@/components/clients/client-sensor-catalog"
+import { ClientOVADownload } from "@/components/clients/client-ova-download"
 import { fetchClients, fetchSensors } from "@/lib/api"
 
 export default async function ClientDetailPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -49,6 +50,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ s
           <span className="text-sm font-medium text-foreground">{totalEvents.toLocaleString()}</span>
           <span className="text-sm text-muted-foreground">total events</span>
         </div>
+        <ClientOVADownload client={client} />
       </div>
 
       <div className="mb-6">

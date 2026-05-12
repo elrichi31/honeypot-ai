@@ -111,11 +111,27 @@ model Client {
   forwardUrl  String   @default("") @map("forward_url")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  sensors Sensor[]
+  sensors          Sensor[]
+  provisionTokens  SensorProvisionToken[]
 
   @@index([code])
   @@index([name])
   @@map("clients")
+}
+
+model SensorProvisionToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  clientId  String    @map("client_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([token])
+  @@map("sensor_provision_tokens")
 }
 
 model WebHit {

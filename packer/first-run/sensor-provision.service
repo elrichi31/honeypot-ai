@@ -1,0 +1,21 @@
+[Unit]
+Description=Honeypot Sensor First-Boot Provisioning
+Documentation=https://github.com/your-org/honeypot-pr
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/sensor/sensor-provision.sh
+RemainAfterExit=no
+StandardOutput=journal
+StandardError=journal
+# Retry up to 5 times if network or provision endpoint is temporarily unavailable
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target
