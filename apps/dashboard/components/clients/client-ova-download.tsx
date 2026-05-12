@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Box, Check, Copy, Download, HardDrive, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -13,23 +14,38 @@ import {
 } from "@/components/ui/dialog"
 import type { Client } from "@/lib/api"
 
-type Props = {
-  client: Client
-}
+type ServiceKey = "ssh" | "http" | "ftp" | "mysql" | "port"
 
-type TokenResult = {
-  token: string
-  expiresAt: string
-}
+const SERVICES: { key: ServiceKey; label: string; description: string; ports: string }[] = [
+  { key: "ssh",   label: "SSH Honeypot",    description: "Cowrie — captura brute-force SSH",           ports: "22, 2222" },
+  { key: "http",  label: "Web Honeypot",    description: "HTTP/HTTPS — fake login pages y admin panels", ports: "80, 8443" },
+  { key: "ftp",   label: "FTP Honeypot",    description: "Captura credenciales FTP",                    ports: "21" },
+  { key: "mysql", label: "MySQL Honeypot",  description: "Captura intentos de conexión MySQL",          ports: "3306" },
+  { key: "port",  label: "Port Honeypot",   description: "RDP, Redis, MongoDB, Docker, Elastic…",      ports: "múltiples" },
+]
+
+type Props = { client: Client }
+
+type TokenResult = { token: string; expiresAt: string; services: ServiceKey[] }
 
 export function ClientOVADownload({ client }: Props) {
-  const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<TokenResult | null>(null)
-  const [copied, setCopied] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [open, setOpen]               = useState(false)
+  const [loading, setLoading]         = useState(false)
+  const [result, setResult]           = useState<TokenResult | null>(null)
+  const [copied, setCopied]           = useState(false)
+  const [error, setError]             = useState<string | null>(null)
+  const [selected, setSelected]       = useState<Set<ServiceKey>>(new Set(["ssh", "http", "ftp", "mysql", "port"]))
+
+  function toggleService(key: ServiceKey) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
 
   async function generateToken() {
+    if (selected.size === 0) return
     setLoading(true)
     setError(null)
     setResult(null)
@@ -37,14 +53,13 @@ export function ClientOVADownload({ client }: Props) {
       const res = await fetch("/api/sensor/tokens", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId: client.id }),
+        body: JSON.stringify({ clientId: client.id, services: Array.from(selected) }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error || "Failed to generate token")
       }
-      const data: TokenResult = await res.json()
-      setResult(data)
+      setResult(await res.json())
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
     } finally {
@@ -61,17 +76,15 @@ export function ClientOVADownload({ client }: Props) {
 
   function downloadProvisionFile() {
     if (!result) return
-    const ingestUrl = (window as Window & { __NEXT_PUBLIC_API_URL__?: string }).__NEXT_PUBLIC_API_URL__ ?? ""
+    const ingestUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://YOUR_SERVER_IP:3000"
     const lines = [
       `# Sensor Provision File — ${client.name}`,
       `# Generated: ${new Date().toISOString()}`,
       `# Expires: ${new Date(result.expiresAt).toISOString()}`,
-      `#`,
-      `# Copy this file to your sensor VM and run:`,
-      `#   sudo cp sensor-provision.env /opt/sensor/sensor-provision.env`,
+      `# Services: ${result.services.join(", ")}`,
       ``,
       `PROVISION_TOKEN=${result.token}`,
-      `INGEST_API_URL=${ingestUrl || "http://YOUR_SERVER_IP:3000"}`,
+      `INGEST_API_URL=${ingestUrl}`,
     ].join("\n")
 
     const blob = new Blob([lines], { type: "text/plain" })
@@ -85,18 +98,11 @@ export function ClientOVADownload({ client }: Props) {
 
   function handleOpenChange(val: boolean) {
     setOpen(val)
-    if (!val) {
-      setResult(null)
-      setError(null)
-    }
+    if (!val) { setResult(null); setError(null) }
   }
 
   const expiresLabel = result
-    ? new Date(result.expiresAt).toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
+    ? new Date(result.expiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
     : null
 
   return (
@@ -112,41 +118,54 @@ export function ClientOVADownload({ client }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Box className="h-5 w-5 text-violet-400" />
-            OVA Sensor Package
+            OVA Sensor Package — {client.name}
           </DialogTitle>
           <DialogDescription>
-            Generate a provisioning token for <span className="font-medium text-foreground">{client.name}</span>.
-            The sensor VM uses it on first boot to auto-configure itself.
+            Selecciona qué honeypots activar en esta VM. Solo los servicios seleccionados van a correr.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 pt-2">
-          {/* Steps */}
-          <ol className="space-y-2 text-sm text-muted-foreground">
-            <li className="flex gap-2">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-400/10 text-[11px] font-semibold text-violet-400">1</span>
-              Generate a token below (valid 7 days)
-            </li>
-            <li className="flex gap-2">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-400/10 text-[11px] font-semibold text-violet-400">2</span>
-              Download the base OVA and import it in VirtualBox / VMware
-            </li>
-            <li className="flex gap-2">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-400/10 text-[11px] font-semibold text-violet-400">3</span>
-              Copy <span className="font-mono text-xs">sensor-provision.env</span> to the VM — it auto-configures on next boot
-            </li>
-          </ol>
+        <div className="space-y-4 pt-1">
+
+          {/* Service selector */}
+          <div className="space-y-2">
+            {SERVICES.map(s => (
+              <label
+                key={s.key}
+                className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${
+                  selected.has(s.key)
+                    ? "border-violet-400/40 bg-violet-400/5"
+                    : "border-border bg-muted/20 opacity-60"
+                }`}
+              >
+                <Checkbox
+                  checked={selected.has(s.key)}
+                  onCheckedChange={() => toggleService(s.key)}
+                  className="mt-0.5 shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-foreground">{s.label}</span>
+                    <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{s.ports}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{s.description}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+
+          {selected.size === 0 && (
+            <p className="text-xs text-destructive">Selecciona al menos un servicio.</p>
+          )}
 
           <div className="border-t border-border" />
 
           {!result && (
-            <Button onClick={generateToken} disabled={loading} className="w-full gap-2">
-              {loading ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <HardDrive className="h-4 w-4" />
-              )}
-              {loading ? "Generating…" : "Generate Provisioning Token"}
+            <Button onClick={generateToken} disabled={loading || selected.size === 0} className="w-full gap-2">
+              {loading
+                ? <RefreshCw className="h-4 w-4 animate-spin" />
+                : <HardDrive className="h-4 w-4" />}
+              {loading ? "Generando…" : "Generar Token de Provisioning"}
             </Button>
           )}
 
@@ -159,7 +178,7 @@ export function ClientOVADownload({ client }: Props) {
               <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Provision Token</p>
-                  <span className="text-[10px] text-muted-foreground">Expires {expiresLabel}</span>
+                  <span className="text-[10px] text-muted-foreground">Expira {expiresLabel}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 truncate rounded bg-background/60 px-2 py-1 font-mono text-xs text-foreground">
@@ -168,7 +187,7 @@ export function ClientOVADownload({ client }: Props) {
                   <button
                     onClick={copyToken}
                     className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
-                    title="Copy token"
+                    title="Copiar token"
                   >
                     {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
                   </button>
@@ -178,15 +197,14 @@ export function ClientOVADownload({ client }: Props) {
               <div className="flex gap-2">
                 <Button onClick={downloadProvisionFile} className="flex-1 gap-2">
                   <Download className="h-4 w-4" />
-                  Download sensor-provision.env
+                  Descargar sensor-provision.env
                 </Button>
-                <Button variant="outline" onClick={generateToken} disabled={loading} className="gap-2 px-3" title="Generate a new token">
+                <Button variant="outline" onClick={generateToken} disabled={loading} className="px-3" title="Regenerar token">
                   <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 </Button>
               </div>
 
               <p className="text-xs text-muted-foreground text-center">
-                SCP the file to the VM:{" "}
                 <code className="font-mono">scp sensor-provision.env admin@&lt;vm-ip&gt;:/opt/sensor/</code>
               </p>
             </div>

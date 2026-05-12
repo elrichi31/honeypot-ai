@@ -64,7 +64,15 @@ echo "[$(date -Is)] Config written to $ENV_FILE"
 # ── Start sensors ─────────────────────────────────────────────────────────────
 echo "[$(date -Is)] Starting sensor containers..."
 cd "$SENSOR_DIR"
-docker compose up -d
+
+# Use only the services specified in the provision token (space-separated compose service names)
+if [ -n "${ENABLED_COMPOSE_SERVICES:-}" ]; then
+  echo "[$(date -Is)] Enabled services: $ENABLED_COMPOSE_SERVICES"
+  # shellcheck disable=SC2086
+  docker compose up -d $ENABLED_COMPOSE_SERVICES
+else
+  docker compose up -d
+fi
 
 echo "[$(date -Is)] Sensors started."
 

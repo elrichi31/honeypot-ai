@@ -123,6 +123,7 @@ model SensorProvisionToken {
   id        String    @id @default(cuid())
   token     String    @unique
   clientId  String    @map("client_id")
+  services  String    @default("ssh,http,ftp,mysql,port")
   createdAt DateTime  @default(now()) @map("created_at")
   expiresAt DateTime  @map("expires_at")
   usedAt    DateTime? @map("used_at")
