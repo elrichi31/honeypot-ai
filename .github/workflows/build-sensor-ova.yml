@@ -31,15 +31,13 @@ jobs:
             -O /tmp/ubuntu-base.img
           qemu-img resize /tmp/ubuntu-base.img 20G
 
-      - name: Prepare cloud-init seed
-        run: |
-          mkdir -p /tmp/cloud-seed
-          cp ${{ github.workspace }}/packer/cloud-init/user-data /tmp/cloud-seed/user-data
-          cp ${{ github.workspace }}/packer/cloud-init/meta-data /tmp/cloud-seed/meta-data
-
       - name: Inject files into image (no network required)
         run: |
           sudo virt-customize -a /tmp/ubuntu-base.img --no-network \
+            --run-command "id admin || useradd -m -s /bin/bash -G sudo admin" \
+            --password "admin:password:honeypot" \
+            --run-command "echo 'admin ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/admin && chmod 440 /etc/sudoers.d/admin" \
+            --run-command "sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config" \
             --mkdir /opt/sensor \
             --copy-in ${{ github.workspace }}/sensors:/opt/sensor/ \
             --copy-in ${{ github.workspace }}/vector:/opt/sensor/ \
@@ -48,9 +46,7 @@ jobs:
             --copy-in ${{ github.workspace }}/packer/first-run/sensor-provision.sh:/opt/sensor/ \
             --copy-in ${{ github.workspace }}/packer/first-run/sensor-provision.service:/etc/systemd/system/ \
             --copy-in ${{ github.workspace }}/packer/first-run/sensor.service:/etc/systemd/system/ \
-            --mkdir /var/lib/cloud/seed/nocloud \
-            --copy-in /tmp/cloud-seed/meta-data:/var/lib/cloud/seed/nocloud/ \
-            --copy-in /tmp/cloud-seed/user-data:/var/lib/cloud/seed/nocloud/
+            --firstboot ${{ github.workspace }}/packer/scripts/firstboot-docker.sh
 
       - name: Convert to OVA
         run: |
