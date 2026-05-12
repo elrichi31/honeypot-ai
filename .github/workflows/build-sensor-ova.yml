@@ -23,7 +23,7 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq libguestfs-tools qemu-utils linux-image-generic passt
+          sudo apt-get install -y -qq libguestfs-tools qemu-utils linux-image-generic
 
       - name: Download Ubuntu 24.04 cloud image
         run: |
@@ -31,36 +31,67 @@ jobs:
             -O /tmp/ubuntu-base.img
           qemu-img resize /tmp/ubuntu-base.img 20G
 
-      - name: Customize image
+      - name: Prepare cloud-init seed
         run: |
-          # Password hash for "honeypot" — generated with: openssl passwd -6 'honeypot'
-          PASS_HASH='$6$rounds=656000$NaCl$F3yXIYO0qFQjSmGO1X.WnC0GmP7uW.xTNVoAe/o1pkbivTZRHBenT3oqH/WpBbMYE7gWO0WtCEv0IJzXdqpZ11'
+          mkdir -p /tmp/cloud-seed
 
-          sudo virt-customize -a /tmp/ubuntu-base.img \
-            --hostname honeypot-sensor \
-            --root-password "password:honeypot" \
-            --run-command "useradd -m -s /bin/bash -G sudo admin || true" \
-            --password "admin:password:honeypot" \
-            --run-command "echo 'admin ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/admin && chmod 440 /etc/sudoers.d/admin" \
-            --run-command "apt-get update -qq && apt-get install -y -qq ca-certificates curl gnupg" \
-            --run-command "install -m 0755 -d /etc/apt/keyrings" \
-            --run-command "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg" \
-            --run-command "echo 'deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu noble stable' > /etc/apt/sources.list.d/docker.list" \
-            --run-command "apt-get update -qq && apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin open-vm-tools" \
-            --run-command "systemctl enable docker" \
-            --run-command "usermod -aG docker admin" \
+          # meta-data (required by cloud-init NoCloud datasource)
+          cat > /tmp/cloud-seed/meta-data <<'EOF'
+          instance-id: honeypot-sensor-001
+          local-hostname: honeypot-sensor
+          EOF
+
+          # user-data — installs Docker and sets up the sensor on first boot
+          # Password hash for "honeypot": openssl passwd -6 'honeypot'
+          cat > /tmp/cloud-seed/user-data <<'EOF'
+          #cloud-config
+          hostname: honeypot-sensor
+          manage_etc_hosts: true
+
+          users:
+            - name: admin
+              sudo: ALL=(ALL) NOPASSWD:ALL
+              shell: /bin/bash
+              lock_passwd: false
+              passwd: "$6$rounds=656000$NaCl$F3yXIYO0qFQjSmGO1X.WnC0GmP7uW.xTNVoAe/o1pkbivTZRHBenT3oqH/WpBbMYE7gWO0WtCEv0IJzXdqpZ11"
+
+          ssh_pwauth: true
+
+          packages:
+            - ca-certificates
+            - curl
+            - open-vm-tools
+
+          runcmd:
+            - install -m 0755 -d /etc/apt/keyrings
+            - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            - chmod a+r /etc/apt/keyrings/docker.gpg
+            - echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
+            - apt-get update -qq
+            - apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
+            - usermod -aG docker admin
+            - systemctl enable docker
+            - chown -R root:docker /opt/sensor
+            - chmod -R 750 /opt/sensor
+            - chmod +x /opt/sensor/sensor-provision.sh
+            - systemctl daemon-reload
+            - systemctl enable sensor-provision.service
+          EOF
+
+      - name: Inject files into image (no network required)
+        run: |
+          sudo virt-customize -a /tmp/ubuntu-base.img --no-network \
             --mkdir /opt/sensor \
             --copy-in ${{ github.workspace }}/sensors:/opt/sensor/ \
             --copy-in ${{ github.workspace }}/vector:/opt/sensor/ \
             --copy-in ${{ github.workspace }}/docker-compose.prod.honeypot.yml:/opt/sensor/ \
             --run-command "mv /opt/sensor/docker-compose.prod.honeypot.yml /opt/sensor/docker-compose.yml" \
             --copy-in ${{ github.workspace }}/packer/first-run/sensor-provision.sh:/opt/sensor/ \
-            --run-command "chmod +x /opt/sensor/sensor-provision.sh" \
             --copy-in ${{ github.workspace }}/packer/first-run/sensor-provision.service:/etc/systemd/system/ \
             --copy-in ${{ github.workspace }}/packer/first-run/sensor.service:/etc/systemd/system/ \
-            --run-command "systemctl enable sensor-provision.service" \
-            --run-command "chown -R root:root /opt/sensor && chmod -R 750 /opt/sensor" \
-            --selinux-relabel
+            --mkdir /var/lib/cloud/seed/nocloud \
+            --copy-in /tmp/cloud-seed/meta-data:/var/lib/cloud/seed/nocloud/ \
+            --copy-in /tmp/cloud-seed/user-data:/var/lib/cloud/seed/nocloud/
 
       - name: Convert to OVA
         run: |
@@ -72,13 +103,13 @@ jobs:
           echo "Converting QCOW2 → VMDK..."
           qemu-img convert -f qcow2 -O vmdk -o subformat=streamOptimized /tmp/ubuntu-base.img "$VMDK"
 
-          DISK_SIZE_GB=$(qemu-img info --output=json "$VMDK" | python3 -c "import sys,json; print((json.load(sys.stdin)['virtual-size'] + 2**30 - 1) // 2**30)")
+          DISK_SIZE_GB=$(qemu-img info --output=json "$VMDK" | \
+            python3 -c "import sys,json; print((json.load(sys.stdin)['virtual-size'] + 2**30 - 1) // 2**30)")
 
-          echo "Writing OVF..."
+          echo "Writing OVF descriptor..."
           cat > "$OVF" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <Envelope xmlns="http://schemas.dmtf.org/ovf/envelope/1"
-                    xmlns:cim="http://schemas.dmtf.org/wbem/wscim/1/common"
                     xmlns:ovf="http://schemas.dmtf.org/ovf/envelope/1"
                     xmlns:vmw="http://www.vmware.com/schema/ovf"
                     xmlns:vssd="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_VirtualSystemSettingData"
@@ -87,7 +118,7 @@ jobs:
               <File ovf:id="disk1" ovf:href="${VM_NAME}.vmdk"/>
             </References>
             <DiskSection>
-              <Info>Virtual disk information</Info>
+              <Info>Virtual disk</Info>
               <Disk ovf:diskId="disk1" ovf:fileRef="disk1"
                     ovf:capacity="${DISK_SIZE_GB}" ovf:capacityAllocationUnits="byte * 2^30"
                     ovf:format="http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized"/>
@@ -97,7 +128,7 @@ jobs:
               <Network ovf:name="VM Network"><Description>VM Network</Description></Network>
             </NetworkSection>
             <VirtualSystem ovf:id="${VM_NAME}">
-              <Info>Honeypot Sensor VM — Ubuntu 24.04 LTS</Info>
+              <Info>Honeypot Sensor — Ubuntu 24.04 LTS</Info>
               <Name>${VM_NAME}</Name>
               <OperatingSystemSection ovf:id="94" vmw:osType="ubuntu64Guest">
                 <Info>Ubuntu 24.04 LTS (64-bit)</Info>
@@ -110,7 +141,6 @@ jobs:
                   <vssd:VirtualSystemType>vmx-19</vssd:VirtualSystemType>
                 </System>
                 <Item>
-                  <rasd:Description>Number of Virtual CPUs</rasd:Description>
                   <rasd:ElementName>2 virtual CPU(s)</rasd:ElementName>
                   <rasd:InstanceID>1</rasd:InstanceID>
                   <rasd:ResourceType>3</rasd:ResourceType>
@@ -118,7 +148,6 @@ jobs:
                 </Item>
                 <Item>
                   <rasd:AllocationUnits>byte * 2^20</rasd:AllocationUnits>
-                  <rasd:Description>Memory Size</rasd:Description>
                   <rasd:ElementName>2048 MB of memory</rasd:ElementName>
                   <rasd:InstanceID>2</rasd:InstanceID>
                   <rasd:ResourceType>4</rasd:ResourceType>
@@ -134,7 +163,6 @@ jobs:
                 </Item>
                 <Item>
                   <rasd:Address>0</rasd:Address>
-                  <rasd:Description>SCSI Controller</rasd:Description>
                   <rasd:ElementName>SCSI controller 0</rasd:ElementName>
                   <rasd:InstanceID>4</rasd:InstanceID>
                   <rasd:ResourceSubType>VirtualSCSI</rasd:ResourceSubType>
@@ -165,13 +193,16 @@ jobs:
           body: |
             ## Honeypot Sensor OVA ${{ github.event.inputs.version }}
 
-            Ubuntu 24.04 LTS · Docker pre-installed · auto-provisiona en el primer boot.
+            Ubuntu 24.04 LTS · auto-provisiona en el primer boot.
+
+            **Primer boot:** instala Docker automáticamente (~3 min, necesita internet).
+            **Segundo boot (tras copiar sensor-provision.env):** levanta los sensores.
 
             ### Deploy
             1. Descarga `honeypot-sensor.ova` e importa en VMware
-            2. En el dashboard: página del cliente → **Download OVA Package** → selecciona servicios → genera token
+            2. En el dashboard: cliente → **Download OVA Package** → selecciona servicios → genera token
             3. `scp sensor-provision.env admin@<vm-ip>:/opt/sensor/`
             4. `ssh admin@<vm-ip> "sudo reboot"`
 
-            SSH default: `admin` / `honeypot` — cambia después de provisionar.
+            SSH: `admin` / `honeypot` — cambia tras provisionar.
           files: /tmp/honeypot-sensor.ova
