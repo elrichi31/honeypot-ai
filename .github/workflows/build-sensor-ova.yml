@@ -23,7 +23,7 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq libguestfs-tools qemu-utils linux-image-generic
+          sudo apt-get install -y -qq libguestfs-tools qemu-utils linux-image-generic passt
 
       - name: Download Ubuntu 24.04 cloud image
         run: |
