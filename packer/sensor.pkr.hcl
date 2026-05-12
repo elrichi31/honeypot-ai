@@ -63,7 +63,7 @@ source "qemu" "sensor" {
   memory       = var.memory_mb
   cpus         = var.cpus
   format       = "qcow2"
-  accelerator  = "kvm" # set to "tcg" if KVM is not available
+  accelerator  = "kvm" # change to "tcg" if KVM/nested virtualization is not available
 
   # Headless — no display needed on a server
   headless         = true
