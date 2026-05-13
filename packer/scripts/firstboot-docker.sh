@@ -1,10 +1,23 @@
 #!/bin/bash
-# Runs once on first boot — installs Docker then enables sensor services
+# Runs once on first boot — expands disk, installs Docker, enables sensor services
 set -euo pipefail
 
 exec >> /var/log/sensor-firstboot.log 2>&1
-echo "[$(date -Is)] First boot: installing Docker..."
+echo "[$(date -Is)] First boot starting..."
 
+# ── 1. Expand partition to fill the full disk ─────────────────────────────────
+echo "[$(date -Is)] Expanding disk partition..."
+apt-get install -y -qq cloud-guest-utils
+# Find the root disk and partition number automatically
+ROOT_DISK=$(lsblk -ndo pkname "$(findmnt -n -o SOURCE /)")
+ROOT_PART=$(lsblk -ndo NAME "$(findmnt -n -o SOURCE /)")
+PART_NUM=$(echo "$ROOT_PART" | grep -o '[0-9]*$')
+growpart "/dev/$ROOT_DISK" "$PART_NUM" || true
+resize2fs "/dev/$ROOT_PART" || true
+echo "[$(date -Is)] Disk expanded: $(df -h / | tail -1)"
+
+# ── 2. Install Docker ─────────────────────────────────────────────────────────
+echo "[$(date -Is)] Installing Docker..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq ca-certificates curl
@@ -22,6 +35,7 @@ apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plug
 usermod -aG docker sensor
 systemctl enable docker
 
+# ── 3. Set up sensor ──────────────────────────────────────────────────────────
 chown -R root:docker /opt/sensor
 chmod -R 750 /opt/sensor
 chmod +x /opt/sensor/sensor-provision.sh
@@ -29,4 +43,4 @@ chmod +x /opt/sensor/sensor-provision.sh
 systemctl daemon-reload
 systemctl enable sensor-provision.service
 
-echo "[$(date -Is)] Docker installed. Sensor provision service enabled."
+echo "[$(date -Is)] First boot complete. Ready for provisioning."
