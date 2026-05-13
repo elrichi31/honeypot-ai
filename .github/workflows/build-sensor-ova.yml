@@ -34,6 +34,8 @@ jobs:
       - name: Inject files into image (no network required)
         run: |
           sudo virt-customize -a /tmp/ubuntu-base.img --no-network \
+            --run-command "echo '[Match]\nName=en*\n\n[Network]\nDHCP=yes' > /etc/systemd/network/10-dhcp.network" \
+            --run-command "systemctl enable systemd-networkd systemd-resolved" \
             --run-command "useradd -m -s /bin/bash -G sudo sensor" \
             --password "sensor:password:honeypot" \
             --run-command "echo 'sensor ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/sensor && chmod 440 /etc/sudoers.d/sensor" \
