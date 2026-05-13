@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { AlertCircle, Box, Download, HardDrive, Loader2 } from "lucide-react"
+import { useEffect, useState } from "react"
+import { AlertCircle, Box, CheckCircle2, Download, HardDrive, Loader2, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -24,13 +24,33 @@ const SERVICES: { key: ServiceKey; label: string; description: string; ports: st
   { key: "port",  label: "Port Honeypot",  description: "RDP, Redis, MongoDB, Docker, Elastic…",       ports: "múltiples" },
 ]
 
+type OvaConfig = { ingestUrl: string; ip: string; port: string; source: string }
+
 type Props = { client: Client }
 
 export function ClientOVADownload({ client }: Props) {
-  const [open, setOpen]         = useState(false)
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState<string | null>(null)
-  const [selected, setSelected] = useState<Set<ServiceKey>>(new Set(["ssh", "http", "ftp", "mysql", "port"]))
+  const [open, setOpen]           = useState(false)
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState<string | null>(null)
+  const [selected, setSelected]   = useState<Set<ServiceKey>>(new Set(["ssh", "http", "ftp", "mysql", "port"]))
+  const [config, setConfig]       = useState<OvaConfig | null>(null)
+  const [configError, setConfigError] = useState<string | null>(null)
+  const [configLoading, setConfigLoading] = useState(false)
+
+  // Fetch server config whenever dialog opens
+  useEffect(() => {
+    if (!open) return
+    setConfigLoading(true)
+    setConfigError(null)
+    fetch("/api/ova/config")
+      .then(r => r.json())
+      .then((data: OvaConfig & { error?: string }) => {
+        if (data.error) setConfigError(data.error)
+        else setConfig(data)
+      })
+      .catch(() => setConfigError("No se pudo obtener la configuración del servidor"))
+      .finally(() => setConfigLoading(false))
+  }, [open])
 
   function toggleService(key: ServiceKey) {
     setSelected(prev => {
@@ -57,7 +77,6 @@ export function ClientOVADownload({ client }: Props) {
         throw new Error(body.error || `Error ${res.status}`)
       }
 
-      // Stream blob download
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -65,7 +84,6 @@ export function ClientOVADownload({ client }: Props) {
       a.download = `honeypot-sensor-${client.slug}.ova`
       a.click()
       URL.revokeObjectURL(url)
-
       setOpen(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
@@ -77,7 +95,13 @@ export function ClientOVADownload({ client }: Props) {
   function handleOpenChange(val: boolean) {
     if (loading) return
     setOpen(val)
-    if (!val) setError(null)
+    if (!val) { setError(null); setConfig(null) }
+  }
+
+  const sourceLabel: Record<string, string> = {
+    "SENSOR_INGEST_URL":   "variable SENSOR_INGEST_URL",
+    "NEXT_PUBLIC_API_URL": "variable NEXT_PUBLIC_API_URL",
+    "auto-detected":       "IP pública auto-detectada",
   }
 
   return (
@@ -101,6 +125,64 @@ export function ClientOVADownload({ client }: Props) {
         </DialogHeader>
 
         <div className="space-y-4 pt-1">
+
+          {/* Server config preview */}
+          <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Configuración del servidor</p>
+
+            {configLoading && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Detectando IP pública…
+              </div>
+            )}
+
+            {configError && (
+              <div className="flex items-start gap-2 text-xs text-destructive">
+                <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <span>{configError}</span>
+              </div>
+            )}
+
+            {config && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">Ingest URL</span>
+                  <code className="font-mono text-xs text-foreground">{config.ingestUrl}</code>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">IP pública</span>
+                  <code className="font-mono text-xs text-foreground">{config.ip}</code>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">Puerto</span>
+                  <code className="font-mono text-xs text-foreground">{config.port}</code>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">Fuente</span>
+                  <span className="flex items-center gap-1 text-xs text-emerald-400">
+                    <CheckCircle2 className="h-3 w-3" />
+                    {sourceLabel[config.source] ?? config.source}
+                  </span>
+                </div>
+                {config.source === "auto-detected" && (
+                  <p className="text-[11px] text-amber-400/80 pt-0.5">
+                    Asegúrate de que el puerto {config.port} esté abierto en el firewall del servidor.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {config && (
+              <button
+                onClick={() => { setConfig(null); setConfigLoading(true); fetch("/api/ova/config").then(r=>r.json()).then((d: OvaConfig & {error?:string})=>{ if(d.error) setConfigError(d.error); else setConfig(d) }).catch(()=>setConfigError("Error")).finally(()=>setConfigLoading(false)) }}
+                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <RefreshCw className="h-3 w-3" /> Redetectar
+              </button>
+            )}
+          </div>
+
           {/* Service selector */}
           <div className="space-y-2">
             {SERVICES.map(s => (
@@ -144,7 +226,7 @@ export function ClientOVADownload({ client }: Props) {
 
           <Button
             onClick={downloadOVA}
-            disabled={loading || selected.size === 0}
+            disabled={loading || selected.size === 0 || !!configError || configLoading}
             className="w-full gap-2"
           >
             {loading
@@ -155,12 +237,6 @@ export function ClientOVADownload({ client }: Props) {
           {loading && (
             <p className="text-center text-xs text-muted-foreground">
               Esto puede tardar unos segundos en la primera descarga mientras se prepara el disco base.
-            </p>
-          )}
-
-          {!loading && !error && (
-            <p className="text-center text-xs text-muted-foreground">
-              Importa el <code className="font-mono">.ova</code> en VMware · arranca · el sensor aparece solo
             </p>
           )}
         </div>
