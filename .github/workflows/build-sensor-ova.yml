@@ -23,7 +23,7 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq libguestfs-tools qemu-utils linux-image-generic
+          sudo apt-get install -y -qq libguestfs-tools qemu-utils linux-image-generic gettext-base
 
       - name: Download Ubuntu 24.04 cloud image
         run: |
@@ -51,6 +51,8 @@ jobs:
             --firstboot ${{ github.workspace }}/packer/scripts/firstboot-docker.sh
 
       - name: Convert to OVA
+        env:
+          OVA_VERSION: ${{ github.event.inputs.version }}
         run: |
           VM_NAME="honeypot-sensor"
           VMDK="/tmp/${VM_NAME}.vmdk"
@@ -64,100 +66,15 @@ jobs:
             python3 -c "import sys,json; print((json.load(sys.stdin)['virtual-size'] + 2**30 - 1) // 2**30)")
 
           echo "Writing OVF descriptor..."
-          cat > "$OVF" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<Envelope xmlns="http://schemas.dmtf.org/ovf/envelope/1"
-          xmlns:ovf="http://schemas.dmtf.org/ovf/envelope/1"
-          xmlns:vmw="http://www.vmware.com/schema/ovf"
-          xmlns:vssd="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_VirtualSystemSettingData"
-          xmlns:rasd="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_ResourceAllocationSettingData">
-  <References>
-    <File ovf:id="disk1" ovf:href="${VM_NAME}.vmdk"/>
-  </References>
-  <DiskSection>
-    <Info>Virtual disk</Info>
-    <Disk ovf:diskId="disk1" ovf:fileRef="disk1"
-          ovf:capacity="${DISK_SIZE_GB}" ovf:capacityAllocationUnits="byte * 2^30"
-          ovf:format="http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized"/>
-  </DiskSection>
-  <NetworkSection>
-    <Info>Network</Info>
-    <Network ovf:name="VM Network"><Description>VM Network</Description></Network>
-  </NetworkSection>
-  <VirtualSystem ovf:id="${VM_NAME}">
-    <Info>Honeypot Sensor — Ubuntu 24.04 LTS</Info>
-    <Name>${VM_NAME}</Name>
-    <OperatingSystemSection ovf:id="94" vmw:osType="ubuntu64Guest">
-      <Info>Ubuntu 24.04 LTS (64-bit)</Info>
-    </OperatingSystemSection>
-    <ProductSection ovf:transport="com.vmware.guestInfo">
-      <Info>Honeypot Sensor provisioning configuration</Info>
-      <Product>Honeypot Sensor</Product>
-      <Vendor>Honeypot Platform</Vendor>
-      <Version>${{ github.event.inputs.version }}</Version>
-      <Property ovf:key="PROVISION_TOKEN" ovf:type="string" ovf:userConfigurable="true" ovf:value="">
-        <Label>Provision Token</Label>
-        <Description>Token generated from the Honeypot dashboard for this client</Description>
-      </Property>
-      <Property ovf:key="INGEST_API_URL" ovf:type="string" ovf:userConfigurable="true" ovf:value="">
-        <Label>Ingest API URL</Label>
-        <Description>URL of your Honeypot ingest API (e.g. https://ingest.example.com)</Description>
-      </Property>
-    </ProductSection>
-    <VirtualHardwareSection>
-      <Info>Virtual hardware</Info>
-      <System>
-        <vssd:ElementName>Virtual Hardware Family</vssd:ElementName>
-        <vssd:InstanceID>0</vssd:InstanceID>
-        <vssd:VirtualSystemType>vmx-19</vssd:VirtualSystemType>
-      </System>
-      <Item>
-        <rasd:ElementName>2 virtual CPU(s)</rasd:ElementName>
-        <rasd:InstanceID>1</rasd:InstanceID>
-        <rasd:ResourceType>3</rasd:ResourceType>
-        <rasd:VirtualQuantity>2</rasd:VirtualQuantity>
-      </Item>
-      <Item>
-        <rasd:AllocationUnits>byte * 2^20</rasd:AllocationUnits>
-        <rasd:ElementName>2048 MB of memory</rasd:ElementName>
-        <rasd:InstanceID>2</rasd:InstanceID>
-        <rasd:ResourceType>4</rasd:ResourceType>
-        <rasd:VirtualQuantity>2048</rasd:VirtualQuantity>
-      </Item>
-      <Item>
-        <rasd:AutomaticAllocation>true</rasd:AutomaticAllocation>
-        <rasd:Connection>VM Network</rasd:Connection>
-        <rasd:ElementName>Network adapter 1</rasd:ElementName>
-        <rasd:InstanceID>3</rasd:InstanceID>
-        <rasd:ResourceSubType>VmxNet3</rasd:ResourceSubType>
-        <rasd:ResourceType>10</rasd:ResourceType>
-      </Item>
-      <Item>
-        <rasd:Address>0</rasd:Address>
-        <rasd:ElementName>SCSI controller 0</rasd:ElementName>
-        <rasd:InstanceID>4</rasd:InstanceID>
-        <rasd:ResourceSubType>VirtualSCSI</rasd:ResourceSubType>
-        <rasd:ResourceType>6</rasd:ResourceType>
-      </Item>
-      <Item>
-        <rasd:AddressOnParent>0</rasd:AddressOnParent>
-        <rasd:ElementName>Hard disk 1</rasd:ElementName>
-        <rasd:HostResource>ovf:/disk/disk1</rasd:HostResource>
-        <rasd:InstanceID>5</rasd:InstanceID>
-        <rasd:Parent>4</rasd:Parent>
-        <rasd:ResourceType>17</rasd:ResourceType>
-      </Item>
-    </VirtualHardwareSection>
-  </VirtualSystem>
-</Envelope>
-EOF
+          export VM_NAME DISK_SIZE_GB OVA_VERSION
+          envsubst < packer/ovf-template.xml > "$OVF"
+          echo "OVF written ($(wc -l < $OVF) lines)"
 
           echo "Packaging OVA..."
-          # OVA spec: OVF descriptor must be first entry in the tar
           tar -C /tmp -cvf "$OVA" "${VM_NAME}.ovf" "${VM_NAME}.vmdk"
           echo "Done: $(du -sh $OVA)"
 
-          # Also copy VMDK for dashboard per-client OVA generation
+          # Separate VMDK asset for dashboard per-client OVA generation
           cp "$VMDK" "/tmp/${VM_NAME}-disk.vmdk"
 
       - name: Create GitHub Release
@@ -177,9 +94,7 @@ EOF
 
             **Deploy manual (fallback):**
             1. Descarga `honeypot-sensor.ova` e importa en VMware
-            2. En el dashboard: genera token → descarga `sensor-provision.env`
-            3. `scp sensor-provision.env sensor@<vm-ip>:/opt/sensor/`
-            4. `ssh sensor@<vm-ip> "sudo reboot"`
+            2. Copia `sensor-provision.env` al servidor y reinicia
 
             SSH: `sensor` / `honeypot`
 
