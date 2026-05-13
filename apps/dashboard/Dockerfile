@@ -21,6 +21,9 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Tools for per-client OVA generation (config disk)
+RUN apk add --no-cache mtools qemu-img
+
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static

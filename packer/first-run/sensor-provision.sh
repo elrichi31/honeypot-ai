@@ -20,9 +20,27 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
-# ── Read credentials: OVF properties first, env file as fallback ─────────────
+# ── Read credentials: config disk → OVF properties → env file ────────────────
 PROVISION_TOKEN=""
 INGEST_API_URL=""
+
+# Try config disk (/dev/sdb — second VMDK embedded in the OVA by the dashboard)
+if [ -b /dev/sdb ]; then
+  echo "[$(date -Is)] Found second disk, trying config disk..."
+  MOUNT_DIR=$(mktemp -d)
+  if mount -o ro /dev/sdb "$MOUNT_DIR" 2>/dev/null; then
+    if [ -f "$MOUNT_DIR/sensor-provision.env" ]; then
+      echo "[$(date -Is)] Reading credentials from config disk..."
+      # shellcheck source=/dev/null
+      source "$MOUNT_DIR/sensor-provision.env"
+      echo "[$(date -Is)] Credentials read from config disk."
+    fi
+    umount "$MOUNT_DIR"
+  else
+    echo "[$(date -Is)] Could not mount config disk, skipping."
+  fi
+  rmdir "$MOUNT_DIR" 2>/dev/null || true
+fi
 
 # Try VMware OVF environment via vmtoolsd (works on ESXi, Workstation, Fusion)
 if command -v vmtoolsd &>/dev/null; then

@@ -10,12 +10,35 @@ import path from "path"
 const exec = promisify(execCb)
 
 const INTERNAL_API = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
-const INGEST_API_URL = process.env.NEXT_PUBLIC_API_URL || ""
+
+// Resolve the URL the sensor VM will use to reach the ingest-api from outside.
+// Priority: explicit SENSOR_INGEST_URL → NEXT_PUBLIC_API_URL (if not localhost) → auto-detect public IP
+async function resolveIngestUrl(): Promise<string> {
+  if (process.env.SENSOR_INGEST_URL) return process.env.SENSOR_INGEST_URL
+
+  const configured = process.env.NEXT_PUBLIC_API_URL ?? ""
+  if (configured && !configured.includes("localhost") && !configured.includes("127.0.0.1")) {
+    return configured
+  }
+
+  // Auto-detect: ask ipify what IP this server is coming from
+  try {
+    const res = await fetch("https://api.ipify.org?format=text", { signal: AbortSignal.timeout(5000) })
+    if (res.ok) {
+      const ip = (await res.text()).trim()
+      return `http://${ip}:3000`
+    }
+  } catch {
+    // fall through
+  }
+
+  throw new Error(
+    "Could not determine public ingest URL. Set SENSOR_INGEST_URL=http://<your-public-ip>:3000 in your .env",
+  )
+}
 const CACHE_DIR = "/tmp/sensor-ova-cache"
 const VMDK_CACHE_PATH = path.join(CACHE_DIR, "honeypot-sensor-disk.vmdk")
-// 7-day cache — refresh only after a new release is deployed
 const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
-// The base VMDK is always created from a 20G disk image
 const DISK_SIZE_GB = 20
 
 function ingestHeaders() {
@@ -36,28 +59,40 @@ async function ensureVmdkCached(): Promise<void> {
   }
 
   const vmdkUrl = process.env.BASE_VMDK_URL
-  if (!vmdkUrl) {
-    throw new Error(
-      "BASE_VMDK_URL is not set. Point it to the GitHub Releases honeypot-sensor-disk.vmdk asset URL.",
-    )
-  }
+  if (!vmdkUrl) throw new Error("BASE_VMDK_URL is not set. Point it to the GitHub Releases honeypot-sensor-disk.vmdk URL.")
 
   console.log(`[ova] Downloading base VMDK from ${vmdkUrl} ...`)
   const response = await fetch(vmdkUrl, { redirect: "follow" })
-  if (!response.ok) {
-    throw new Error(`Failed to download VMDK: ${response.status} ${response.statusText}`)
-  }
+  if (!response.ok) throw new Error(`Failed to download VMDK: ${response.status} ${response.statusText}`)
 
   const tmpPath = VMDK_CACHE_PATH + ".tmp"
   const fileStream = createWriteStream(tmpPath)
   await pipeline(response.body as unknown as NodeJS.ReadableStream, fileStream)
-
-  // Atomic rename — avoids partial file being used
   await exec(`mv "${tmpPath}" "${VMDK_CACHE_PATH}"`)
   console.log(`[ova] VMDK cached (${(statSync(VMDK_CACHE_PATH).size / 1e6).toFixed(0)} MB)`)
 }
 
-function buildOvf(provisionToken: string, apiUrl: string): string {
+// Creates a tiny FAT floppy image containing sensor-provision.env,
+// then converts it to a streamOptimized VMDK.
+// Uses mtools (no loop device / no root needed).
+async function createConfigVmdk(tmpDir: string, token: string, apiUrl: string): Promise<string> {
+  const envContent = `PROVISION_TOKEN=${token}\nINGEST_API_URL=${apiUrl}\n`
+  const envFile   = path.join(tmpDir, "sensor-provision.env")
+  const imgPath   = path.join(tmpDir, "config.img")
+  const vmdkPath  = path.join(tmpDir, "honeypot-sensor-config.vmdk")
+
+  await writeFile(envFile, envContent, "utf8")
+
+  // 1.44 MB floppy — enough for a tiny env file
+  await exec(`dd if=/dev/zero of="${imgPath}" bs=512 count=2880`)
+  await exec(`mformat -i "${imgPath}" ::`)
+  await exec(`mcopy -i "${imgPath}" "${envFile}" ::`)
+  await exec(`qemu-img convert -f raw -O vmdk -o subformat=streamOptimized "${imgPath}" "${vmdkPath}"`)
+
+  return vmdkPath
+}
+
+function buildOvf(provisionToken: string, apiUrl: string, configDiskSizeMb: number): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Envelope xmlns="http://schemas.dmtf.org/ovf/envelope/1"
           xmlns:ovf="http://schemas.dmtf.org/ovf/envelope/1"
@@ -66,11 +101,15 @@ function buildOvf(provisionToken: string, apiUrl: string): string {
           xmlns:rasd="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_ResourceAllocationSettingData">
   <References>
     <File ovf:id="disk1" ovf:href="honeypot-sensor.vmdk"/>
+    <File ovf:id="disk2" ovf:href="honeypot-sensor-config.vmdk"/>
   </References>
   <DiskSection>
-    <Info>Virtual disk</Info>
+    <Info>Virtual disks</Info>
     <Disk ovf:diskId="disk1" ovf:fileRef="disk1"
           ovf:capacity="${DISK_SIZE_GB}" ovf:capacityAllocationUnits="byte * 2^30"
+          ovf:format="http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized"/>
+    <Disk ovf:diskId="disk2" ovf:fileRef="disk2"
+          ovf:capacity="${configDiskSizeMb}" ovf:capacityAllocationUnits="byte * 2^20"
           ovf:format="http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized"/>
   </DiskSection>
   <NetworkSection>
@@ -83,19 +122,6 @@ function buildOvf(provisionToken: string, apiUrl: string): string {
     <OperatingSystemSection ovf:id="94" vmw:osType="ubuntu64Guest">
       <Info>Ubuntu 24.04 LTS (64-bit)</Info>
     </OperatingSystemSection>
-    <ProductSection ovf:transport="com.vmware.guestInfo">
-      <Info>Honeypot Sensor provisioning configuration</Info>
-      <Product>Honeypot Sensor</Product>
-      <Vendor>Honeypot Platform</Vendor>
-      <Property ovf:key="PROVISION_TOKEN" ovf:type="string" ovf:userConfigurable="false" ovf:value="${provisionToken}">
-        <Label>Provision Token</Label>
-        <Description>Token for this client — do not modify</Description>
-      </Property>
-      <Property ovf:key="INGEST_API_URL" ovf:type="string" ovf:userConfigurable="false" ovf:value="${apiUrl}">
-        <Label>Ingest API URL</Label>
-        <Description>URL of the Honeypot ingest API</Description>
-      </Property>
-    </ProductSection>
     <VirtualHardwareSection>
       <Info>Virtual hardware</Info>
       <System>
@@ -133,9 +159,17 @@ function buildOvf(provisionToken: string, apiUrl: string): string {
       </Item>
       <Item>
         <rasd:AddressOnParent>0</rasd:AddressOnParent>
-        <rasd:ElementName>Hard disk 1</rasd:ElementName>
+        <rasd:ElementName>Hard disk 1 (OS)</rasd:ElementName>
         <rasd:HostResource>ovf:/disk/disk1</rasd:HostResource>
         <rasd:InstanceID>5</rasd:InstanceID>
+        <rasd:Parent>4</rasd:Parent>
+        <rasd:ResourceType>17</rasd:ResourceType>
+      </Item>
+      <Item>
+        <rasd:AddressOnParent>1</rasd:AddressOnParent>
+        <rasd:ElementName>Hard disk 2 (config)</rasd:ElementName>
+        <rasd:HostResource>ovf:/disk/disk2</rasd:HostResource>
+        <rasd:InstanceID>6</rasd:InstanceID>
         <rasd:Parent>4</rasd:Parent>
         <rasd:ResourceType>17</rasd:ResourceType>
       </Item>
@@ -154,7 +188,7 @@ export async function POST(
     const body = await req.json().catch(() => ({})) as { services?: string[] }
     const services: string[] = body.services ?? ["ssh", "http", "ftp", "mysql", "port"]
 
-    // 1. Generate a provision token for this client
+    // 1. Generate provision token
     const tokenRes = await fetch(`${INTERNAL_API}/sensor/tokens`, {
       method: "POST",
       headers: ingestHeaders(),
@@ -166,72 +200,74 @@ export async function POST(
     }
     const { token } = await tokenRes.json() as { token: string }
 
-    if (!INGEST_API_URL) {
-      return NextResponse.json(
-        { error: "NEXT_PUBLIC_API_URL is not set on the dashboard server" },
-        { status: 500 },
-      )
-    }
+    // 2. Resolve the public URL the sensor VM will use to reach the ingest-api
+    const ingestUrl = await resolveIngestUrl()
 
-    // 2. Ensure base VMDK is cached locally
+    // 3. Ensure base VMDK is cached
     await ensureVmdkCached()
 
-    // 3. Build temp working directory
+    // 4. Build temp directory
     const tmpDir = path.join("/tmp", `ova-${clientId}-${Date.now()}`)
     await mkdir(tmpDir, { recursive: true })
 
-    const ovfPath  = path.join(tmpDir, "honeypot-sensor.ovf")
-    const vmdkLink = path.join(tmpDir, "honeypot-sensor.vmdk")
-    const ovaPath  = path.join(tmpDir, "honeypot-sensor.ova")
+    try {
+      // 5. Create config disk VMDK with sensor-provision.env inside
+      const configVmdkPath = await createConfigVmdk(tmpDir, token, ingestUrl)
+      const configVmdkStats = statSync(configVmdkPath)
+      const configDiskSizeMb = Math.ceil(configVmdkStats.size / (1024 * 1024)) || 2
 
-    // 4. Write custom OVF with embedded token + URL
-    await writeFile(ovfPath, buildOvf(token, INGEST_API_URL), "utf8")
+      // 6. Write OVF referencing both disks
+      const ovfPath = path.join(tmpDir, "honeypot-sensor.ovf")
+      await writeFile(ovfPath, buildOvf(token, ingestUrl, configDiskSizeMb), "utf8")
 
-    // 5. Hard-link VMDK into temp dir under the expected name (no data copy)
-    linkSync(VMDK_CACHE_PATH, vmdkLink)
+      // 6. Hard-link OS VMDK into tmpDir (no data copy)
+      const osVmdkLink = path.join(tmpDir, "honeypot-sensor.vmdk")
+      linkSync(VMDK_CACHE_PATH, osVmdkLink)
 
-    // 6. Package as OVA (tar, OVF must be listed first per spec)
-    await exec(`tar -cf "${ovaPath}" -C "${tmpDir}" honeypot-sensor.ovf honeypot-sensor.vmdk`)
+      // 7. Package OVA — OVF must be first per spec
+      const ovaPath = path.join(tmpDir, "honeypot-sensor.ova")
+      await exec(
+        `tar -cf "${ovaPath}" -C "${tmpDir}" honeypot-sensor.ovf honeypot-sensor.vmdk honeypot-sensor-config.vmdk`
+      )
 
-    // 7. Clean up hard-link; OVA and OVF deleted after streaming
-    await unlink(vmdkLink)
-    await unlink(ovfPath)
+      // 8. Clean up intermediate files before streaming
+      await Promise.all([unlink(ovfPath), unlink(osVmdkLink), unlink(configVmdkPath)])
 
-    // 8. Stream OVA to client
-    const ovaStats = await stat(ovaPath)
-    const readStream = createReadStream(ovaPath)
+      // 9. Stream OVA
+      const ovaStats = await stat(ovaPath)
+      const readStream = createReadStream(ovaPath)
+      const slug = clientId.replace(/[^a-z0-9-]/gi, "-").toLowerCase()
 
-    const webStream = new ReadableStream({
-      start(controller) {
-        readStream.on("data", (chunk) => controller.enqueue(chunk))
-        readStream.on("end", () => {
-          controller.close()
+      const webStream = new ReadableStream({
+        start(controller) {
+          readStream.on("data", (chunk) => controller.enqueue(chunk))
+          readStream.on("end", () => {
+            controller.close()
+            rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+          })
+          readStream.on("error", (err) => controller.error(err))
+        },
+        cancel() {
+          readStream.destroy()
           rm(tmpDir, { recursive: true, force: true }).catch(() => {})
-        })
-        readStream.on("error", (err) => controller.error(err))
-      },
-      cancel() {
-        readStream.destroy()
-        rm(tmpDir, { recursive: true, force: true }).catch(() => {})
-      },
-    })
+        },
+      })
 
-    const slug = clientId.replace(/[^a-z0-9-]/gi, "-").toLowerCase()
-
-    return new NextResponse(webStream, {
-      status: 200,
-      headers: {
-        "Content-Type": "application/octet-stream",
-        "Content-Disposition": `attachment; filename="honeypot-sensor-${slug}.ova"`,
-        "Content-Length": String(ovaStats.size),
-        "Cache-Control": "no-store",
-      },
-    })
+      return new NextResponse(webStream, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "Content-Disposition": `attachment; filename="honeypot-sensor-${slug}.ova"`,
+          "Content-Length": String(ovaStats.size),
+          "Cache-Control": "no-store",
+        },
+      })
+    } catch (err) {
+      await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+      throw err
+    }
   } catch (err) {
     console.error("[ova] Error:", err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Unknown error" },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Unknown error" }, { status: 500 })
   }
 }
