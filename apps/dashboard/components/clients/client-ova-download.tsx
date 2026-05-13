@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Box, Check, Copy, Download, HardDrive, RefreshCw } from "lucide-react"
+import { AlertCircle, Box, Download, HardDrive, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -17,24 +17,20 @@ import type { Client } from "@/lib/api"
 type ServiceKey = "ssh" | "http" | "ftp" | "mysql" | "port"
 
 const SERVICES: { key: ServiceKey; label: string; description: string; ports: string }[] = [
-  { key: "ssh",   label: "SSH Honeypot",    description: "Cowrie — captura brute-force SSH",           ports: "22, 2222" },
-  { key: "http",  label: "Web Honeypot",    description: "HTTP/HTTPS — fake login pages y admin panels", ports: "80, 8443" },
-  { key: "ftp",   label: "FTP Honeypot",    description: "Captura credenciales FTP",                    ports: "21" },
-  { key: "mysql", label: "MySQL Honeypot",  description: "Captura intentos de conexión MySQL",          ports: "3306" },
-  { key: "port",  label: "Port Honeypot",   description: "RDP, Redis, MongoDB, Docker, Elastic…",      ports: "múltiples" },
+  { key: "ssh",   label: "SSH Honeypot",   description: "Cowrie — captura brute-force SSH",            ports: "22, 2222" },
+  { key: "http",  label: "Web Honeypot",   description: "HTTP/HTTPS — fake login pages y admin panels", ports: "80, 8443" },
+  { key: "ftp",   label: "FTP Honeypot",   description: "Captura credenciales FTP",                     ports: "21" },
+  { key: "mysql", label: "MySQL Honeypot", description: "Captura intentos de conexión MySQL",           ports: "3306" },
+  { key: "port",  label: "Port Honeypot",  description: "RDP, Redis, MongoDB, Docker, Elastic…",       ports: "múltiples" },
 ]
 
 type Props = { client: Client }
 
-type TokenResult = { token: string; expiresAt: string; services: ServiceKey[] }
-
 export function ClientOVADownload({ client }: Props) {
-  const [open, setOpen]               = useState(false)
-  const [loading, setLoading]         = useState(false)
-  const [result, setResult]           = useState<TokenResult | null>(null)
-  const [copied, setCopied]           = useState(false)
-  const [error, setError]             = useState<string | null>(null)
-  const [selected, setSelected]       = useState<Set<ServiceKey>>(new Set(["ssh", "http", "ftp", "mysql", "port"]))
+  const [open, setOpen]         = useState(false)
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState<string | null>(null)
+  const [selected, setSelected] = useState<Set<ServiceKey>>(new Set(["ssh", "http", "ftp", "mysql", "port"]))
 
   function toggleService(key: ServiceKey) {
     setSelected(prev => {
@@ -44,22 +40,33 @@ export function ClientOVADownload({ client }: Props) {
     })
   }
 
-  async function generateToken() {
-    if (selected.size === 0) return
+  async function downloadOVA() {
+    if (selected.size === 0 || loading) return
     setLoading(true)
     setError(null)
-    setResult(null)
+
     try {
-      const res = await fetch("/api/sensor/tokens", {
+      const res = await fetch(`/api/clients/${client.id}/ova`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId: client.id, services: Array.from(selected) }),
+        body: JSON.stringify({ services: Array.from(selected) }),
       })
+
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.error || "Failed to generate token")
+        const body = await res.json().catch(() => ({})) as { error?: string }
+        throw new Error(body.error || `Error ${res.status}`)
       }
-      setResult(await res.json())
+
+      // Stream blob download
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `honeypot-sensor-${client.slug}.ova`
+      a.click()
+      URL.revokeObjectURL(url)
+
+      setOpen(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
     } finally {
@@ -67,43 +74,11 @@ export function ClientOVADownload({ client }: Props) {
     }
   }
 
-  function copyToken() {
-    if (!result) return
-    navigator.clipboard.writeText(result.token)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
-  function downloadProvisionFile() {
-    if (!result) return
-    const ingestUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://YOUR_SERVER_IP:3000"
-    const lines = [
-      `# Sensor Provision File — ${client.name}`,
-      `# Generated: ${new Date().toISOString()}`,
-      `# Expires: ${new Date(result.expiresAt).toISOString()}`,
-      `# Services: ${result.services.join(", ")}`,
-      ``,
-      `PROVISION_TOKEN=${result.token}`,
-      `INGEST_API_URL=${ingestUrl}`,
-    ].join("\n")
-
-    const blob = new Blob([lines], { type: "text/plain" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `sensor-provision-${client.slug}.env`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
   function handleOpenChange(val: boolean) {
+    if (loading) return
     setOpen(val)
-    if (!val) { setResult(null); setError(null) }
+    if (!val) setError(null)
   }
-
-  const expiresLabel = result
-    ? new Date(result.expiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
-    : null
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -121,12 +96,11 @@ export function ClientOVADownload({ client }: Props) {
             OVA Sensor Package — {client.name}
           </DialogTitle>
           <DialogDescription>
-            Selecciona qué honeypots activar en esta VM. Solo los servicios seleccionados van a correr.
+            Selecciona los honeypots a activar. El OVA generado ya tiene el token embebido — solo importa en VMware y arranca.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 pt-1">
-
           {/* Service selector */}
           <div className="space-y-2">
             {SERVICES.map(s => (
@@ -142,6 +116,7 @@ export function ClientOVADownload({ client }: Props) {
                   checked={selected.has(s.key)}
                   onCheckedChange={() => toggleService(s.key)}
                   className="mt-0.5 shrink-0"
+                  disabled={loading}
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
@@ -158,56 +133,35 @@ export function ClientOVADownload({ client }: Props) {
             <p className="text-xs text-destructive">Selecciona al menos un servicio.</p>
           )}
 
+          {error && (
+            <div className="flex items-start gap-2 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
           <div className="border-t border-border" />
 
-          {!result && (
-            <Button onClick={generateToken} disabled={loading || selected.size === 0} className="w-full gap-2">
-              {loading
-                ? <RefreshCw className="h-4 w-4 animate-spin" />
-                : <HardDrive className="h-4 w-4" />}
-              {loading ? "Generando…" : "Generar Token de Provisioning"}
-            </Button>
+          <Button
+            onClick={downloadOVA}
+            disabled={loading || selected.size === 0}
+            className="w-full gap-2"
+          >
+            {loading
+              ? <><Loader2 className="h-4 w-4 animate-spin" /> Generando OVA…</>
+              : <><Download className="h-4 w-4" /> Descargar OVA con token embebido</>}
+          </Button>
+
+          {loading && (
+            <p className="text-center text-xs text-muted-foreground">
+              Esto puede tardar unos segundos en la primera descarga mientras se prepara el disco base.
+            </p>
           )}
 
-          {error && (
-            <p className="rounded-lg bg-destructive/10 px-4 py-2 text-sm text-destructive">{error}</p>
-          )}
-
-          {result && (
-            <div className="space-y-3">
-              <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Provision Token</p>
-                  <span className="text-[10px] text-muted-foreground">Expira {expiresLabel}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 truncate rounded bg-background/60 px-2 py-1 font-mono text-xs text-foreground">
-                    {result.token}
-                  </code>
-                  <button
-                    onClick={copyToken}
-                    className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
-                    title="Copiar token"
-                  >
-                    {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <Button onClick={downloadProvisionFile} className="flex-1 gap-2">
-                  <Download className="h-4 w-4" />
-                  Descargar sensor-provision.env
-                </Button>
-                <Button variant="outline" onClick={generateToken} disabled={loading} className="px-3" title="Regenerar token">
-                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                </Button>
-              </div>
-
-              <p className="text-xs text-muted-foreground text-center">
-                <code className="font-mono">scp sensor-provision.env admin@&lt;vm-ip&gt;:/opt/sensor/</code>
-              </p>
-            </div>
+          {!loading && !error && (
+            <p className="text-center text-xs text-muted-foreground">
+              Importa el <code className="font-mono">.ova</code> en VMware · arranca · el sensor aparece solo
+            </p>
           )}
         </div>
       </DialogContent>

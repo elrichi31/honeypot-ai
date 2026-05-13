@@ -1,6 +1,6 @@
 #!/bin/bash
-# Runs once on first boot. Reads sensor-provision.env, fetches credentials
-# from the platform, writes .env, then starts docker compose.
+# Runs once on first boot. Reads credentials from OVF properties (VMware guestInfo)
+# or sensor-provision.env fallback, fetches config, starts sensors.
 set -euo pipefail
 
 SENSOR_DIR=/opt/sensor
@@ -20,21 +20,62 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
-# ── Check provision file ──────────────────────────────────────────────────────
-if [ ! -f "$PROVISION_FILE" ]; then
-  echo "[$(date -Is)] ERROR: $PROVISION_FILE not found."
-  echo "[$(date -Is)] Copy your sensor-provision.env to $PROVISION_FILE and reboot."
-  echo ""
-  echo "  scp sensor-provision.env admin@<this-vm-ip>:$PROVISION_FILE"
-  echo "  sudo reboot"
-  exit 1
+# ── Read credentials: OVF properties first, env file as fallback ─────────────
+PROVISION_TOKEN=""
+INGEST_API_URL=""
+
+# Try VMware OVF environment via vmtoolsd (works on ESXi, Workstation, Fusion)
+if command -v vmtoolsd &>/dev/null; then
+  echo "[$(date -Is)] Trying OVF properties via vmtoolsd..."
+  OVF_ENV=$(vmtoolsd --cmd "info-get guestinfo.ovfenv" 2>/dev/null || true)
+
+  if [ -n "$OVF_ENV" ]; then
+    PROVISION_TOKEN=$(echo "$OVF_ENV" | python3 -c "
+import sys, xml.etree.ElementTree as ET
+root = ET.fromstring(sys.stdin.read())
+ns = 'http://schemas.dmtf.org/ovf/environment/1'
+for p in root.iter('{%s}Property' % ns):
+    if p.get('{%s}key' % ns) == 'PROVISION_TOKEN':
+        print(p.get('{%s}value' % ns, ''))
+        break
+" 2>/dev/null || echo "")
+
+    INGEST_API_URL=$(echo "$OVF_ENV" | python3 -c "
+import sys, xml.etree.ElementTree as ET
+root = ET.fromstring(sys.stdin.read())
+ns = 'http://schemas.dmtf.org/ovf/environment/1'
+for p in root.iter('{%s}Property' % ns):
+    if p.get('{%s}key' % ns) == 'INGEST_API_URL':
+        print(p.get('{%s}value' % ns, ''))
+        break
+" 2>/dev/null || echo "")
+
+    if [ -n "$PROVISION_TOKEN" ] && [ -n "$INGEST_API_URL" ]; then
+      echo "[$(date -Is)] Credentials read from OVF properties."
+    else
+      echo "[$(date -Is)] OVF properties found but PROVISION_TOKEN/INGEST_API_URL are empty."
+    fi
+  else
+    echo "[$(date -Is)] No OVF environment data available."
+  fi
 fi
 
-# shellcheck source=/dev/null
-source "$PROVISION_FILE"
+# Fallback: read from sensor-provision.env file
+if [ -z "$PROVISION_TOKEN" ] || [ -z "$INGEST_API_URL" ]; then
+  if [ -f "$PROVISION_FILE" ]; then
+    echo "[$(date -Is)] Reading credentials from $PROVISION_FILE ..."
+    # shellcheck source=/dev/null
+    source "$PROVISION_FILE"
+  fi
+fi
 
 if [ -z "${PROVISION_TOKEN:-}" ] || [ -z "${INGEST_API_URL:-}" ]; then
-  echo "[$(date -Is)] ERROR: PROVISION_TOKEN and INGEST_API_URL must be set in $PROVISION_FILE"
+  echo "[$(date -Is)] ERROR: PROVISION_TOKEN and INGEST_API_URL not found."
+  echo "[$(date -Is)] Either the OVA was not generated with embedded credentials,"
+  echo "[$(date -Is)] or $PROVISION_FILE is missing."
+  echo "[$(date -Is)] Place the file and reboot:"
+  echo "  scp sensor-provision.env sensor@<this-vm-ip>:$PROVISION_FILE"
+  echo "  sudo reboot"
   exit 1
 fi
 
@@ -65,7 +106,6 @@ echo "[$(date -Is)] Config written to $ENV_FILE"
 echo "[$(date -Is)] Starting sensor containers..."
 cd "$SENSOR_DIR"
 
-# Use only the services specified in the provision token (space-separated compose service names)
 if [ -n "${ENABLED_COMPOSE_SERVICES:-}" ]; then
   echo "[$(date -Is)] Enabled services: $ENABLED_COMPOSE_SERVICES"
   # shellcheck disable=SC2086
