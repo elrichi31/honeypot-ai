@@ -45,6 +45,7 @@ services:
     environment:
       DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot_prod
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      BASE_VMDK_URL: ${BASE_VMDK_URL:-}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       PORT: "3000"
       # Escucha en todas las interfaces para que el web-honeypot
@@ -96,6 +97,7 @@ services:
       DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot_prod
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: https://${DASHBOARD_DOMAIN}
+      BASE_VMDK_URL: ${BASE_VMDK_URL:-}
       HONEYPOT_IP: ${HONEYPOT_IP:-}
       HONEYPOT_SSH_PORT: ${HONEYPOT_SSH_PORT:-8022}
       HONEYPOT_INGEST_PORT: ${HONEYPOT_INGEST_PORT:-22}
