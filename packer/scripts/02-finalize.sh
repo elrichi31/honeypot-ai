@@ -11,6 +11,43 @@ chmod +x /opt/sensor/sensor-provision.sh
 # Install sensor service (starts docker compose on every boot after provisioning)
 cp /tmp/sensor.service /etc/systemd/system/sensor.service
 
+# Install SSH login health check
+cp /tmp/sensor-health.sh /etc/profile.d/sensor-health.sh
+chmod +x /etc/profile.d/sensor-health.sh
+
+# ── Move sshd to port 8022 so cowrie can own port 22 ─────────────────────────
+# Port 22  → cowrie (SSH honeypot, public-facing)
+# Port 8022 → real sshd (admin access only)
+cat > /etc/ssh/sshd_config.d/20-sensor-port.conf <<'EOF'
+Port 8022
+PermitRootLogin no
+PasswordAuthentication yes
+EOF
+
+# Configure ufw
+ufw --force reset
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 8022/tcp comment "admin SSH"
+# Honeypot ports — allow inbound so attackers can reach them
+ufw allow 22/tcp   comment "cowrie SSH honeypot"
+ufw allow 2222/tcp comment "cowrie SSH honeypot (alt)"
+ufw allow 80/tcp   comment "web honeypot"
+ufw allow 8443/tcp comment "web honeypot HTTPS"
+ufw allow 21/tcp   comment "ftp honeypot"
+ufw allow 3306/tcp comment "mysql honeypot"
+ufw allow 1433/tcp comment "mssql honeypot"
+ufw allow 2375/tcp comment "docker honeypot"
+ufw allow 3389/tcp comment "rdp honeypot"
+ufw allow 4444/tcp comment "reverse shell honeypot"
+ufw allow 5900/tcp comment "vnc honeypot"
+ufw allow 6379/tcp comment "redis honeypot"
+ufw allow 8888/tcp comment "jupyter honeypot"
+ufw allow 9090/tcp comment "prometheus honeypot"
+ufw allow 9200/tcp comment "elasticsearch honeypot"
+ufw allow 27017/tcp comment "mongodb honeypot"
+ufw --force enable
+
 systemctl daemon-reload
 systemctl enable sensor-provision.service
 
@@ -21,7 +58,7 @@ echo "[02-finalize] Cleaning up build artifacts..."
 apt-get autoremove -y -qq
 apt-get clean -qq
 rm -rf /tmp/sensors /tmp/vector /tmp/docker-compose.yml
-rm -rf /tmp/sensor-provision.sh /tmp/sensor-provision.service /tmp/sensor.service
+rm -rf /tmp/sensor-provision.sh /tmp/sensor-provision.service /tmp/sensor.service /tmp/sensor-health.sh
 rm -rf /var/lib/apt/lists/*
 
 # Zero out free space for better compression (optional but makes OVA smaller)

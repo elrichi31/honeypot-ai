@@ -92,7 +92,7 @@ if [ -z "${PROVISION_TOKEN:-}" ] || [ -z "${INGEST_API_URL:-}" ]; then
   echo "[$(date -Is)] Either the OVA was not generated with embedded credentials,"
   echo "[$(date -Is)] or $PROVISION_FILE is missing."
   echo "[$(date -Is)] Place the file and reboot:"
-  echo "  scp sensor-provision.env sensor@<this-vm-ip>:$PROVISION_FILE"
+  echo "  scp -P 8022 sensor-provision.env admin@<this-vm-ip>:$PROVISION_FILE"
   echo "  sudo reboot"
   exit 1
 fi

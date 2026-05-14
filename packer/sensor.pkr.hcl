@@ -125,6 +125,11 @@ build {
     destination = "/tmp/sensor.service"
   }
 
+  provisioner "file" {
+    source      = "first-run/sensor-health.sh"
+    destination = "/tmp/sensor-health.sh"
+  }
+
   # 2. Install Docker + dependencies
   provisioner "shell" {
     execute_command = "echo '${var.ssh_password}' | sudo -S bash {{.Path}}"
