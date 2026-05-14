@@ -1,17 +1,7 @@
 import { NextResponse } from "next/server"
-import { existsSync, statSync } from "fs"
-import path from "path"
 
-const CACHE_DIR = "/tmp/sensor-ova-cache"
-const VMDK_CACHE_PATH = path.join(CACHE_DIR, "honeypot-sensor-disk.vmdk")
-
-async function getVmdkInfo(): Promise<{ cachedAt: string | null; releasedAt: string | null }> {
-  let cachedAt: string | null = null
+async function getVmdkInfo(): Promise<{ releasedAt: string | null }> {
   let releasedAt: string | null = null
-
-  if (existsSync(VMDK_CACHE_PATH)) {
-    cachedAt = statSync(VMDK_CACHE_PATH).mtime.toISOString()
-  }
 
   const vmdkUrl = process.env.BASE_VMDK_URL
   if (vmdkUrl) {
@@ -40,7 +30,7 @@ async function getVmdkInfo(): Promise<{ cachedAt: string | null; releasedAt: str
     }
   }
 
-  return { cachedAt, releasedAt }
+  return { releasedAt }
 }
 
 export async function GET() {
@@ -80,7 +70,7 @@ export async function GET() {
     ip = ingestUrl
   }
 
-  const { cachedAt, releasedAt } = await getVmdkInfo()
+  const { releasedAt } = await getVmdkInfo()
 
-  return NextResponse.json({ ingestUrl, ip, port, source, vmdkCachedAt: cachedAt, vmdkReleasedAt: releasedAt })
+  return NextResponse.json({ ingestUrl, ip, port, source, vmdkReleasedAt: releasedAt })
 }

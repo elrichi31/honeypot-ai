@@ -24,7 +24,7 @@ const SERVICES: { key: ServiceKey; label: string; description: string; ports: st
   { key: "port",  label: "Port Honeypot",  description: "RDP, Redis, MongoDB, Docker, Elastic…",       ports: "múltiples" },
 ]
 
-type OvaConfig = { ingestUrl: string; ip: string; port: string; source: string; vmdkCachedAt: string | null; vmdkReleasedAt: string | null }
+type OvaConfig = { ingestUrl: string; ip: string; port: string; source: string; vmdkReleasedAt: string | null }
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -182,17 +182,11 @@ export function ClientOVADownload({ client }: Props) {
                 )}
                 <div className="border-t border-border/50 pt-2 mt-1 flex items-center justify-between gap-2">
                   <span className="text-xs text-muted-foreground">Disco base</span>
-                  <span className="text-xs text-muted-foreground font-mono">
+                  <span className="text-xs font-mono">
                     {config.vmdkReleasedAt
-                      ? <span className="text-foreground">publicado {timeAgo(config.vmdkReleasedAt)}</span>
+                      ? <span className="text-foreground">actualizado {timeAgo(config.vmdkReleasedAt)}</span>
                       : <span className="text-amber-400/80">BASE_VMDK_URL no configurado</span>
                     }
-                    {config.vmdkCachedAt && (
-                      <span className="text-muted-foreground"> · caché {timeAgo(config.vmdkCachedAt)}</span>
-                    )}
-                    {!config.vmdkCachedAt && config.vmdkReleasedAt && (
-                      <span className="text-muted-foreground"> · sin caché</span>
-                    )}
                   </span>
                 </div>
               </div>

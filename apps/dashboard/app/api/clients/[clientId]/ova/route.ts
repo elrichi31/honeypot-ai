@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { exec as execCb } from "child_process"
 import { promisify } from "util"
-import { createWriteStream, existsSync, statSync, linkSync } from "fs"
+import { createWriteStream, statSync } from "fs"
 import { mkdir, unlink, writeFile, rm, stat } from "fs/promises"
 import { pipeline } from "stream/promises"
 import { createReadStream } from "fs"
@@ -36,9 +36,6 @@ async function resolveIngestUrl(): Promise<string> {
     "Could not determine public ingest URL. Set SENSOR_INGEST_URL=http://<your-public-ip>:3000 in your .env",
   )
 }
-const CACHE_DIR = "/tmp/sensor-ova-cache"
-const VMDK_CACHE_PATH = path.join(CACHE_DIR, "honeypot-sensor-disk.vmdk")
-const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 const DISK_SIZE_GB = 20
 
 function ingestHeaders() {
@@ -50,14 +47,7 @@ function ingestHeaders() {
   }
 }
 
-async function ensureVmdkCached(): Promise<void> {
-  await mkdir(CACHE_DIR, { recursive: true })
-
-  if (existsSync(VMDK_CACHE_PATH)) {
-    const s = statSync(VMDK_CACHE_PATH)
-    if (Date.now() - s.mtimeMs < CACHE_MAX_AGE_MS) return
-  }
-
+async function downloadVmdk(destPath: string): Promise<void> {
   const vmdkUrl = process.env.BASE_VMDK_URL
   if (!vmdkUrl) throw new Error("BASE_VMDK_URL is not set. Point it to the GitHub Releases honeypot-sensor-disk.vmdk URL.")
 
@@ -65,11 +55,9 @@ async function ensureVmdkCached(): Promise<void> {
   const response = await fetch(vmdkUrl, { redirect: "follow" })
   if (!response.ok) throw new Error(`Failed to download VMDK: ${response.status} ${response.statusText}`)
 
-  const tmpPath = VMDK_CACHE_PATH + ".tmp"
-  const fileStream = createWriteStream(tmpPath)
+  const fileStream = createWriteStream(destPath)
   await pipeline(response.body as unknown as NodeJS.ReadableStream, fileStream)
-  await exec(`mv "${tmpPath}" "${VMDK_CACHE_PATH}"`)
-  console.log(`[ova] VMDK cached (${(statSync(VMDK_CACHE_PATH).size / 1e6).toFixed(0)} MB)`)
+  console.log(`[ova] VMDK downloaded (${(statSync(destPath).size / 1e6).toFixed(0)} MB)`)
 }
 
 // Creates a tiny FAT floppy image containing sensor-provision.env,
@@ -205,24 +193,21 @@ export async function POST(
     // 2. Resolve the public URL the sensor VM will use to reach the ingest-api
     const ingestUrl = await resolveIngestUrl()
 
-    // 3. Ensure base VMDK is cached
-    await ensureVmdkCached()
-
-    // 4. Build temp directory
+    // 3. Build temp directory
     const tmpDir = path.join("/tmp", `ova-${clientId}-${Date.now()}`)
     await mkdir(tmpDir, { recursive: true })
 
     try {
+      // 4. Download base VMDK fresh into tmpDir
+      const osVmdkPath = path.join(tmpDir, "honeypot-sensor.vmdk")
+      await downloadVmdk(osVmdkPath)
+
       // 5. Create config disk VMDK with sensor-provision.env inside
       const configVmdkPath = await createConfigVmdk(tmpDir, token, ingestUrl)
 
       // 6. Write OVF referencing both disks
       const ovfPath = path.join(tmpDir, "honeypot-sensor.ovf")
       await writeFile(ovfPath, buildOvf(token, ingestUrl), "utf8")
-
-      // 6. Hard-link OS VMDK into tmpDir (no data copy)
-      const osVmdkLink = path.join(tmpDir, "honeypot-sensor.vmdk")
-      linkSync(VMDK_CACHE_PATH, osVmdkLink)
 
       // 7. Package OVA — OVF must be first per spec
       const ovaPath = path.join(tmpDir, "honeypot-sensor.ova")
@@ -231,7 +216,7 @@ export async function POST(
       )
 
       // 8. Clean up intermediate files before streaming
-      await Promise.all([unlink(ovfPath), unlink(osVmdkLink), unlink(configVmdkPath)])
+      await Promise.all([unlink(ovfPath), unlink(osVmdkPath), unlink(configVmdkPath)])
 
       // 9. Stream OVA
       const ovaStats = await stat(ovaPath)
