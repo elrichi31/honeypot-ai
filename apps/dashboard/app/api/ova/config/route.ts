@@ -1,4 +1,44 @@
 import { NextResponse } from "next/server"
+import { existsSync, statSync } from "fs"
+import path from "path"
+
+const CACHE_DIR = "/tmp/sensor-ova-cache"
+const VMDK_CACHE_PATH = path.join(CACHE_DIR, "honeypot-sensor-disk.vmdk")
+
+async function getVmdkInfo(): Promise<{ cachedAt: string | null; releasedAt: string | null }> {
+  let cachedAt: string | null = null
+  let releasedAt: string | null = null
+
+  if (existsSync(VMDK_CACHE_PATH)) {
+    cachedAt = statSync(VMDK_CACHE_PATH).mtime.toISOString()
+  }
+
+  const vmdkUrl = process.env.BASE_VMDK_URL
+  if (vmdkUrl) {
+    // Parse GitHub releases URL: https://github.com/{owner}/{repo}/releases/download/{tag}/{file}
+    const match = vmdkUrl.match(/github\.com\/([^/]+)\/([^/]+)\/releases\/download\/([^/]+)\//)
+    if (match) {
+      const [, owner, repo, tag] = match
+      const apiUrl = tag === "latest"
+        ? `https://api.github.com/repos/${owner}/${repo}/releases/latest`
+        : `https://api.github.com/repos/${owner}/${repo}/releases/tags/${tag}`
+      try {
+        const res = await fetch(apiUrl, {
+          headers: { Accept: "application/vnd.github+json" },
+          signal: AbortSignal.timeout(5000),
+        })
+        if (res.ok) {
+          const data = await res.json() as { published_at?: string }
+          releasedAt = data.published_at ?? null
+        }
+      } catch {
+        // ignore — optional info
+      }
+    }
+  }
+
+  return { cachedAt, releasedAt }
+}
 
 export async function GET() {
   let ingestUrl: string
@@ -37,5 +77,7 @@ export async function GET() {
     ip = ingestUrl
   }
 
-  return NextResponse.json({ ingestUrl, ip, port, source })
+  const { cachedAt, releasedAt } = await getVmdkInfo()
+
+  return NextResponse.json({ ingestUrl, ip, port, source, vmdkCachedAt: cachedAt, vmdkReleasedAt: releasedAt })
 }
