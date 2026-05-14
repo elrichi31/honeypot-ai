@@ -28,8 +28,11 @@ async function getVmdkInfo(): Promise<{ cachedAt: string | null; releasedAt: str
           signal: AbortSignal.timeout(5000),
         })
         if (res.ok) {
-          const data = await res.json() as { published_at?: string }
-          releasedAt = data.published_at ?? null
+          const data = await res.json() as { assets?: Array<{ name: string; updated_at: string }> }
+          // Use the asset's updated_at — reflects when the file was last replaced, not when the release was created
+          const fileName = vmdkUrl.split("/").pop() ?? ""
+          const asset = data.assets?.find(a => a.name === fileName)
+          releasedAt = asset?.updated_at ?? null
         }
       } catch {
         // ignore — optional info
