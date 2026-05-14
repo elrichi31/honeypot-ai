@@ -140,6 +140,8 @@ services:
       timeout: 3s
       retries: 20
       start_period: 10s
+    ports:
+      - "3000:3000"
     networks:
       - honeypot_ingest
       - app_api

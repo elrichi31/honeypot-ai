@@ -1,0 +1,135 @@
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  init: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+x-json-logging: &json-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+# Platform-only stack: dashboard + ingest-api + postgres.
+# Honeypots run separately on sensor servers (docker-compose.prod.honeypot.yml).
+#
+# Ports:
+#   3000 → ingest-api  (public  — sensors connect from outside)
+#   4000 → dashboard   (internal — access via SSH tunnel only)
+#
+# SSH tunnel: ssh -L 4000:127.0.0.1:4000 -p <PORT> <user>@<ip>
+
+services:
+  postgres:
+    logging: *json-logging
+    image: postgres:16-alpine
+    container_name: honeypot-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: honeypot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: honeypot_prod
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U honeypot"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    networks:
+      - db_private
+
+  ingest-api:
+    <<: *service-defaults
+    logging: *json-logging
+    build:
+      context: ./apps/ingest-api
+      dockerfile: Dockerfile.compose
+    container_name: ingest-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot_prod
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      PORT: "3000"
+      HOST: "0.0.0.0"
+    volumes:
+      - dashboard_data:/app/data
+    healthcheck:
+      test:
+        [
+          "CMD", "node", "-e",
+          "fetch('http://127.0.0.1:3000/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    ports:
+      - "3000:3000"   # public — sensors reach this from outside
+    networks:
+      - app_api
+      - db_private
+    tmpfs:
+      - /tmp
+    pids_limit: 256
+
+  dashboard:
+    <<: *service-defaults
+    logging: *json-logging
+    build:
+      context: ./apps/dashboard
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000}
+        BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+        BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:4000}
+    container_name: honeypot-dashboard
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000}
+      INTERNAL_API_URL: http://ingest-api:3000
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot_prod
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:4000}
+      BASE_VMDK_URL: ${BASE_VMDK_URL:-}
+      SENSOR_INGEST_URL: ${SENSOR_INGEST_URL:-}
+      HONEYPOT_IP: ${HONEYPOT_IP:-}
+      DASHBOARD_TIMEZONE: ${DASHBOARD_TIMEZONE:-UTC}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+    volumes:
+      - dashboard_data:/app/data
+    ports:
+      - "127.0.0.1:4000:4000"   # internal only — SSH tunnel to access
+    healthcheck:
+      test:
+        [
+          "CMD", "node", "-e",
+          "fetch('http://127.0.0.1:4000/login').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - app_api
+      - db_private
+    tmpfs:
+      - /tmp
+    pids_limit: 256
+
+volumes:
+  pg_data:
+  dashboard_data:
+
+networks:
+  app_api:
+    driver: bridge
+  db_private:
+    driver: bridge
