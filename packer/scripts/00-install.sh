@@ -32,8 +32,8 @@ apt-get install -y -qq \
   docker-buildx-plugin \
   docker-compose-plugin
 
-# Allow admin user to run Docker without sudo
-usermod -aG docker admin
+# Allow sensor user to run Docker without sudo
+usermod -aG docker sensor
 
 systemctl enable docker
 systemctl start docker

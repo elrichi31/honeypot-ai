@@ -18,7 +18,7 @@ autoinstall:
 
   identity:
     hostname: honeypot-sensor
-    username: admin
+    username: sensor
     # Password: honeypot  —  generated with: openssl passwd -6 'honeypot'
     password: "$6$rounds=656000$NaCl$F3yXIYO0qFQjSmGO1X.WnC0GmP7uW.xTNVoAe/o1pkbivTZRHBenT3oqH/WpBbMYE7gWO0WtCEv0IJzXdqpZ11"
 
@@ -40,5 +40,5 @@ autoinstall:
           PasswordAuthentication yes
 
   late-commands:
-    - echo 'admin ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/admin
-    - chmod 440 /target/etc/sudoers.d/admin
+    - echo 'sensor ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/sensor
+    - chmod 440 /target/etc/sudoers.d/sensor

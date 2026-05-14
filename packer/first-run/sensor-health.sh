@@ -20,7 +20,7 @@ RESET='\033[0m'
 MY_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 echo ""
 echo -e "${BOLD}=== Honeypot Sensor Health ===${RESET}"
-echo -e "  ${CYAN}SSH admin:${RESET} ssh admin@${MY_IP:-<ip>} -p 8022"
+echo -e "  ${CYAN}SSH sensor:${RESET} ssh sensor@${MY_IP:-<ip>} -p 8022"
 echo ""
 
 # Check if provision has completed

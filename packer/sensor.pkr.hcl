@@ -80,10 +80,11 @@ source "qemu" "sensor" {
     "boot<enter>"
   ]
 
-  ssh_username        = "admin"
+  ssh_username        = "sensor"
   ssh_password        = var.ssh_password
   ssh_timeout         = "90m"
   shutdown_command    = "echo '${var.ssh_password}' | sudo -S shutdown -P now"
+  ssh_handshake_attempts = 50
 
   qemuargs = [
     ["-m", "${var.memory_mb}M"],

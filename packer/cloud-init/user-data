@@ -3,7 +3,7 @@ hostname: honeypot-sensor
 manage_etc_hosts: true
 
 users:
-  - name: admin
+  - name: sensor
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
     lock_passwd: false
@@ -13,7 +13,7 @@ ssh_pwauth: true
 
 chpasswd:
   list: |
-    admin:honeypot
+    sensor:honeypot
   expire: false
 
 packages:
@@ -28,7 +28,7 @@ runcmd:
   - echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
   - apt-get update -qq
   - apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
-  - usermod -aG docker admin
+  - usermod -aG docker sensor
   - systemctl enable docker
   - chown -R root:docker /opt/sensor
   - chmod -R 750 /opt/sensor
