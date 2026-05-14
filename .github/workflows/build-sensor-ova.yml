@@ -48,6 +48,8 @@ jobs:
             --copy-in ${{ github.workspace }}/packer/first-run/sensor-provision.sh:/opt/sensor/ \
             --copy-in ${{ github.workspace }}/packer/first-run/sensor-provision.service:/etc/systemd/system/ \
             --copy-in ${{ github.workspace }}/packer/first-run/sensor.service:/etc/systemd/system/ \
+            --copy-in ${{ github.workspace }}/packer/first-run/sensor-health.sh:/etc/profile.d/ \
+            --run-command "chmod +x /etc/profile.d/sensor-health.sh" \
             --firstboot ${{ github.workspace }}/packer/scripts/firstboot-docker.sh
 
       - name: Convert to OVA

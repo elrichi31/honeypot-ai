@@ -43,4 +43,35 @@ chmod +x /opt/sensor/sensor-provision.sh
 systemctl daemon-reload
 systemctl enable sensor-provision.service
 
+# ── 4. SSH on port 8022 (port 22 reserved for cowrie honeypot) ────────────────
+cat > /etc/ssh/sshd_config.d/20-sensor-port.conf <<'EOF'
+Port 8022
+PasswordAuthentication yes
+PermitRootLogin no
+EOF
+systemctl restart ssh || true
+
+# ── 5. Firewall ───────────────────────────────────────────────────────────────
+ufw --force reset
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 8022/tcp  comment "admin SSH"
+ufw allow 22/tcp    comment "cowrie SSH honeypot"
+ufw allow 2222/tcp  comment "cowrie SSH honeypot (alt)"
+ufw allow 80/tcp    comment "web honeypot"
+ufw allow 8443/tcp  comment "web honeypot HTTPS"
+ufw allow 21/tcp    comment "ftp honeypot"
+ufw allow 3306/tcp  comment "mysql honeypot"
+ufw allow 1433/tcp  comment "mssql honeypot"
+ufw allow 2375/tcp  comment "docker honeypot"
+ufw allow 3389/tcp  comment "rdp honeypot"
+ufw allow 4444/tcp  comment "reverse shell honeypot"
+ufw allow 5900/tcp  comment "vnc honeypot"
+ufw allow 6379/tcp  comment "redis honeypot"
+ufw allow 8888/tcp  comment "jupyter honeypot"
+ufw allow 9090/tcp  comment "prometheus honeypot"
+ufw allow 9200/tcp  comment "elasticsearch honeypot"
+ufw allow 27017/tcp comment "mongodb honeypot"
+ufw --force enable
+
 echo "[$(date -Is)] First boot complete. Ready for provisioning."
