@@ -92,7 +92,9 @@ async function createConfigVmdk(tmpDir: string, token: string, apiUrl: string): 
   return vmdkPath
 }
 
-function buildOvf(provisionToken: string, apiUrl: string, configDiskSizeMb: number): string {
+function buildOvf(provisionToken: string, apiUrl: string): string {
+  // Config disk is always a 1.44 MB FAT floppy (2880 sectors × 512 bytes = 1,474,560 bytes)
+  const CONFIG_DISK_BYTES = 1474560
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Envelope xmlns="http://schemas.dmtf.org/ovf/envelope/1"
           xmlns:ovf="http://schemas.dmtf.org/ovf/envelope/1"
@@ -109,7 +111,7 @@ function buildOvf(provisionToken: string, apiUrl: string, configDiskSizeMb: numb
           ovf:capacity="${DISK_SIZE_GB}" ovf:capacityAllocationUnits="byte * 2^30"
           ovf:format="http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized"/>
     <Disk ovf:diskId="disk2" ovf:fileRef="disk2"
-          ovf:capacity="${configDiskSizeMb}" ovf:capacityAllocationUnits="byte * 2^20"
+          ovf:capacity="${CONFIG_DISK_BYTES}" ovf:capacityAllocationUnits="byte"
           ovf:format="http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized"/>
   </DiskSection>
   <NetworkSection>
@@ -213,12 +215,10 @@ export async function POST(
     try {
       // 5. Create config disk VMDK with sensor-provision.env inside
       const configVmdkPath = await createConfigVmdk(tmpDir, token, ingestUrl)
-      const configVmdkStats = statSync(configVmdkPath)
-      const configDiskSizeMb = Math.ceil(configVmdkStats.size / (1024 * 1024)) || 2
 
       // 6. Write OVF referencing both disks
       const ovfPath = path.join(tmpDir, "honeypot-sensor.ovf")
-      await writeFile(ovfPath, buildOvf(token, ingestUrl, configDiskSizeMb), "utf8")
+      await writeFile(ovfPath, buildOvf(token, ingestUrl), "utf8")
 
       // 6. Hard-link OS VMDK into tmpDir (no data copy)
       const osVmdkLink = path.join(tmpDir, "honeypot-sensor.vmdk")
