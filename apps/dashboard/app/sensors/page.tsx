@@ -2,7 +2,6 @@ import Link from "next/link"
 import { Activity, Server, Wifi } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { SensorCard } from "@/components/sensors/sensor-card"
-import { AddSensorButton } from "@/components/sensors/add-sensor-button"
 import { fetchSensors } from "@/lib/api"
 import type { Sensor } from "@/lib/api"
 
@@ -50,14 +49,11 @@ export default async function SensorsPage() {
 
   return (
     <PageShell>
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Sensors</h1>
-          <p className="text-sm text-muted-foreground">
-            Honeypot sensors grouped by client, with heartbeat updates every 30 seconds.
-          </p>
-        </div>
-        <AddSensorButton />
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-foreground">Sensors</h1>
+        <p className="text-sm text-muted-foreground">
+          Honeypot sensors grouped by client, with heartbeat updates every 30 seconds.
+        </p>
       </div>
 
       <div className="mb-6 flex items-center gap-4">
