@@ -289,6 +289,37 @@ npm install
 npm run dev  # http://localhost:4321
 ```
 
+## Desplegar un sensor
+
+Hay dos formas de añadir un sensor. Ambas vienen **pre-configuradas**: el `INGEST_API_URL` y el `INGEST_SHARED_SECRET` ya salen quemados en el archivo que descargas desde el dashboard, y la IP publica del sensor se detecta automaticamente al arrancar. No hay nada que editar.
+
+---
+
+### Opcion A — OVA (maquina virtual lista para usar)
+
+1. En el dashboard ve a `/sensors` → **Agregar sensor** → **Descargar OVA**.
+2. Importa el `.ova` en VirtualBox o VMware y arranca la VM.
+3. Listo. El sensor aparece en `/sensors` en menos de un minuto.
+
+Los honeypots SSH, HTTP, FTP, MySQL y port-scan arrancan solos. La IP publica del sensor se registra automaticamente.
+
+---
+
+### Opcion B — Docker Compose (cualquier VPS o maquina Linux)
+
+1. En el dashboard ve a `/sensors` → **Agregar sensor** → **Descargar Compose**.  
+   Obtienes un `docker-compose.sensor.yml` con `INGEST_API_URL` y `INGEST_SHARED_SECRET` ya incluidos.
+
+2. Sube el archivo al VPS y ejecuta:
+
+```bash
+docker compose -f docker-compose.sensor.yml up -d
+```
+
+3. Listo. El sensor aparece en `/sensors` en menos de un minuto.
+
+---
+
 ## Produccion - Single-Host
 
 ```bash

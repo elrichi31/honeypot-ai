@@ -72,5 +72,12 @@ export async function GET() {
 
   const { releasedAt } = await getVmdkInfo()
 
-  return NextResponse.json({ ingestUrl, ip, port, source, vmdkReleasedAt: releasedAt })
+  let ovaUrl: string | null = null
+  if (process.env.BASE_OVA_URL) {
+    ovaUrl = process.env.BASE_OVA_URL
+  } else if (process.env.BASE_VMDK_URL) {
+    ovaUrl = process.env.BASE_VMDK_URL.replace(/\.vmdk(\?.*)?$/, ".ova$1")
+  }
+
+  return NextResponse.json({ ingestUrl, ip, port, source, vmdkReleasedAt: releasedAt, ovaUrl })
 }
