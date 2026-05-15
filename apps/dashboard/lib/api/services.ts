@@ -55,6 +55,7 @@ export interface Sensor {
   clientId: string | null
   clientName: string | null
   clientSlug: string | null
+  clientCode: string
   name: string
   protocol: string
   ip: string

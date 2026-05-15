@@ -154,6 +154,7 @@ export async function sensorRoutes(fastify: FastifyInstance) {
       client_id: string | null
       client_name: string | null
       client_slug: string | null
+      client_code: string | null
       name: string
       protocol: string
       ip: string
@@ -170,6 +171,7 @@ export async function sensorRoutes(fastify: FastifyInstance) {
         c.id AS client_id,
         c.name AS client_name,
         c.slug AS client_slug,
+        c.code AS client_code,
         s.name,
         s.protocol,
         s.ip,
@@ -224,6 +226,7 @@ export async function sensorRoutes(fastify: FastifyInstance) {
       clientId: sensor.client_id,
       clientName: sensor.client_name,
       clientSlug: sensor.client_slug,
+      clientCode: sensor.client_code ?? '',
       name: sensor.name,
       protocol: sensor.protocol,
       ip: sensor.ip,

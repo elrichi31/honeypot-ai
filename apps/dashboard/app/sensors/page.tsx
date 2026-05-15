@@ -111,7 +111,7 @@ export default async function SensorsPage() {
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {group.sensors.map((sensor) => (
-                  <SensorCard key={sensor.sensorId} sensor={sensor} />
+                  <SensorCard key={sensor.sensorId} sensor={sensor} clientCode={sensor.clientCode} />
                 ))}
               </div>
             </section>
