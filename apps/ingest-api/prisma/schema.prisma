@@ -12,6 +12,7 @@ model Session {
   cowrieSessionId String   @unique @map("cowrie_session_id")
   srcIp           String   @map("src_ip")
   protocol        String
+  sensorId        String?  @map("sensor_id")
   username        String?
   password        String?
   loginSuccess    Boolean? @map("login_success")
@@ -26,6 +27,7 @@ model Session {
   events Event[]
 
   @@index([srcIp])
+  @@index([sensorId])
   @@index([startedAt(sort: Desc)])
   @@index([loginSuccess, startedAt(sort: Desc)])
   @@map("sessions")
@@ -139,6 +141,7 @@ model WebHit {
   id          String   @id @default(uuid())
   eventId     String   @unique @map("event_id")
   srcIp       String   @map("src_ip")
+  sensorId    String?  @map("sensor_id")
   method      String
   path        String
   query       String   @default("")
@@ -150,6 +153,7 @@ model WebHit {
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([srcIp])
+  @@index([sensorId])
   @@index([attackType])
   @@index([timestamp])
   @@index([srcIp, timestamp(sort: Desc)])

@@ -39,6 +39,7 @@ export class SessionRepository {
         cowrieSessionId: data.cowrieSessionId,
         srcIp: data.srcIp,
         protocol: data.protocol,
+        sensorId: data.sensorId ?? null,
         startedAt: data.startedAt,
         username: data.username,
         password: data.password,

@@ -50,6 +50,7 @@ export interface SessionUpsertData {
   cowrieSessionId: string;
   srcIp: string;
   protocol: string;
+  sensorId?: string;
   startedAt: Date;
   username?: string;
   password?: string;

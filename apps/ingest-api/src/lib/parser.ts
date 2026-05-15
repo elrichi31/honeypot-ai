@@ -46,6 +46,7 @@ export function extractSessionData(raw: CowrieRawEvent): SessionUpsertData {
     startedAt: new Date(raw.timestamp),
   };
 
+  if (typeof raw.sensor === 'string' && raw.sensor) data.sensorId = raw.sensor;
   if (raw.username) data.username = raw.username;
   if (raw.password) data.password = raw.password;
   if (raw.eventid === 'cowrie.login.success') data.loginSuccess = true;

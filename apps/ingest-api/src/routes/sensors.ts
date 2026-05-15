@@ -180,27 +180,21 @@ export async function sensorRoutes(fastify: FastifyInstance) {
         s.last_seen,
         s.created_at,
         CASE
-          WHEN s.protocol = 'ssh' THEN (SELECT COUNT(*)::bigint FROM sessions)
-          WHEN s.protocol = 'http' THEN (SELECT COUNT(*)::bigint FROM web_hits)
-          WHEN EXISTS (
-            SELECT 1
-            FROM protocol_hits ph_sensor
-            WHERE ph_sensor.data->>'sensor' = s.sensor_id
-            LIMIT 1
-          ) THEN (
-            SELECT COUNT(*)::bigint
-            FROM protocol_hits ph_sensor
-            WHERE ph_sensor.data->>'sensor' = s.sensor_id
+          WHEN s.protocol = 'ssh' THEN (
+            SELECT COUNT(*)::bigint FROM sessions sess
+            WHERE sess.sensor_id = s.sensor_id
           )
-          ELSE COALESCE(ph.cnt, 0)
+          WHEN s.protocol = 'http' THEN (
+            SELECT COUNT(*)::bigint FROM web_hits wh
+            WHERE wh.sensor_id = s.sensor_id
+          )
+          ELSE (
+            SELECT COUNT(*)::bigint FROM protocol_hits ph_s
+            WHERE ph_s.data->>'sensor' = s.sensor_id
+          )
         END AS event_count
       FROM sensors s
       LEFT JOIN clients c ON c.id = s.client_id
-      LEFT JOIN (
-        SELECT protocol, COUNT(*) AS cnt
-        FROM protocol_hits
-        GROUP BY protocol
-      ) ph ON ph.protocol = s.protocol
       ORDER BY s.last_seen DESC
     `
 
@@ -331,5 +325,22 @@ export async function sensorRoutes(fastify: FastifyInstance) {
       clientName: client.name,
       clientSlug: client.slug,
     })
+  })
+
+  fastify.delete('/sensors/:sensorId', async (request, reply) => {
+    if (!ensureIngestToken(request, reply)) return reply
+
+    const params = z.object({ sensorId: z.string().min(1) }).safeParse(request.params)
+    if (!params.success) return reply.status(400).send({ error: 'Invalid sensorId' })
+
+    const { sensorId } = params.data
+
+    const deleted = await fastify.prisma.$queryRaw<Array<{ sensor_id: string }>>`
+      DELETE FROM sensors WHERE sensor_id = ${sensorId} RETURNING sensor_id
+    `
+
+    if (deleted.length === 0) return reply.status(404).send({ error: 'Sensor not found' })
+
+    return reply.send({ deleted: true, sensorId })
   })
 }
