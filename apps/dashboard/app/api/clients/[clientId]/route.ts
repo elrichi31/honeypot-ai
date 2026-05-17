@@ -4,9 +4,9 @@ import { requireRole } from "@/lib/roles"
 
 const INTERNAL_API = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
 
-function ingestHeaders() {
+function ingestHeaders(withBody = true) {
   return {
-    "Content-Type": "application/json",
+    ...(withBody ? { "Content-Type": "application/json" } : {}),
     ...(process.env.INGEST_SHARED_SECRET
       ? { "X-Ingest-Token": process.env.INGEST_SHARED_SECRET }
       : {}),
@@ -63,7 +63,7 @@ export async function DELETE(
 
   const res = await fetch(`${INTERNAL_API}/clients/${encodeURIComponent(clientId)}`, {
     method: "DELETE",
-    headers: ingestHeaders(),
+    headers: ingestHeaders(false),
   })
 
   if (res.ok || res.status === 204) {
