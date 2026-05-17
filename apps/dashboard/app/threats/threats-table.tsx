@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { TablePagination } from "@/components/table-pagination"
+import { TableShell } from "@/components/table-shell"
 import type { PaginationMeta, ThreatSummary } from "@/lib/api"
 import { LEVEL_STYLES, CMD_COLORS, CMD_LABELS_SHORT as CMD_LABELS } from "@/lib/attack-types"
 
@@ -43,21 +43,19 @@ export function ThreatsTable({
   const router = useRouter()
 
   return (
-    <div className="flex min-h-[620px] max-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-xl border border-border bg-card">
-      <div className="border-b border-border p-4">
-        <h2 className="font-semibold text-foreground">Ranking de amenazas</h2>
-        <p className="text-xs text-muted-foreground">Ordenado por risk score - click para ver detalle</p>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-auto">
-        {threats.length === 0 ? (
-          <div className="p-12 text-center">
-            <p className="text-sm text-muted-foreground">No hay datos de amenazas aun.</p>
-            <p className="mt-1 text-xs text-muted-foreground/60">Apareceran aqui cuando se detecten atacantes en SSH, HTTP o servicios correlacionados.</p>
-          </div>
-        ) : (
-          <table className="min-w-[1180px] w-full text-sm">
-            <thead>
+    <TableShell
+      title="Ranking de amenazas"
+      description="Ordenado por risk score - click para ver detalle"
+      pagination={pagination}
+    >
+      {threats.length === 0 ? (
+        <div className="p-12 text-center">
+          <p className="text-sm text-muted-foreground">No hay datos de amenazas aun.</p>
+          <p className="mt-1 text-xs text-muted-foreground/60">Apareceran aqui cuando se detecten atacantes en SSH, HTTP o servicios correlacionados.</p>
+        </div>
+      ) : (
+        <table className="min-w-[1180px] w-full text-sm">
+          <thead>
               <tr className="border-b border-border bg-muted/20">
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">#</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">IP</th>
@@ -163,10 +161,7 @@ export function ThreatsTable({
               })}
             </tbody>
           </table>
-        )}
-      </div>
-
-      {pagination && <TablePagination pagination={pagination} />}
-    </div>
+      )}
+    </TableShell>
   )
 }

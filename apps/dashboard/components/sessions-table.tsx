@@ -5,12 +5,12 @@ import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Filter, Search, ShieldX, ScanLine, X, Bot, User } from "lucide-react"
 import type { PaginationMeta, SessionsSummary } from "@/lib/api"
+import { TableShell } from "@/components/table-shell"
 import { cn } from "@/lib/utils"
 import { countryFlag } from "@/lib/formatting"
 import { classify, groupScans, type SessionItem } from "@/lib/session-classify-v2"
 import { SessionRow } from "./session-row"
 import { ScanGroupRow } from "./scan-group-row"
-import { TablePagination } from "./table-pagination"
 
 export type { SessionItem }
 
@@ -151,17 +151,7 @@ export function SessionsTable({
   const botCount = summary?.bots ?? 0
   const humanCount = summary?.humans ?? 0
 
-  return (
-    <div className="flex min-h-[620px] max-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-xl border border-border bg-card">
-      <div className="space-y-4 border-b border-border p-4">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <h3 className="font-semibold text-foreground">Sessions</h3>
-            <p className="text-xs text-muted-foreground">
-              {compromisedCount.toLocaleString('en-US')} comprometidas - {scanGroupCount.toLocaleString('en-US')} IPs en escaneo
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+  const titleEnd = (
             {tab === "sessions" && (
               <div className="flex gap-1 rounded-lg bg-secondary p-1">
                 {(
@@ -224,9 +214,10 @@ export function SessionsTable({
                 </button>
               ))}
             </div>
-          </div>
-        </div>
+  )
 
+  const toolbar = (
+    <>
         <div className="flex flex-wrap items-center gap-3">
           <form className="flex min-w-[320px] flex-1 items-center gap-2" action={pathname}>
             <input type="hidden" name="tab" value={tab} />
@@ -333,25 +324,30 @@ export function SessionsTable({
             )}
           </div>
         )}
-      </div>
+    </>
+  )
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="divide-y divide-border">
-          {tab === "sessions" ? (
-            filteredSessions.length === 0 ? (
-              <p className="p-8 text-center text-sm text-muted-foreground">No hay sesiones que coincidan con los filtros.</p>
-            ) : (
-              filteredSessions.map((session) => <SessionRow key={session.id} session={session} />)
-            )
-          ) : filteredGroups.length === 0 ? (
-            <p className="p-8 text-center text-sm text-muted-foreground">No hay escaneos que coincidan con los filtros.</p>
+  return (
+    <TableShell
+      title="Sessions"
+      description={`${compromisedCount.toLocaleString('en-US')} comprometidas - ${scanGroupCount.toLocaleString('en-US')} IPs en escaneo`}
+      titleEnd={titleEnd}
+      toolbar={toolbar}
+      pagination={pagination}
+    >
+      <div className="divide-y divide-border">
+        {tab === "sessions" ? (
+          filteredSessions.length === 0 ? (
+            <p className="p-8 text-center text-sm text-muted-foreground">No hay sesiones que coincidan con los filtros.</p>
           ) : (
-            filteredGroups.map((group) => <ScanGroupRow key={group.srcIp} group={group} />)
-          )}
-        </div>
+            filteredSessions.map((session) => <SessionRow key={session.id} session={session} />)
+          )
+        ) : filteredGroups.length === 0 ? (
+          <p className="p-8 text-center text-sm text-muted-foreground">No hay escaneos que coincidan con los filtros.</p>
+        ) : (
+          filteredGroups.map((group) => <ScanGroupRow key={group.srcIp} group={group} />)
+        )}
       </div>
-
-      {pagination && <TablePagination pagination={pagination} />}
-    </div>
+    </TableShell>
   )
 }

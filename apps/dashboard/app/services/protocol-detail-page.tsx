@@ -6,15 +6,20 @@ import { readConfig } from "@/lib/server-config"
 import { formatInTimezone } from "@/lib/timezone"
 import type { ProtocolHit, ProtocolInsights } from "@/lib/api"
 
-type ProtocolKind = "ftp" | "mysql" | "port-scan"
+type ProtocolKind = "ftp" | "mysql" | "port-scan" | "smb" | "mssql" | "mqtt" | "tftp" | "rpc"
 
 const BADGES: Record<string, string> = {
-  ftp: "bg-yellow-400/20 text-yellow-400",
-  mysql: "bg-purple-400/20 text-purple-400",
-  "port-scan": "bg-blue-400/20 text-blue-400",
-  connect: "bg-slate-400/20 text-slate-400",
-  auth: "bg-orange-400/20 text-orange-400",
-  command: "bg-green-400/20 text-green-400",
+  ftp:        "bg-yellow-400/20 text-yellow-400",
+  mysql:      "bg-purple-400/20 text-purple-400",
+  "port-scan":"bg-blue-400/20 text-blue-400",
+  smb:        "bg-orange-400/20 text-orange-400",
+  mssql:      "bg-pink-400/20 text-pink-400",
+  mqtt:       "bg-teal-400/20 text-teal-400",
+  tftp:       "bg-lime-400/20 text-lime-400",
+  rpc:        "bg-indigo-400/20 text-indigo-400",
+  connect:    "bg-slate-400/20 text-slate-400",
+  auth:       "bg-orange-400/20 text-orange-400",
+  command:    "bg-green-400/20 text-green-400",
 }
 
 const COPY: Record<ProtocolKind, { title: string; description: string }> = {
@@ -29,6 +34,26 @@ const COPY: Record<ProtocolKind, { title: string; description: string }> = {
   "port-scan": {
     title: "Port Scan Honeypot",
     description: "Connections to exposed decoy services, target ports, advertised service fingerprints, and raw payload hints.",
+  },
+  smb: {
+    title: "SMB Honeypot",
+    description: "Windows file-sharing exploit attempts — EternalBlue, WannaCry, lateral movement, and payload drops on port 445.",
+  },
+  mssql: {
+    title: "MSSQL Honeypot",
+    description: "SQL Server login probes, credential stuffing, and xp_cmdshell execution attempts on port 1433.",
+  },
+  mqtt: {
+    title: "MQTT Honeypot",
+    description: "IoT broker attack traffic — botnet connections, topic subscriptions, and malicious publish attempts on port 1883.",
+  },
+  tftp: {
+    title: "TFTP Honeypot",
+    description: "Trivial FTP read/write requests — commonly used for firmware drops and lateral movement payloads.",
+  },
+  rpc: {
+    title: "RPC / EPMAP Honeypot",
+    description: "Windows RPC endpoint mapper probes and DCOM exploitation attempts on port 135.",
   },
 }
 
@@ -93,9 +118,13 @@ export function ProtocolDetailPage({
   const formatDate = makeFormatDate(tz)
 
   const copy = COPY[protocol]
-  const isFtp = protocol === "ftp"
-  const isMysql = protocol === "mysql"
+  const isFtp     = protocol === "ftp"
+  const isMysql   = protocol === "mysql"
   const isPortScan = protocol === "port-scan"
+  const isSmb     = protocol === "smb"
+  const isMssql   = protocol === "mssql"
+  const isMqtt    = protocol === "mqtt"
+  const hasCredentials = isFtp || isMysql || isSmb || isMssql
 
   return (
     <PageShell>
@@ -140,6 +169,12 @@ export function ProtocolDetailPage({
             empty="No service fingerprints captured yet"
             rows={insights.topServices.map((row) => ({ label: row.service, count: row.count }))}
           />
+        ) : isMqtt ? (
+          <RankingCard
+            title="Topics"
+            empty="No MQTT topics captured yet"
+            rows={insights.topCommands.map((row) => ({ label: row.command, count: row.count }))}
+          />
         ) : (
           <RankingCard
             title="Attempted usernames"
@@ -149,21 +184,21 @@ export function ProtocolDetailPage({
         )}
       </div>
 
-      {(isFtp || isMysql) && (
+      {hasCredentials && (
         <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <RankingCard
-            title={isFtp ? "Attempted passwords" : "Attempted usernames"}
-            empty={isFtp ? "No passwords captured yet" : "No usernames captured yet"}
-            rows={isFtp
-              ? insights.topPasswords.map((row) => ({ label: row.password, count: row.count }))
-              : insights.topUsernames.map((row) => ({ label: row.username, count: row.count }))}
+            title="Attempted passwords"
+            empty="No passwords captured yet"
+            rows={insights.topPasswords.map((row) => ({ label: row.password, count: row.count }))}
           />
           <RankingCard
-            title={isFtp ? "FTP commands" : "Target databases"}
-            empty={isFtp ? "No FTP commands captured yet" : "No database names captured yet"}
+            title={isFtp ? "FTP commands" : isMysql ? "Target databases" : isSmb ? "SMB shares / paths" : "Commands"}
+            empty="No data captured yet"
             rows={isFtp
               ? insights.topCommands.map((row) => ({ label: row.command, count: row.count }))
-              : (insights.topDatabases ?? []).map((row) => ({ label: row.database, count: row.count }))}
+              : isMysql
+              ? (insights.topDatabases ?? []).map((row) => ({ label: row.database, count: row.count }))
+              : insights.topCommands.map((row) => ({ label: row.command, count: row.count }))}
           />
         </div>
       )}
@@ -180,7 +215,7 @@ export function ProtocolDetailPage({
                 <th className="px-4 py-3 font-medium">Dst Port</th>
                 <th className="px-4 py-3 font-medium">Event</th>
                 <th className="px-4 py-3 font-medium">
-                  {isPortScan ? "Service / Payload" : isMysql ? "User / Database" : "User / Password or Command"}
+                  {isPortScan ? "Service / Payload" : isMysql ? "User / Database" : isMqtt ? "Topic / Message" : "User / Password"}
                 </th>
                 <th className="px-4 py-3 font-medium">Timestamp</th>
               </tr>

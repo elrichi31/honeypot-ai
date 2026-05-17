@@ -25,13 +25,16 @@ import {
   Server,
   Biohazard,
   FileCode,
+  Share2,
+  Wifi,
+  HardDrive,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { signOut, useSession } from "@/lib/auth-client"
 
 const navSections = [
   {
-    title: "Dashboard",
+    title: "Inicio",
     icon: BarChart2,
     items: [
       { title: "Dashboard", href: "/", icon: BarChart2 },
@@ -40,19 +43,19 @@ const navSections = [
   },
   {
     title: "SSH Honeypot",
-    icon: Radar,
+    icon: Terminal,
     items: [
-      { title: "Sessions", href: "/sessions", icon: Activity },
-      { title: "Commands", href: "/commands", icon: Terminal },
-      { title: "Credentials", href: "/credentials", icon: Shield },
-      { title: "Campaigns", href: "/campaigns", icon: Crosshair },
+      { title: "Sesiones", href: "/sessions", icon: Activity },
+      { title: "Comandos", href: "/commands", icon: Terminal },
+      { title: "Credenciales", href: "/credentials", icon: Shield },
+      { title: "Campanas", href: "/campaigns", icon: Crosshair },
     ],
   },
   {
     title: "Web Honeypot",
     icon: Globe,
     items: [
-      { title: "Attackers", href: "/web-attacks", icon: Globe },
+      { title: "Atacantes", href: "/web-attacks", icon: Globe },
       { title: "Timeline", href: "/web-attacks/timeline", icon: BarChart2 },
       { title: "Paths", href: "/web-attacks/paths", icon: FolderSearch },
       { title: "Geo", href: "/web-attacks/geo", icon: Map },
@@ -62,36 +65,31 @@ const navSections = [
     title: "Network Honeypots",
     icon: Network,
     items: [
-      { title: "Protocol Hits", href: "/services", icon: Network },
-      { title: "FTP", href: "/services/ftp", icon: Server },
+      { title: "Resumen", href: "/services", icon: Network },
+      { title: "FTP", href: "/services/ftp", icon: HardDrive },
+      { title: "SMB", href: "/services/smb", icon: Share2 },
+      { title: "MSSQL", href: "/services/mssql", icon: Database },
       { title: "MySQL", href: "/services/mysql", icon: Database },
-      { title: "Port Scans", href: "/services/ports", icon: Radar },
+      { title: "MQTT", href: "/services/mqtt", icon: Wifi },
+      { title: "Port Scan", href: "/services/ports", icon: Radar },
     ],
   },
   {
-    title: "Intelligence",
+    title: "Inteligencia",
     icon: Layers3,
-    items: [{ title: "Threats", href: "/threats", icon: ShieldAlert }],
-  },
-  {
-    title: "Malware",
-    icon: Biohazard,
     items: [
-      { title: "Archivos capturados", href: "/malware", icon: FileCode },
+      { title: "Amenazas", href: "/threats", icon: ShieldAlert },
+      { title: "Malware", href: "/malware", icon: Biohazard },
     ],
   },
   {
-    title: "Infrastructure",
+    title: "Infraestructura",
     icon: Server,
     items: [
-      { title: "Clients", href: "/clients", icon: Layers3 },
-      { title: "Sensors", href: "/sensors", icon: Server },
+      { title: "Clientes", href: "/clients", icon: Layers3 },
+      { title: "Sensores", href: "/sensors", icon: Server },
+      { title: "Configuracion", href: "/settings", icon: Settings },
     ],
-  },
-  {
-    title: "System",
-    icon: Settings,
-    items: [{ title: "Settings", href: "/settings", icon: Settings }],
   },
 ] as const
 
