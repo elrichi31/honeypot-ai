@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server"
+import type { NextRequest } from "next/server"
+import { logAudit } from "@/lib/audit"
+import { requireRole } from "@/lib/roles"
 
 async function resolveIngestUrl(): Promise<string | null> {
   if (process.env.SENSOR_INGEST_URL) return process.env.SENSOR_INGEST_URL
@@ -202,7 +205,10 @@ networks:
 `
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth_check = await requireRole("analyst")
+  if (!auth_check.ok) return auth_check.response
+
   const ingestUrl = await resolveIngestUrl()
   if (!ingestUrl) {
     return NextResponse.json(
@@ -215,6 +221,14 @@ export async function GET() {
   if (!secret) {
     return NextResponse.json({ error: "INGEST_SHARED_SECRET is not set" }, { status: 500 })
   }
+
+  await logAudit({
+    action: "DOWNLOAD",
+    resource: "SENSOR",
+    resourceName: "docker-compose.sensor.yml",
+    details: { filename: "docker-compose.sensor.yml" },
+    request: req,
+  })
 
   return new NextResponse(buildCompose(ingestUrl, secret), {
     headers: {

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
+import { logAudit } from "@/lib/audit"
+import { requireRole } from "@/lib/roles"
 
 const INTERNAL_API = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
 
@@ -37,6 +39,9 @@ const SENSOR_CONFIGS: Record<string, SensorConfig> = {
 }
 
 export async function GET(req: NextRequest) {
+  const auth_check = await requireRole("analyst")
+  if (!auth_check.ok) return auth_check.response
+
   const { searchParams } = new URL(req.url)
   const clientSlug = searchParams.get("clientSlug")
   const sensorType = searchParams.get("sensorType")
@@ -87,6 +92,15 @@ export async function GET(req: NextRequest) {
 
   const content = lines.join("\n")
   const filename = `${sensorId}.env`
+
+  await logAudit({
+    action: "DOWNLOAD",
+    resource: "SENSOR",
+    resourceId: sensorId,
+    resourceName: `${config.name} (${client.name})`,
+    details: { filename, sensorType, clientSlug },
+    request: req,
+  })
 
   return new NextResponse(content, {
     status: 200,

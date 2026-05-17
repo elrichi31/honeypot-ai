@@ -69,6 +69,19 @@ async function migrate() {
       ON "verification" ("identifier");
   `)
 
+  // Add role column to existing user table (idempotent)
+  await pool.query(`
+    ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "role" TEXT NOT NULL DEFAULT 'analyst';
+  `)
+
+  // Promote the oldest user to admin if no admin exists yet
+  await pool.query(`
+    UPDATE "user"
+    SET role = 'admin'
+    WHERE id = (SELECT id FROM "user" ORDER BY "createdAt" ASC LIMIT 1)
+      AND NOT EXISTS (SELECT 1 FROM "user" WHERE role = 'admin');
+  `)
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS "audit_log" (
       "id"           TEXT        NOT NULL PRIMARY KEY,

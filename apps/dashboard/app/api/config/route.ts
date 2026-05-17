@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { readConfig, writeConfig, getOpenAiKey, getDiscordWebhookUrl } from "@/lib/server-config"
+import { logAudit } from "@/lib/audit"
+import { requireRole } from "@/lib/roles"
 
 function maskKey(key: string | undefined): string {
   if (!key) return ""
@@ -38,6 +40,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const auth_check = await requireRole("admin")
+  if (!auth_check.ok) return auth_check.response
+
   const body = await req.json()
   const config = readConfig()
 
@@ -60,5 +65,19 @@ export async function POST(req: NextRequest) {
   if ("reportIntervalHours" in body) config.reportIntervalHours = Number(body.reportIntervalHours) || 0
 
   writeConfig(config)
+
+  const changedKeys = Object.keys(body).filter((k) =>
+    !["openaiApiKey", "abuseipdbApiKey", "ipinfoApiKey", "discordWebhookUrl"].includes(k)
+      ? true
+      : !!body[k],
+  )
+  await logAudit({
+    action: "UPDATE",
+    resource: "SETTINGS",
+    resourceName: "Platform Settings",
+    details: { fields: changedKeys },
+    request: req,
+  })
+
   return NextResponse.json({ ok: true })
 }

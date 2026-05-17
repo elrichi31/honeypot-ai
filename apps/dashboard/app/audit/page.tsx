@@ -211,8 +211,17 @@ export default function AuditPage() {
                       <td className="px-4 py-3">
                         <Badge value={entry.resource} colorMap={RESOURCE_COLORS} labelMap={RESOURCE_LABELS} />
                       </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground max-w-[200px] truncate">
-                        {entry.resourceName ?? (hasDetails ? <span className="text-muted-foreground/50 italic">ver detalle</span> : "—")}
+                      <td className="px-4 py-3 text-xs text-muted-foreground max-w-[220px]">
+                        {entry.resourceName ? (
+                          <span className="truncate block">
+                            {entry.resourceName}
+                            {(entry.action === "LOGIN" || entry.action === "LOGOUT") && entry.details?.city
+                              ? ` · ${entry.details.city}`
+                              : ""}
+                          </span>
+                        ) : hasDetails ? (
+                          <span className="text-muted-foreground/50 italic">ver detalle</span>
+                        ) : "—"}
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground font-mono">
                         {entry.ipAddress ?? "—"}

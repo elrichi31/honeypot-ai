@@ -31,6 +31,15 @@ Cada entrada del audit log captura:
 
 ## Acciones auditadas
 
+### Sesion (Login / Logout)
+
+| Accion | Cuando ocurre | Datos adicionales |
+|--------|--------------|-------------------|
+| `LOGIN USER` | Un usuario inicia sesion | IP, pais, ciudad, region, timezone, user-agent |
+| `LOGOUT USER` | Un usuario cierra sesion | IP, pais, ciudad |
+
+El pais y la ciudad se resuelven offline con **geoip-lite** — sin llamadas externas. Aparecen en la columna **Detalle** de la tabla y en el JSON expandible.
+
 ### Usuarios
 
 | Accion | Cuando ocurre |
@@ -52,12 +61,22 @@ Cada entrada del audit log captura:
 | Accion | Cuando ocurre |
 |--------|--------------|
 | `DELETE SENSOR` | Se elimina un sensor desde `/sensors` |
+| `UPDATE SENSOR` | Se asigna o desasigna un sensor a un cliente |
+| `DOWNLOAD SENSOR` | Se descarga el `.env` de configuracion de un sensor |
+| `DOWNLOAD SENSOR` | Se descarga el `docker-compose.sensor.yml` |
+| `DOWNLOAD SENSOR` | Se descarga el script `install-sensor.sh` |
 
 ### Tokens de provision
 
 | Accion | Cuando ocurre |
 |--------|--------------|
 | `CREATE TOKEN` | Se genera un token de provision para desplegar un sensor |
+
+### Configuracion
+
+| Accion | Cuando ocurre |
+|--------|--------------|
+| `UPDATE SETTINGS` | Se guarda cualquier cambio en `/settings` (Discord, OpenAI, timezone, IPs, etc.) |
 
 ---
 

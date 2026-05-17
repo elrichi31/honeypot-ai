@@ -21,6 +21,24 @@ export function lookupIp(ip: string): { country: string; countryName: string } |
   }
 }
 
+export function lookupIpFull(ip: string): {
+  country: string
+  countryName: string
+  city: string | null
+  region: string | null
+  timezone: string | null
+} | null {
+  const result = getGeoip().lookup(ip)
+  if (!result?.country) return null
+  return {
+    country: result.country,
+    countryName: countryNames.of(result.country) ?? result.country,
+    city: result.city || null,
+    region: result.region || null,
+    timezone: result.timezone || null,
+  }
+}
+
 export interface WebCountryAttack {
   country:     string
   name:        string

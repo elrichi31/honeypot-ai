@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
-import { headers } from "next/headers"
+import { requireRole } from "@/lib/roles"
 
 export async function GET(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const auth_check = await requireRole("analyst")
+  if (!auth_check.ok) return auth_check.response
 
   const { searchParams } = new URL(req.url)
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10))

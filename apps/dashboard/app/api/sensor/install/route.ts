@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { logAudit } from "@/lib/audit"
+import { requireRole } from "@/lib/roles"
 
 const REGISTRY = "ghcr.io/elrichi31/honeypot-ai"
 const RAW_BASE = "https://raw.githubusercontent.com/elrichi31/honeypot-ai/master"
@@ -310,6 +312,9 @@ echo "Sensor deployed. It will appear in /sensors within 60 seconds."
 }
 
 export async function GET(req: NextRequest) {
+  const auth_check = await requireRole("analyst")
+  if (!auth_check.ok) return auth_check.response
+
   const p = req.nextUrl.searchParams
   const param = p.get("services") ?? ""
   const clientSlug = p.get("clientSlug")?.trim() ?? ""
@@ -340,10 +345,20 @@ export async function GET(req: NextRequest) {
       ? "all"
       : services.join("-")
 
+  const filename = `install-sensor-${suffix}.sh`
+
+  await logAudit({
+    action: "DOWNLOAD",
+    resource: "SENSOR",
+    resourceName: filename,
+    details: { filename, services, clientSlug: clientSlug || null },
+    request: req,
+  })
+
   return new NextResponse(buildScript(ingestUrl, secret, services, clientSlug, clientName), {
     headers: {
       "Content-Type": "text/x-sh; charset=utf-8",
-      "Content-Disposition": `attachment; filename="install-sensor-${suffix}.sh"`,
+      "Content-Disposition": `attachment; filename="${filename}"`,
     },
   })
 }

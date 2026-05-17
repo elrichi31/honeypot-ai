@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
+import type { Role } from "@/lib/roles"
 import { formatDistanceToNow } from "date-fns"
 import {
   Terminal,
@@ -96,9 +97,10 @@ const navSections = [
   {
     title: "Administración",
     icon: Users,
+    minRole: "analyst" as Role,
     items: [
-      { title: "Usuarios", href: "/users", icon: Users },
-      { title: "Auditoría", href: "/audit", icon: ClipboardList },
+      { title: "Usuarios", href: "/users", icon: Users, minRole: "admin" as Role },
+      { title: "Auditoría", href: "/audit", icon: ClipboardList, minRole: "analyst" as Role },
     ],
   },
 ] as const
@@ -125,11 +127,24 @@ function useHealthCheck() {
   return status
 }
 
+const ROLE_ORDER: Role[] = ["viewer", "analyst", "admin"]
+function hasPermission(userRole: Role, required: Role) {
+  return ROLE_ORDER.indexOf(userRole) >= ROLE_ORDER.indexOf(required)
+}
+
 export function AppSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const health = useHealthCheck()
   const { data: session } = useSession()
+  const [myRole, setMyRole] = useState<Role>("viewer")
+
+  useEffect(() => {
+    fetch("/api/me")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.role) setMyRole(data.role as Role) })
+      .catch(() => {})
+  }, [])
 
   const initialOpenSections = useMemo(() => {
     const map: Record<string, boolean> = {}
@@ -171,7 +186,7 @@ export function AppSidebar() {
       </div>
 
       <nav className="flex-1 space-y-4 overflow-y-auto p-3">
-        {navSections.map((section) => {
+        {navSections.filter((section) => !("minRole" in section) || hasPermission(myRole, (section as { minRole: Role }).minRole)).map((section) => {
           const sectionActive = section.items.some(
             (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
           )
@@ -205,7 +220,7 @@ export function AppSidebar() {
 
               {openSections[section.title] && (
                 <div className="space-y-1 px-2 pb-2">
-                  {section.items.map((item) => {
+                  {section.items.filter((item) => !("minRole" in item) || hasPermission(myRole, (item as { minRole: Role }).minRole)).map((item) => {
                     const isActive =
                       pathname === item.href ||
                       (item.href !== "/" && pathname.startsWith(`${item.href}/`))
