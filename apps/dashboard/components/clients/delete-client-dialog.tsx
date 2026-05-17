@@ -21,24 +21,35 @@ type Props = {
 
 export function DeleteClientDialog({ client, onClose, onDeleted }: Props) {
   const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function handleClose() {
+    setError(null)
+    onClose()
+  }
 
   async function handleDelete() {
     if (!client) return
     setDeleting(true)
+    setError(null)
     try {
       const res = await fetch(`/api/clients/${encodeURIComponent(client.id)}`, { method: "DELETE" })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        setError(data?.error ?? `Error ${res.status}: no se pudo eliminar el cliente`)
+        return
+      }
       onDeleted(client.id)
-      onClose()
+      handleClose()
     } catch {
-      // keep dialog open on error
+      setError("Error de red al intentar eliminar el cliente")
     } finally {
       setDeleting(false)
     }
   }
 
   return (
-    <Dialog open={!!client} onOpenChange={(open) => { if (!open) onClose() }}>
+    <Dialog open={!!client} onOpenChange={(open) => { if (!open) handleClose() }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Delete Client</DialogTitle>
@@ -48,8 +59,13 @@ export function DeleteClientDialog({ client, onClose, onDeleted }: Props) {
             sensors. This action cannot be undone.
           </DialogDescription>
         </DialogHeader>
+
+        {error && (
+          <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+        )}
+
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={deleting}>
+          <Button variant="outline" onClick={handleClose} disabled={deleting}>
             <X className="h-4 w-4" />
             Cancel
           </Button>
