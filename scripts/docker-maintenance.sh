@@ -23,8 +23,8 @@ else
 fi
 
 echo
-echo "==> Pruning unused images older than ${KEEP_HOURS}h"
-docker image prune -af --filter "until=${KEEP_HOURS}h"
+echo "==> Pruning dangling images"
+docker image prune -f
 
 echo
 echo "==> Pruning stopped containers older than ${KEEP_HOURS}h"

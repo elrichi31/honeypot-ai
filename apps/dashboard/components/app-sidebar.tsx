@@ -23,6 +23,8 @@ import {
   Network,
   Database,
   Server,
+  Biohazard,
+  FileCode,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { signOut, useSession } from "@/lib/auth-client"
@@ -70,6 +72,13 @@ const navSections = [
     title: "Intelligence",
     icon: Layers3,
     items: [{ title: "Threats", href: "/threats", icon: ShieldAlert }],
+  },
+  {
+    title: "Malware",
+    icon: Biohazard,
+    items: [
+      { title: "Archivos capturados", href: "/malware", icon: FileCode },
+    ],
   },
   {
     title: "Infrastructure",

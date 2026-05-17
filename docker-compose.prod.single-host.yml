@@ -126,8 +126,10 @@ services:
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       PORT: "3000"
       HOST: "0.0.0.0"
+      DIONAEA_BINARIES_PATH: /dionaea/binaries
     volumes:
       - dashboard_data:/app/data
+      - dionaea_var:/dionaea:ro
     healthcheck:
       test:
         [

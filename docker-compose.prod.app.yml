@@ -48,12 +48,11 @@ services:
       BASE_VMDK_URL: ${BASE_VMDK_URL:-}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       PORT: "3000"
-      # Escucha en todas las interfaces para que el web-honeypot
-      # del VPS honeypot pueda llegar por la VPN (100.x.x.x:3000).
-      # El firewall del servidor app debe bloquear :3000 desde internet publico.
       HOST: "0.0.0.0"
+      DIONAEA_BINARIES_PATH: /dionaea/binaries
     volumes:
       - dashboard_data:/app/data
+      - dionaea_var:/dionaea:ro
     healthcheck:
       test:
         [
@@ -142,6 +141,9 @@ volumes:
   dashboard_data:
   caddy_data:
   caddy_config:
+  dionaea_var:
+    external: true
+    name: honeypot-ai_dionaea_var
 
 networks:
   app_api:
