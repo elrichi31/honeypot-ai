@@ -28,6 +28,8 @@ import {
   Share2,
   Wifi,
   HardDrive,
+  Users,
+  ClipboardList,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { signOut, useSession } from "@/lib/auth-client"
@@ -89,6 +91,14 @@ const navSections = [
       { title: "Clientes", href: "/clients", icon: Layers3 },
       { title: "Sensores", href: "/sensors", icon: Server },
       { title: "Configuracion", href: "/settings", icon: Settings },
+    ],
+  },
+  {
+    title: "Administración",
+    icon: Users,
+    items: [
+      { title: "Usuarios", href: "/users", icon: Users },
+      { title: "Auditoría", href: "/audit", icon: ClipboardList },
     ],
   },
 ] as const

@@ -42,7 +42,17 @@ graph LR
         Q4[GET /stats/*]
         Q5[GET /attacks/today]
     end
+    subgraph Administración
+        A1[GET /api/users]
+        A2[POST /api/users]
+        A3[DELETE /api/users/:id]
+        A4[GET /api/audit]
+    end
 ```
+
+<Aside type="note">
+Los endpoints del bloque **Administracion** (`/api/users`, `/api/audit`) son rutas del Dashboard (Next.js, puerto 4000) — no del ingest-api (puerto 3000). Requieren una cookie de sesion activa de better-auth en lugar del header `X-Ingest-Token`.
+</Aside>
 
 ---
 
@@ -531,5 +541,139 @@ Total de ataques (sesiones SSH + web hits + protocol hits) en las ultimas 24 hor
   "protocol": 24,
   "from": "2024-01-14T10:30:00.000Z",
   "to": "2024-01-15T10:30:00.000Z"
+}
+```
+
+---
+
+## API del Dashboard (administracion)
+
+<Aside>
+Estos endpoints son rutas **Next.js** en el Dashboard (puerto 4000). Requieren una cookie de sesion `better-auth.session_token` valida — no usan `X-Ingest-Token`.
+</Aside>
+
+### `GET /api/users`
+
+Lista todos los usuarios registrados en la plataforma.
+
+**Respuesta:**
+```json
+[
+  {
+    "id": "usr_abc123",
+    "name": "Nicolas Moina",
+    "email": "nicolas@empresa.com",
+    "emailVerified": false,
+    "createdAt": "2026-05-17T10:00:00.000Z",
+    "updatedAt": "2026-05-17T10:00:00.000Z"
+  }
+]
+```
+
+---
+
+### `POST /api/users`
+
+Crea un nuevo usuario. Solo accesible para usuarios autenticados.
+
+**Body:**
+```json
+{
+  "name": "Ana Lopez",
+  "email": "ana@empresa.com",
+  "password": "contraseña-segura"
+}
+```
+
+**Respuesta (`201`):**
+```json
+{
+  "id": "usr_def456",
+  "name": "Ana Lopez",
+  "email": "ana@empresa.com"
+}
+```
+
+| Codigo | Descripcion |
+|--------|-------------|
+| `201` | Usuario creado |
+| `400` | Faltan campos o la contrasena tiene menos de 8 caracteres |
+| `401` | Sin sesion activa |
+| `409` | Email ya registrado |
+
+---
+
+### `DELETE /api/users/:id`
+
+Elimina un usuario y todas sus sesiones activas. No se puede eliminar el propio usuario en sesion.
+
+**Respuesta exitosa:** `204 No Content`
+
+| Codigo | Descripcion |
+|--------|-------------|
+| `204` | Usuario eliminado |
+| `400` | Intentando eliminar la propia cuenta |
+| `401` | Sin sesion activa |
+| `404` | Usuario no encontrado |
+
+---
+
+### `PATCH /api/users/:id`
+
+Actualiza el nombre de un usuario.
+
+**Body:**
+```json
+{ "name": "Nuevo Nombre" }
+```
+
+**Respuesta (`200`):**
+```json
+{
+  "id": "usr_def456",
+  "name": "Nuevo Nombre",
+  "email": "ana@empresa.com"
+}
+```
+
+---
+
+### `GET /api/audit`
+
+Lista paginada del audit log con filtros opcionales.
+
+**Query params:**
+
+| Param | Tipo | Default | Descripcion |
+|-------|------|---------|-------------|
+| `page` | number | 1 | Pagina |
+| `limit` | number | 50 | Resultados por pagina (max 100) |
+| `action` | string | — | Filtrar por accion (`CREATE`, `UPDATE`, `DELETE`, `DOWNLOAD`, `LOGIN`, `LOGOUT`) |
+| `resource` | string | — | Filtrar por recurso (`USER`, `CLIENT`, `SENSOR`, `TOKEN`, `MALWARE`, `SETTINGS`, `SESSION`) |
+| `userId` | string | — | Filtrar por usuario especifico |
+
+**Respuesta:**
+```json
+{
+  "entries": [
+    {
+      "id": "a1b2c3d4-...",
+      "userId": "usr_abc123",
+      "userEmail": "nicolas@empresa.com",
+      "userName": "Nicolas Moina",
+      "action": "DELETE",
+      "resource": "SENSOR",
+      "resourceId": "cowrie-ssh-prod-01",
+      "resourceName": "cowrie-ssh-prod-01",
+      "details": {},
+      "ipAddress": "192.168.1.10",
+      "userAgent": "Mozilla/5.0 ...",
+      "createdAt": "2026-05-17T14:23:11.000Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 50,
+  "pages": 1
 }
 ```

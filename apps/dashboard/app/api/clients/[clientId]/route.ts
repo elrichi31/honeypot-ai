@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { logAudit } from "@/lib/audit"
 
 const INTERNAL_API = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
 
@@ -25,6 +26,22 @@ export async function PATCH(
   })
 
   const responseBody = await res.text()
+
+  if (res.ok) {
+    try {
+      const parsed = JSON.parse(body)
+      const updated = JSON.parse(responseBody)
+      await logAudit({
+        action: "UPDATE",
+        resource: "CLIENT",
+        resourceId: clientId,
+        resourceName: updated?.name ?? parsed?.name,
+        details: parsed,
+        request: req,
+      })
+    } catch { /* non-critical */ }
+  }
+
   return new NextResponse(responseBody, {
     status: res.status,
     headers: { "Content-Type": res.headers.get("content-type") || "application/json" },
@@ -32,7 +49,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ clientId: string }> },
 ) {
   const { clientId } = await params
@@ -41,6 +58,15 @@ export async function DELETE(
     method: "DELETE",
     headers: ingestHeaders(),
   })
+
+  if (res.ok || res.status === 204) {
+    await logAudit({
+      action: "DELETE",
+      resource: "CLIENT",
+      resourceId: clientId,
+      request: req,
+    })
+  }
 
   if (res.status === 204) return new NextResponse(null, { status: 204 })
 

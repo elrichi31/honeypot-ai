@@ -69,7 +69,29 @@ async function migrate() {
       ON "verification" ("identifier");
   `)
 
-  const requiredTables = ["user", "session", "account", "verification"]
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "audit_log" (
+      "id"           TEXT        NOT NULL PRIMARY KEY,
+      "userId"       TEXT        NOT NULL,
+      "userEmail"    TEXT        NOT NULL,
+      "userName"     TEXT        NOT NULL DEFAULT '',
+      "action"       TEXT        NOT NULL,
+      "resource"     TEXT        NOT NULL,
+      "resourceId"   TEXT,
+      "resourceName" TEXT,
+      "details"      JSONB       NOT NULL DEFAULT '{}',
+      "ipAddress"    TEXT,
+      "userAgent"    TEXT,
+      "createdAt"    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE INDEX IF NOT EXISTS "audit_log_userId_idx"    ON "audit_log" ("userId");
+    CREATE INDEX IF NOT EXISTS "audit_log_resource_idx"  ON "audit_log" ("resource");
+    CREATE INDEX IF NOT EXISTS "audit_log_action_idx"    ON "audit_log" ("action");
+    CREATE INDEX IF NOT EXISTS "audit_log_createdAt_idx" ON "audit_log" ("createdAt" DESC);
+  `)
+
+  const requiredTables = ["user", "session", "account", "verification", "audit_log"]
   const result = await pool.query(
     `
       SELECT table_name

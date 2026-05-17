@@ -56,6 +56,13 @@ export default defineConfig({
 						{ label: 'Discord Alerts', slug: 'services/discord-alerts' },
 					],
 				},
+				{
+					label: 'Administración',
+					items: [
+						{ label: 'Gestión de Usuarios', slug: 'services/user-management' },
+						{ label: 'Audit Log', slug: 'services/audit-log' },
+					],
+				},
 				{ label: 'Security', slug: 'security' },
 				{ label: 'API Reference', slug: 'api-reference' },
 			],

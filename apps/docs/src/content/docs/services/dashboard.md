@@ -36,6 +36,8 @@ graph TD
     ROOT --> CAMP[/campaigns]
     ROOT --> SETTINGS[/settings\nConfiguracion]
     ROOT --> SETUP[/setup\nWizard inicial]
+    ROOT --> USERS[/users\nGestion de usuarios]
+    ROOT --> AUDIT[/audit\nAudit log]
 ```
 
 ---
@@ -160,6 +162,29 @@ Organizada en secciones:
 <Aside type="note">
 Las configuraciones guardadas en `/settings` se almacenan en PostgreSQL y tienen prioridad sobre las variables de entorno del contenedor.
 </Aside>
+
+### Gestion de usuarios (`/users`)
+
+Control de acceso al dashboard:
+
+- tabla de todos los usuarios registrados con nombre, email y fecha de creacion
+- badge "tu" sobre el usuario actual
+- boton **Crear usuario** que abre un modal con nombre, email y contrasena (toggle de visibilidad)
+- boton de eliminar por usuario (oculto para el usuario en sesion activa)
+
+Ver [Gestion de Usuarios](/services/user-management) para la documentacion completa.
+
+### Audit Log (`/audit`)
+
+Registro de todas las acciones realizadas en la plataforma:
+
+- tabla paginada con fecha exacta, usuario, tipo de accion, recurso y IP
+- badges de color por accion (verde = creacion, rojo = eliminacion, cyan = actualizacion, etc.)
+- filtros por accion y por tipo de recurso
+- expansion de fila para ver el JSON completo de detalles
+- paginacion de 50 entradas por pagina
+
+Ver [Audit Log](/services/audit-log) para la documentacion completa.
 
 ### Setup inicial (`/setup`)
 

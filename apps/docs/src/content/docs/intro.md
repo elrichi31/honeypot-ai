@@ -43,6 +43,8 @@ El objetivo es observar comportamiento real de atacantes: que credenciales prueb
 - **AI threat analysis** — resumen de sesiones con OpenAI, TTPs y nivel de peligro
 - **Alertas Discord** — notificacion instantanea con breakdown de riesgo y cooldown por IP
 - **Attack heatmap** — mapa de calor 7x24 de cuando atacan mas
+- **Gestion de usuarios** — crear y eliminar cuentas de acceso al dashboard con contrasenas hasheadas
+- **Audit log** — registro completo de quien creo, modifico o elimino que recurso y cuando
 - **Lab multi-VM** — topologia local para desarrollo con VMs separadas
 
 ---
