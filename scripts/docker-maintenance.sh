@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-KEEP_HOURS="${KEEP_HOURS:-168}"
+KEEP_HOURS="${KEEP_HOURS:-48}"
 LOG_DIR="${DOCKER_LOG_DIR:-/var/lib/docker/containers}"
 TRUNCATE_LOGS="${TRUNCATE_LOGS:-0}"
 LOG_SIZE_LIMIT="${LOG_SIZE_LIMIT:-200M}"
