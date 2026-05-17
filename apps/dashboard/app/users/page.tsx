@@ -104,10 +104,16 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
               {ROLES.map((r) => (
                 <button key={r} type="button" onClick={() => setRole(r)}
                   className={`rounded-lg border px-3 py-2 text-left transition-colors ${
-                    role === r ? "border-ring bg-accent" : "border-border hover:bg-accent/50"
+                    role === r
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border hover:bg-accent/50"
                   }`}>
-                  <div className="text-xs font-medium text-foreground">{ROLE_LABELS[r]}</div>
-                  <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">{ROLE_DESCRIPTIONS[r]}</div>
+                  <div className={`text-xs font-medium ${role === r ? "text-primary-foreground" : "text-foreground"}`}>
+                    {ROLE_LABELS[r]}
+                  </div>
+                  <div className={`text-[10px] leading-tight mt-0.5 ${role === r ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                    {ROLE_DESCRIPTIONS[r]}
+                  </div>
                 </button>
               ))}
             </div>
