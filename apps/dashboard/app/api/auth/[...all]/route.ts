@@ -19,7 +19,7 @@ function extractIp(req: NextRequest): string | null {
   )
 }
 
-export async function POST(req: NextRequest, ctx: unknown) {
+export async function POST(req: NextRequest) {
   const url = new URL(req.url)
   const path = url.pathname
   const isSignIn = path.endsWith("/sign-in/email")
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest, ctx: unknown) {
   // For login/signup: clone request body before the handler consumes it
   const cloned = (isSignIn || isSignUp) ? req.clone() : null
 
-  const response = await authPost(req, ctx as never)
+  const response = await authPost(req)
 
   // Log LOGIN
   if (isSignIn && response.ok) {
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest, ctx: unknown) {
         userName: resBody?.user?.name ?? "",
         action: "LOGIN",
         resource: "USER",
-        resourceName: geo?.countryName ?? null,
+        resourceName: geo?.countryName ?? undefined,
         details: {
           country: geo?.country ?? null,
           countryName: geo?.countryName ?? null,
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest, ctx: unknown) {
         userName: logoutUser.name,
         action: "LOGOUT",
         resource: "USER",
-        resourceName: geo?.countryName ?? null,
+        resourceName: geo?.countryName ?? undefined,
         details: {
           country: geo?.country ?? null,
           countryName: geo?.countryName ?? null,

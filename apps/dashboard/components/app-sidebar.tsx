@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
-import type { Role } from "@/lib/roles"
+import type { Role } from "@/lib/roles-shared"
 import { formatDistanceToNow } from "date-fns"
 import {
   Terminal,

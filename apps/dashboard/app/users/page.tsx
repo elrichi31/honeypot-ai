@@ -6,7 +6,7 @@ import { es } from "date-fns/locale"
 import { Users, UserPlus, Trash2, X, Eye, EyeOff, ShieldCheck } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { useSession } from "@/lib/auth-client"
-import { ROLE_LABELS, ROLE_COLORS, ROLE_DESCRIPTIONS, type Role } from "@/lib/roles"
+import { ROLE_LABELS, ROLE_COLORS, ROLE_DESCRIPTIONS, type Role } from "@/lib/roles-shared"
 
 type User = {
   id: string
