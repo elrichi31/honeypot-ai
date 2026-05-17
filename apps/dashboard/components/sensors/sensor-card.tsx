@@ -160,7 +160,16 @@ export function SensorCard({ sensor, clientCode }: { sensor: Sensor; clientCode?
             return (
               <span
                 key={port}
-                className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono font-medium ${
+                title={
+                  up === true
+                    ? `Puerto ${port} accesible`
+                    : probeFailedWhileOnline
+                      ? `Puerto ${port} no alcanzable desde el servidor (firewall o NAT)`
+                      : up === false
+                        ? `Puerto ${port} offline`
+                        : `Puerto ${port} — sin datos de probe`
+                }
+                className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono font-medium cursor-default ${
                   up === true
                     ? "bg-emerald-400/15 text-emerald-400"
                     : probeFailedWhileOnline

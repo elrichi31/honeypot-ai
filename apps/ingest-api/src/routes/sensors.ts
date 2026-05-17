@@ -192,7 +192,8 @@ export async function sensorRoutes(fastify: FastifyInstance) {
           )
           ELSE (
             SELECT COUNT(*)::bigint FROM protocol_hits ph_s
-            WHERE ph_s.data->>'sensor' = s.sensor_id
+            WHERE ph_s.sensor_id = s.sensor_id
+               OR ph_s.data->>'sensor' = s.sensor_id
           )
         END AS event_count
       FROM sensors s

@@ -45,10 +45,10 @@ export async function protocolRoutes(fastify: FastifyInstance) {
     try {
       const rows = await fastify.prisma.$queryRaw<Array<{ id: string }>>`
         INSERT INTO protocol_hits (
-          event_id, protocol, src_ip, src_port, dst_port,
+          event_id, sensor_id, protocol, src_ip, src_port, dst_port,
           event_type, username, password, data, timestamp
         ) VALUES (
-          ${d.eventId}, ${d.protocol}, ${d.srcIp},
+          ${d.eventId}, ${sensorId ?? null}, ${d.protocol}, ${d.srcIp},
           ${d.srcPort ?? null}::int, ${d.dstPort},
           ${d.eventType}, ${d.username ?? null}, ${d.password ?? null},
           CAST(${JSON.stringify(d.data)} AS jsonb), ${new Date(d.timestamp)}
