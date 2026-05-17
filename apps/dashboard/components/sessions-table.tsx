@@ -152,6 +152,7 @@ export function SessionsTable({
   const humanCount = summary?.humans ?? 0
 
   const titleEnd = (
+    <>
             {tab === "sessions" && (
               <div className="flex gap-1 rounded-lg bg-secondary p-1">
                 {(
@@ -214,6 +215,7 @@ export function SessionsTable({
                 </button>
               ))}
             </div>
+    </>
   )
 
   const toolbar = (
