@@ -5,11 +5,19 @@ import { IngestService } from '../modules/ingest/ingest.service.js';
 import type { CowrieRawEvent } from '../types/index.js';
 import { eventBus } from '../lib/event-bus.js';
 import { lookupGeo } from '../lib/geo.js';
+import { scheduleThreatAlert } from '../lib/threat-alerts.js';
 
 function emitSsh(ip: string) {
   const geo = lookupGeo(ip)
   if (!geo) return
   eventBus.emit('attack', { type: 'ssh', ip, ...geo, timestamp: new Date().toISOString() })
+}
+
+function shouldEvaluateThreat(raw: CowrieRawEvent) {
+  return Boolean(
+    raw.src_ip &&
+    ['cowrie.login.success', 'cowrie.login.failed', 'cowrie.command.input'].includes(raw.eventid),
+  )
 }
 
 export async function ingestRoutes(fastify: FastifyInstance) {
@@ -50,6 +58,9 @@ export async function ingestRoutes(fastify: FastifyInstance) {
     try {
       const { sessionCreated, eventCreated } = await service.processLine(parsed.data as CowrieRawEvent);
       if (sessionCreated && parsed.data.src_ip) emitSsh(parsed.data.src_ip)
+      if (eventCreated && shouldEvaluateThreat(parsed.data as CowrieRawEvent)) {
+        scheduleThreatAlert(fastify.prisma, parsed.data.src_ip)
+      }
       return reply.status(eventCreated ? 201 : 200).send({
         ingested: eventCreated,
         duplicate: !eventCreated,
@@ -79,6 +90,7 @@ export async function ingestRoutes(fastify: FastifyInstance) {
     let duplicates = 0;
     let sessions = 0;
     const errors: string[] = [];
+    const ipsToEvaluate = new Set<string>();
 
     for (const raw of parsed.data.events) {
       try {
@@ -89,10 +101,17 @@ export async function ingestRoutes(fastify: FastifyInstance) {
           sessions++;
           if (raw.src_ip) emitSsh(raw.src_ip)
         }
+        if (eventCreated && shouldEvaluateThreat(raw as CowrieRawEvent) && raw.src_ip) {
+          ipsToEvaluate.add(raw.src_ip)
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         errors.push(msg);
       }
+    }
+
+    for (const ip of ipsToEvaluate) {
+      scheduleThreatAlert(fastify.prisma, ip)
     }
 
     return reply.status(200).send({
@@ -116,6 +135,7 @@ export async function ingestRoutes(fastify: FastifyInstance) {
     const service = new IngestService(fastify.prisma);
     let inserted = 0, duplicates = 0, sessions = 0;
     const errors: string[] = [];
+    const ipsToEvaluate = new Set<string>();
 
     for (const raw of parsed.data) {
       try {
@@ -125,9 +145,16 @@ export async function ingestRoutes(fastify: FastifyInstance) {
           sessions++;
           if (raw.src_ip) emitSsh(raw.src_ip)
         }
+        if (eventCreated && shouldEvaluateThreat(raw as CowrieRawEvent) && raw.src_ip) {
+          ipsToEvaluate.add(raw.src_ip)
+        }
       } catch (err) {
         errors.push(err instanceof Error ? err.message : String(err));
       }
+    }
+
+    for (const ip of ipsToEvaluate) {
+      scheduleThreatAlert(fastify.prisma, ip)
     }
 
     return reply.status(200).send({ total: parsed.data.length, inserted, duplicates, sessionsCreated: sessions, errors });

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { ensureIngestToken } from '../lib/ingest-auth.js'
 import { eventBus } from '../lib/event-bus.js'
 import { lookupGeo } from '../lib/geo.js'
-import { evaluateThreatAlert } from '../lib/threat-alerts.js'
+import { scheduleThreatAlert } from '../lib/threat-alerts.js'
 import { forwardClientEventBySensorId } from '../lib/client-forward.js'
 
 const protocolEventSchema = z.object({
@@ -84,7 +84,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
             timestamp: d.timestamp,
           },
         })
-        void evaluateThreatAlert(fastify.prisma, d.srcIp)
+        scheduleThreatAlert(fastify.prisma, d.srcIp)
         return reply.status(201).send({ id: rows[0].id })
       }
 

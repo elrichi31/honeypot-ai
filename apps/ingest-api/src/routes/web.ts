@@ -5,7 +5,7 @@ import { ensureIngestToken } from '../lib/ingest-auth.js';
 import { isWebHitBot } from '../lib/bot-detector.js';
 import { eventBus } from '../lib/event-bus.js';
 import { lookupGeo } from '../lib/geo.js';
-import { evaluateThreatAlert } from '../lib/threat-alerts.js';
+import { scheduleThreatAlert } from '../lib/threat-alerts.js';
 import { forwardClientEventBySensorId } from '../lib/client-forward.js';
 import { basePaginationSchema, getPagination, buildPaginationResponse } from '../lib/pagination.js';
 
@@ -197,7 +197,7 @@ export async function webRoutes(fastify: FastifyInstance) {
             attackType: d.attackType,
           },
         })
-        void evaluateThreatAlert(fastify.prisma, d.srcIp)
+        scheduleThreatAlert(fastify.prisma, d.srcIp)
         return reply.status(201).send({
           id: createdRows[0].id,
           attackType: createdRows[0].attack_type,
@@ -282,7 +282,7 @@ export async function webRoutes(fastify: FastifyInstance) {
               attackType: d.attackType,
             },
           })
-          void evaluateThreatAlert(fastify.prisma, d.srcIp);
+          scheduleThreatAlert(fastify.prisma, d.srcIp);
         }
       } catch {
         // skip malformed individual events

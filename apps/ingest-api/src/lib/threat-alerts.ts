@@ -70,8 +70,11 @@ const SUSPICIOUS_COMMAND_CATEGORIES: CommandCategory[] = [
 ]
 
 const SENSOR_OFFLINE_COOLDOWN_MS = 2 * 60 * 60 * 1000
+const THREAT_ALERT_DEBOUNCE_MS = 1500
 
 const lastAlertSent = new Map<string, number>()
+const pendingThreatAlertTimers = new Map<string, NodeJS.Timeout>()
+const runningThreatAlerts = new Set<string>()
 
 function uniqStrings(values: Array<string | null | undefined>) {
   return [...new Set(values.filter((value): value is string => Boolean(value && value.trim())))]
@@ -193,6 +196,34 @@ async function sendAlertOnce(input: {
 
 export function clearSensorOfflineAlert(sensorId: string) {
   lastAlertSent.delete(`sensor-offline:${sensorId}`)
+}
+
+export function scheduleThreatAlert(prisma: PrismaClient, ip: string, debounceMs = THREAT_ALERT_DEBOUNCE_MS) {
+  if (!ip) return
+
+  const existing = pendingThreatAlertTimers.get(ip)
+  if (existing) clearTimeout(existing)
+
+  const timer = setTimeout(() => {
+    pendingThreatAlertTimers.delete(ip)
+
+    if (runningThreatAlerts.has(ip)) return
+    runningThreatAlerts.add(ip)
+
+    void evaluateThreatAlert(prisma, ip)
+      .catch((error) => {
+        console.warn(
+          `[threat-alerts] evaluation failed for ${ip}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        )
+      })
+      .finally(() => {
+        runningThreatAlerts.delete(ip)
+      })
+  }, debounceMs)
+
+  pendingThreatAlertTimers.set(ip, timer)
 }
 
 export async function checkSensorHealthAlerts(prisma: PrismaClient): Promise<void> {

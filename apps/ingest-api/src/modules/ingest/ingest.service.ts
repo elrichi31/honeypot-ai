@@ -5,7 +5,6 @@ import { SessionRepository } from '../sessions/session.repository.js';
 import { EventRepository } from '../events/event.repository.js';
 import type { IngestSummary, CowrieRawEvent } from '../../types/index.js';
 import { sendDiscordAlert } from '../../lib/discord.js';
-import { evaluateThreatAlert } from '../../lib/threat-alerts.js';
 import { forwardClientEventBySensorId } from '../../lib/client-forward.js';
 
 export class IngestService {
@@ -59,14 +58,6 @@ export class IngestService {
           normalized: normalized.normalizedJson,
         },
       })
-    }
-
-    if (
-      eventCreated &&
-      raw.src_ip &&
-      ['cowrie.login.success', 'cowrie.login.failed', 'cowrie.command.input'].includes(raw.eventid)
-    ) {
-      void evaluateThreatAlert(this.prisma, raw.src_ip)
     }
 
     return { sessionCreated, eventCreated };

@@ -44,6 +44,7 @@ timeout_secs = 2              # or every 2 seconds, whichever comes first
 [sinks.ingest_api.request]
 headers.Content-Type  = "application/json"
 headers.X-Ingest-Token = "${INGEST_SHARED_SECRET}"
+timeout_secs               = 20
 retry_attempts             = 360          # ~1h of retries before giving up
 retry_initial_backoff_secs = 1
 retry_max_duration_secs    = 10
