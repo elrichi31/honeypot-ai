@@ -11,6 +11,15 @@ type SensorClientForwardRow = {
   sensor_ip: string
 }
 
+type ClientForwardCacheEntry = {
+  expiresAt: number
+  target: SensorClientForwardRow | null
+}
+
+const CLIENT_FORWARD_CACHE_TTL_MS = 5 * 60 * 1000
+const clientForwardCache = new Map<string, ClientForwardCacheEntry>()
+const clientForwardLookupsInFlight = new Map<string, Promise<SensorClientForwardRow | null>>()
+
 function isValidForwardUrl(url: string) {
   try {
     const parsed = new URL(url)
@@ -21,7 +30,18 @@ function isValidForwardUrl(url: string) {
 }
 
 async function lookupClientForwardBySensorId(prisma: PrismaClient, sensorId: string) {
-  const rows = await prisma.$queryRaw<Array<SensorClientForwardRow>>`
+  const now = Date.now()
+  const cached = clientForwardCache.get(sensorId)
+  if (cached && cached.expiresAt > now) {
+    return cached.target
+  }
+
+  const inFlight = clientForwardLookupsInFlight.get(sensorId)
+  if (inFlight) {
+    return inFlight
+  }
+
+  const lookupPromise = prisma.$queryRaw<Array<SensorClientForwardRow>>`
     SELECT
       c.id AS client_id,
       c.name AS client_name,
@@ -36,8 +56,20 @@ async function lookupClientForwardBySensorId(prisma: PrismaClient, sensorId: str
     WHERE s.sensor_id = ${sensorId}
     LIMIT 1
   `
+    .then((rows) => rows[0] ?? null)
+    .finally(() => {
+      clientForwardLookupsInFlight.delete(sensorId)
+    })
 
-  return rows[0] ?? null
+  clientForwardLookupsInFlight.set(sensorId, lookupPromise)
+
+  const target = await lookupPromise
+  clientForwardCache.set(sensorId, {
+    expiresAt: now + CLIENT_FORWARD_CACHE_TTL_MS,
+    target,
+  })
+
+  return target
 }
 
 export async function forwardClientEventBySensorId(
