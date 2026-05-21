@@ -6,7 +6,41 @@ import { classifyRequest, type DetectionResult } from '../lib/attack-detector.js
 const BRUTE_WINDOW_MS = 60_000
 const BRUTE_THRESHOLD = 5
 const SKIP_PATHS      = new Set(['/health'])
-const SKIP_PREFIXES   = ['/sensors/']
+const SKIP_PREFIXES   = ['/sensors/', '/ingest/']
+
+// RFC 1918 private ranges + loopback — never real external attackers
+const PRIVATE_CIDRS = [
+  { base: 0x0a000000, mask: 0xff000000 }, // 10.0.0.0/8
+  { base: 0xac100000, mask: 0xfff00000 }, // 172.16.0.0/12
+  { base: 0xc0a80000, mask: 0xffff0000 }, // 192.168.0.0/16
+  { base: 0x7f000000, mask: 0xff000000 }, // 127.0.0.0/8
+]
+
+// DEFENSE_TRUSTED_IPS=1.2.3.4,10.0.1.0/24  (comma-separated IPs or CIDRs)
+function parseCidr(entry: string): { base: number; mask: number } {
+  const [addr, bits] = entry.trim().split('/')
+  const base = addr.split('.').reduce((acc, o) => (acc << 8) + parseInt(o, 10), 0) >>> 0
+  const mask = bits ? (~0 << (32 - parseInt(bits))) >>> 0 : 0xffffffff
+  return { base: base & mask, mask }
+}
+
+const TRUSTED_CIDRS = [
+  ...PRIVATE_CIDRS,
+  ...(process.env.DEFENSE_TRUSTED_IPS ?? '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(parseCidr),
+]
+
+function isAllowlisted(ip: string): boolean {
+  if (ip === '::1' || ip.startsWith('fc') || ip.startsWith('fd')) return true
+  // handle ::ffff:x.x.x.x (IPv4-mapped IPv6)
+  const v4 = ip.startsWith('::ffff:') ? ip.slice(7) : ip
+  if (!/^\d+\.\d+\.\d+\.\d+$/.test(v4)) return false
+  const n = v4.split('.').reduce((acc, o) => (acc << 8) + parseInt(o, 10), 0) >>> 0
+  return TRUSTED_CIDRS.some(({ base, mask }) => (n & mask) === base)
+}
 
 // Sliding window per IP for brute-force detection (in-memory, reset on restart)
 const bruteMap = new Map<string, { count: number; windowStart: number }>()
@@ -42,10 +76,16 @@ async function persist(
   `
 }
 
+function shouldSkip(ip: string, path: string): boolean {
+  return isAllowlisted(ip) ||
+    SKIP_PATHS.has(path) ||
+    SKIP_PREFIXES.some(p => path.startsWith(p))
+}
+
 export const defensePlugin = fp(async function (fastify: FastifyInstance) {
   fastify.addHook('onRequest', async (request) => {
     const path = (request.raw.url ?? '/').split('?')[0]
-    if (SKIP_PATHS.has(path) || SKIP_PREFIXES.some(p => path.startsWith(p))) return
+    if (shouldSkip(request.ip, path)) return
 
     const ua     = request.headers['user-agent'] ?? ''
     const rawUrl = request.raw.url ?? '/'
@@ -58,7 +98,7 @@ export const defensePlugin = fp(async function (fastify: FastifyInstance) {
   fastify.addHook('onResponse', async (request, reply) => {
     if (reply.statusCode !== 401 && reply.statusCode !== 403) return
     const path = (request.raw.url ?? '/').split('?')[0]
-    if (SKIP_PATHS.has(path) || SKIP_PREFIXES.some(p => path.startsWith(p))) return
+    if (shouldSkip(request.ip, path)) return
 
     if (trackBrute(request.ip)) {
       const ua = request.headers['user-agent'] ?? ''
