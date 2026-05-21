@@ -17,21 +17,17 @@ function parseCidr(entry: string): { base: number; mask: number } | null {
   return { base: base & mask, mask }
 }
 
-// RFC 1918 + loopback — always trusted, never stored in DB
 const PRIVATE_CIDRS = [
-  { base: 0x0a000000, mask: 0xff000000 }, // 10.0.0.0/8
-  { base: 0xac100000, mask: 0xfff00000 }, // 172.16.0.0/12
-  { base: 0xc0a80000, mask: 0xffff0000 }, // 192.168.0.0/16
-  { base: 0x7f000000, mask: 0xff000000 }, // 127.0.0.0/8
+  { base: 0x0a000000, mask: 0xff000000 },
+  { base: 0xac100000, mask: 0xfff00000 },
+  { base: 0xc0a80000, mask: 0xffff0000 },
+  { base: 0x7f000000, mask: 0xff000000 },
 ]
 
-// In-memory allowlist cache — refreshed from DB every 30s
 let allowlistCache: Array<{ base: number; mask: number }> = [...PRIVATE_CIDRS]
 
 async function refreshAllowlist(fastify: FastifyInstance) {
-  const rows = await fastify.prisma.$queryRaw<{ entry: string }[]>`
-    SELECT entry FROM defense_allowlist
-  `
+  const rows = await fastify.prisma.$queryRaw<{ entry: string }[]>`SELECT entry FROM defense_allowlist`
   const dynamic = rows.map(r => parseCidr(r.entry)).filter(Boolean) as Array<{ base: number; mask: number }>
   allowlistCache = [...PRIVATE_CIDRS, ...dynamic]
 }
@@ -42,6 +38,25 @@ function isAllowlisted(ip: string): boolean {
   if (!/^\d+\.\d+\.\d+\.\d+$/.test(v4)) return false
   const n = v4.split('.').reduce((acc, o) => (acc << 8) + parseInt(o, 10), 0) >>> 0
   return allowlistCache.some(({ base, mask }) => (n & mask) === base)
+}
+
+// ── Blocked IPs cache ─────────────────────────────────────────────────────────
+let blockedCache = new Set<string>()
+
+async function refreshBlocked(fastify: FastifyInstance) {
+  const rows = await fastify.prisma.$queryRaw<{ ip: string }[]>`SELECT ip FROM blocked_ips`
+  blockedCache = new Set(rows.map(r => r.ip))
+}
+
+async function autoBlock(fastify: FastifyInstance, ip: string, reason: string) {
+  if (blockedCache.has(ip) || isAllowlisted(ip)) return
+  blockedCache.add(ip)
+  const id = randomUUID()
+  await fastify.prisma.$executeRaw`
+    INSERT INTO blocked_ips (id, ip, reason, auto_blocked)
+    VALUES (${id}, ${ip}, ${reason}, true)
+    ON CONFLICT (ip) DO NOTHING
+  `
 }
 
 // ── Brute-force sliding window ────────────────────────────────────────────────
@@ -65,7 +80,7 @@ function trackBrute(ip: string): boolean {
   return e.count >= BRUTE_THRESHOLD
 }
 
-// ── Persist ───────────────────────────────────────────────────────────────────
+// ── Persist defense event ─────────────────────────────────────────────────────
 async function persist(
   fastify: FastifyInstance,
   srcIp: string, method: string, path: string,
@@ -87,19 +102,32 @@ function shouldSkip(ip: string, path: string): boolean {
 
 // ── Plugin ────────────────────────────────────────────────────────────────────
 export const defensePlugin = fp(async function (fastify: FastifyInstance) {
-  // Load allowlist from DB on startup, then refresh every 30s
-  await refreshAllowlist(fastify).catch(() => {})
-  setInterval(() => refreshAllowlist(fastify).catch(() => {}), 30_000).unref()
+  await Promise.all([
+    refreshAllowlist(fastify).catch(() => {}),
+    refreshBlocked(fastify).catch(() => {}),
+  ])
 
-  fastify.addHook('onRequest', async (request) => {
+  setInterval(() => refreshAllowlist(fastify).catch(() => {}), 30_000).unref()
+  setInterval(() => refreshBlocked(fastify).catch(() => {}),  30_000).unref()
+
+  fastify.addHook('onRequest', async (request, reply) => {
     const path = (request.raw.url ?? '/').split('?')[0]
     if (shouldSkip(request.ip, path)) return
+
+    // Check block list first — fast in-memory lookup
+    if (blockedCache.has(request.ip)) {
+      return reply.status(403).send({ error: 'Forbidden' })
+    }
 
     const ua     = request.headers['user-agent'] ?? ''
     const rawUrl = request.raw.url ?? '/'
     const result = classifyRequest(path, ua, rawUrl)
     if (result) {
       persist(fastify, request.ip, request.method, path, ua, result).catch(() => {})
+      // Auto-block injections immediately
+      if (result.type === 'injection') {
+        autoBlock(fastify, request.ip, 'injection').catch(() => {})
+      }
     }
   })
 
@@ -114,6 +142,7 @@ export const defensePlugin = fp(async function (fastify: FastifyInstance) {
         type: 'brute_force',
         details: { threshold: String(BRUTE_THRESHOLD), window: '60s' },
       }, reply.statusCode).catch(() => {})
+      autoBlock(fastify, request.ip, 'brute_force').catch(() => {})
     }
   })
 })

@@ -120,9 +120,48 @@ export async function apiDefenseRoutes(fastify: FastifyInstance) {
 
   fastify.delete('/api-defense/allowlist/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
-    const result = await fastify.prisma.$executeRaw`
-      DELETE FROM defense_allowlist WHERE id = ${id}
-    `
+    const result = await fastify.prisma.$executeRaw`DELETE FROM defense_allowlist WHERE id = ${id}`
+    if (result === 0) return reply.status(404).send({ error: 'Not found' })
+    return reply.status(204).send()
+  })
+
+  // ── Blocked IPs ───────────────────────────────────────────────────────────
+  fastify.get('/api-defense/blocked', async (_request, reply) => {
+    const rows = await fastify.prisma.$queryRaw<
+      { id: string; ip: string; reason: string; auto_blocked: boolean; blocked_at: Date }[]
+    >`SELECT id, ip, reason, auto_blocked, blocked_at FROM blocked_ips ORDER BY blocked_at DESC`
+    return reply.send(rows.map(r => ({
+      id: r.id, ip: r.ip, reason: r.reason,
+      autoBlocked: r.auto_blocked, blockedAt: r.blocked_at,
+    })))
+  })
+
+  fastify.post('/api-defense/blocked', async (request, reply) => {
+    const body = z.object({
+      ip:     z.string().trim().regex(/^(\d{1,3}\.){3}\d{1,3}$/, 'Must be a valid IPv4 address'),
+      reason: z.string().trim().max(120).default('manual'),
+    }).safeParse(request.body)
+    if (!body.success) return reply.status(400).send({ error: body.error.errors[0].message })
+
+    const { ip, reason } = body.data
+    const id = randomUUID()
+    try {
+      await fastify.prisma.$executeRaw`
+        INSERT INTO blocked_ips (id, ip, reason, auto_blocked) VALUES (${id}, ${ip}, ${reason}, false)
+      `
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : ''
+      if (msg.includes('unique') || msg.includes('duplicate')) {
+        return reply.status(409).send({ error: 'IP is already blocked' })
+      }
+      throw err
+    }
+    return reply.status(201).send({ id, ip, reason, autoBlocked: false, blockedAt: new Date() })
+  })
+
+  fastify.delete('/api-defense/blocked/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const result = await fastify.prisma.$executeRaw`DELETE FROM blocked_ips WHERE id = ${id}`
     if (result === 0) return reply.status(404).send({ error: 'Not found' })
     return reply.status(204).send()
   })
