@@ -157,6 +157,17 @@ model SensorProvisionToken {
   @@map("sensor_provision_tokens")
 }
 
+model RetentionSettings {
+  id            String   @id
+  tableName     String   @unique @map("table_name")
+  label         String
+  retentionDays Int      @default(90) @map("retention_days")
+  enabled       Boolean  @default(true)
+  updatedAt     DateTime @default(now()) @map("updated_at")
+
+  @@map("retention_settings")
+}
+
 model DefenseAllowlist {
   id        String   @id @default(uuid())
   entry     String   @unique  // IP or CIDR, e.g. "1.2.3.4" or "10.0.0.0/8"

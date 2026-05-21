@@ -92,6 +92,7 @@ const navSections = [
     items: [
       { title: "Clients", href: "/clients", icon: Layers3 },
       { title: "Sensors", href: "/sensors", icon: Server },
+      { title: "Storage", href: "/storage", icon: HardDrive },
       { title: "Settings", href: "/settings", icon: Settings },
     ],
   },
