@@ -139,7 +139,7 @@ export default async function DashboardPage({
 }) {
   const params = await searchParams
   const range: TimeRange =
-    params.range === "week" || params.range === "month" ? params.range : "week"
+    params.range === "day" || params.range === "week" || params.range === "month" ? params.range : "week"
 
   const config = readConfig()
   const timezone = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
@@ -163,29 +163,29 @@ export default async function DashboardPage({
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
         <p className="text-sm text-muted-foreground">
-          {activeSources} fuente{activeSources !== 1 ? "s" : ""} activa{activeSources !== 1 ? "s" : ""} ·{" "}
-          {totalEvents.toLocaleString("en-US")} eventos capturados en total
+          {activeSources} active source{activeSources !== 1 ? "s" : ""} ·{" "}
+          {totalEvents.toLocaleString("en-US")} total events captured
         </p>
       </div>
 
       {/* Cross-sensor KPI strip */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Total eventos</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Total events</p>
           <p className="mt-2 text-3xl font-semibold text-foreground">
             {totalEvents.toLocaleString("en-US")}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {activeSources} sensor{activeSources !== 1 ? "es" : ""} reportando
+            {activeSources} sensor{activeSources !== 1 ? "s" : ""} reporting
           </p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">SSH sesiones</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">SSH sessions</p>
           <p className="mt-2 text-3xl font-semibold text-foreground">
             {overview.ssh.sessions.toLocaleString("en-US")}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {overview.ssh.uniqueIps.toLocaleString("en-US")} IPs · {overview.ssh.successfulLogins.toLocaleString("en-US")} comprometidas
+            {overview.ssh.uniqueIps.toLocaleString("en-US")} IPs · {overview.ssh.successfulLogins.toLocaleString("en-US")} compromised
           </p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
@@ -199,12 +199,12 @@ export default async function DashboardPage({
           </p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Alta amenaza</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">High threat</p>
           <p className="mt-2 text-3xl font-semibold text-foreground">
             {insights.funnel.highSignalCompromise.toLocaleString("en-US")}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Backdoor, miner o malware drop confirmado
+            Confirmed backdoor, miner or malware drop
           </p>
         </div>
       </div>
@@ -230,7 +230,7 @@ export default async function DashboardPage({
         <div className="mb-4 flex items-center gap-2">
           <Terminal className="h-4 w-4 text-muted-foreground" />
           <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            Análisis SSH
+            SSH Analysis
           </h2>
         </div>
         <DashboardInsightsView

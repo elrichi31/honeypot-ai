@@ -123,14 +123,14 @@ export function SessionsTable({
     return (
       <div className="rounded-xl border border-border bg-card">
         <div className="border-b border-border p-4">
-          <h3 className="font-semibold text-foreground">Sesiones recientes</h3>
+          <h3 className="font-semibold text-foreground">Recent sessions</h3>
           <p className="text-sm text-muted-foreground">
-            {activeSessions.length} sesiones comprometidas - {scanGroups.length} IPs escanearon
+            {activeSessions.length} compromised sessions · {scanGroups.length} IPs scanned
           </p>
         </div>
         <div className="divide-y divide-border">
           {preview.length === 0 ? (
-            <p className="p-8 text-center text-sm text-muted-foreground">Sin sesiones activas.</p>
+            <p className="p-8 text-center text-sm text-muted-foreground">No active sessions.</p>
           ) : (
             preview.map((session) => <SessionRow key={session.id} session={session} />)
           )}
@@ -138,7 +138,7 @@ export function SessionsTable({
         {sessions.length > 5 && (
           <div className="border-t border-border p-4 text-center">
             <Link href="/sessions" className="text-sm text-accent hover:underline">
-              Ver todas las {sessions.length} sesiones
+              View all {sessions.length} sessions
             </Link>
           </div>
         )}
@@ -157,9 +157,9 @@ export function SessionsTable({
               <div className="flex gap-1 rounded-lg bg-secondary p-1">
                 {(
                   [
-                    { value: "all" as const, label: "Todos", icon: null, count: null, activeColor: "" },
+                    { value: "all" as const, label: "All", icon: null, count: null, activeColor: "" },
                     { value: "bot" as const, label: "Bots", icon: Bot, count: botCount, activeColor: "bg-orange-500/20 text-orange-400" },
-                    { value: "human" as const, label: "Humanos", icon: User, count: humanCount, activeColor: "bg-blue-500/20 text-blue-400" },
+                    { value: "human" as const, label: "Humans", icon: User, count: humanCount, activeColor: "bg-blue-500/20 text-blue-400" },
                   ]
                 ).map(({ value, label, icon: Icon, count, activeColor }) => {
                   const isActive = actor === value || (value === "all" && (actor === "all" || actor === "unknown"))
@@ -199,7 +199,7 @@ export function SessionsTable({
                   )}
                 >
                   {currentTab === "sessions" ? <ShieldX className="h-3.5 w-3.5" /> : <ScanLine className="h-3.5 w-3.5" />}
-                  {currentTab === "sessions" ? "Sesiones" : "Escaneos"}
+                  {currentTab === "sessions" ? "Sessions" : "Scans"}
                   <span
                     className={cn(
                       "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
@@ -229,7 +229,7 @@ export function SessionsTable({
               <input
                 type="text"
                 name="q"
-                placeholder="Buscar IP, usuario, cliente..."
+                placeholder="Search IP, username, client..."
                 value={serverQuery}
                 onChange={(event) => setServerQuery(event.target.value)}
                 className="h-10 w-full rounded-lg border border-border bg-secondary pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -239,14 +239,14 @@ export function SessionsTable({
               type="submit"
               className="h-10 rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
             >
-              Buscar
+              Search
             </button>
             {searchQuery && (
               <Link
                 href={`${pathname}?tab=${tab}&pageSize=${pagination?.pageSize ?? 50}`}
                 className="inline-flex h-10 items-center rounded-lg border border-border px-4 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
               >
-                Limpiar
+                Clear
               </Link>
             )}
           </form>
@@ -255,7 +255,7 @@ export function SessionsTable({
             <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
-              placeholder={tab === "sessions" ? "Filtrar IPs visibles..." : "Filtrar IPs agrupadas..."}
+              placeholder={tab === "sessions" ? "Filter visible IPs..." : "Filter grouped IPs..."}
               value={filters.search}
               onChange={(event) => setFilter("search", event.target.value)}
               className="h-10 w-full rounded-lg border border-border bg-secondary pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -267,7 +267,7 @@ export function SessionsTable({
             onChange={(event) => setFilter("country", event.target.value)}
             className="h-10 min-w-[220px] rounded-lg border border-border bg-secondary px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           >
-            <option value="">Todos los paises</option>
+            <option value="">All countries</option>
             {availableCountries.map(([code, name]) => (
               <option key={code} value={code}>
                 {countryFlag(code)} {name}
@@ -281,7 +281,7 @@ export function SessionsTable({
               onChange={(event) => setFilter("classification", event.target.value)}
               className="h-10 min-w-[220px] rounded-lg border border-border bg-secondary px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             >
-              <option value="">Todos los tipos</option>
+              <option value="">All types</option>
               {availableClasses.map((classification) => (
                 <option key={classification} value={classification}>
                   {classification}
@@ -293,8 +293,8 @@ export function SessionsTable({
           <span className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
             <Filter className="h-3.5 w-3.5" />
             {tab === "sessions"
-              ? `${filteredSessions.length} visibles de ${activeSessions.length}`
-              : `${filteredGroups.length} visibles de ${scanGroups.length}`}
+              ? `${filteredSessions.length} of ${activeSessions.length} visible`
+              : `${filteredGroups.length} of ${scanGroups.length} visible`}
           </span>
         </div>
 
@@ -332,7 +332,7 @@ export function SessionsTable({
   return (
     <TableShell
       title="Sessions"
-      description={`${compromisedCount.toLocaleString('en-US')} comprometidas - ${scanGroupCount.toLocaleString('en-US')} IPs en escaneo`}
+      description={`${compromisedCount.toLocaleString('en-US')} compromised · ${scanGroupCount.toLocaleString('en-US')} IPs scanning`}
       titleEnd={titleEnd}
       toolbar={toolbar}
       pagination={pagination}
@@ -340,12 +340,12 @@ export function SessionsTable({
       <div className="divide-y divide-border">
         {tab === "sessions" ? (
           filteredSessions.length === 0 ? (
-            <p className="p-8 text-center text-sm text-muted-foreground">No hay sesiones que coincidan con los filtros.</p>
+            <p className="p-8 text-center text-sm text-muted-foreground">No sessions matching filters.</p>
           ) : (
             filteredSessions.map((session) => <SessionRow key={session.id} session={session} />)
           )
         ) : filteredGroups.length === 0 ? (
-          <p className="p-8 text-center text-sm text-muted-foreground">No hay escaneos que coincidan con los filtros.</p>
+          <p className="p-8 text-center text-sm text-muted-foreground">No scans matching filters.</p>
         ) : (
           filteredGroups.map((group) => <ScanGroupRow key={group.srcIp} group={group} />)
         )}

@@ -57,11 +57,11 @@ export function WebGeoMap({ countries, totalHits }: { countries: WebCountryAttac
       <div className="rounded-xl border border-border bg-card p-4">
         <div className="mb-3 flex items-center justify-between gap-4">
           <div>
-            <h3 className="font-semibold text-foreground">Origen de ataques HTTP</h3>
+            <h3 className="font-semibold text-foreground">HTTP attack origins</h3>
             <p className="text-sm text-muted-foreground">
               {countries.length > 0
-                ? `${countries.length} países · intensidad = hits totales`
-                : "Sin IPs geolocalizadas aún"}
+                ? `${countries.length} countries · intensity = total hits`
+                : "No geolocated IPs yet"}
             </p>
           </div>
 
@@ -156,7 +156,7 @@ export function WebGeoMap({ countries, totalHits }: { countries: WebCountryAttac
       {countries.length > 0 && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="border-b border-border p-4">
-            <h3 className="font-semibold text-foreground">Ranking por país</h3>
+            <h3 className="font-semibold text-foreground">Ranking by country</h3>
             <p className="text-xs text-muted-foreground">Ordenado por total de hits · click en una IP para ver su detalle</p>
           </div>
           <div className="max-h-[480px] overflow-y-auto">
@@ -164,9 +164,9 @@ export function WebGeoMap({ countries, totalHits }: { countries: WebCountryAttac
               <thead className="sticky top-0 z-10">
                 <tr className="border-b border-border bg-card">
                   <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">#</th>
-                  <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">País</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Country</th>
                   <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Hits</th>
-                  <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">IPs únicas</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Unique IPs</th>
                   <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Top amenaza</th>
                   <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">% del total</th>
                 </tr>

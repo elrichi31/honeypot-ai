@@ -296,8 +296,8 @@ export function GlobeMap({ countryAttacks }: GlobeMapProps) {
           <h3 className="font-semibold text-foreground">Attack Origins</h3>
           <p className="text-sm text-muted-foreground">
             {hasData
-              ? `${countryAttacks.length} países · ${totalSessions.toLocaleString('en-US')} sesiones SSH`
-              : "Sin conexiones externas aún"}
+              ? `${countryAttacks.length} countries · ${totalSessions.toLocaleString('en-US')} SSH sessions`
+              : "No external connections yet"}
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -305,18 +305,18 @@ export function GlobeMap({ countryAttacks }: GlobeMapProps) {
             <div className="flex items-center gap-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1.5">
                 <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
-                Comprometido
+                Compromised
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="inline-block h-2 w-2 rounded-full bg-violet-500" />
-                Solo intentos
+                Attempts only
               </span>
             </div>
           )}
           <button
             onClick={toggleFullscreen}
             className="rounded-lg border border-border p-1.5 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-            title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+            title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
           >
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
@@ -393,7 +393,7 @@ export function GlobeMap({ countryAttacks }: GlobeMapProps) {
 
           {countryAttacks.length === 0 && (
             <div className="flex flex-1 items-center justify-center py-8 text-sm text-muted-foreground">
-              Sin datos geográficos aún
+              No geographic data yet
             </div>
           )}
         </div>

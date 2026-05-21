@@ -47,7 +47,7 @@ export function WebAttacksSummary({ total, uniqueIps, byAttackType, topIps }: Pr
           href="/web-attacks"
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
-          Ver detalle <ArrowRight className="h-3 w-3" />
+          View detail <ArrowRight className="h-3 w-3" />
         </Link>
       </div>
 
@@ -57,11 +57,11 @@ export function WebAttacksSummary({ total, uniqueIps, byAttackType, topIps }: Pr
           <p className="mt-0.5 text-xl font-semibold text-foreground">{total.toLocaleString('en-US')}</p>
         </div>
         <div className="rounded-lg bg-muted/30 p-3">
-          <p className="text-xs text-muted-foreground">Atacantes</p>
+          <p className="text-xs text-muted-foreground">Attackers</p>
           <p className="mt-0.5 text-xl font-semibold text-foreground">{uniqueIps}</p>
         </div>
         <div className="rounded-lg bg-muted/30 p-3">
-          <p className="text-xs text-muted-foreground">Top amenaza</p>
+          <p className="text-xs text-muted-foreground">Top threat</p>
           <p className="mt-0.5 text-sm font-semibold" style={{ color: ATTACK_COLORS[topThreat?.attackType ?? "recon"] ?? "#6b7280" }}>
             {ATTACK_LABELS[topThreat?.attackType ?? ""] ?? "—"}
           </p>
@@ -85,7 +85,7 @@ export function WebAttacksSummary({ total, uniqueIps, byAttackType, topIps }: Pr
 
       {topIps.length > 0 && (
         <div className="mt-3 space-y-1.5 border-t border-border pt-3">
-          <p className="text-xs text-muted-foreground">Top IPs atacantes</p>
+          <p className="text-xs text-muted-foreground">Top attacker IPs</p>
           {topIps.slice(0, 4).map((ip) => (
             <div key={ip.srcIp} className="flex items-center justify-between">
               <Link

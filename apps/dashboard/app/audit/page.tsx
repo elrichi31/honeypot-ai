@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { format } from "date-fns"
-import { es } from "date-fns/locale"
+import { enUS } from "date-fns/locale"
 import { ClipboardList, ChevronLeft, ChevronRight, Filter, X } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 
@@ -30,22 +30,22 @@ type AuditResponse = {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  CREATE: "Creación",
-  UPDATE: "Actualización",
-  DELETE: "Eliminación",
-  DOWNLOAD: "Descarga",
-  LOGIN: "Inicio de sesión",
-  LOGOUT: "Cierre de sesión",
+  CREATE: "Creation",
+  UPDATE: "Update",
+  DELETE: "Deletion",
+  DOWNLOAD: "Download",
+  LOGIN: "Login",
+  LOGOUT: "Logout",
 }
 
 const RESOURCE_LABELS: Record<string, string> = {
-  USER: "Usuario",
-  CLIENT: "Cliente",
+  USER: "User",
+  CLIENT: "Client",
   SENSOR: "Sensor",
   TOKEN: "Token",
   MALWARE: "Malware",
-  SETTINGS: "Configuración",
-  SESSION: "Sesión",
+  SETTINGS: "Settings",
+  SESSION: "Session",
 }
 
 const ACTION_COLORS: Record<string, string> = {
@@ -115,16 +115,16 @@ export default function AuditPage() {
     <PageShell>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Auditoría</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Audit Log</h1>
           <p className="text-sm text-muted-foreground">
-            Registro de todas las acciones realizadas en la plataforma.
+            Record of all actions performed on the platform.
           </p>
         </div>
         {data && (
           <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3">
             <ClipboardList className="h-4 w-4 text-violet-400" />
             <span className="text-sm font-medium text-foreground">{data.total.toLocaleString()}</span>
-            <span className="text-sm text-muted-foreground">evento{data.total !== 1 ? "s" : ""}</span>
+            <span className="text-sm text-muted-foreground">event{data.total !== 1 ? "s" : ""}</span>
           </div>
         )}
       </div>
@@ -133,14 +133,14 @@ export default function AuditPage() {
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Filter className="h-3.5 w-3.5" />
-          Filtrar por:
+          Filter by:
         </div>
         <select
           value={filterAction}
           onChange={(e) => { setFilterAction(e.target.value); handleFilterChange() }}
           className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         >
-          <option value="">Todas las acciones</option>
+          <option value="">All actions</option>
           {ACTIONS.map((a) => (
             <option key={a} value={a}>{ACTION_LABELS[a]}</option>
           ))}
@@ -150,7 +150,7 @@ export default function AuditPage() {
           onChange={(e) => { setFilterResource(e.target.value); handleFilterChange() }}
           className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         >
-          <option value="">Todos los recursos</option>
+          <option value="">All resources</option>
           {RESOURCES.map((r) => (
             <option key={r} value={r}>{RESOURCE_LABELS[r]}</option>
           ))}
@@ -161,29 +161,29 @@ export default function AuditPage() {
             className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <X className="h-3 w-3" />
-            Limpiar
+            Clear
           </button>
         )}
       </div>
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         {loading ? (
-          <div className="px-6 py-16 text-center text-sm text-muted-foreground">Cargando registros...</div>
+          <div className="px-6 py-16 text-center text-sm text-muted-foreground">Loading records...</div>
         ) : !data || data.entries.length === 0 ? (
           <div className="px-6 py-16 text-center">
             <ClipboardList className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
-            <p className="text-sm font-medium text-foreground mb-1">No hay registros</p>
-            <p className="text-sm text-muted-foreground">Las acciones realizadas en la plataforma aparecerán aquí.</p>
+            <p className="text-sm font-medium text-foreground mb-1">No records</p>
+            <p className="text-sm text-muted-foreground">Actions performed on the platform will appear here.</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Fecha</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Usuario</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Acción</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Recurso</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Detalle</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Date</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">User</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Action</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Resource</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Detail</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">IP</th>
               </tr>
             </thead>
@@ -199,7 +199,7 @@ export default function AuditPage() {
                       className={`transition-colors ${hasDetails ? "cursor-pointer hover:bg-muted/20" : "hover:bg-muted/10"}`}
                     >
                       <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                        {format(new Date(entry.createdAt), "dd MMM yyyy HH:mm:ss", { locale: es })}
+                        {format(new Date(entry.createdAt), "dd MMM yyyy HH:mm:ss", { locale: enUS })}
                       </td>
                       <td className="px-4 py-3">
                         <div className="text-xs font-medium text-foreground">{entry.userName || "—"}</div>
@@ -220,7 +220,7 @@ export default function AuditPage() {
                               : ""}
                           </span>
                         ) : hasDetails ? (
-                          <span className="text-muted-foreground/50 italic">ver detalle</span>
+                          <span className="text-muted-foreground/50 italic">view detail</span>
                         ) : "—"}
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground font-mono">
@@ -253,7 +253,7 @@ export default function AuditPage() {
       {data && data.pages > 1 && (
         <div className="mt-4 flex items-center justify-between text-sm">
           <span className="text-muted-foreground text-xs">
-            Página {data.page} de {data.pages} · {data.total.toLocaleString()} registros
+            Page {data.page} of {data.pages} · {data.total.toLocaleString()} records
           </span>
           <div className="flex items-center gap-1">
             <button

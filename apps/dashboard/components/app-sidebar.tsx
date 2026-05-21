@@ -48,17 +48,17 @@ const navSections = [
     title: "SSH Honeypot",
     icon: Terminal,
     items: [
-      { title: "Sesiones", href: "/sessions", icon: Activity },
-      { title: "Comandos", href: "/commands", icon: Terminal },
-      { title: "Credenciales", href: "/credentials", icon: Shield },
-      { title: "Campanas", href: "/campaigns", icon: Crosshair },
+      { title: "Sessions", href: "/sessions", icon: Activity },
+      { title: "Commands", href: "/commands", icon: Terminal },
+      { title: "Credentials", href: "/credentials", icon: Shield },
+      { title: "Campaigns", href: "/campaigns", icon: Crosshair },
     ],
   },
   {
     title: "Web Honeypot",
     icon: Globe,
     items: [
-      { title: "Atacantes", href: "/web-attacks", icon: Globe },
+      { title: "Attackers", href: "/web-attacks", icon: Globe },
       { title: "Timeline", href: "/web-attacks/timeline", icon: BarChart2 },
       { title: "Paths", href: "/web-attacks/paths", icon: FolderSearch },
       { title: "Geo", href: "/web-attacks/geo", icon: Map },
@@ -68,7 +68,7 @@ const navSections = [
     title: "Network Honeypots",
     icon: Network,
     items: [
-      { title: "Resumen", href: "/services", icon: Network },
+      { title: "Overview", href: "/services", icon: Network },
       { title: "FTP", href: "/services/ftp", icon: HardDrive },
       { title: "SMB", href: "/services/smb", icon: Share2 },
       { title: "MSSQL", href: "/services/mssql", icon: Database },
@@ -78,29 +78,29 @@ const navSections = [
     ],
   },
   {
-    title: "Inteligencia",
+    title: "Intelligence",
     icon: Layers3,
     items: [
-      { title: "Amenazas", href: "/threats", icon: ShieldAlert },
+      { title: "Threats", href: "/threats", icon: ShieldAlert },
       { title: "Malware", href: "/malware", icon: Biohazard },
     ],
   },
   {
-    title: "Infraestructura",
+    title: "Infrastructure",
     icon: Server,
     items: [
-      { title: "Clientes", href: "/clients", icon: Layers3 },
-      { title: "Sensores", href: "/sensors", icon: Server },
-      { title: "Configuracion", href: "/settings", icon: Settings },
+      { title: "Clients", href: "/clients", icon: Layers3 },
+      { title: "Sensors", href: "/sensors", icon: Server },
+      { title: "Settings", href: "/settings", icon: Settings },
     ],
   },
   {
-    title: "Administración",
+    title: "Administration",
     icon: Users,
     minRole: "analyst" as Role,
     items: [
-      { title: "Usuarios", href: "/users", icon: Users, minRole: "admin" as Role },
-      { title: "Auditoría", href: "/audit", icon: ClipboardList, minRole: "analyst" as Role },
+      { title: "Users", href: "/users", icon: Users, minRole: "admin" as Role },
+      { title: "Audit Log", href: "/audit", icon: ClipboardList, minRole: "analyst" as Role },
     ],
   },
 ] as const
@@ -286,10 +286,10 @@ export function AppSidebar() {
 
         <div className="text-[11px] text-muted-foreground/60">
           {health.lastEventAt
-            ? `Último evento ${formatDistanceToNow(new Date(health.lastEventAt), { addSuffix: true })}`
+            ? `Last event ${formatDistanceToNow(new Date(health.lastEventAt), { addSuffix: true })}`
             : health.apiOnline === false
-              ? "Sin conexión al backend"
-              : "Sin eventos aún"}
+              ? "No connection to backend"
+              : "No events yet"}
         </div>
       </div>
     </aside>

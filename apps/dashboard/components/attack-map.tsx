@@ -71,7 +71,7 @@ export function AttackMap({ countryAttacks }: AttackMapProps) {
           <h3 className="font-semibold text-foreground">Attack Origins</h3>
           <p className="text-sm text-muted-foreground">
             {hasData
-              ? `${countryAttacks.length} países · ${totalSessions} sesiones totales`
+              ? `${countryAttacks.length} countries · ${totalSessions} total sessions`
               : "No external IPs geolocated yet"}
           </p>
         </div>

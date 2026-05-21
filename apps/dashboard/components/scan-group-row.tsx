@@ -40,7 +40,7 @@ export function ScanGroupRow({ group }: { group: ScanGroup }) {
               </span>
             )}
             <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
-              <Shield className="h-3 w-3" /> Bloqueado
+              <Shield className="h-3 w-3" /> Blocked
             </span>
             {group.isBot && (
               <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-2 py-0.5 text-xs font-medium text-orange-400">
@@ -49,7 +49,7 @@ export function ScanGroupRow({ group }: { group: ScanGroup }) {
             )}
             <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-muted-foreground">
               <ScanLine className="h-3 w-3" />
-              {group.attempts} {group.attempts === 1 ? "intento" : "intentos"}
+              {group.attempts} attempt{group.attempts === 1 ? "" : "s"}
             </span>
             {group.authAttempts > 0 && (
               <span className="inline-flex items-center gap-1 rounded-full bg-orange-400/15 px-2 py-0.5 text-xs font-medium text-orange-400">
@@ -59,7 +59,7 @@ export function ScanGroupRow({ group }: { group: ScanGroup }) {
             {hasCredentials && (
               <span className="inline-flex items-center gap-1 rounded-full bg-yellow-400/15 px-2 py-0.5 text-xs font-medium text-yellow-400">
                 <Key className="h-3 w-3" />
-                {group.credentials.length} {group.credentials.length === 1 ? "credencial" : "credenciales"}
+                {group.credentials.length} credential{group.credentials.length === 1 ? "" : "s"}
               </span>
             )}
           </div>
@@ -70,9 +70,9 @@ export function ScanGroupRow({ group }: { group: ScanGroup }) {
               {formatDistanceToNow(new Date(group.lastSeen), { addSuffix: true })}
             </span>
             {group.spanSec > 0 && (
-              <span className="flex items-center gap-1" title="Tiempo entre el primer y último intento de este IP">
+              <span className="flex items-center gap-1" title="Time between first and last attempt from this IP">
                 <Clock className="h-3 w-3" />
-                activo {formatDuration(group.spanSec)}
+                active {formatDuration(group.spanSec)}
               </span>
             )}
             {group.clientVersions.length > 0 && (
@@ -102,7 +102,7 @@ export function ScanGroupRow({ group }: { group: ScanGroup }) {
               ))}
               {group.credentials.length > CRED_PREVIEW && (
                 <span className="inline-flex items-center rounded-md bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
-                  +{group.credentials.length - CRED_PREVIEW} más
+                  +{group.credentials.length - CRED_PREVIEW} more
                 </span>
               )}
             </div>
@@ -115,7 +115,7 @@ export function ScanGroupRow({ group }: { group: ScanGroup }) {
           {hasCredentials && (
             <div>
               <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Credenciales probadas ({group.credentials.length})
+                Credentials tried ({group.credentials.length})
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {group.credentials.map((c, i) => (
@@ -136,7 +136,7 @@ export function ScanGroupRow({ group }: { group: ScanGroup }) {
 
           <div>
             <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Intentos individuales ({group.sessions.length})
+              Individual attempts ({group.sessions.length})
             </p>
             <div className="space-y-1">
               {group.sessions
@@ -165,7 +165,7 @@ export function ScanGroupRow({ group }: { group: ScanGroup }) {
                         )}
                       </span>
                     ) : (
-                      <span className="text-muted-foreground italic">sin credenciales</span>
+                      <span className="text-muted-foreground italic">no credentials</span>
                     )}
                     {s.clientVersion && (
                       <span className="hidden xl:block ml-auto text-muted-foreground/60 truncate max-w-[200px]">

@@ -24,7 +24,7 @@ export default async function WebPathsPage() {
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-foreground">Web Attacks · Paths</h1>
           <p className="text-sm text-muted-foreground">
-            Análisis de las rutas más atacadas · top {paths.length} paths
+            Analysis of the most attacked paths · top {paths.length} paths
           </p>
         </div>
 
@@ -33,17 +33,17 @@ export default async function WebPathsPage() {
         {/* Summary cards */}
         <div className="mb-6 grid grid-cols-3 gap-4">
           <div className="rounded-xl border border-border bg-card p-4">
-            <p className="text-sm text-muted-foreground">Paths de scanner</p>
+            <p className="text-sm text-muted-foreground">Scanner paths</p>
             <p className="mt-1 text-2xl font-semibold text-blue-400">{scannerPaths.length}</p>
             <p className="text-xs text-muted-foreground">wp-admin, phpmyadmin, .env…</p>
           </div>
           <div className="rounded-xl border border-border bg-card p-4">
-            <p className="text-sm text-muted-foreground">Paths de ataque</p>
+            <p className="text-sm text-muted-foreground">Attack paths</p>
             <p className="mt-1 text-2xl font-semibold text-red-400">{attackPaths.length}</p>
             <p className="text-xs text-muted-foreground">SQLi, LFI, XSS, CmdI…</p>
           </div>
           <div className="rounded-xl border border-border bg-card p-4">
-            <p className="text-sm text-muted-foreground">Recon / otros</p>
+            <p className="text-sm text-muted-foreground">Recon / other</p>
             <p className="mt-1 text-2xl font-semibold text-muted-foreground">{reconPaths.length}</p>
             <p className="text-xs text-muted-foreground">robots.txt, favicon, root…</p>
           </div>
@@ -52,8 +52,8 @@ export default async function WebPathsPage() {
         {/* Full paths table */}
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="border-b border-border p-4">
-            <h3 className="font-semibold text-foreground">Todos los paths</h3>
-            <p className="text-xs text-muted-foreground">Ordenados por frecuencia · barra = proporción del total</p>
+            <h3 className="font-semibold text-foreground">All paths</h3>
+            <p className="text-xs text-muted-foreground">Sorted by frequency · bar = proportion of total</p>
           </div>
           <div className="max-h-[600px] overflow-y-auto">
             <table className="w-full text-sm">
@@ -61,8 +61,8 @@ export default async function WebPathsPage() {
                 <tr className="border-b border-border bg-card">
                   <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Path</th>
                   <th className="px-4 py-2.5 text-left font-medium text-muted-foreground w-32">Hits</th>
-                  <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Tipos</th>
-                  <th className="px-4 py-2.5 text-left font-medium text-muted-foreground w-40">Frecuencia</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Types</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-muted-foreground w-40">Frequency</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

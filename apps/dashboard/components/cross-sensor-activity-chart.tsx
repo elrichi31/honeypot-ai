@@ -16,16 +16,16 @@ import type { ChartConfig } from "@/components/ui/chart"
 const RANGE_LABELS: Record<TimeRange, string> = { day: "24h", week: "7d", month: "30d" }
 
 const SOURCE_COLORS: Record<string, string> = {
-  ssh:         "hsl(250 60% 65%)",
-  web:         "hsl(199 89% 60%)",
-  ftp:         "hsl(48 96% 53%)",
-  mysql:       "hsl(270 60% 65%)",
+  ssh: "hsl(250 60% 65%)",
+  web: "hsl(199 89% 60%)",
+  ftp: "hsl(48 96% 53%)",
+  mysql: "hsl(270 60% 65%)",
   "port-scan": "hsl(217 91% 60%)",
-  smb:         "hsl(25 95% 60%)",
-  mssql:       "hsl(330 70% 65%)",
-  mqtt:        "hsl(174 72% 56%)",
-  rpc:         "hsl(239 68% 65%)",
-  tftp:        "hsl(84 80% 50%)",
+  smb: "hsl(25 95% 60%)",
+  mssql: "hsl(330 70% 65%)",
+  mqtt: "hsl(174 72% 56%)",
+  rpc: "hsl(239 68% 65%)",
+  tftp: "hsl(84 80% 50%)",
 }
 
 function colorFor(key: string) {
@@ -45,19 +45,19 @@ export function CrossSensorActivityChart({ timeline, range }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  function setRange(r: TimeRange) {
+  function setRange(nextRange: TimeRange) {
     const params = new URLSearchParams(searchParams.toString())
-    params.set("range", r)
+    params.set("range", nextRange)
     router.push(`?${params.toString()}`)
   }
 
   const sources = ["ssh", "web", ...timeline.activeProtocols]
-  const activeSources = sources.filter((s) =>
-    timeline.buckets.some((b) => (b[s] as number) > 0)
+  const activeSources = sources.filter((source) =>
+    timeline.buckets.some((bucket) => (bucket[source] as number) > 0),
   )
 
   const chartConfig = Object.fromEntries(
-    activeSources.map((s) => [s, { label: s.toUpperCase(), color: colorFor(s) }])
+    activeSources.map((source) => [source, { label: source.toUpperCase(), color: colorFor(source) }]),
   ) as ChartConfig
 
   const xInterval = range === "day" ? 3 : range === "week" ? 0 : 4
@@ -66,23 +66,24 @@ export function CrossSensorActivityChart({ timeline, range }: Props) {
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h3 className="font-semibold text-foreground">Actividad en el tiempo</h3>
+          <h3 className="font-semibold text-foreground">Activity over time</h3>
           <p className="text-sm text-muted-foreground">
-            Eventos por {range === "day" ? "hora" : "día"} · todos los sensores
+            Events per {range === "day" ? "hour" : "day"} - all sensors
           </p>
         </div>
         <div className="flex gap-1 rounded-lg border border-border p-1">
-          {(["day", "week", "month"] as TimeRange[]).map((r) => (
+          {(["day", "week", "month"] as TimeRange[]).map((option) => (
             <button
-              key={r}
-              onClick={() => setRange(r)}
+              key={option}
+              type="button"
+              onClick={() => setRange(option)}
               className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                range === r
+                range === option
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {RANGE_LABELS[r]}
+              {RANGE_LABELS[option]}
             </button>
           ))}
         </div>
@@ -91,10 +92,10 @@ export function CrossSensorActivityChart({ timeline, range }: Props) {
       <ChartContainer config={chartConfig} className="aspect-auto h-[420px]">
         <AreaChart data={timeline.buckets as Record<string, unknown>[]}>
           <defs>
-            {activeSources.map((s) => (
-              <linearGradient key={s} id={gradId(s)} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor={colorFor(s)} stopOpacity={0.25} />
-                <stop offset="95%" stopColor={colorFor(s)} stopOpacity={0} />
+            {activeSources.map((source) => (
+              <linearGradient key={source} id={gradId(source)} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={colorFor(source)} stopOpacity={0.25} />
+                <stop offset="95%" stopColor={colorFor(source)} stopOpacity={0} />
               </linearGradient>
             ))}
           </defs>
@@ -103,15 +104,15 @@ export function CrossSensorActivityChart({ timeline, range }: Props) {
           <YAxis axisLine={false} tickLine={false} width={35} />
           <ChartTooltip content={<ChartTooltipContent />} />
           <ChartLegend content={<ChartLegendContent />} />
-          {activeSources.map((s) => (
+          {activeSources.map((source) => (
             <Area
-              key={s}
+              key={source}
               type="monotone"
-              dataKey={s}
-              stroke={colorFor(s)}
+              dataKey={source}
+              stroke={colorFor(source)}
               strokeWidth={2}
               fillOpacity={1}
-              fill={`url(#${gradId(s)})`}
+              fill={`url(#${gradId(source)})`}
               stackId="all"
             />
           ))}

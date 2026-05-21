@@ -53,7 +53,7 @@ export default async function ThreatsPage({
           <h1 className="text-2xl font-semibold text-foreground">Threat Intelligence</h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          Correlacion cross-protocol - risk scoring por IP - {pageData.summary.total.toLocaleString('en-US')} atacantes visibles
+          Cross-protocol correlation · risk scoring by IP · {pageData.summary.total.toLocaleString('en-US')} attackers visible
         </p>
       </div>
 
@@ -68,7 +68,7 @@ export default async function ThreatsPage({
               type="text"
               name="q"
               defaultValue={q ?? ""}
-              placeholder="Buscar IP..."
+              placeholder="Search IP..."
               className="h-10 w-full rounded-md border border-border bg-background pl-10 pr-3 text-sm text-foreground"
             />
           </div>
@@ -76,18 +76,18 @@ export default async function ThreatsPage({
             type="submit"
             className="h-10 rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
           >
-            Buscar
+            Search
           </button>
           {q && (
             <Link
               href={`/threats?pageSize=${pageData.pagination.pageSize}&sortBy=${sortBy}&sortDir=${sortDir}`}
               className="inline-flex h-10 items-center rounded-md border border-border px-4 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             >
-              Limpiar
+              Clear
             </Link>
           )}
           <span className="inline-flex items-center rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
-            {pageData.items.length} filas en esta pagina
+            {pageData.items.length} rows on this page
           </span>
         </form>
       </div>

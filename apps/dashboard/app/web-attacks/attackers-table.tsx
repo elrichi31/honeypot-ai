@@ -26,7 +26,7 @@ export function AttackersTable({
     return (
       <tr>
         <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-          Sin datos - visita http://localhost:8080 para generar ataques
+          No data — visit http://localhost:8080 to generate attacks
         </td>
       </tr>
     )
@@ -82,7 +82,7 @@ export function AttackersTable({
                   </p>
                 ))}
                 {attacker.topPaths.length > 2 && (
-                  <p className="text-xs text-muted-foreground/60">+{attacker.topPaths.length - 2} mas</p>
+                  <p className="text-xs text-muted-foreground/60">+{attacker.topPaths.length - 2} more</p>
                 )}
               </div>
             </td>

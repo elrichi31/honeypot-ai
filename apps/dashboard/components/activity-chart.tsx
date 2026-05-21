@@ -13,12 +13,12 @@ import {
 import type { ChartConfig } from "@/components/ui/chart"
 
 const chartConfig = {
-  Sesiones: {
-    label: "Sesiones",
+  Sessions: {
+    label: "Sessions",
     color: "hsl(250 60% 65%)",
   },
-  Comprometidas: {
-    label: "Comprometidas",
+  Compromised: {
+    label: "Compromised",
     color: "hsl(0 84% 60%)",
   },
 } satisfies ChartConfig
@@ -46,8 +46,8 @@ export function ActivityChart({ stats, range }: ActivityChartProps) {
 
   const data = stats.timeline.map((point) => ({
     label: point.label,
-    Sesiones: point.sessions,
-    Comprometidas: point.successfulLogins,
+    Sessions: point.sessions,
+    Compromised: point.successfulLogins,
   }))
 
   const xInterval = range === "day" ? 3 : range === "week" ? 0 : 4
@@ -56,9 +56,9 @@ export function ActivityChart({ stats, range }: ActivityChartProps) {
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h3 className="font-semibold text-foreground">Actividad en el tiempo</h3>
+          <h3 className="font-semibold text-foreground">Activity over time</h3>
           <p className="text-sm text-muted-foreground">
-            {range === "day" ? "Sesiones por hora" : "Sesiones por día"}
+            {range === "day" ? "Sessions per hour" : "Sessions per day"}
           </p>
         </div>
         <div className="flex gap-1 rounded-lg border border-border p-1">
@@ -82,12 +82,12 @@ export function ActivityChart({ stats, range }: ActivityChartProps) {
         <AreaChart data={data}>
           <defs>
             <linearGradient id="gradSessions" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="var(--color-Sesiones)" stopOpacity={0.25} />
-              <stop offset="95%" stopColor="var(--color-Sesiones)" stopOpacity={0} />
+              <stop offset="5%" stopColor="var(--color-Sessions)" stopOpacity={0.25} />
+              <stop offset="95%" stopColor="var(--color-Sessions)" stopOpacity={0} />
             </linearGradient>
             <linearGradient id="gradCompromised" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="var(--color-Comprometidas)" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="var(--color-Comprometidas)" stopOpacity={0} />
+              <stop offset="5%" stopColor="var(--color-Compromised)" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="var(--color-Compromised)" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -97,16 +97,16 @@ export function ActivityChart({ stats, range }: ActivityChartProps) {
           <ChartLegend content={<ChartLegendContent />} />
           <Area
             type="monotone"
-            dataKey="Sesiones"
-            stroke="var(--color-Sesiones)"
+            dataKey="Sessions"
+            stroke="var(--color-Sessions)"
             strokeWidth={2}
             fillOpacity={1}
             fill="url(#gradSessions)"
           />
           <Area
             type="monotone"
-            dataKey="Comprometidas"
-            stroke="var(--color-Comprometidas)"
+            dataKey="Compromised"
+            stroke="var(--color-Compromised)"
             strokeWidth={2}
             fillOpacity={1}
             fill="url(#gradCompromised)"

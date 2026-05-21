@@ -35,10 +35,10 @@ export function TimelineCharts({ days, attackTypes, byAttackType }: Props) {
     <div className="space-y-6">
       {/* Stacked bar — hits por día */}
       <div className="rounded-xl border border-border bg-card p-4">
-        <h3 className="mb-1 font-semibold text-foreground">Hits por día</h3>
-        <p className="mb-4 text-xs text-muted-foreground">Últimos 30 días · apilado por tipo de ataque</p>
+        <h3 className="mb-1 font-semibold text-foreground">Hits per day</h3>
+        <p className="mb-4 text-xs text-muted-foreground">Last 30 days · stacked by attack type</p>
         {days.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">Sin datos aún</p>
+          <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
         ) : (
           <ChartContainer config={timelineChartConfig} className="aspect-auto h-[280px]">
             <BarChart data={days} barSize={14}>
@@ -66,8 +66,8 @@ export function TimelineCharts({ days, attackTypes, byAttackType }: Props) {
       {/* Dos columnas: Pie + tabla de totales */}
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-4">
-          <h3 className="mb-1 font-semibold text-foreground">Distribución total</h3>
-          <p className="mb-4 text-xs text-muted-foreground">Porcentaje por tipo de ataque · all-time</p>
+          <h3 className="mb-1 font-semibold text-foreground">Total distribution</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Percentage by attack type · all-time</p>
           <ChartContainer config={timelineChartConfig} className="aspect-auto h-[260px]">
             <PieChart>
               <Pie

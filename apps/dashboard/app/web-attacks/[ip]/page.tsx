@@ -57,7 +57,7 @@ export default async function WebAttackerDetailPage({
             href="/web-attacks"
             className="mb-3 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
           >
-            <ArrowLeft className="h-3.5 w-3.5" /> Volver a Web Attacks
+            <ArrowLeft className="h-3.5 w-3.5" /> Back to Web Attacks
           </Link>
           <div className="flex items-start justify-between">
             <div>
@@ -71,8 +71,8 @@ export default async function WebAttackerDetailPage({
                 <p className="mt-0.5 text-sm text-muted-foreground">{location.countryName}</p>
               )}
               <p className="mt-1 text-xs text-muted-foreground">
-                Primer hit {formatDistanceToNow(new Date(attacker.firstSeen), { addSuffix: true })} ·{" "}
-                Último {formatDistanceToNow(new Date(attacker.lastSeen), { addSuffix: true })}
+                First hit {formatDistanceToNow(new Date(attacker.firstSeen), { addSuffix: true })} ·{" "}
+                Last {formatDistanceToNow(new Date(attacker.lastSeen), { addSuffix: true })}
               </p>
             </div>
             <div className="flex flex-wrap justify-end items-center gap-1.5">
@@ -92,9 +92,9 @@ export default async function WebAttackerDetailPage({
         {/* Stat cards */}
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard icon={MousePointerClick} label="Total hits" value={attacker.totalHits.toLocaleString('en-US')} color="text-warning" bg="bg-warning/20" />
-          <StatCard icon={Shield} label="Tipos de ataque" value={attacker.attackTypes.length} />
-          <StatCard icon={Globe} label="Paths únicos" value={Object.keys(pathCount).length} />
-          <StatCard icon={Clock} label={galahFailures > 0 ? "Fallos Galah" : "Duración campaña"} value={galahFailures > 0 ? galahFailures : (() => {
+          <StatCard icon={Shield} label="Attack types" value={attacker.attackTypes.length} />
+          <StatCard icon={Globe} label="Unique paths" value={Object.keys(pathCount).length} />
+          <StatCard icon={Clock} label={galahFailures > 0 ? "Galah failures" : "Campaign duration"} value={galahFailures > 0 ? galahFailures : (() => {
             const ms = new Date(attacker.lastSeen).getTime() - new Date(attacker.firstSeen).getTime()
             const h = Math.floor(ms / 3_600_000)
             const m = Math.floor((ms % 3_600_000) / 60_000)
@@ -108,7 +108,7 @@ export default async function WebAttackerDetailPage({
             {/* Attack type breakdown */}
             <div className="rounded-xl border border-border bg-card">
               <div className="border-b border-border p-4">
-                <h3 className="font-semibold text-foreground">Breakdown por tipo</h3>
+                <h3 className="font-semibold text-foreground">Breakdown by type</h3>
               </div>
               <div className="max-h-48 overflow-y-auto divide-y divide-border">
                 {Object.entries(byType)
@@ -129,7 +129,7 @@ export default async function WebAttackerDetailPage({
               <div className="rounded-xl border border-border bg-card">
                 <div className="border-b border-border p-4">
                   <h3 className="font-semibold text-foreground">User Agents</h3>
-                  <p className="text-xs text-muted-foreground">{uniqueUAs.length} detectados</p>
+                  <p className="text-xs text-muted-foreground">{uniqueUAs.length} detected</p>
                 </div>
                 <div className="max-h-40 overflow-y-auto divide-y divide-border">
                   {uniqueUAs.map((ua, i) => (
@@ -144,7 +144,7 @@ export default async function WebAttackerDetailPage({
             {/* Top paths */}
             <div className="rounded-xl border border-border bg-card">
               <div className="border-b border-border p-4">
-                <h3 className="font-semibold text-foreground">Paths más atacados</h3>
+                <h3 className="font-semibold text-foreground">Most attacked paths</h3>
               </div>
               <div className="max-h-52 overflow-y-auto divide-y divide-border">
                 {topPaths.map(([path, count]) => (
@@ -161,18 +161,18 @@ export default async function WebAttackerDetailPage({
           <div className="xl:col-span-2">
             <div className="rounded-xl border border-border bg-card overflow-hidden">
               <div className="border-b border-border p-4">
-                <h3 className="font-semibold text-foreground">Timeline de requests</h3>
-                <p className="text-xs text-muted-foreground">{hits.length} requests · orden cronológico inverso</p>
+                <h3 className="font-semibold text-foreground">Request timeline</h3>
+                <p className="text-xs text-muted-foreground">{hits.length} requests · reverse chronological order</p>
               </div>
               <div className="overflow-y-auto max-h-[620px]">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10">
                   <tr className="border-b border-border bg-card">
-                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Hora</th>
-                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Método</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Time</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Method</th>
                     <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Path</th>
-                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Tipo</th>
-                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Resultado</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Type</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Result</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">

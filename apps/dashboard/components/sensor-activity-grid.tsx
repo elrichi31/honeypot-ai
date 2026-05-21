@@ -50,7 +50,7 @@ export function SensorActivityGrid({ overview }: { overview: HoneypotOverview })
       uniqueIps: overview.ssh.uniqueIps,
       lastSeen: overview.ssh.lastSeen,
       subtitle: overview.ssh.successfulLogins > 0
-        ? `${overview.ssh.successfulLogins.toLocaleString("en-US")} comprometidas`
+        ? `${overview.ssh.successfulLogins.toLocaleString("en-US")} compromised`
         : null,
     })
   }
@@ -84,7 +84,7 @@ export function SensorActivityGrid({ overview }: { overview: HoneypotOverview })
   return (
     <div className="mb-6">
       <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-        Actividad por sensor
+        Activity by sensor
       </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {items.map((item) => {
@@ -117,7 +117,7 @@ export function SensorActivityGrid({ overview }: { overview: HoneypotOverview })
                 {item.count.toLocaleString("en-US")}
               </p>
               <p className="text-xs text-muted-foreground">
-                {item.uniqueIps.toLocaleString("en-US")} IPs únicas
+                {item.uniqueIps.toLocaleString("en-US")} unique IPs
               </p>
               {(item.subtitle || when) && (
                 <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground/70">

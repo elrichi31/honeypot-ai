@@ -98,7 +98,7 @@ export function AiThreatSummary({ ip, threat, initialAnalysis, autoTrigger }: Pr
         <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
           <Bot className="h-8 w-8 text-muted-foreground/30" />
           <p className="text-sm text-muted-foreground">
-            {autoTrigger ? "Iniciando análisis…" : "Haz clic en Analizar para generar el perfil de este actor"}
+            {autoTrigger ? "Starting analysis…" : "Click Analyze to generate the profile for this actor"}
           </p>
         </div>
       )}
@@ -120,14 +120,14 @@ export function AiThreatSummary({ ip, threat, initialAnalysis, autoTrigger }: Pr
 
           {/* Intent */}
           <div className="px-4 py-3">
-            <p className="mb-1 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Intención</p>
+            <p className="mb-1 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Intent</p>
             <p className="text-sm text-foreground">{analysis.intent}</p>
           </div>
 
           {/* Tactics */}
           {analysis.keyTactics.length > 0 && (
             <div className="px-4 py-3">
-              <p className="mb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Tácticas clave</p>
+              <p className="mb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Key tactics</p>
               <ul className="space-y-1">
                 {analysis.keyTactics.map((t, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm text-foreground">
@@ -141,7 +141,7 @@ export function AiThreatSummary({ ip, threat, initialAnalysis, autoTrigger }: Pr
 
           {/* Recommendation */}
           <div className="px-4 py-3">
-            <p className="mb-1 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Recomendación</p>
+            <p className="mb-1 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Recommendation</p>
             <div className="flex items-start gap-2">
               <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
               <p className="text-sm text-foreground">{analysis.recommendation}</p>

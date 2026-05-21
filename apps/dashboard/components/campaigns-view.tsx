@@ -83,11 +83,11 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
             </span>
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              Primero: {formatDistanceToNow(new Date(campaign.firstSeen), { addSuffix: true })}
+              First: {formatDistanceToNow(new Date(campaign.firstSeen), { addSuffix: true })}
             </span>
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              Último: {formatDistanceToNow(new Date(campaign.lastSeen), { addSuffix: true })}
+              Last: {formatDistanceToNow(new Date(campaign.lastSeen), { addSuffix: true })}
             </span>
           </div>
 
@@ -218,7 +218,7 @@ function ClusterCard({ cluster }: { cluster: BehaviorCluster }) {
               <span key={ip} className="font-mono">{ip}</span>
             ))}
             {cluster.sessions.length > 5 && (
-              <span>+{cluster.sessions.length - 5} más</span>
+              <span>+{cluster.sessions.length - 5} more</span>
             )}
           </div>
         </div>
@@ -300,7 +300,7 @@ export function CampaignsView({
           )}
         >
           <Globe className="h-3.5 w-3.5" />
-          Repetición por origen
+          Repeat by origin
         </button>
         <button
           onClick={() => setTab("clusters")}
@@ -354,7 +354,7 @@ export function CampaignsView({
           <div>
             <p className="mb-3 text-sm text-muted-foreground">
               {campaigns.length > 0
-                ? `${campaigns.length} campaña${campaigns.length > 1 ? "s" : ""} detectada${campaigns.length > 1 ? "s" : ""} · ${sessions.length} sesiones analizadas`
+                ? `${campaigns.length} campaign${campaigns.length > 1 ? "s" : ""} detected · ${sessions.length} sessions analyzed`
                 : `No se detectaron patrones repetidos agrupando por ${groupBy}. Se necesitan 2+ sesiones del mismo origen.`}
             </p>
             <div className="space-y-3">
@@ -370,18 +370,18 @@ export function CampaignsView({
       {tab === "clusters" && (
         <div className="space-y-4">
           <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
-            <p className="font-medium text-foreground mb-1">¿Cómo funciona?</p>
+            <p className="font-medium text-foreground mb-1">How does it work?</p>
             <p>
-              Se calcula la similitud de Jaccard entre los conjuntos de comandos de cada sesión.
-              Las sesiones con más del <strong className="text-foreground">40% de similitud</strong> se agrupan en un cluster.
-              Útil para detectar botnets o atacantes que usan el mismo script aunque vengan de IPs distintas.
+              Jaccard similarity is computed between the command sets of each session.
+              Sessions with more than <strong className="text-foreground">40% similarity</strong> are grouped into a cluster.
+              Useful for detecting botnets or attackers using the same script from different IPs.
             </p>
           </div>
 
           <p className="text-sm text-muted-foreground">
             {clusters.length > 0
-              ? `${clusters.length} cluster${clusters.length > 1 ? "s" : ""} conductual${clusters.length > 1 ? "es" : ""} detectado${clusters.length > 1 ? "s" : ""}`
-              : "No se encontraron sesiones con comportamiento similar. Se necesitan sesiones con comandos en común."}
+              ? `${clusters.length} behavioral cluster${clusters.length > 1 ? "s" : ""} detected`
+              : "No sessions with similar behavior found. Sessions with commands in common are needed."}
           </p>
 
           <div className="space-y-3">

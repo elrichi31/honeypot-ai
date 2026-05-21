@@ -70,14 +70,14 @@ export function ThreatsTable({
 
   return (
     <TableShell
-      title="Ranking de amenazas"
-      description="Ordenado por risk score - click para ver detalle"
+      title="Threat ranking"
+      description="Sorted by risk score · click to view detail"
       pagination={pagination}
     >
       {threats.length === 0 ? (
         <div className="p-12 text-center">
-          <p className="text-sm text-muted-foreground">No hay datos de amenazas aun.</p>
-          <p className="mt-1 text-xs text-muted-foreground/60">Apareceran aqui cuando se detecten atacantes en SSH, HTTP o servicios correlacionados.</p>
+          <p className="text-sm text-muted-foreground">No threat data yet.</p>
+          <p className="mt-1 text-xs text-muted-foreground/60">They will appear here when attackers are detected on SSH, HTTP or correlated services.</p>
         </div>
       ) : (
         <table className="min-w-[1180px] w-full text-sm">
@@ -85,11 +85,11 @@ export function ThreatsTable({
               <tr className="border-b border-border bg-muted/20">
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">#</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">IP</th>
-                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Nivel</th>
+                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Level</th>
                 <SortableTh label="Score" column="score" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} />
-                <SortableTh label="Protocolos" column="protocols" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} />
-                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Comandos detectados</th>
-                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Top factores</th>
+                <SortableTh label="Protocols" column="protocols" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} />
+                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Detected commands</th>
+                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Top factors</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
