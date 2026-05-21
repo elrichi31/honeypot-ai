@@ -2,6 +2,7 @@ import { ShieldAlert } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { DefenseStats } from "@/components/defense/defense-stats"
 import { DefenseEventsTable } from "@/components/defense/defense-events-table"
+import { DefenseAllowlist } from "@/components/defense/defense-allowlist"
 
 export default function ApiDefensePage() {
   return (
@@ -20,7 +21,11 @@ export default function ApiDefensePage() {
         <DefenseStats />
       </div>
 
-      <DefenseEventsTable />
+      <div className="mb-6">
+        <DefenseEventsTable />
+      </div>
+
+      <DefenseAllowlist />
     </PageShell>
   )
 }

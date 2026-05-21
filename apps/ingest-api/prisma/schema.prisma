@@ -157,6 +157,15 @@ model SensorProvisionToken {
   @@map("sensor_provision_tokens")
 }
 
+model DefenseAllowlist {
+  id        String   @id @default(uuid())
+  entry     String   @unique  // IP or CIDR, e.g. "1.2.3.4" or "10.0.0.0/8"
+  label     String   @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("defense_allowlist")
+}
+
 model WebHit {
   id          String   @id @default(uuid())
   eventId     String   @unique @map("event_id")

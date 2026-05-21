@@ -8,7 +8,16 @@ const BRUTE_THRESHOLD = 5
 const SKIP_PATHS      = new Set(['/health'])
 const SKIP_PREFIXES   = ['/sensors/', '/ingest/']
 
-// RFC 1918 private ranges + loopback — never real external attackers
+// ── CIDR utilities ────────────────────────────────────────────────────────────
+function parseCidr(entry: string): { base: number; mask: number } | null {
+  const [addr, bits] = entry.trim().split('/')
+  if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(addr)) return null
+  const base = addr.split('.').reduce((acc, o) => (acc << 8) + parseInt(o, 10), 0) >>> 0
+  const mask = bits ? (~0 << (32 - parseInt(bits))) >>> 0 : 0xffffffff
+  return { base: base & mask, mask }
+}
+
+// RFC 1918 + loopback — always trusted, never stored in DB
 const PRIVATE_CIDRS = [
   { base: 0x0a000000, mask: 0xff000000 }, // 10.0.0.0/8
   { base: 0xac100000, mask: 0xfff00000 }, // 172.16.0.0/12
@@ -16,33 +25,26 @@ const PRIVATE_CIDRS = [
   { base: 0x7f000000, mask: 0xff000000 }, // 127.0.0.0/8
 ]
 
-// DEFENSE_TRUSTED_IPS=1.2.3.4,10.0.1.0/24  (comma-separated IPs or CIDRs)
-function parseCidr(entry: string): { base: number; mask: number } {
-  const [addr, bits] = entry.trim().split('/')
-  const base = addr.split('.').reduce((acc, o) => (acc << 8) + parseInt(o, 10), 0) >>> 0
-  const mask = bits ? (~0 << (32 - parseInt(bits))) >>> 0 : 0xffffffff
-  return { base: base & mask, mask }
-}
+// In-memory allowlist cache — refreshed from DB every 30s
+let allowlistCache: Array<{ base: number; mask: number }> = [...PRIVATE_CIDRS]
 
-const TRUSTED_CIDRS = [
-  ...PRIVATE_CIDRS,
-  ...(process.env.DEFENSE_TRUSTED_IPS ?? '')
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean)
-    .map(parseCidr),
-]
+async function refreshAllowlist(fastify: FastifyInstance) {
+  const rows = await fastify.prisma.$queryRaw<{ entry: string }[]>`
+    SELECT entry FROM defense_allowlist
+  `
+  const dynamic = rows.map(r => parseCidr(r.entry)).filter(Boolean) as Array<{ base: number; mask: number }>
+  allowlistCache = [...PRIVATE_CIDRS, ...dynamic]
+}
 
 function isAllowlisted(ip: string): boolean {
   if (ip === '::1' || ip.startsWith('fc') || ip.startsWith('fd')) return true
-  // handle ::ffff:x.x.x.x (IPv4-mapped IPv6)
   const v4 = ip.startsWith('::ffff:') ? ip.slice(7) : ip
   if (!/^\d+\.\d+\.\d+\.\d+$/.test(v4)) return false
   const n = v4.split('.').reduce((acc, o) => (acc << 8) + parseInt(o, 10), 0) >>> 0
-  return TRUSTED_CIDRS.some(({ base, mask }) => (n & mask) === base)
+  return allowlistCache.some(({ base, mask }) => (n & mask) === base)
 }
 
-// Sliding window per IP for brute-force detection (in-memory, reset on restart)
+// ── Brute-force sliding window ────────────────────────────────────────────────
 const bruteMap = new Map<string, { count: number; windowStart: number }>()
 
 setInterval(() => {
@@ -63,6 +65,7 @@ function trackBrute(ip: string): boolean {
   return e.count >= BRUTE_THRESHOLD
 }
 
+// ── Persist ───────────────────────────────────────────────────────────────────
 async function persist(
   fastify: FastifyInstance,
   srcIp: string, method: string, path: string,
@@ -82,7 +85,12 @@ function shouldSkip(ip: string, path: string): boolean {
     SKIP_PREFIXES.some(p => path.startsWith(p))
 }
 
+// ── Plugin ────────────────────────────────────────────────────────────────────
 export const defensePlugin = fp(async function (fastify: FastifyInstance) {
+  // Load allowlist from DB on startup, then refresh every 30s
+  await refreshAllowlist(fastify).catch(() => {})
+  setInterval(() => refreshAllowlist(fastify).catch(() => {}), 30_000).unref()
+
   fastify.addHook('onRequest', async (request) => {
     const path = (request.raw.url ?? '/').split('?')[0]
     if (shouldSkip(request.ip, path)) return

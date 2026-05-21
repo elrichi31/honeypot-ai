@@ -1,17 +1,18 @@
 import { Prisma } from '@prisma/client'
+import { randomUUID } from 'crypto'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { buildPagination } from '../lib/client-helpers.js'
 
 const VALID_TYPES = new Set(['scanner', 'path_probe', 'injection', 'brute_force'])
 
-type EventRow = {
-  id: string; src_ip: string; method: string; path: string
-  user_agent: string; attack_type: string; details: string
-  status_code: number | null; timestamp: Date
-}
-type TypeCount = { attack_type: string; count: bigint }
-type IpCount   = { src_ip: string; count: bigint }
+// RFC 1918 + loopback — always treated as trusted regardless of allowlist
+const CIDR_RE = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/
+
+type EventRow   = { id: string; src_ip: string; method: string; path: string; user_agent: string; attack_type: string; details: string; status_code: number | null; timestamp: Date }
+type TypeCount  = { attack_type: string; count: bigint }
+type IpCount    = { src_ip: string; count: bigint }
+type AllowRow   = { id: string; entry: string; label: string; created_at: Date }
 
 function mapEvent(r: EventRow) {
   return {
@@ -22,7 +23,12 @@ function mapEvent(r: EventRow) {
   }
 }
 
+function mapAllow(r: AllowRow) {
+  return { id: r.id, entry: r.entry, label: r.label, createdAt: r.created_at }
+}
+
 export async function apiDefenseRoutes(fastify: FastifyInstance) {
+  // ── Events ────────────────────────────────────────────────────────────────
   fastify.get('/api-defense/events', async (request, reply) => {
     const query = z.object({
       page:       z.coerce.number().int().min(1).default(1),
@@ -33,8 +39,7 @@ export async function apiDefenseRoutes(fastify: FastifyInstance) {
     if (!query.success) return reply.status(400).send({ error: 'Invalid query params' })
 
     const { page, pageSize, attackType, ip } = query.data
-    const offset = (page - 1) * pageSize
-
+    const offset    = (page - 1) * pageSize
     const validType = attackType && VALID_TYPES.has(attackType) ? attackType : undefined
     const typeCond  = validType ? Prisma.sql`AND attack_type = ${validType}` : Prisma.sql``
     const ipCond    = ip        ? Prisma.sql`AND src_ip = ${ip}`             : Prisma.sql``
@@ -48,13 +53,12 @@ export async function apiDefenseRoutes(fastify: FastifyInstance) {
         LIMIT ${pageSize} OFFSET ${offset}
       `,
       fastify.prisma.$queryRaw<[{ total: bigint }]>`
-        SELECT COUNT(*) AS total FROM api_defense_events
-        WHERE 1=1 ${typeCond} ${ipCond}
+        SELECT COUNT(*) AS total FROM api_defense_events WHERE 1=1 ${typeCond} ${ipCond}
       `,
     ])
 
     return reply.send({
-      items: rows.map(mapEvent),
+      items:      rows.map(mapEvent),
       pagination: buildPagination(page, pageSize, Number(countRows[0]?.total ?? 0)),
     })
   })
@@ -64,16 +68,12 @@ export async function apiDefenseRoutes(fastify: FastifyInstance) {
 
     const [typeCounts, topIps, totalToday] = await Promise.all([
       fastify.prisma.$queryRaw<TypeCount[]>`
-        SELECT attack_type, COUNT(*)::bigint AS count
-        FROM api_defense_events
-        WHERE timestamp >= ${todayStart}
-        GROUP BY attack_type ORDER BY count DESC
+        SELECT attack_type, COUNT(*)::bigint AS count FROM api_defense_events
+        WHERE timestamp >= ${todayStart} GROUP BY attack_type ORDER BY count DESC
       `,
       fastify.prisma.$queryRaw<IpCount[]>`
-        SELECT src_ip, COUNT(*)::bigint AS count
-        FROM api_defense_events
-        WHERE timestamp >= ${todayStart}
-        GROUP BY src_ip ORDER BY count DESC LIMIT 10
+        SELECT src_ip, COUNT(*)::bigint AS count FROM api_defense_events
+        WHERE timestamp >= ${todayStart} GROUP BY src_ip ORDER BY count DESC LIMIT 10
       `,
       fastify.prisma.$queryRaw<[{ total: bigint }]>`
         SELECT COUNT(*) AS total FROM api_defense_events WHERE timestamp >= ${todayStart}
@@ -81,9 +81,49 @@ export async function apiDefenseRoutes(fastify: FastifyInstance) {
     ])
 
     return reply.send({
-      totalToday:  Number(totalToday[0]?.total ?? 0),
-      byType:      typeCounts.map(r => ({ type: r.attack_type, count: Number(r.count) })),
-      topIps:      topIps.map(r => ({ ip: r.src_ip, count: Number(r.count) })),
+      totalToday: Number(totalToday[0]?.total ?? 0),
+      byType:     typeCounts.map(r => ({ type: r.attack_type, count: Number(r.count) })),
+      topIps:     topIps.map(r => ({ ip: r.src_ip, count: Number(r.count) })),
     })
+  })
+
+  // ── Allowlist ─────────────────────────────────────────────────────────────
+  fastify.get('/api-defense/allowlist', async (_request, reply) => {
+    const rows = await fastify.prisma.$queryRaw<AllowRow[]>`
+      SELECT id, entry, label, created_at FROM defense_allowlist ORDER BY created_at DESC
+    `
+    return reply.send(rows.map(mapAllow))
+  })
+
+  fastify.post('/api-defense/allowlist', async (request, reply) => {
+    const body = z.object({
+      entry: z.string().trim().regex(CIDR_RE, 'Must be a valid IPv4 address or CIDR (e.g. 1.2.3.4 or 1.2.3.0/24)'),
+      label: z.string().trim().max(120).default(''),
+    }).safeParse(request.body)
+    if (!body.success) return reply.status(400).send({ error: body.error.errors[0].message })
+
+    const { entry, label } = body.data
+    const id = randomUUID()
+    try {
+      await fastify.prisma.$executeRaw`
+        INSERT INTO defense_allowlist (id, entry, label) VALUES (${id}, ${entry}, ${label})
+      `
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : ''
+      if (msg.includes('unique') || msg.includes('duplicate')) {
+        return reply.status(409).send({ error: 'Entry already exists' })
+      }
+      throw err
+    }
+    return reply.status(201).send({ id, entry, label, createdAt: new Date() })
+  })
+
+  fastify.delete('/api-defense/allowlist/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const result = await fastify.prisma.$executeRaw`
+      DELETE FROM defense_allowlist WHERE id = ${id}
+    `
+    if (result === 0) return reply.status(404).send({ error: 'Not found' })
+    return reply.status(204).send()
   })
 }
