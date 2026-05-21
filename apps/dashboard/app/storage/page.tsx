@@ -8,13 +8,12 @@ import { IngestionChart } from "@/components/storage/ingestion-chart"
 import { RetentionSettings } from "@/components/storage/retention-settings"
 
 type StatsPayload = {
-  disk:      { totalBytes: number; usedBytes: number; freeBytes: number }
-  db:        { totalBytes: number; tables: { name: string; bytes: number }[] }
-  ingestion: { date: string; ssh: number; web: number; protocol: number; defense: number }[]
+  disk: { totalBytes: number; usedBytes: number; freeBytes: number }
+  db:   { totalBytes: number; tables: { name: string; bytes: number }[] }
 }
 
 export default function StoragePage() {
-  const [stats, setStats]   = useState<StatsPayload | null>(null)
+  const [stats, setStats]     = useState<StatsPayload | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -33,23 +32,23 @@ export default function StoragePage() {
           <h1 className="text-2xl font-semibold text-foreground">Storage</h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          Disk usage, database size, daily ingestion and retention policy.
+          Disk usage, database size, ingestion history and retention policy.
         </p>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-blue-400" />
-        </div>
-      ) : stats ? (
-        <div className="space-y-6">
+      <div className="space-y-6">
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-blue-400" />
+          </div>
+        ) : stats ? (
           <StorageOverview disk={stats.disk} db={stats.db} />
-          <IngestionChart data={stats.ingestion} />
-          <RetentionSettings />
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">Could not load storage stats.</p>
-      )}
+        ) : (
+          <p className="text-sm text-muted-foreground">Could not load storage stats.</p>
+        )}
+        <IngestionChart />
+        <RetentionSettings />
+      </div>
     </PageShell>
   )
 }

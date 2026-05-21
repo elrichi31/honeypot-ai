@@ -1,10 +1,18 @@
 import { statfs } from 'fs/promises'
+import { Prisma } from '@prisma/client'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 
 type TableSize  = { table_name: string; total_bytes: bigint }
-type DayCount   = { day: Date; count: bigint }
+type PeriodCount = { period: Date; count: bigint }
 type AvgRowSize = { table_name: string; avg_bytes: number }
+
+const RANGE_CONFIG = {
+  '24h': { trunc: 'hour',  slots: 24, intervalSql: "24 hours" },
+  '7d':  { trunc: 'day',   slots: 7,  intervalSql: "7 days"   },
+  '30d': { trunc: 'day',   slots: 30, intervalSql: "30 days"  },
+} as const
+type Range = keyof typeof RANGE_CONFIG
 
 async function getDiskStats() {
   try {
@@ -34,13 +42,16 @@ async function getDbStats(fastify: FastifyInstance) {
   }
 }
 
-async function getDailyIngestion(fastify: FastifyInstance) {
-  // Estimate average bytes per row for each table using pg_class stats
+async function getIngestion(fastify: FastifyInstance, range: Range) {
+  const { trunc, slots, intervalSql } = RANGE_CONFIG[range]
+  const truncSql    = Prisma.raw(trunc)
+  const intervalRaw = Prisma.raw(`'${intervalSql}'`)
+
+  // Average bytes per row
   const avgRows = await fastify.prisma.$queryRaw<AvgRowSize[]>`
-    SELECT
-      c.relname AS table_name,
+    SELECT c.relname AS table_name,
       CASE WHEN c.reltuples > 0
-        THEN (pg_total_relation_size(c.oid)::float / c.reltuples)
+        THEN pg_total_relation_size(c.oid)::float / c.reltuples
         ELSE 512
       END AS avg_bytes
     FROM pg_class c
@@ -48,44 +59,47 @@ async function getDailyIngestion(fastify: FastifyInstance) {
     WHERE n.nspname = 'public'
       AND c.relname IN ('events', 'web_hits', 'protocol_hits', 'api_defense_events')
   `
-  const avgMap: Record<string, number> = {}
-  for (const r of avgRows) avgMap[r.table_name] = r.avg_bytes
+  const avg: Record<string, number> = {}
+  for (const r of avgRows) avg[r.table_name] = r.avg_bytes
 
   const [ssh, web, protocol, defense] = await Promise.all([
-    fastify.prisma.$queryRaw<DayCount[]>`
-      SELECT date_trunc('day', event_ts) AS day, COUNT(*)::bigint AS count
-      FROM events WHERE event_ts >= NOW() - INTERVAL '14 days'
-      GROUP BY day ORDER BY day
-    `,
-    fastify.prisma.$queryRaw<DayCount[]>`
-      SELECT date_trunc('day', timestamp) AS day, COUNT(*)::bigint AS count
-      FROM web_hits WHERE timestamp >= NOW() - INTERVAL '14 days'
-      GROUP BY day ORDER BY day
-    `,
-    fastify.prisma.$queryRaw<DayCount[]>`
-      SELECT date_trunc('day', timestamp) AS day, COUNT(*)::bigint AS count
-      FROM protocol_hits WHERE timestamp >= NOW() - INTERVAL '14 days'
-      GROUP BY day ORDER BY day
-    `,
-    fastify.prisma.$queryRaw<DayCount[]>`
-      SELECT date_trunc('day', timestamp) AS day, COUNT(*)::bigint AS count
-      FROM api_defense_events WHERE timestamp >= NOW() - INTERVAL '14 days'
-      GROUP BY day ORDER BY day
-    `,
+    fastify.prisma.$queryRaw<PeriodCount[]>(Prisma.sql`
+      SELECT date_trunc(${trunc}, event_ts) AS period, COUNT(*)::bigint AS count
+      FROM events WHERE event_ts >= NOW() - INTERVAL ${intervalRaw}
+      GROUP BY period ORDER BY period`),
+    fastify.prisma.$queryRaw<PeriodCount[]>(Prisma.sql`
+      SELECT date_trunc(${trunc}, timestamp) AS period, COUNT(*)::bigint AS count
+      FROM web_hits WHERE timestamp >= NOW() - INTERVAL ${intervalRaw}
+      GROUP BY period ORDER BY period`),
+    fastify.prisma.$queryRaw<PeriodCount[]>(Prisma.sql`
+      SELECT date_trunc(${trunc}, timestamp) AS period, COUNT(*)::bigint AS count
+      FROM protocol_hits WHERE timestamp >= NOW() - INTERVAL ${intervalRaw}
+      GROUP BY period ORDER BY period`),
+    fastify.prisma.$queryRaw<PeriodCount[]>(Prisma.sql`
+      SELECT date_trunc(${trunc}, timestamp) AS period, COUNT(*)::bigint AS count
+      FROM api_defense_events WHERE timestamp >= NOW() - INTERVAL ${intervalRaw}
+      GROUP BY period ORDER BY period`),
   ])
 
-  // Build map for last 14 days — values in bytes
-  const days: Record<string, { ssh: number; web: number; protocol: number; defense: number }> = {}
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0, 0, 0, 0)
-    days[d.toISOString().slice(0, 10)] = { ssh: 0, web: 0, protocol: 0, defense: 0 }
+  // Build complete time series with zeros
+  const buckets: Record<string, { ssh: number; web: number; protocol: number; defense: number }> = {}
+  const now = new Date()
+  for (let i = slots - 1; i >= 0; i--) {
+    const d = new Date(now)
+    if (trunc === 'hour') { d.setMinutes(0, 0, 0); d.setHours(d.getHours() - i) }
+    else                  { d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i) }
+    buckets[d.toISOString()] = { ssh: 0, web: 0, protocol: 0, defense: 0 }
   }
 
-  const fill = (rows: DayCount[], key: 'ssh' | 'web' | 'protocol' | 'defense', table: string) => {
-    const avg = avgMap[table] ?? 512
+  const fill = (rows: PeriodCount[], key: 'ssh' | 'web' | 'protocol' | 'defense', table: string) => {
+    const a = avg[table] ?? 512
     for (const r of rows) {
-      const k = new Date(r.day).toISOString().slice(0, 10)
-      if (days[k]) days[k][key] = Math.round(Number(r.count) * avg)
+      // Match to the closest bucket key
+      const d = new Date(r.period)
+      if (trunc === 'hour') { d.setMinutes(0, 0, 0) }
+      else                  { d.setHours(0, 0, 0, 0) }
+      const k = d.toISOString()
+      if (buckets[k]) buckets[k][key] = Math.round(Number(r.count) * a)
     }
   }
   fill(ssh,      'ssh',      'events')
@@ -93,17 +107,22 @@ async function getDailyIngestion(fastify: FastifyInstance) {
   fill(protocol, 'protocol', 'protocol_hits')
   fill(defense,  'defense',  'api_defense_events')
 
-  return Object.entries(days).map(([date, v]) => ({ date, ...v }))
+  return Object.entries(buckets).map(([period, v]) => ({ period, ...v }))
 }
 
 export async function storageRoutes(fastify: FastifyInstance) {
   fastify.get('/storage/stats', async (_request, reply) => {
-    const [disk, db, ingestion] = await Promise.all([
-      getDiskStats(),
-      getDbStats(fastify),
-      getDailyIngestion(fastify),
-    ])
-    return reply.send({ disk, db, ingestion })
+    const [disk, db] = await Promise.all([getDiskStats(), getDbStats(fastify)])
+    return reply.send({ disk, db })
+  })
+
+  fastify.get('/storage/ingestion', async (request, reply) => {
+    const q = z.object({
+      range: z.enum(['24h', '7d', '30d']).default('7d'),
+    }).safeParse(request.query)
+    if (!q.success) return reply.status(400).send({ error: 'Invalid range' })
+    const data = await getIngestion(fastify, q.data.range)
+    return reply.send(data)
   })
 
   fastify.get('/storage/retention', async (_request, reply) => {
