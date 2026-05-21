@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto'
+import fp from 'fastify-plugin'
 import type { FastifyInstance } from 'fastify'
 import { classifyRequest, type DetectionResult } from '../lib/attack-detector.js'
 
@@ -40,7 +41,7 @@ async function persist(
   `
 }
 
-export async function defensePlugin(fastify: FastifyInstance) {
+export const defensePlugin = fp(async function (fastify: FastifyInstance) {
   fastify.addHook('onRequest', async (request) => {
     const path = (request.raw.url ?? '/').split('?')[0]
     if (SKIP_PATHS.has(path)) return
@@ -66,4 +67,4 @@ export async function defensePlugin(fastify: FastifyInstance) {
       }, reply.statusCode).catch(() => {})
     }
   })
-}
+})
