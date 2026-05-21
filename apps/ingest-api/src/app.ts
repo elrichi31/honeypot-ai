@@ -12,6 +12,8 @@ import { liveRoutes } from './routes/live.js';
 import { protocolRoutes } from './routes/protocol.js'
 import { clientRoutes } from './routes/clients.js';
 import { clientObservabilityRoutes } from './routes/client-observability.js';
+import { apiDefenseRoutes } from './routes/api-defense.js';
+import { defensePlugin } from './plugins/defense.js';
 import { sensorRoutes } from './routes/sensors.js';
 import { attacksTodayRoutes } from './routes/attacksToday.js';
 import { sensorProvisionRoutes } from './routes/sensor-provision.js'
@@ -22,6 +24,7 @@ export async function buildApp() {
 
   await app.register(cors, { origin: true });
   await app.register(prismaPlugin);
+  await app.register(defensePlugin);
   await app.register(healthRoutes);
   await app.register(ingestRoutes);
   await app.register(sessionRoutes);
@@ -33,6 +36,7 @@ export async function buildApp() {
   await app.register(protocolRoutes);
   await app.register(clientRoutes);
   await app.register(clientObservabilityRoutes);
+  await app.register(apiDefenseRoutes);
   await app.register(sensorRoutes);
   await app.register(attacksTodayRoutes);
   await app.register(sensorProvisionRoutes);

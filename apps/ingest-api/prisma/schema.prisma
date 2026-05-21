@@ -123,6 +123,24 @@ model Client {
   @@map("clients")
 }
 
+model ApiDefenseEvent {
+  id         String   @id @default(uuid())
+  srcIp      String   @map("src_ip")
+  method     String
+  path       String
+  userAgent  String   @default("") @map("user_agent")
+  attackType String   @map("attack_type")
+  details    Json     @default("{}")
+  statusCode Int?     @map("status_code")
+  timestamp  DateTime @default(now())
+
+  @@index([srcIp])
+  @@index([attackType])
+  @@index([timestamp(sort: Desc)])
+  @@index([srcIp, timestamp(sort: Desc)])
+  @@map("api_defense_events")
+}
+
 model SensorProvisionToken {
   id        String    @id @default(cuid())
   token     String    @unique

@@ -81,8 +81,9 @@ const navSections = [
     title: "Intelligence",
     icon: Layers3,
     items: [
-      { title: "Threats", href: "/threats", icon: ShieldAlert },
-      { title: "Malware", href: "/malware", icon: Biohazard },
+      { title: "Threats",     href: "/threats",      icon: ShieldAlert },
+      { title: "Malware",     href: "/malware",      icon: Biohazard   },
+      { title: "API Defense", href: "/api-defense",  icon: Radar       },
     ],
   },
   {
