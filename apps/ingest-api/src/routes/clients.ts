@@ -343,14 +343,14 @@ export async function clientRoutes(fastify: FastifyInstance) {
       `,
       fastify.prisma.$queryRaw<[{ total: bigint }]>`
         SELECT COUNT(*) AS total FROM (
-          SELECT src_ip, event_type, username, command FROM events e
+          SELECT e.src_ip, e.event_type, e.username, e.command FROM events e
           JOIN sessions s ON s.id = e.session_id
           WHERE s.sensor_id IN (${Prisma.join(sensorIds)}) AND ${wantSsh}
           UNION ALL
-          SELECT src_ip, event_type, username, (data->>'command') AS command FROM protocol_hits ph
+          SELECT ph.src_ip, ph.event_type, ph.username, (ph.data->>'command') AS command FROM protocol_hits ph
           WHERE ph.sensor_id IN (${Prisma.join(sensorIds)}) AND ${wantProtocol}
           UNION ALL
-          SELECT src_ip, attack_type AS event_type, NULL AS username, path AS command FROM web_hits wh
+          SELECT wh.src_ip, wh.attack_type AS event_type, NULL AS username, wh.path AS command FROM web_hits wh
           WHERE wh.sensor_id IN (${Prisma.join(sensorIds)}) AND ${wantWeb}
         ) AS t
         WHERE 1=1 ${ipCond} ${qCond}
