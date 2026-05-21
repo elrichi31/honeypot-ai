@@ -7,6 +7,8 @@ const PAGE_SIZE_OPTIONS = new Set(["50", "100", "200"])
 
 const VALID_ACTORS = new Set(["all", "bot", "human", "unknown"])
 
+const VALID_SORT_DIR = new Set(["asc", "desc"])
+
 export default async function SessionsPage({
   searchParams,
 }: {
@@ -16,6 +18,7 @@ export default async function SessionsPage({
     q?: string
     tab?: string
     actor?: string
+    sortDir?: string
   }>
 }) {
   const params = await searchParams
@@ -24,6 +27,7 @@ export default async function SessionsPage({
   const tab = params.tab === "scans" ? "scans" : "sessions"
   const q = params.q?.trim() || undefined
   const actor = VALID_ACTORS.has(params.actor ?? "") ? params.actor as "all" | "bot" | "human" | "unknown" : undefined
+  const sortDir = VALID_SORT_DIR.has(params.sortDir ?? "") ? (params.sortDir as "asc" | "desc") : "desc"
 
   const sessionPage = await (
     tab === "scans"
@@ -38,6 +42,7 @@ export default async function SessionsPage({
           q,
           outcome: "compromised",
           actor,
+          sortDir,
         })
   )
   const sessions = sessionPage.items

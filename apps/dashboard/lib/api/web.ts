@@ -29,11 +29,15 @@ export async function fetchWebPaths(): Promise<{
 
 export async function fetchWebHitsByIpPage(params?: {
   page?: number; pageSize?: number; limit?: number; offset?: number; q?: string
+  sortBy?: 'totalHits' | 'lastSeen' | 'firstSeen'
+  sortDir?: 'asc' | 'desc'
 }): Promise<PaginatedResponse<WebHitByIp>> {
   const sp = buildSearchParams({
     page: params?.page, pageSize: params?.pageSize,
     limit: params?.limit, offset: params?.offset, q: params?.q,
   })
+  if (params?.sortBy) sp.set('sortBy', params.sortBy)
+  if (params?.sortDir) sp.set('sortDir', params.sortDir)
   return apiFetch(`${getApiUrl()}/web-hits/by-ip?${sp}`)
 }
 

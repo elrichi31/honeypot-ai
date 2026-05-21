@@ -25,6 +25,8 @@ const webHitSchema = z.object({
 
 const byIpQuerySchema = basePaginationSchema.extend({
   q: z.string().trim().min(1).optional(),
+  sortBy: z.enum(['totalHits', 'lastSeen', 'firstSeen']).default('totalHits'),
+  sortDir: z.enum(['asc', 'desc']).default('desc'),
 });
 
 type WebHitsByIpRow = {
@@ -426,6 +428,10 @@ export async function webRoutes(fastify: FastifyInstance) {
 
     const { page, pageSize, offset } = getPagination(parsed.data);
     const whereSql = buildByIpWhereSql(parsed.data.q);
+    const orderCol = parsed.data.sortBy === 'lastSeen' ? Prisma.sql`last_seen`
+                   : parsed.data.sortBy === 'firstSeen' ? Prisma.sql`first_seen`
+                   : Prisma.sql`total_hits`
+    const orderDir = parsed.data.sortDir === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`
 
     const [countRows, rows] = await Promise.all([
       fastify.prisma.$queryRaw<Array<{ total: number }>>`
@@ -458,7 +464,7 @@ export async function webRoutes(fastify: FastifyInstance) {
         )
         SELECT *
         FROM grouped_hits
-        ORDER BY total_hits DESC, last_seen DESC
+        ORDER BY ${orderCol} ${orderDir}, last_seen DESC
         LIMIT ${pageSize}
         OFFSET ${offset}
       `,

@@ -7,6 +7,8 @@ const threatListQuerySchema = basePaginationSchema.extend({
   q: z.string().trim().min(1).optional(),
   level: z.enum(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO']).optional(),
   crossProtocol: z.coerce.boolean().optional(),
+  sortBy: z.enum(['score', 'sessions', 'webHits', 'protocols']).default('score'),
+  sortDir: z.enum(['asc', 'desc']).default('desc'),
 })
 
 type SshAggRow = {
@@ -320,7 +322,14 @@ export async function threatRoutes(fastify: FastifyInstance) {
       }),
     )
 
-    threats.sort((a, b) => b.score - a.score)
+    threats.sort((a, b) => {
+      let cmp = 0
+      if (parsed.data.sortBy === 'sessions') cmp = (a.ssh?.sessions ?? 0) - (b.ssh?.sessions ?? 0)
+      else if (parsed.data.sortBy === 'webHits') cmp = (a.web?.hits ?? 0) - (b.web?.hits ?? 0)
+      else if (parsed.data.sortBy === 'protocols') cmp = a.protocolsSeen.length - b.protocolsSeen.length
+      else cmp = a.score - b.score
+      return parsed.data.sortDir === 'asc' ? cmp : -cmp
+    })
 
     const filteredThreats = threats.filter((threat) => {
       if (search && !threat.ip.toLowerCase().includes(search)) return false

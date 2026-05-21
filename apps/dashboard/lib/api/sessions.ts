@@ -21,6 +21,7 @@ export async function fetchSessionsPage(params?: {
   page?: number; pageSize?: number; limit?: number; offset?: number
   q?: string; outcome?: "all" | "compromised" | "blocked"
   actor?: "all" | "bot" | "human" | "unknown"; startDate?: string; endDate?: string
+  sortDir?: 'asc' | 'desc'
 }): Promise<PaginatedSessionsResponse> {
   const sp = buildSearchParams({
     page: params?.page, pageSize: params?.pageSize, limit: params?.limit,
@@ -28,6 +29,7 @@ export async function fetchSessionsPage(params?: {
     startDate: params?.startDate, endDate: params?.endDate,
   })
   if (params?.actor && params.actor !== "all") sp.set("actor", params.actor)
+  if (params?.sortDir) sp.set("sortDir", params.sortDir)
   return apiFetch(`${getApiUrl()}/sessions?${sp}`)
 }
 

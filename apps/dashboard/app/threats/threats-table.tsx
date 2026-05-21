@@ -1,6 +1,8 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import Link from "next/link"
+import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { TableShell } from "@/components/table-shell"
 import type { PaginationMeta, ThreatSummary } from "@/lib/api"
 import { LEVEL_STYLES, CMD_COLORS, CMD_LABELS_SHORT as CMD_LABELS } from "@/lib/attack-types"
@@ -33,14 +35,38 @@ const PROTOCOL_STYLES: Record<string, string> = {
   mqtt: "border-teal-500/20 bg-teal-500/10 text-teal-400",
 }
 
+function SortableTh({ label, column, sortBy, sortDir, searchParams }: {
+  label: string; column: string; sortBy: string; sortDir: string; searchParams: URLSearchParams
+}) {
+  const isActive = sortBy === column
+  const nextDir = isActive && sortDir === "desc" ? "asc" : "desc"
+  const params = new URLSearchParams(searchParams.toString())
+  params.set("sortBy", column)
+  params.set("sortDir", nextDir)
+  params.delete("page")
+  return (
+    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">
+      <Link href={`/threats?${params}`} className="inline-flex items-center gap-1 hover:text-foreground transition-colors">
+        {label}
+        {isActive ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+      </Link>
+    </th>
+  )
+}
+
 export function ThreatsTable({
   threats,
   pagination,
+  sortBy = "score",
+  sortDir = "desc",
 }: {
   threats: ThreatSummary[]
   pagination?: PaginationMeta
+  sortBy?: string
+  sortDir?: string
 }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   return (
     <TableShell
@@ -60,8 +86,8 @@ export function ThreatsTable({
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">#</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">IP</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Nivel</th>
-                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Score</th>
-                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Protocolos</th>
+                <SortableTh label="Score" column="score" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} />
+                <SortableTh label="Protocolos" column="protocols" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} />
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Comandos detectados</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Top factores</th>
               </tr>

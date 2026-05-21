@@ -4,6 +4,8 @@ import type { ThreatSummary, ThreatDetail, PaginatedThreatsResponse, RiskLevel }
 export async function fetchThreatsPage(params?: {
   page?: number; pageSize?: number; limit?: number; offset?: number
   q?: string; level?: RiskLevel; crossProtocol?: boolean
+  sortBy?: 'score' | 'sessions' | 'webHits' | 'protocols'
+  sortDir?: 'asc' | 'desc'
 }): Promise<PaginatedThreatsResponse> {
   const sp = buildSearchParams({
     page: params?.page, pageSize: params?.pageSize,
@@ -11,6 +13,8 @@ export async function fetchThreatsPage(params?: {
     q: params?.q, level: params?.level,
   })
   if (params?.crossProtocol !== undefined) sp.set("crossProtocol", String(params.crossProtocol))
+  if (params?.sortBy) sp.set("sortBy", params.sortBy)
+  if (params?.sortDir) sp.set("sortDir", params.sortDir)
   return apiFetch(`${getApiUrl()}/threats?${sp}`)
 }
 

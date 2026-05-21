@@ -11,6 +11,7 @@ const sessionListQuerySchema = basePaginationSchema.extend({
   q: z.string().trim().min(1).optional(),
   outcome: z.enum(['all', 'compromised', 'blocked']).optional(),
   actor: z.enum(['all', 'bot', 'human', 'unknown']).optional(),
+  sortDir: z.enum(['asc', 'desc']).default('desc'),
 });
 
 type SessionSummaryRow = {
@@ -191,7 +192,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
             s.updated_at AS "updatedAt"
           FROM sessions s
           ${buildWhereSql(listClauses)}
-          ORDER BY s.started_at DESC
+          ORDER BY s.started_at ${parsed.data.sortDir === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`}
           LIMIT ${pageSize}
           OFFSET ${offset}
         ),
@@ -232,7 +233,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
         FROM paged_sessions ps
         LEFT JOIN event_counts ec ON ec.session_id = ps.id
         LEFT JOIN attack_tags at ON at.session_id = ps.id
-        ORDER BY ps."startedAt" DESC
+        ORDER BY ps."startedAt" ${parsed.data.sortDir === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`}
       `,
     ]);
 

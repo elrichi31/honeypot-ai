@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Search } from "lucide-react"
+import { Search, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { fetchWebHitsByIpPage, fetchWebHitsStats } from "@/lib/api"
 import { PageShell } from "@/components/page-shell"
 import { lookupIp } from "@/lib/geo"
@@ -8,7 +8,29 @@ import { WebAttacksNav } from "@/components/web-attacks-nav"
 import { ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
 import { TablePagination } from "@/components/table-pagination"
 
+function SortableWebTh({
+  label, column, sortBy, sortDir, q, pageSize,
+}: {
+  label: string; column: string; sortBy: string; sortDir: string; q?: string; pageSize: number
+}) {
+  const isActive = sortBy === column
+  const nextDir = isActive && sortDir === "desc" ? "asc" : "desc"
+  const params = new URLSearchParams({ sortBy: column, sortDir: nextDir, pageSize: String(pageSize) })
+  if (q) params.set("q", q)
+  return (
+    <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+      <Link href={`/web-attacks?${params}`} className="inline-flex items-center gap-1 hover:text-foreground transition-colors">
+        {label}
+        {isActive ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+      </Link>
+    </th>
+  )
+}
+
 const PAGE_SIZE_OPTIONS = new Set(["50", "100", "200"])
+
+const VALID_WEB_SORT_BY = new Set(["totalHits", "lastSeen", "firstSeen"])
+const VALID_SORT_DIR = new Set(["asc", "desc"])
 
 export default async function WebAttacksPage({
   searchParams,
@@ -17,15 +39,19 @@ export default async function WebAttacksPage({
     page?: string
     pageSize?: string
     q?: string
+    sortBy?: string
+    sortDir?: string
   }>
 }) {
   const params = await searchParams
   const page = Number(params.page ?? "1")
   const pageSize = PAGE_SIZE_OPTIONS.has(params.pageSize ?? "") ? Number(params.pageSize) : 50
   const q = params.q?.trim() || undefined
+  const sortBy = VALID_WEB_SORT_BY.has(params.sortBy ?? "") ? (params.sortBy as "totalHits" | "lastSeen" | "firstSeen") : "totalHits"
+  const sortDir = VALID_SORT_DIR.has(params.sortDir ?? "") ? (params.sortDir as "asc" | "desc") : "desc"
 
   const [attackersPage, stats] = await Promise.all([
-    fetchWebHitsByIpPage({ page, pageSize, q }),
+    fetchWebHitsByIpPage({ page, pageSize, q, sortBy, sortDir }),
     fetchWebHitsStats(),
   ])
 
@@ -48,6 +74,8 @@ export default async function WebAttacksPage({
       <div className="mb-6 rounded-xl border border-border bg-card p-4">
         <form className="flex flex-wrap items-center gap-3">
           <input type="hidden" name="pageSize" value={String(attackersPage.pagination.pageSize)} />
+          <input type="hidden" name="sortBy" value={sortBy} />
+          <input type="hidden" name="sortDir" value={sortDir} />
           <div className="relative min-w-[320px] flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -66,7 +94,7 @@ export default async function WebAttacksPage({
           </button>
           {q && (
             <Link
-              href={`/web-attacks?pageSize=${attackersPage.pagination.pageSize}`}
+              href={`/web-attacks?pageSize=${attackersPage.pagination.pageSize}&sortBy=${sortBy}&sortDir=${sortDir}`}
               className="inline-flex h-10 items-center rounded-md border border-border px-4 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             >
               Limpiar
@@ -114,11 +142,11 @@ export default async function WebAttacksPage({
             <thead>
               <tr className="border-b border-border bg-muted/30">
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">IP atacante</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Hits</th>
+                <SortableWebTh label="Hits" column="totalHits" sortBy={sortBy} sortDir={sortDir} q={q} pageSize={pageSize} />
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Tipos de ataque</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Paths principales</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Primer hit</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Ultimo hit</th>
+                <SortableWebTh label="Primer hit" column="firstSeen" sortBy={sortBy} sortDir={sortDir} q={q} pageSize={pageSize} />
+                <SortableWebTh label="Ultimo hit" column="lastSeen" sortBy={sortBy} sortDir={sortDir} q={q} pageSize={pageSize} />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">

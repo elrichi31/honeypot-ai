@@ -6,6 +6,9 @@ import { ThreatsTable } from "./threats-table"
 
 const PAGE_SIZE_OPTIONS = new Set(["50", "100", "200"])
 
+const VALID_THREAT_SORT_BY = new Set(["score", "sessions", "webHits", "protocols"])
+const VALID_SORT_DIR = new Set(["asc", "desc"])
+
 export default async function ThreatsPage({
   searchParams,
 }: {
@@ -13,16 +16,20 @@ export default async function ThreatsPage({
     page?: string
     pageSize?: string
     q?: string
+    sortBy?: string
+    sortDir?: string
   }>
 }) {
   const params = await searchParams
   const page = Number(params.page ?? "1")
   const pageSize = PAGE_SIZE_OPTIONS.has(params.pageSize ?? "") ? Number(params.pageSize) : 50
   const q = params.q?.trim() || undefined
+  const sortBy = VALID_THREAT_SORT_BY.has(params.sortBy ?? "") ? (params.sortBy as "score" | "sessions" | "webHits" | "protocols") : "score"
+  const sortDir = VALID_SORT_DIR.has(params.sortDir ?? "") ? (params.sortDir as "asc" | "desc") : "desc"
 
   let pageData
   try {
-    pageData = await fetchThreatsPage({ page, pageSize, q })
+    pageData = await fetchThreatsPage({ page, pageSize, q, sortBy, sortDir })
   } catch {
     pageData = {
       items: [],
@@ -53,6 +60,8 @@ export default async function ThreatsPage({
       <div className="mb-6 rounded-xl border border-border bg-card p-4">
         <form className="flex flex-wrap items-center gap-3">
           <input type="hidden" name="pageSize" value={String(pageData.pagination.pageSize)} />
+          <input type="hidden" name="sortBy" value={sortBy} />
+          <input type="hidden" name="sortDir" value={sortDir} />
           <div className="relative min-w-[320px] flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -71,7 +80,7 @@ export default async function ThreatsPage({
           </button>
           {q && (
             <Link
-              href={`/threats?pageSize=${pageData.pagination.pageSize}`}
+              href={`/threats?pageSize=${pageData.pagination.pageSize}&sortBy=${sortBy}&sortDir=${sortDir}`}
               className="inline-flex h-10 items-center rounded-md border border-border px-4 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             >
               Limpiar
@@ -102,7 +111,7 @@ export default async function ThreatsPage({
         </div>
       </div>
 
-      <ThreatsTable threats={pageData.items} pagination={pageData.pagination} />
+      <ThreatsTable threats={pageData.items} pagination={pageData.pagination} sortBy={sortBy} sortDir={sortDir} />
     </PageShell>
   )
 }
