@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { formatTs, formatDuration } from "@/lib/formatting"
 
 type SessionEvent = {
   id: string
@@ -43,20 +44,6 @@ type Props = {
   onClose: () => void
 }
 
-function formatTs(ts: string) {
-  const d = new Date(ts)
-  return (
-    d.toLocaleDateString(undefined, { month: "2-digit", day: "2-digit", year: "2-digit" }) +
-    " " +
-    d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
-  )
-}
-
-function formatDuration(sec: number | null) {
-  if (!sec) return "—"
-  if (sec < 60) return `${sec}s`
-  return `${Math.floor(sec / 60)}m ${sec % 60}s`
-}
 
 const EVENT_COLOR: Record<string, string> = {
   "cowrie.login.success":  "text-red-400",
@@ -134,7 +121,7 @@ export function ClientSessionModal({ sessionId, onClose }: Props) {
                 {[
                   { icon: User,  label: "Username", value: session.username ?? "—" },
                   { icon: Key,   label: "Password",  value: session.password ?? "—" },
-                  { icon: Clock, label: "Duration",  value: formatDuration(session.durationSec) },
+                  { icon: Clock, label: "Duration",  value: session.durationSec != null ? formatDuration(session.durationSec) : "—" },
                   { icon: Cpu,   label: "Client",    value: session.clientVersion ?? "—" },
                   { icon: Terminal, label: "HASSH",  value: session.hassh ? session.hassh.slice(0, 16) + "…" : "—" },
                   { icon: Clock, label: "Started",   value: formatTs(session.startedAt) },

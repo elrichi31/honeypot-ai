@@ -4,14 +4,7 @@ import { useState } from "react"
 import { Loader2, MapPin, Building2, Globe, ShieldAlert, ShieldCheck, Wifi, Lock } from "lucide-react"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import type { IpEnrichment } from "@/app/api/enrich/[ip]/route"
-
-// ── small flag emoji from country code ──────────────────────────────────────
-function countryFlag(code: string) {
-  if (!code || code.length !== 2) return ""
-  return String.fromCodePoint(
-    ...code.toUpperCase().split("").map(c => 0x1f1e6 + c.charCodeAt(0) - 65)
-  )
-}
+import { countryFlag } from "@/lib/formatting"
 
 // ── score colour ─────────────────────────────────────────────────────────────
 function scoreColor(score: number) {

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { ShieldAlert, ShieldCheck, Skull, AlertTriangle, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { IpEnrichmentPopover } from "@/components/ip-enrichment-popover"
+import { formatTs } from "@/lib/formatting"
 
 type ThreatEntry = {
   srcIp: string
@@ -43,11 +44,6 @@ const SOURCE_PILL: Record<string, string> = {
   web:      "bg-green-400/15 text-green-400",
 }
 
-function formatTs(ts: string) {
-  const d = new Date(ts)
-  return d.toLocaleDateString(undefined, { month: "2-digit", day: "2-digit", year: "2-digit" }) +
-    " " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
-}
 
 type Props = { clientSlug: string }
 
