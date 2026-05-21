@@ -1,10 +1,10 @@
 import { statfs } from 'fs/promises'
-import { Prisma } from '@prisma/client'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 
-type TableSize = { table_name: string; total_bytes: bigint }
-type DayCount  = { day: Date; count: bigint }
+type TableSize  = { table_name: string; total_bytes: bigint }
+type DayCount   = { day: Date; count: bigint }
+type AvgRowSize = { table_name: string; avg_bytes: number }
 
 async function getDiskStats() {
   try {
@@ -35,6 +35,22 @@ async function getDbStats(fastify: FastifyInstance) {
 }
 
 async function getDailyIngestion(fastify: FastifyInstance) {
+  // Estimate average bytes per row for each table using pg_class stats
+  const avgRows = await fastify.prisma.$queryRaw<AvgRowSize[]>`
+    SELECT
+      c.relname AS table_name,
+      CASE WHEN c.reltuples > 0
+        THEN (pg_total_relation_size(c.oid)::float / c.reltuples)
+        ELSE 512
+      END AS avg_bytes
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relname IN ('events', 'web_hits', 'protocol_hits', 'api_defense_events')
+  `
+  const avgMap: Record<string, number> = {}
+  for (const r of avgRows) avgMap[r.table_name] = r.avg_bytes
+
   const [ssh, web, protocol, defense] = await Promise.all([
     fastify.prisma.$queryRaw<DayCount[]>`
       SELECT date_trunc('day', event_ts) AS day, COUNT(*)::bigint AS count
@@ -58,20 +74,24 @@ async function getDailyIngestion(fastify: FastifyInstance) {
     `,
   ])
 
-  // Build a map for the last 14 days, fill in zeros for missing days
+  // Build map for last 14 days — values in bytes
   const days: Record<string, { ssh: number; web: number; protocol: number; defense: number }> = {}
   for (let i = 13; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0, 0, 0, 0)
     days[d.toISOString().slice(0, 10)] = { ssh: 0, web: 0, protocol: 0, defense: 0 }
   }
 
-  const fill = (rows: DayCount[], key: 'ssh' | 'web' | 'protocol' | 'defense') => {
+  const fill = (rows: DayCount[], key: 'ssh' | 'web' | 'protocol' | 'defense', table: string) => {
+    const avg = avgMap[table] ?? 512
     for (const r of rows) {
       const k = new Date(r.day).toISOString().slice(0, 10)
-      if (days[k]) days[k][key] = Number(r.count)
+      if (days[k]) days[k][key] = Math.round(Number(r.count) * avg)
     }
   }
-  fill(ssh, 'ssh'); fill(web, 'web'); fill(protocol, 'protocol'); fill(defense, 'defense')
+  fill(ssh,      'ssh',      'events')
+  fill(web,      'web',      'web_hits')
+  fill(protocol, 'protocol', 'protocol_hits')
+  fill(defense,  'defense',  'api_defense_events')
 
   return Object.entries(days).map(([date, v]) => ({ date, ...v }))
 }

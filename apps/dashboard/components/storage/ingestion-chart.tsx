@@ -11,6 +11,13 @@ const SERIES = [
   { key: "defense",  label: "Defense",  color: "#f87171" },
 ] as const
 
+function fmtBytes(bytes: number): string {
+  if (bytes === 0) return "0 B"
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
 function shortDate(iso: string) {
   const [, m, d] = iso.split("-")
   return `${d}/${m}`
@@ -26,11 +33,11 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
         <div key={p.name} className="flex items-center gap-2">
           <span className="h-1.5 w-1.5 rounded-full inline-block" style={{ background: p.color }} />
           <span className="text-muted-foreground">{p.name}:</span>
-          <span className="tabular-nums text-foreground">{p.value.toLocaleString()}</span>
+          <span className="tabular-nums text-foreground">{fmtBytes(p.value)}</span>
         </div>
       ))}
       <div className="mt-1 border-t border-border/50 pt-1 font-medium text-foreground">
-        Total: {total.toLocaleString()}
+        Total: {fmtBytes(total)}
       </div>
     </div>
   )
@@ -42,16 +49,25 @@ export function IngestionChart({ data }: { data: DayEntry[] }) {
   return (
     <div className="rounded-xl border border-border bg-card px-4 pt-4 pb-2">
       <p className="text-sm font-semibold text-foreground mb-1">Daily Ingestion</p>
-      <p className="text-[11px] text-muted-foreground mb-4">Events ingested per day — last 14 days</p>
+      <p className="text-[11px] text-muted-foreground mb-4">Estimated storage written per day — last 14 days</p>
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={display}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-          <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={40} />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+            axisLine={false} tickLine={false}
+          />
+          <YAxis
+            tickFormatter={fmtBytes}
+            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+            axisLine={false} tickLine={false}
+            width={56}
+          />
           <Tooltip content={<CustomTooltip />} cursor={{ stroke: "rgba(255,255,255,0.1)" }} />
           <Legend
             iconType="circle" iconSize={6}
-            formatter={(v) => <span style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>{v}</span>}
+            formatter={v => <span style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>{v}</span>}
           />
           {SERIES.map(s => (
             <Line
