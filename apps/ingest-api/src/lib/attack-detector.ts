@@ -9,7 +9,7 @@ const SCANNER_UA_FRAGMENTS = [
   'nuclei', 'sqlmap', 'nikto', 'masscan', 'zgrab', 'gobuster', 'dirbuster',
   'dirb/', 'wfuzz', 'hydra', 'metasploit', 'burp', 'nessus', 'openvas',
   'zap/', 'acunetix', 'netsparker', 'skipfish', 'arachni', 'w3af',
-  'nmap', 'shodan', 'censys', 'python-requests/2', 'go-http-client/1',
+  'nmap', 'shodan', 'censys',
 ]
 
 const SENSITIVE_PATH_PREFIXES = [

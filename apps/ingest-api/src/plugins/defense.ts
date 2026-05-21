@@ -6,6 +6,7 @@ import { classifyRequest, type DetectionResult } from '../lib/attack-detector.js
 const BRUTE_WINDOW_MS = 60_000
 const BRUTE_THRESHOLD = 5
 const SKIP_PATHS      = new Set(['/health'])
+const SKIP_PREFIXES   = ['/sensors/']
 
 // Sliding window per IP for brute-force detection (in-memory, reset on restart)
 const bruteMap = new Map<string, { count: number; windowStart: number }>()
@@ -44,7 +45,7 @@ async function persist(
 export const defensePlugin = fp(async function (fastify: FastifyInstance) {
   fastify.addHook('onRequest', async (request) => {
     const path = (request.raw.url ?? '/').split('?')[0]
-    if (SKIP_PATHS.has(path)) return
+    if (SKIP_PATHS.has(path) || SKIP_PREFIXES.some(p => path.startsWith(p))) return
 
     const ua     = request.headers['user-agent'] ?? ''
     const rawUrl = request.raw.url ?? '/'
@@ -57,7 +58,7 @@ export const defensePlugin = fp(async function (fastify: FastifyInstance) {
   fastify.addHook('onResponse', async (request, reply) => {
     if (reply.statusCode !== 401 && reply.statusCode !== 403) return
     const path = (request.raw.url ?? '/').split('?')[0]
-    if (SKIP_PATHS.has(path)) return
+    if (SKIP_PATHS.has(path) || SKIP_PREFIXES.some(p => path.startsWith(p))) return
 
     if (trackBrute(request.ip)) {
       const ua = request.headers['user-agent'] ?? ''
