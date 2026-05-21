@@ -6,6 +6,9 @@ import { ClientSensorAssignment } from "@/components/clients/client-sensor-assig
 import { ClientForwardingSettings } from "@/components/clients/client-forwarding-settings"
 import { ClientSensorCatalog } from "@/components/clients/client-sensor-catalog"
 import { ClientOVADownload } from "@/components/clients/client-ova-download"
+import { ClientActivityChart } from "@/components/clients/client-activity-chart"
+import { ClientLogsViewer } from "@/components/clients/client-logs-viewer"
+import { ClientAlerts } from "@/components/clients/client-alerts"
 import { fetchClients, fetchSensors } from "@/lib/api"
 
 export default async function ClientDetailPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -59,6 +62,15 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ s
 
       <div className="mb-6">
         <ClientSensorCatalog client={client} assignedSensors={clientSensors} />
+      </div>
+
+      <div className="mb-6">
+        <ClientActivityChart clientSlug={client.slug} />
+      </div>
+
+      <div className="mb-6 grid gap-6 lg:grid-cols-2">
+        <ClientLogsViewer clientSlug={client.slug} />
+        <ClientAlerts clientSlug={client.slug} />
       </div>
 
       <ClientSensorAssignment

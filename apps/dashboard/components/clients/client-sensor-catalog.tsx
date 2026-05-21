@@ -1,8 +1,16 @@
 "use client"
 
 import { useState } from "react"
-import { Download, Globe, Network, Server, CheckCircle2, Terminal } from "lucide-react"
+import { Download, Globe, Network, Server, CheckCircle2, Terminal, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import type { Client, Sensor } from "@/lib/api"
 import type { ServiceKey } from "@/app/api/sensor/install/route"
 
@@ -135,77 +143,107 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
     }
   }
 
+  const installedCount = CATALOG.filter((e) => assignedProtocols.has(e.protocol)).length
+
   return (
-    <section className="rounded-xl border border-border bg-card p-5 space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-400/10">
-          <Terminal className="h-5 w-5 text-cyan-400" />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Sensor Installers</h2>
-          <p className="text-sm text-muted-foreground">
-            Download a ready-to-run installer for each sensor. Client telemetry and server config
-            are already embedded — just run <span className="font-mono">bash install-sensor-*.sh</span> on any Linux VPS.
-          </p>
-        </div>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        {CATALOG.map((entry) => {
-          const Icon = entry.icon
-          const installed = assignedProtocols.has(entry.protocol)
-          const isDownloading = downloading === entry.protocol
-
-          return (
-            <div
-              key={entry.protocol}
-              className="flex flex-col gap-3 rounded-xl border border-border/70 bg-background/50 p-4"
-            >
-              <div className="flex items-start gap-3">
-                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${entry.iconBg}`}>
-                  <Icon className={`h-4 w-4 ${entry.iconColor}`} />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-medium text-foreground text-sm">{entry.name}</p>
-                    {installed && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Installed
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">{entry.description}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-1.5">
-                <p className="font-mono text-xs text-muted-foreground">{entry.ports}</p>
-                {entry.serviceKey ? (
-                  <span className="text-[10px] text-cyan-400/70 font-mono">.sh</span>
-                ) : (
-                  <span className="text-[10px] text-muted-foreground/60 font-mono">.env</span>
+    <Dialog>
+      <DialogTrigger asChild>
+        <button className="w-full rounded-xl border border-border bg-card p-5 text-left transition-colors hover:border-cyan-400/40 hover:bg-card/80 group">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-400/10">
+              <Terminal className="h-5 w-5 text-cyan-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base font-semibold text-foreground">Sensor Installers</h2>
+                {installedCount > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                    <CheckCircle2 className="h-3 w-3" />
+                    {installedCount} installed
+                  </span>
                 )}
               </div>
-
-              <Button
-                size="sm"
-                variant={installed ? "outline" : "default"}
-                onClick={() => downloadInstaller(entry)}
-                disabled={isDownloading}
-                className="w-full gap-2"
-              >
-                <Download className="h-3.5 w-3.5" />
-                {isDownloading
-                  ? "Generating…"
-                  : installed
-                    ? "Re-download installer"
-                    : "Download installer"}
-              </Button>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Download ready-to-run installers — telemetry and server config already embedded.
+              </p>
             </div>
-          )
-        })}
-      </div>
-    </section>
+            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 transition-transform group-hover:translate-x-0.5" />
+          </div>
+        </button>
+      </DialogTrigger>
+
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-400/10">
+              <Terminal className="h-4 w-4 text-cyan-400" />
+            </div>
+            <div>
+              <DialogTitle>Sensor Installers</DialogTitle>
+              <DialogDescription className="mt-0.5">
+                Run <span className="font-mono">bash install-sensor-*.sh</span> on any Linux VPS.
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          {CATALOG.map((entry) => {
+            const Icon = entry.icon
+            const installed = assignedProtocols.has(entry.protocol)
+            const isDownloading = downloading === entry.protocol
+
+            return (
+              <div
+                key={entry.protocol}
+                className="flex flex-col gap-3 rounded-xl border border-border/70 bg-background/50 p-4"
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${entry.iconBg}`}>
+                    <Icon className={`h-4 w-4 ${entry.iconColor}`} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium text-foreground text-sm">{entry.name}</p>
+                      {installed && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Installed
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">{entry.description}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-1.5">
+                  <p className="font-mono text-xs text-muted-foreground">{entry.ports}</p>
+                  {entry.serviceKey ? (
+                    <span className="text-[10px] text-cyan-400/70 font-mono">.sh</span>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground/60 font-mono">.env</span>
+                  )}
+                </div>
+
+                <Button
+                  size="sm"
+                  variant={installed ? "outline" : "default"}
+                  onClick={() => downloadInstaller(entry)}
+                  disabled={isDownloading}
+                  className="w-full gap-2"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  {isDownloading
+                    ? "Generating…"
+                    : installed
+                      ? "Re-download installer"
+                      : "Download installer"}
+                </Button>
+              </div>
+            )
+          })}
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
