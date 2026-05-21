@@ -1,0 +1,22 @@
+# Dionaea JSON event log — rotates when reaches 50MB, keeps 3 compressed copies
+# copytruncate: truncates in-place so the shipper container keeps its file handle
+/var/lib/docker/volumes/honeypot-ai_dionaea_var/_data/dionaea.json {
+    daily
+    rotate 3
+    size 50M
+    compress
+    missingok
+    copytruncate
+    delaycompress
+}
+
+# Cowrie JSON logs — rotated when reaches 200MB (Vector re-reads from offset on rotation)
+/var/lib/docker/volumes/honeypot-ai_cowrie_var/_data/log/cowrie/cowrie.json {
+    daily
+    rotate 2
+    size 200M
+    compress
+    missingok
+    copytruncate
+    delaycompress
+}

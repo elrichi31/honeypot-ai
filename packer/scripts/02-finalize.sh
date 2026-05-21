@@ -53,6 +53,38 @@ systemctl enable sensor-provision.service
 
 # sensor.service is NOT enabled yet — sensor-provision.service enables it on success
 
+echo "[02-finalize] Installing docker-maintenance cron job..."
+
+install -m 0755 /tmp/docker-maintenance.sh /opt/sensor/docker-maintenance.sh
+
+# Run daily at 03:00
+echo "0 3 * * * root /opt/sensor/docker-maintenance.sh >> /var/log/honeypot-maintenance.log 2>&1" \
+  > /etc/cron.d/honeypot-maintenance
+chmod 0644 /etc/cron.d/honeypot-maintenance
+
+echo "[02-finalize] Installing logrotate config..."
+cat > /etc/logrotate.d/honeypot << 'LOGROTATE'
+/var/lib/docker/volumes/*_dionaea_var/_data/dionaea.json {
+    daily
+    rotate 3
+    size 50M
+    compress
+    missingok
+    copytruncate
+    delaycompress
+}
+
+/var/lib/docker/volumes/*_cowrie_var/_data/log/cowrie/cowrie.json {
+    daily
+    rotate 2
+    size 200M
+    compress
+    missingok
+    copytruncate
+    delaycompress
+}
+LOGROTATE
+
 echo "[02-finalize] Cleaning up build artifacts..."
 
 apt-get autoremove -y -qq

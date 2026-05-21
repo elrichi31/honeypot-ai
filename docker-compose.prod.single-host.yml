@@ -323,6 +323,30 @@ services:
       - /tmp
     pids_limit: 256
 
+  maintenance:
+    <<: *service-defaults
+    logging: *json-logging
+    image: alpine:3.19
+    container_name: honeypot-maintenance
+    volumes:
+      - dionaea_var:/data/dionaea
+      - cowrie_var:/data/cowrie:ro
+    command: >
+      sh -c "
+        while true; do
+          echo \"[maintenance] $$(date): cleaning dionaea bistreams > 7d\";
+          find /data/dionaea/bistreams -type f -mtime +7 -delete 2>/dev/null || true;
+          echo \"[maintenance] $$(date): cleaning dionaea binaries > 30d\";
+          find /data/dionaea/binaries -type f -mtime +30 -delete 2>/dev/null || true;
+          echo \"[maintenance] $$(date): truncating dionaea.json if > 100MB\";
+          [ -f /data/dionaea/dionaea.json ] && [ $$(stat -c%s /data/dionaea/dionaea.json 2>/dev/null || echo 0) -gt 104857600 ] && cp /dev/null /data/dionaea/dionaea.json || true;
+          echo \"[maintenance] $$(date): done — sleeping 24h\";
+          sleep 86400;
+        done
+      "
+    networks: []
+    pids_limit: 32
+
 volumes:
   cowrie_var:
   dionaea_var:
