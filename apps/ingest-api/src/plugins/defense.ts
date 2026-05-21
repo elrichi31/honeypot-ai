@@ -37,7 +37,7 @@ function isAllowlisted(ip: string): boolean {
   const v4 = ip.startsWith('::ffff:') ? ip.slice(7) : ip
   if (!/^\d+\.\d+\.\d+\.\d+$/.test(v4)) return false
   const n = v4.split('.').reduce((acc, o) => (acc << 8) + parseInt(o, 10), 0) >>> 0
-  return allowlistCache.some(({ base, mask }) => (n & mask) === base)
+  return allowlistCache.some(({ base, mask }) => ((n & mask) >>> 0) === (base >>> 0))
 }
 
 // ── Blocked IPs cache ─────────────────────────────────────────────────────────
