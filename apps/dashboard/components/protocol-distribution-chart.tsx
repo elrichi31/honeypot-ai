@@ -69,7 +69,7 @@ export function ProtocolDistributionChart({ overview }: { overview: HoneypotOver
       </div>
 
       <div className="relative flex items-center justify-center">
-        <ResponsiveContainer width="100%" height={220}>
+        <ResponsiveContainer width="100%" height={380}>
           <PieChart>
             <Pie
               data={data}

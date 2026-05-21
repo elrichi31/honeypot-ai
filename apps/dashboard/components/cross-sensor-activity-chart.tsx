@@ -88,7 +88,7 @@ export function CrossSensorActivityChart({ timeline, range }: Props) {
         </div>
       </div>
 
-      <ChartContainer config={chartConfig} className="aspect-auto h-[220px]">
+      <ChartContainer config={chartConfig} className="aspect-auto h-[420px]">
         <AreaChart data={timeline.buckets as Record<string, unknown>[]}>
           <defs>
             {activeSources.map((s) => (

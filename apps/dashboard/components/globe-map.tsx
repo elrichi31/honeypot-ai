@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import createGlobe from "cobe"
-import { ShieldX } from "lucide-react"
+import { ShieldX, Maximize2, Minimize2 } from "lucide-react"
 import type { CountryAttack } from "@/lib/types"
 
 const CENTROIDS: Record<string, [number, number]> = {
@@ -66,15 +66,31 @@ const LABEL_COLLISION_DISTANCE = 42
 const LABEL_EDGE_PADDING = 24
 
 export function GlobeMap({ countryAttacks }: GlobeMapProps) {
+  const cardRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const labelsRef = useRef<HTMLDivElement>(null)
   const pointerInteracting = useRef<number | null>(null)
   const pointerInteractionMovement = useRef(0)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const labelElemsRef = useRef<Array<{
     el: HTMLDivElement
     priority: number
     v: [number, number, number]
   }>>([])
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener("fullscreenchange", handler)
+    return () => document.removeEventListener("fullscreenchange", handler)
+  }, [])
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      cardRef.current?.requestFullscreen()
+    } else {
+      document.exitFullscreen()
+    }
+  }
 
   const maxSessions = Math.max(1, countryAttacks[0]?.sessions ?? 1)
   const totalSessions = countryAttacks.reduce((s, c) => s + c.sessions, 0)
@@ -274,7 +290,7 @@ export function GlobeMap({ countryAttacks }: GlobeMapProps) {
   }, [countryAttacks.length])
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div ref={cardRef} className="rounded-xl border border-border bg-card p-5 [&:fullscreen]:overflow-auto [&:fullscreen]:rounded-none">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h3 className="font-semibold text-foreground">Attack Origins</h3>
@@ -284,18 +300,27 @@ export function GlobeMap({ countryAttacks }: GlobeMapProps) {
               : "Sin conexiones externas aún"}
           </p>
         </div>
-        {hasData && (
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
-              Comprometido
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-2 w-2 rounded-full bg-violet-500" />
-              Solo intentos
-            </span>
-          </div>
-        )}
+        <div className="flex items-center gap-4">
+          {hasData && (
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
+                Comprometido
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-2 w-2 rounded-full bg-violet-500" />
+                Solo intentos
+              </span>
+            </div>
+          )}
+          <button
+            onClick={toggleFullscreen}
+            className="rounded-lg border border-border p-1.5 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+            title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+          >
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_260px]">

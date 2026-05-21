@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Maximize2, Minimize2 } from "lucide-react"
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from "react-simple-maps"
 import {
   PROTOCOL_CHIP_CLASS,
@@ -192,6 +193,8 @@ function countryLabel(code: string) {
 }
 
 export function LiveAttackMap() {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const [sensors, setSensors] = useState<SensorLocation[]>([])
   const [countryHits, setCountryHits] = useState<CountryHit[]>([])
   const [attackedCodes, setAttackedCodes] = useState<Set<string>>(new Set())
@@ -207,6 +210,20 @@ export function LiveAttackMap() {
   const [connected, setConnected] = useState(false)
   const [hoverCountry, setHoverCountry] = useState<HoverCountry | null>(null)
   const todayRef = useRef(todayUTC())
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener("fullscreenchange", handler)
+    return () => document.removeEventListener("fullscreenchange", handler)
+  }, [])
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen()
+    } else {
+      document.exitFullscreen()
+    }
+  }
 
   const countryHitMap = useMemo(
     () => new Map(countryHits.map((hit) => [hit.country, hit])),
@@ -303,7 +320,7 @@ export function LiveAttackMap() {
   const total24h = countryHits.reduce((sum, hit) => sum + hit.count, 0)
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-xl border border-white/5 bg-[#060b18]">
+    <div ref={containerRef} className="relative h-full w-full overflow-hidden rounded-xl border border-white/5 bg-[#060b18] [&:fullscreen]:rounded-none">
       <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
         <div className="flex items-center gap-2 flex-wrap">
           {(Object.keys(PROTOCOL_CHIP_CLASS) as AttackType[]).map((t) => (
@@ -331,6 +348,14 @@ export function LiveAttackMap() {
             <span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-emerald-400 animate-pulse" : "bg-slate-500"}`} />
             <span className={connected ? "text-emerald-400" : "text-slate-500"}>{connected ? "Live" : "Offline"}</span>
           </div>
+          <button
+            onClick={toggleFullscreen}
+            className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[10px] text-slate-300 transition-colors hover:bg-white/10"
+            title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+          >
+            {isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+            {isFullscreen ? "Salir" : "Fullscreen"}
+          </button>
         </div>
       </div>
 

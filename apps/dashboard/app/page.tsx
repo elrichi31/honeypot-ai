@@ -212,6 +212,19 @@ export default async function DashboardPage({
       {/* Per-sensor activity cards */}
       <SensorActivityGrid overview={overview} />
 
+      {/* Cross-sensor activity timeline + distribution */}
+      <div className="mb-6 grid gap-4 xl:grid-cols-[2fr_1fr]">
+        <Suspense fallback={<div className="h-[500px] rounded-xl border border-border bg-card" />}>
+          <CrossSensorActivityChart timeline={crossTimeline} range={range} />
+        </Suspense>
+        <ProtocolDistributionChart overview={overview} />
+      </div>
+
+      {/* Globe map */}
+      <div className="mb-6">
+        <GlobeMap countryAttacks={countryAttacks} />
+      </div>
+
       {/* SSH deep analysis */}
       <div className="mb-6">
         <div className="mb-4 flex items-center gap-2">
@@ -225,19 +238,6 @@ export default async function DashboardPage({
           countrySuccess={countrySuccess}
           campaignGeo={campaignGeo}
         />
-      </div>
-
-      {/* Cross-sensor activity timeline + distribution */}
-      <div className="mt-6 grid gap-4 xl:grid-cols-[2fr_1fr]">
-        <Suspense fallback={<div className="h-[284px] rounded-xl border border-border bg-card" />}>
-          <CrossSensorActivityChart timeline={crossTimeline} range={range} />
-        </Suspense>
-        <ProtocolDistributionChart overview={overview} />
-      </div>
-
-      {/* Globe map */}
-      <div className="mt-6">
-        <GlobeMap countryAttacks={countryAttacks} />
       </div>
 
       {/* Attack heatmap */}
