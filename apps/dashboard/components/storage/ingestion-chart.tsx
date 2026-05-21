@@ -1,6 +1,6 @@
 "use client"
 
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts"
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts"
 
 type DayEntry = { date: string; ssh: number; web: number; protocol: number; defense: number }
 
@@ -44,18 +44,28 @@ export function IngestionChart({ data }: { data: DayEntry[] }) {
       <p className="text-sm font-semibold text-foreground mb-1">Daily Ingestion</p>
       <p className="text-[11px] text-muted-foreground mb-4">Events ingested per day — last 14 days</p>
       <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={display} barSize={14} barGap={2}>
+        <LineChart data={display}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
           <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={40} />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+          <Tooltip content={<CustomTooltip />} cursor={{ stroke: "rgba(255,255,255,0.1)" }} />
           <Legend
             iconType="circle" iconSize={6}
             formatter={(v) => <span style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>{v}</span>}
           />
           {SERIES.map(s => (
-            <Bar key={s.key} dataKey={s.key} name={s.label} stackId="a" fill={s.color} radius={s.key === "defense" ? [3, 3, 0, 0] : undefined} />
+            <Line
+              key={s.key}
+              type="monotone"
+              dataKey={s.key}
+              name={s.label}
+              stroke={s.color}
+              strokeWidth={1.5}
+              dot={false}
+              activeDot={{ r: 3, strokeWidth: 0 }}
+            />
           ))}
-        </BarChart>
+        </LineChart>
       </ResponsiveContainer>
     </div>
   )

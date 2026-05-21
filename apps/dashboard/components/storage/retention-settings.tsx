@@ -1,84 +1,73 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Clock, Loader2 } from "lucide-react"
+import { Clock, Save, Loader2, Check } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 type RetentionRow = {
   id: string; tableName: string; label: string
   retentionDays: number; enabled: boolean; updatedAt: string
 }
 
-function Row({ row, onUpdate }: { row: RetentionRow; onUpdate: (updated: RetentionRow) => void }) {
-  const [days, setDays]     = useState(String(row.retentionDays))
-  const [saving, setSaving] = useState(false)
-  const [dirty, setDirty]   = useState(false)
+type RowState = RetentionRow & { draft: string; saving: boolean; saved: boolean }
 
-  async function save(patch: Partial<{ retentionDays: number; enabled: boolean }>) {
-    setSaving(true)
-    const res = await fetch(`/api/storage/retention/${row.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    })
-    if (res.ok) { const d = await res.json(); onUpdate(d) }
-    setSaving(false)
-    setDirty(false)
-  }
-
-  function handleDaysBlur() {
-    const n = parseInt(days, 10)
-    if (!n || n < 1 || n === row.retentionDays) { setDays(String(row.retentionDays)); setDirty(false); return }
-    save({ retentionDays: n })
-  }
-
-  return (
-    <div className="flex items-center gap-4 py-2.5 border-b border-border/40 last:border-0">
-      {/* Toggle */}
-      <button
-        onClick={() => save({ enabled: !row.enabled })}
-        disabled={saving}
-        className={`relative h-4 w-7 rounded-full transition-colors shrink-0 ${row.enabled ? "bg-emerald-500" : "bg-white/10"}`}
-      >
-        <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-transform ${row.enabled ? "translate-x-3.5" : "translate-x-0.5"}`} />
-      </button>
-
-      <span className="flex-1 text-sm text-foreground">{row.label}</span>
-      <span className="font-mono text-[11px] text-muted-foreground/50 w-24 hidden sm:block">{row.tableName}</span>
-
-      <div className="flex items-center gap-1.5">
-        <input
-          type="number"
-          min={1}
-          max={3650}
-          value={days}
-          onChange={e => { setDays(e.target.value); setDirty(true) }}
-          onBlur={handleDaysBlur}
-          disabled={!row.enabled}
-          className="w-16 rounded border border-white/[0.08] bg-white/[0.03] px-2 py-1 text-center font-mono text-xs text-foreground outline-none focus:border-white/20 disabled:opacity-40"
-        />
-        <span className="text-[11px] text-muted-foreground">days</span>
-        {saving && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
-        {dirty && !saving && <span className="text-[10px] text-yellow-400">unsaved</span>}
-      </div>
-    </div>
-  )
+async function updateRetention(id: string, patch: { retentionDays?: number; enabled?: boolean }) {
+  const res = await fetch(`/api/storage/retention/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  })
+  return res.ok ? res.json() as Promise<RetentionRow> : null
 }
 
 export function RetentionSettings() {
-  const [rows, setRows]     = useState<RetentionRow[]>([])
+  const [rows, setRows]       = useState<RowState[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetch("/api/storage/retention")
       .then(r => r.json())
-      .then((d: unknown) => setRows(Array.isArray(d) ? d : []))
+      .then((d: unknown) => {
+        if (Array.isArray(d)) {
+          setRows(d.map((r: RetentionRow) => ({ ...r, draft: String(r.retentionDays), saving: false, saved: false })))
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
-  function handleUpdate(updated: RetentionRow) {
-    setRows(prev => prev.map(r => r.id === updated.id ? updated : r))
+  function setDraft(id: string, val: string) {
+    setRows(prev => prev.map(r => r.id === id ? { ...r, draft: val, saved: false } : r))
   }
+
+  async function handleSave(id: string) {
+    const row = rows.find(r => r.id === id)
+    if (!row) return
+    const days = parseInt(row.draft, 10)
+    if (!days || days < 1) return
+    setRows(prev => prev.map(r => r.id === id ? { ...r, saving: true } : r))
+    const updated = await updateRetention(id, { retentionDays: days })
+    setRows(prev => prev.map(r => r.id === id
+      ? { ...r, ...(updated ?? {}), draft: String(updated?.retentionDays ?? days), saving: false, saved: !!updated }
+      : r
+    ))
+    if (updated) {
+      setTimeout(() => setRows(prev => prev.map(r => r.id === id ? { ...r, saved: false } : r)), 2000)
+    }
+  }
+
+  async function handleToggle(id: string) {
+    const row = rows.find(r => r.id === id)
+    if (!row) return
+    setRows(prev => prev.map(r => r.id === id ? { ...r, saving: true } : r))
+    const updated = await updateRetention(id, { enabled: !row.enabled })
+    setRows(prev => prev.map(r => r.id === id
+      ? { ...r, ...(updated ?? {}), draft: String(updated?.retentionDays ?? r.retentionDays), saving: false, saved: false }
+      : r
+    ))
+  }
+
+  const isDirty = (row: RowState) => parseInt(row.draft, 10) !== row.retentionDays
 
   return (
     <div className="rounded-xl border border-border bg-card">
@@ -94,14 +83,58 @@ export function RetentionSettings() {
         </div>
       </div>
 
-      <div className="px-4">
+      <div className="divide-y divide-border/40">
         {loading ? (
           <div className="flex justify-center py-8">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-yellow-400" />
           </div>
-        ) : (
-          rows.map(row => <Row key={row.id} row={row} onUpdate={handleUpdate} />)
-        )}
+        ) : rows.map(row => (
+          <div key={row.id} className="flex items-center gap-4 px-4 py-3">
+            {/* Enable toggle */}
+            <button
+              onClick={() => handleToggle(row.id)}
+              disabled={row.saving}
+              title={row.enabled ? "Disable retention" : "Enable retention"}
+              className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-50 ${row.enabled ? "bg-emerald-500" : "bg-white/10"}`}
+            >
+              <span className={`absolute top-1 h-3 w-3 rounded-full bg-white shadow transition-transform ${row.enabled ? "translate-x-5" : "translate-x-1"}`} />
+            </button>
+
+            {/* Label */}
+            <span className={`flex-1 text-sm ${row.enabled ? "text-foreground" : "text-muted-foreground"}`}>
+              {row.label}
+            </span>
+
+            {/* Days input + Save */}
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                max={3650}
+                value={row.draft}
+                onChange={e => setDraft(row.id, e.target.value)}
+                disabled={!row.enabled || row.saving}
+                className="w-20 rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-1.5 text-center font-mono text-sm text-foreground outline-none focus:border-white/20 disabled:opacity-40"
+              />
+              <span className="text-xs text-muted-foreground w-6">days</span>
+              <Button
+                size="sm"
+                variant={isDirty(row) ? "default" : "outline"}
+                onClick={() => handleSave(row.id)}
+                disabled={row.saving || !isDirty(row) || !row.enabled}
+                className="h-7 w-16 text-xs"
+              >
+                {row.saving ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : row.saved ? (
+                  <><Check className="h-3 w-3 mr-1" />Saved</>
+                ) : (
+                  <><Save className="h-3 w-3 mr-1" />Save</>
+                )}
+              </Button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )
