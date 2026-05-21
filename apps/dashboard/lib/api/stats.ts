@@ -1,5 +1,5 @@
 import { getApiUrl, apiFetch, buildSearchParams } from "./client"
-import type { DashboardStats, DashboardInsights } from "./types"
+import type { DashboardStats, DashboardInsights, HoneypotOverview } from "./types"
 
 export async function fetchOverviewStats(params: {
   startDate: string; endDate: string
@@ -17,6 +17,10 @@ export async function fetchGeoSummary(): Promise<{ srcIp: string; loginSuccess: 
 
 export async function fetchDashboardInsights(): Promise<DashboardInsights> {
   return apiFetch(`${getApiUrl()}/stats/dashboards`)
+}
+
+export async function fetchHoneypotOverview(): Promise<HoneypotOverview> {
+  return apiFetch(`${getApiUrl()}/stats/honeypot-overview`)
 }
 
 export async function fetchSessionCommands(): Promise<Record<string, string[]>> {

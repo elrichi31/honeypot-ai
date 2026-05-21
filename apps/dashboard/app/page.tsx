@@ -1,10 +1,17 @@
 import { Suspense } from "react"
+import { Terminal } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { DashboardInsightsView } from "@/components/dashboard-insights"
 import { ActivityChart } from "@/components/activity-chart"
 import { GlobeMap } from "@/components/globe-map"
 import { AttackHeatmap } from "@/components/attack-heatmap"
-import { fetchDashboardInsights, fetchOverviewStats, fetchGeoSummary } from "@/lib/api"
+import { SensorActivityGrid } from "@/components/sensor-activity-grid"
+import {
+  fetchDashboardInsights,
+  fetchOverviewStats,
+  fetchGeoSummary,
+  fetchHoneypotOverview,
+} from "@/lib/api"
 import { lookupIp, geolocateIps } from "@/lib/geo"
 import { readConfig } from "@/lib/server-config"
 import type { TimeRange } from "@/lib/types"
@@ -124,11 +131,6 @@ function buildCampaignGeo(
     .slice(0, 12)
 }
 
-function percent(part: number, whole: number) {
-  if (!whole) return "0"
-  return ((part / whole) * 100).toFixed(1)
-}
-
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -142,71 +144,88 @@ export default async function DashboardPage({
   const timezone = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
   const { startDate, endDate } = getDateRange(range)
 
-  const [insights, overviewStats, geoData] = await Promise.all([
+  const [insights, overviewStats, geoData, overview] = await Promise.all([
     fetchDashboardInsights(),
     fetchOverviewStats({ startDate, endDate, range, timezone }),
     fetchGeoSummary(),
+    fetchHoneypotOverview(),
   ])
 
   const countryAttacks = geolocateIps(geoData)
   const countrySuccess = buildCountrySuccess(insights.countrySuccessCandidates)
   const campaignGeo = buildCampaignGeo(insights.credentialCampaigns)
 
-  const compromiseRate = percent(insights.funnel.loginSuccess, insights.funnel.authAttempts)
+  const activeSources = overview.totals.activeSources
+  const totalEvents = overview.totals.events
 
   return (
     <PageShell>
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
         <p className="text-sm text-muted-foreground">
-          Análisis de profundidad · campañas · comportamiento post-login
+          {activeSources} fuente{activeSources !== 1 ? "s" : ""} activa{activeSources !== 1 ? "s" : ""} ·{" "}
+          {totalEvents.toLocaleString("en-US")} eventos capturados en total
         </p>
       </div>
 
-      {/* Top-level KPI strip */}
+      {/* Cross-sensor KPI strip */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Sesiones totales</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Total eventos</p>
           <p className="mt-2 text-3xl font-semibold text-foreground">
-            {insights.window.totalSessions.toLocaleString('en-US')}
+            {totalEvents.toLocaleString("en-US")}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {insights.window.uniqueIps.toLocaleString('en-US')} IPs únicas observadas
+            {activeSources} sensor{activeSources !== 1 ? "es" : ""} reportando
           </p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Tasa de compromiso</p>
-          <p className="mt-2 text-3xl font-semibold text-foreground">{compromiseRate}%</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">SSH sesiones</p>
+          <p className="mt-2 text-3xl font-semibold text-foreground">
+            {overview.ssh.sessions.toLocaleString("en-US")}
+          </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {insights.funnel.loginSuccess.toLocaleString('en-US')} logins exitosos
+            {overview.ssh.uniqueIps.toLocaleString("en-US")} IPs · {overview.ssh.successfulLogins.toLocaleString("en-US")} comprometidas
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Web attacks</p>
+          <p className="mt-2 text-3xl font-semibold text-foreground">
+            {overview.web.hits.toLocaleString("en-US")}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {overview.web.uniqueIps.toLocaleString("en-US")} IPs
+            {overview.web.topAttackType ? ` · top: ${overview.web.topAttackType}` : ""}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Alta amenaza</p>
           <p className="mt-2 text-3xl font-semibold text-foreground">
-            {insights.funnel.highSignalCompromise.toLocaleString('en-US')}
+            {insights.funnel.highSignalCompromise.toLocaleString("en-US")}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Sesiones con backdoor, miner, malware drop
-          </p>
-        </div>
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Post-login profundo</p>
-          <p className="mt-2 text-3xl font-semibold text-foreground">
-            {insights.successfulDepth.interactiveSessions.toLocaleString('en-US')}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Sesiones con 20+ comandos · máx {insights.successfulDepth.maxCommands}
+            Backdoor, miner o malware drop confirmado
           </p>
         </div>
       </div>
 
-      {/* All high-signal analytics */}
-      <DashboardInsightsView
-        insights={insights}
-        countrySuccess={countrySuccess}
-        campaignGeo={campaignGeo}
-      />
+      {/* Per-sensor activity cards */}
+      <SensorActivityGrid overview={overview} />
+
+      {/* SSH deep analysis */}
+      <div className="mb-6">
+        <div className="mb-4 flex items-center gap-2">
+          <Terminal className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            Análisis SSH
+          </h2>
+        </div>
+        <DashboardInsightsView
+          insights={insights}
+          countrySuccess={countrySuccess}
+          campaignGeo={campaignGeo}
+        />
+      </div>
 
       {/* Activity timeline */}
       <div className="mt-6">

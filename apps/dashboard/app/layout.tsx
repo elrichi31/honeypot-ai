@@ -9,8 +9,8 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'HoneyTrap - SSH Honeypot Monitor',
-  description: 'Real-time monitoring dashboard for SSH honeypot events',
+  title: 'HoneyTrap - Honeypot Monitor',
+  description: 'Real-time monitoring dashboard for all honeypot sensors',
   generator: 'v0.app',
   icons: {
     icon: [

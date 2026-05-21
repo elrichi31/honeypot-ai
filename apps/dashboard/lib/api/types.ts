@@ -1,3 +1,29 @@
+export interface HoneypotOverview {
+  ssh: {
+    sessions: number
+    uniqueIps: number
+    successfulLogins: number
+    lastSeen: string | null
+  }
+  web: {
+    hits: number
+    uniqueIps: number
+    topAttackType: string | null
+    lastSeen: string | null
+  }
+  protocols: Array<{
+    protocol: string
+    count: number
+    uniqueIps: number
+    authAttempts: number
+    lastSeen: string | null
+  }>
+  totals: {
+    events: number
+    activeSources: number
+  }
+}
+
 export interface PaginationMeta {
   page: number
   pageSize: number
