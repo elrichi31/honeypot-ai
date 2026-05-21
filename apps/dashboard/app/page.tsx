@@ -2,15 +2,16 @@ import { Suspense } from "react"
 import { Terminal } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { DashboardInsightsView } from "@/components/dashboard-insights"
-import { ActivityChart } from "@/components/activity-chart"
+import { CrossSensorActivityChart } from "@/components/cross-sensor-activity-chart"
+import { ProtocolDistributionChart } from "@/components/protocol-distribution-chart"
 import { GlobeMap } from "@/components/globe-map"
 import { AttackHeatmap } from "@/components/attack-heatmap"
 import { SensorActivityGrid } from "@/components/sensor-activity-grid"
 import {
   fetchDashboardInsights,
-  fetchOverviewStats,
   fetchGeoSummary,
   fetchHoneypotOverview,
+  fetchCrossSensorTimeline,
 } from "@/lib/api"
 import { lookupIp, geolocateIps } from "@/lib/geo"
 import { readConfig } from "@/lib/server-config"
@@ -142,13 +143,12 @@ export default async function DashboardPage({
 
   const config = readConfig()
   const timezone = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
-  const { startDate, endDate } = getDateRange(range)
 
-  const [insights, overviewStats, geoData, overview] = await Promise.all([
+  const [insights, geoData, overview, crossTimeline] = await Promise.all([
     fetchDashboardInsights(),
-    fetchOverviewStats({ startDate, endDate, range, timezone }),
     fetchGeoSummary(),
     fetchHoneypotOverview(),
+    fetchCrossSensorTimeline({ range, timezone }),
   ])
 
   const countryAttacks = geolocateIps(geoData)
@@ -227,11 +227,12 @@ export default async function DashboardPage({
         />
       </div>
 
-      {/* Activity timeline */}
-      <div className="mt-6">
+      {/* Cross-sensor activity timeline + distribution */}
+      <div className="mt-6 grid gap-4 xl:grid-cols-[2fr_1fr]">
         <Suspense fallback={<div className="h-[284px] rounded-xl border border-border bg-card" />}>
-          <ActivityChart stats={overviewStats} range={range} />
+          <CrossSensorActivityChart timeline={crossTimeline} range={range} />
         </Suspense>
+        <ProtocolDistributionChart overview={overview} />
       </div>
 
       {/* Globe map */}

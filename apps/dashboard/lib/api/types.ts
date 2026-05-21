@@ -1,3 +1,8 @@
+export interface CrossSensorTimeline {
+  buckets: Array<Record<string, number | string>>
+  activeProtocols: string[]
+}
+
 export interface HoneypotOverview {
   ssh: {
     sessions: number

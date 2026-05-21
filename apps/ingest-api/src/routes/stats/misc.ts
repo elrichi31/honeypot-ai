@@ -80,6 +80,87 @@ export async function miscRoutes(fastify: FastifyInstance) {
   })
 
 
+  fastify.get('/stats/cross-sensor-timeline', async (request) => {
+    const query = request.query as Record<string, string | undefined>
+    const range = query.range === 'week' || query.range === 'month' ? query.range : 'day'
+    const timezone = query.timezone || 'UTC'
+    const now = new Date()
+    const endDate = new Date(now)
+    const startDate = new Date(now)
+    if (range === 'week') startDate.setDate(startDate.getDate() - 6)
+    else if (range === 'month') startDate.setDate(startDate.getDate() - 29)
+    else startDate.setHours(startDate.getHours() - 23)
+
+    const truncUnit = range === 'day' ? 'hour' : 'day'
+    const interval = range === 'day' ? "interval '1 hour'" : "interval '1 day'"
+    const fmt = range === 'day' ? 'YYYY-MM-DD HH24:MI' : 'YYYY-MM-DD'
+    const lbl = range === 'day' ? 'HH24:MI' : 'DD/MM'
+
+    interface BaseBucket { bucketStart: string; label: string; count: number }
+    interface ProtoBucket { protocol: string; bucketStart: string; label: string; count: number }
+
+    const [sshRows, webRows, protoRows] = await Promise.all([
+      fastify.prisma.$queryRaw<BaseBucket[]>(Prisma.sql`
+        WITH bounds AS (
+          SELECT date_trunc(${truncUnit}, timezone(${timezone}, ${startDate}::timestamptz)) AS s,
+                 date_trunc(${truncUnit}, timezone(${timezone}, ${endDate}::timestamptz))   AS e
+        ),
+        series AS (SELECT generate_series(s, e, ${Prisma.raw(interval)}) AS b FROM bounds),
+        counts AS (
+          SELECT date_trunc(${truncUnit}, timezone(${timezone}, started_at::timestamptz)) AS b, COUNT(*)::int AS count
+          FROM sessions WHERE started_at >= ${startDate} AND started_at <= ${endDate} GROUP BY 1
+        )
+        SELECT to_char(series.b, ${fmt}) AS "bucketStart", to_char(series.b, ${lbl}) AS label,
+               COALESCE(counts.count, 0)::int AS count
+        FROM series LEFT JOIN counts USING (b) ORDER BY series.b
+      `),
+      fastify.prisma.$queryRaw<BaseBucket[]>(Prisma.sql`
+        WITH bounds AS (
+          SELECT date_trunc(${truncUnit}, timezone(${timezone}, ${startDate}::timestamptz)) AS s,
+                 date_trunc(${truncUnit}, timezone(${timezone}, ${endDate}::timestamptz))   AS e
+        ),
+        series AS (SELECT generate_series(s, e, ${Prisma.raw(interval)}) AS b FROM bounds),
+        counts AS (
+          SELECT date_trunc(${truncUnit}, timezone(${timezone}, timestamp::timestamptz)) AS b, COUNT(*)::int AS count
+          FROM web_hits WHERE timestamp >= ${startDate} AND timestamp <= ${endDate} GROUP BY 1
+        )
+        SELECT to_char(series.b, ${fmt}) AS "bucketStart", to_char(series.b, ${lbl}) AS label,
+               COALESCE(counts.count, 0)::int AS count
+        FROM series LEFT JOIN counts USING (b) ORDER BY series.b
+      `),
+      fastify.prisma.$queryRaw<ProtoBucket[]>(Prisma.sql`
+        SELECT protocol,
+               to_char(date_trunc(${truncUnit}, timezone(${timezone}, timestamp::timestamptz)), ${fmt}) AS "bucketStart",
+               to_char(date_trunc(${truncUnit}, timezone(${timezone}, timestamp::timestamptz)), ${lbl}) AS label,
+               COUNT(*)::int AS count
+        FROM protocol_hits WHERE timestamp >= ${startDate} AND timestamp <= ${endDate}
+        GROUP BY 1, 2, 3 ORDER BY 3
+      `),
+    ])
+
+    // Merge into a bucket map keyed by bucketStart
+    type BucketEntry = Record<string, number | string>
+    const map = new Map<string, BucketEntry>()
+    for (const r of sshRows) map.set(r.bucketStart, { label: r.label, ssh: r.count, web: 0 })
+    for (const r of webRows) {
+      const e = map.get(r.bucketStart)
+      if (e) (e as Record<string, number>).web = r.count
+    }
+    const activeProtocols = new Set<string>()
+    for (const r of protoRows) {
+      activeProtocols.add(r.protocol)
+      const e = map.get(r.bucketStart)
+      if (e) (e as Record<string, number>)[r.protocol] = ((e as Record<string, number>)[r.protocol] ?? 0) + r.count
+    }
+    // Zero-fill missing protocol keys
+    const protoList = Array.from(activeProtocols)
+    for (const e of map.values()) {
+      for (const p of protoList) if ((e as Record<string, number>)[p] === undefined) (e as Record<string, number>)[p] = 0
+    }
+
+    return { buckets: Array.from(map.values()), activeProtocols: protoList }
+  })
+
   fastify.get('/stats/geo', async () => {
     return fastify.prisma.$queryRaw<{ srcIp: string; loginSuccess: boolean | null }[]>(Prisma.sql`
       SELECT src_ip AS "srcIp", BOOL_OR(login_success IS TRUE) AS "loginSuccess"

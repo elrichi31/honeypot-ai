@@ -1,5 +1,5 @@
 import { getApiUrl, apiFetch, buildSearchParams } from "./client"
-import type { DashboardStats, DashboardInsights, HoneypotOverview } from "./types"
+import type { DashboardStats, DashboardInsights, HoneypotOverview, CrossSensorTimeline } from "./types"
 
 export async function fetchOverviewStats(params: {
   startDate: string; endDate: string
@@ -21,6 +21,14 @@ export async function fetchDashboardInsights(): Promise<DashboardInsights> {
 
 export async function fetchHoneypotOverview(): Promise<HoneypotOverview> {
   return apiFetch(`${getApiUrl()}/stats/honeypot-overview`)
+}
+
+export async function fetchCrossSensorTimeline(params: {
+  range: "day" | "week" | "month"
+  timezone?: string
+}): Promise<CrossSensorTimeline> {
+  const sp = buildSearchParams({ ...params })
+  return apiFetch(`${getApiUrl()}/stats/cross-sensor-timeline?${sp}`)
 }
 
 export async function fetchSessionCommands(): Promise<Record<string, string[]>> {
