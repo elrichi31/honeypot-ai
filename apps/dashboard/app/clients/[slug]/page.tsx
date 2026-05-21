@@ -9,6 +9,7 @@ import { ClientOVADownload } from "@/components/clients/client-ova-download"
 import { ClientActivityChart } from "@/components/clients/client-activity-chart"
 import { ClientLogsViewer } from "@/components/clients/client-logs-viewer"
 import { ClientAlerts } from "@/components/clients/client-alerts"
+import { ClientStatsBar } from "@/components/clients/client-stats-bar"
 import { fetchClients, fetchSensors } from "@/lib/api"
 
 export default async function ClientDetailPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -62,6 +63,10 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ s
 
       <div className="mb-6">
         <ClientSensorCatalog client={client} assignedSensors={clientSensors} />
+      </div>
+
+      <div className="mb-6">
+        <ClientStatsBar clientSlug={client.slug} />
       </div>
 
       <div className="mb-6">

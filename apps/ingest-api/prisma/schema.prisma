@@ -72,6 +72,7 @@ model ProtocolHit {
   eventType String   @map("event_type") // connect | auth | command
   username  String?
   password  String?
+  sensorId  String?  @map("sensor_id")
   data      Json     @default("{}")
   timestamp DateTime
   createdAt DateTime @default(now()) @map("created_at")
@@ -79,6 +80,7 @@ model ProtocolHit {
   @@index([srcIp])
   @@index([protocol])
   @@index([dstPort])
+  @@index([sensorId])
   @@index([timestamp(sort: Desc)])
   @@map("protocol_hits")
 }

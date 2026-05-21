@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { ensureIngestToken } from '../lib/ingest-auth.js'
@@ -228,11 +229,13 @@ export async function clientRoutes(fastify: FastifyInstance) {
       page:     z.coerce.number().int().min(1).default(1),
       pageSize: z.coerce.number().int().min(1).max(100).default(50),
       source:   z.enum(['ssh', 'protocol', 'web', 'all']).default('all'),
+      ip:       z.string().trim().optional(),
+      q:        z.string().trim().min(1).max(200).optional(),
     }).safeParse(request.query)
     if (!query.success) return reply.status(400).send({ error: 'Invalid query params' })
 
     const { clientSlug } = params.data
-    const { page, pageSize, source } = query.data
+    const { page, pageSize, source, ip, q } = query.data
     const offset = (page - 1) * pageSize
 
     const clientRows = await fastify.prisma.$queryRaw<Array<{ id: string }>>`
@@ -241,21 +244,36 @@ export async function clientRoutes(fastify: FastifyInstance) {
     if (!clientRows[0]) return reply.status(404).send({ error: 'Client not found' })
     const clientId = clientRows[0].id
 
+    // Pre-fetch sensor IDs — single indexed lookup, avoids repeated JOINs through sensors
+    const sensorRows = await fastify.prisma.$queryRaw<Array<{ sensor_id: string }>>`
+      SELECT sensor_id FROM sensors WHERE client_id = ${clientId}
+    `
+    if (sensorRows.length === 0) {
+      return reply.send({ items: [], pagination: { page, pageSize, total: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false } })
+    }
+    const sensorIds = sensorRows.map(r => r.sensor_id)
+
     type LogRow = {
       id: string; source: string; protocol: string; src_ip: string
       event_type: string; ts: Date; message: string | null
       command: string | null; username: string | null; password: string | null
-      extra: string | null
+      session_id: string | null; extra: string | null
     }
 
-    // Each source filter: pass as text so SQL can compare
     const wantSsh      = source === 'all' || source === 'ssh'
     const wantProtocol = source === 'all' || source === 'protocol'
     const wantWeb      = source === 'all' || source === 'web'
 
+    // Optional outer filters — applied after UNION ALL so each leg stays simple
+    const ipCond = ip ? Prisma.sql`AND src_ip = ${ip}` : Prisma.sql``
+    const qPat   = q ? `%${q}%` : ''
+    const qCond  = q
+      ? Prisma.sql`AND (COALESCE(username,'') ILIKE ${qPat} OR COALESCE(command,'') ILIKE ${qPat} OR event_type ILIKE ${qPat})`
+      : Prisma.sql``
+
     const [rows, countRows] = await Promise.all([
       fastify.prisma.$queryRaw<LogRow[]>`
-        SELECT id, source, protocol, src_ip, event_type, ts, message, command, username, password, extra
+        SELECT id, source, protocol, src_ip, event_type, ts, message, command, username, password, session_id, extra
         FROM (
           SELECT
             e.id::text,
@@ -268,11 +286,11 @@ export async function clientRoutes(fastify: FastifyInstance) {
             e.command,
             e.username,
             e.password,
+            e.session_id::text         AS session_id,
             e.normalized_json::text    AS extra
           FROM events e
-          JOIN sessions s  ON s.id         = e.session_id
-          JOIN sensors  sn ON sn.sensor_id = s.sensor_id
-          WHERE sn.client_id = ${clientId}
+          JOIN sessions s ON s.id = e.session_id
+          WHERE s.sensor_id IN (${Prisma.join(sensorIds)})
             AND ${wantSsh}
 
           UNION ALL
@@ -288,10 +306,10 @@ export async function clientRoutes(fastify: FastifyInstance) {
             (ph.data->>'command')      AS command,
             ph.username,
             ph.password,
+            NULL::text                 AS session_id,
             ph.data::text              AS extra
           FROM protocol_hits ph
-          JOIN sensors sn ON sn.sensor_id = ph.sensor_id
-          WHERE sn.client_id = ${clientId}
+          WHERE ph.sensor_id IN (${Prisma.join(sensorIds)})
             AND ${wantProtocol}
 
           UNION ALL
@@ -307,6 +325,7 @@ export async function clientRoutes(fastify: FastifyInstance) {
             wh.path                    AS command,
             NULL::text                 AS username,
             NULL::text                 AS password,
+            NULL::text                 AS session_id,
             json_build_object(
               'method',    wh.method,
               'path',      wh.path,
@@ -315,31 +334,26 @@ export async function clientRoutes(fastify: FastifyInstance) {
               'attackType',wh.attack_type
             )::text                    AS extra
           FROM web_hits wh
-          JOIN sensors sn ON sn.sensor_id = wh.sensor_id
-          WHERE sn.client_id = ${clientId}
+          WHERE wh.sensor_id IN (${Prisma.join(sensorIds)})
             AND ${wantWeb}
         ) AS combined
+        WHERE 1=1 ${ipCond} ${qCond}
         ORDER BY ts DESC
         LIMIT ${pageSize} OFFSET ${offset}
       `,
       fastify.prisma.$queryRaw<[{ total: bigint }]>`
         SELECT COUNT(*) AS total FROM (
-          SELECT 1
-          FROM events e
-          JOIN sessions s  ON s.id         = e.session_id
-          JOIN sensors  sn ON sn.sensor_id = s.sensor_id
-          WHERE sn.client_id = ${clientId} AND ${wantSsh}
+          SELECT src_ip, event_type, username, command FROM events e
+          JOIN sessions s ON s.id = e.session_id
+          WHERE s.sensor_id IN (${Prisma.join(sensorIds)}) AND ${wantSsh}
           UNION ALL
-          SELECT 1
-          FROM protocol_hits ph
-          JOIN sensors sn ON sn.sensor_id = ph.sensor_id
-          WHERE sn.client_id = ${clientId} AND ${wantProtocol}
+          SELECT src_ip, event_type, username, (data->>'command') AS command FROM protocol_hits ph
+          WHERE ph.sensor_id IN (${Prisma.join(sensorIds)}) AND ${wantProtocol}
           UNION ALL
-          SELECT 1
-          FROM web_hits wh
-          JOIN sensors sn ON sn.sensor_id = wh.sensor_id
-          WHERE sn.client_id = ${clientId} AND ${wantWeb}
+          SELECT src_ip, attack_type AS event_type, NULL AS username, path AS command FROM web_hits wh
+          WHERE wh.sensor_id IN (${Prisma.join(sensorIds)}) AND ${wantWeb}
         ) AS t
+        WHERE 1=1 ${ipCond} ${qCond}
       `,
     ])
 
@@ -348,16 +362,17 @@ export async function clientRoutes(fastify: FastifyInstance) {
 
     return reply.send({
       items: rows.map(r => ({
-        id: r.id,
-        source: r.source,
-        protocol: r.protocol,
-        srcIp: r.src_ip,
-        eventType: r.event_type,
-        timestamp: r.ts,
-        message: r.message,
-        command: r.command,
-        username: r.username,
-        password: r.password,
+        id:         r.id,
+        source:     r.source,
+        protocol:   r.protocol,
+        srcIp:      r.src_ip,
+        eventType:  r.event_type,
+        timestamp:  r.ts,
+        message:    r.message,
+        command:    r.command,
+        username:   r.username,
+        password:   r.password,
+        sessionId:  r.session_id,
         extra: r.extra ? (() => { try { return JSON.parse(r.extra!) } catch { return null } })() : null,
       })),
       pagination: {
@@ -386,6 +401,12 @@ export async function clientRoutes(fastify: FastifyInstance) {
     if (!clientRows[0]) return reply.status(404).send({ error: 'Client not found' })
     const clientId = clientRows[0].id
 
+    const sensorRows = await fastify.prisma.$queryRaw<Array<{ sensor_id: string }>>`
+      SELECT sensor_id FROM sensors WHERE client_id = ${clientId}
+    `
+    if (sensorRows.length === 0) return reply.send([])
+    const sensorIds = sensorRows.map(r => r.sensor_id)
+
     const bucketUnit  = range === 'month' ? 'day' : 'hour'
     const intervalSql = range === 'day' ? '1 day' : range === 'week' ? '7 days' : '30 days'
 
@@ -400,21 +421,18 @@ export async function clientRoutes(fastify: FastifyInstance) {
       FROM (
         SELECT e.event_ts AS ts, 'ssh' AS source
         FROM events e
-        JOIN sessions s  ON s.id          = e.session_id
-        JOIN sensors  sn ON sn.sensor_id  = s.sensor_id
-        WHERE sn.client_id = ${clientId}
+        JOIN sessions s ON s.id = e.session_id
+        WHERE s.sensor_id IN (${Prisma.join(sensorIds)})
           AND e.event_ts >= NOW() - ${intervalSql}::interval
         UNION ALL
         SELECT ph.timestamp AS ts, 'protocol' AS source
         FROM protocol_hits ph
-        JOIN sensors sn ON sn.sensor_id = ph.sensor_id
-        WHERE sn.client_id = ${clientId}
+        WHERE ph.sensor_id IN (${Prisma.join(sensorIds)})
           AND ph.timestamp >= NOW() - ${intervalSql}::interval
         UNION ALL
         SELECT wh.timestamp AS ts, 'web' AS source
         FROM web_hits wh
-        JOIN sensors sn ON sn.sensor_id = wh.sensor_id
-        WHERE sn.client_id = ${clientId}
+        WHERE wh.sensor_id IN (${Prisma.join(sensorIds)})
           AND wh.timestamp >= NOW() - ${intervalSql}::interval
       ) AS combined
       GROUP BY bucket
@@ -452,6 +470,14 @@ export async function clientRoutes(fastify: FastifyInstance) {
     if (!clientRows[0]) return reply.status(404).send({ error: 'Client not found' })
     const clientId = clientRows[0].id
 
+    const sensorRows = await fastify.prisma.$queryRaw<Array<{ sensor_id: string }>>`
+      SELECT sensor_id FROM sensors WHERE client_id = ${clientId}
+    `
+    if (sensorRows.length === 0) {
+      return reply.send({ items: [], pagination: { page, pageSize, total: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false } })
+    }
+    const sensorIds = sensorRows.map(r => r.sensor_id)
+
     type ThreatRow = {
       src_ip: string
       total_events: bigint
@@ -475,20 +501,17 @@ export async function clientRoutes(fastify: FastifyInstance) {
                  COALESCE(s.ended_at, s.started_at) AS ts,
                  COALESCE(s.login_success, false) AS login_success
           FROM sessions s
-          JOIN sensors sn ON sn.sensor_id = s.sensor_id
-          WHERE sn.client_id = ${clientId}
+          WHERE s.sensor_id IN (${Prisma.join(sensorIds)})
           UNION ALL
           SELECT ph.src_ip, 'protocol' AS source, ph.protocol,
                  ph.timestamp AS ts, false AS login_success
           FROM protocol_hits ph
-          JOIN sensors sn ON sn.sensor_id = ph.sensor_id
-          WHERE sn.client_id = ${clientId}
+          WHERE ph.sensor_id IN (${Prisma.join(sensorIds)})
           UNION ALL
           SELECT wh.src_ip, 'web' AS source, 'http' AS protocol,
                  wh.timestamp AS ts, false AS login_success
           FROM web_hits wh
-          JOIN sensors sn ON sn.sensor_id = wh.sensor_id
-          WHERE sn.client_id = ${clientId}
+          WHERE wh.sensor_id IN (${Prisma.join(sensorIds)})
         ) AS combined
         GROUP BY src_ip
         ORDER BY login_successes DESC, last_seen DESC, total_events DESC
@@ -496,20 +519,11 @@ export async function clientRoutes(fastify: FastifyInstance) {
       `,
       fastify.prisma.$queryRaw<[{ total: bigint }]>`
         SELECT COUNT(DISTINCT src_ip) AS total FROM (
-          SELECT s.src_ip
-          FROM sessions s
-          JOIN sensors sn ON sn.sensor_id = s.sensor_id
-          WHERE sn.client_id = ${clientId}
+          SELECT src_ip FROM sessions WHERE sensor_id IN (${Prisma.join(sensorIds)})
           UNION ALL
-          SELECT ph.src_ip
-          FROM protocol_hits ph
-          JOIN sensors sn ON sn.sensor_id = ph.sensor_id
-          WHERE sn.client_id = ${clientId}
+          SELECT src_ip FROM protocol_hits WHERE sensor_id IN (${Prisma.join(sensorIds)})
           UNION ALL
-          SELECT wh.src_ip
-          FROM web_hits wh
-          JOIN sensors sn ON sn.sensor_id = wh.sensor_id
-          WHERE sn.client_id = ${clientId}
+          SELECT src_ip FROM web_hits WHERE sensor_id IN (${Prisma.join(sensorIds)})
         ) AS ips
       `,
     ])
@@ -531,6 +545,82 @@ export async function clientRoutes(fastify: FastifyInstance) {
         hasNextPage:     page < totalPages,
         hasPreviousPage: page > 1,
       },
+    })
+  })
+
+  fastify.get('/clients/:clientSlug/today', async (request, reply) => {
+    const params = z.object({ clientSlug: z.string().trim().min(1) }).safeParse(request.params)
+    if (!params.success) return reply.status(400).send({ error: 'Invalid client slug' })
+
+    const { clientSlug } = params.data
+
+    const clientRows = await fastify.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM clients WHERE slug = ${clientSlug} LIMIT 1
+    `
+    if (!clientRows[0]) return reply.status(404).send({ error: 'Client not found' })
+    const clientId = clientRows[0].id
+
+    const sensorRows = await fastify.prisma.$queryRaw<Array<{ sensor_id: string }>>`
+      SELECT sensor_id FROM sensors WHERE client_id = ${clientId}
+    `
+    if (sensorRows.length === 0) {
+      return reply.send({ totalEvents: 0, uniqueIps: 0, loginSuccesses: 0, topProtocol: null })
+    }
+    const sensorIds = sensorRows.map(r => r.sensor_id)
+
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+
+    type MetricsRow = { total_events: number; unique_ips: number; login_successes: number }
+    type ProtoRow   = { protocol: string }
+
+    const [metricsRows, protoRows] = await Promise.all([
+      fastify.prisma.$queryRaw<MetricsRow[]>`
+        SELECT
+          COUNT(*)::int                             AS total_events,
+          COUNT(DISTINCT src_ip)::int               AS unique_ips,
+          COUNT(*) FILTER (WHERE login_success)::int AS login_successes
+        FROM (
+          SELECT s.src_ip, COALESCE(s.login_success, false) AS login_success
+          FROM sessions s
+          WHERE s.sensor_id IN (${Prisma.join(sensorIds)})
+            AND s.started_at >= ${todayStart}
+          UNION ALL
+          SELECT ph.src_ip, false AS login_success
+          FROM protocol_hits ph
+          WHERE ph.sensor_id IN (${Prisma.join(sensorIds)})
+            AND ph.timestamp >= ${todayStart}
+          UNION ALL
+          SELECT wh.src_ip, false AS login_success
+          FROM web_hits wh
+          WHERE wh.sensor_id IN (${Prisma.join(sensorIds)})
+            AND wh.timestamp >= ${todayStart}
+        ) AS t
+      `,
+      fastify.prisma.$queryRaw<ProtoRow[]>`
+        SELECT protocol
+        FROM (
+          SELECT 'ssh' AS protocol FROM sessions
+          WHERE sensor_id IN (${Prisma.join(sensorIds)}) AND started_at >= ${todayStart}
+          UNION ALL
+          SELECT protocol FROM protocol_hits
+          WHERE sensor_id IN (${Prisma.join(sensorIds)}) AND timestamp >= ${todayStart}
+          UNION ALL
+          SELECT 'http' AS protocol FROM web_hits
+          WHERE sensor_id IN (${Prisma.join(sensorIds)}) AND timestamp >= ${todayStart}
+        ) AS p
+        GROUP BY protocol
+        ORDER BY COUNT(*) DESC
+        LIMIT 1
+      `,
+    ])
+
+    const m = metricsRows[0] ?? { total_events: 0, unique_ips: 0, login_successes: 0 }
+    return reply.send({
+      totalEvents:    m.total_events,
+      uniqueIps:      m.unique_ips,
+      loginSuccesses: m.login_successes,
+      topProtocol:    protoRows[0]?.protocol ?? null,
     })
   })
 }
