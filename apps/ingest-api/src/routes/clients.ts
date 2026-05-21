@@ -425,6 +425,8 @@ export async function clientRoutes(fastify: FastifyInstance) {
     const params = z.object({ clientSlug: z.string().trim().min(1) }).safeParse(request.params)
     if (!params.success) return reply.status(400).send({ error: 'Invalid client slug' })
 
+    const { clientSlug } = params.data
+
     const clientRows = await fastify.prisma.$queryRaw<Array<{ id: string }>>`
       SELECT id FROM clients WHERE slug = ${clientSlug} LIMIT 1
     `

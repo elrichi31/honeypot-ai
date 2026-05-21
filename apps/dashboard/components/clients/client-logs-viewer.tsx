@@ -69,9 +69,10 @@ export function ClientLogsViewer({ clientSlug }: Props) {
     setLoading(true)
     fetch(`/api/clients/${clientSlug}/events?page=${p}&pageSize=20&source=${src}`)
       .then(r => r.json())
-      .then(data => {
-        setItems(data.items ?? [])
-        setMeta(data.pagination ?? null)
+      .then((data: unknown) => {
+        const d = data && typeof data === 'object' ? data as Record<string, unknown> : {}
+        setItems(Array.isArray(d.items) ? d.items : [])
+        setMeta(d.pagination && typeof d.pagination === 'object' ? d.pagination as PaginationMeta : null)
       })
       .catch(() => { setItems([]); setMeta(null) })
       .finally(() => setLoading(false))

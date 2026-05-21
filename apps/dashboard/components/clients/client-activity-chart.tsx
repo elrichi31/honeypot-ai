@@ -49,8 +49,9 @@ export function ClientActivityChart({ clientSlug }: Props) {
     setLoading(true)
     fetch(`/api/clients/${clientSlug}/timeline?range=${range}`)
       .then(r => r.json())
-      .then((rows: Bucket[]) => {
-        setData(rows.map(r => ({
+      .then((rows: unknown) => {
+        const arr = Array.isArray(rows) ? rows : []
+        setData(arr.map((r: Bucket) => ({
           ...r,
           label: formatBucketLabel(r.bucket, range),
         })))

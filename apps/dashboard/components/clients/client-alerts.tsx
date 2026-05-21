@@ -47,7 +47,7 @@ export function ClientAlerts({ clientSlug }: Props) {
   useEffect(() => {
     fetch(`/api/clients/${clientSlug}/threats`)
       .then(r => r.json())
-      .then((data: ThreatEntry[]) => setEntries(data ?? []))
+      .then((data: unknown) => setEntries(Array.isArray(data) ? data : []))
       .catch(() => setEntries([]))
       .finally(() => setLoading(false))
   }, [clientSlug])
