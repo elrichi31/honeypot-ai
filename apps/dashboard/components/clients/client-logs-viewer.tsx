@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { ScrollText, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react"
+import { ScrollText, ChevronLeft, ChevronRight, RefreshCw, ChevronDown, ChevronRight as CollapseIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { IpEnrichmentPopover } from "@/components/ip-enrichment-popover"
 
 type LogSource = "all" | "ssh" | "protocol" | "web"
 
@@ -17,62 +18,84 @@ type LogEntry = {
   command: string | null
   username: string | null
   password: string | null
+  extra: Record<string, unknown> | null
 }
 
 type PaginationMeta = {
-  page: number
-  pageSize: number
-  total: number
-  totalPages: number
-  hasNextPage: boolean
-  hasPreviousPage: boolean
+  page: number; pageSize: number; total: number
+  totalPages: number; hasNextPage: boolean; hasPreviousPage: boolean
 }
 
 const SOURCE_TABS: { key: LogSource; label: string }[] = [
-  { key: "all",      label: "All"      },
-  { key: "ssh",      label: "SSH"      },
-  { key: "protocol", label: "Protocol" },
-  { key: "web",      label: "Web"      },
+  { key: "all", label: "All" }, { key: "ssh", label: "SSH" },
+  { key: "protocol", label: "Protocol" }, { key: "web", label: "Web" },
 ]
 
 const SOURCE_COLOR: Record<string, string> = {
-  ssh:      "text-cyan-400",
-  protocol: "text-blue-400",
-  web:      "text-green-400",
+  ssh: "text-cyan-400", protocol: "text-blue-400", web: "text-green-400",
 }
 
-// Build ordered key-value pairs to display CrowdStrike-style
 function buildPairs(entry: LogEntry): [string, string][] {
   const pairs: [string, string][] = []
-  pairs.push(["source",    entry.source])
-  pairs.push(["proto",     entry.protocol.toUpperCase()])
-  pairs.push(["src_ip",    entry.srcIp])
-  pairs.push(["event",     entry.eventType])
-  if (entry.username) pairs.push(["user",    entry.username])
-  if (entry.password) pairs.push(["pass",    entry.password])
-  if (entry.command)  pairs.push(["cmd",     entry.command])
-  if (entry.message)  pairs.push(["msg",     entry.message])
+  pairs.push(["proto",  entry.protocol.toUpperCase()])
+  pairs.push(["event",  entry.eventType])
+  if (entry.username) pairs.push(["user", entry.username])
+  if (entry.password) pairs.push(["pass", entry.password])
+  if (entry.command)  pairs.push(["cmd",  entry.command])
+  if (entry.message)  pairs.push(["msg",  entry.message])
   return pairs
+}
+
+const VALUE_COLOR: Record<string, string> = {
+  event:  "text-purple-300/90",
+  user:   "text-orange-300/90",
+  pass:   "text-red-300/90",
+  cmd:    "text-green-300/90",
+  msg:    "text-blue-200/90",
 }
 
 function formatTs(ts: string) {
   const d = new Date(ts)
-  const date = d.toLocaleDateString(undefined, { month: "2-digit", day: "2-digit", year: "2-digit" })
-  const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
-  return `${date} ${time}`
+  return (
+    d.toLocaleDateString(undefined, { month: "2-digit", day: "2-digit", year: "2-digit" }) +
+    " " +
+    d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
+  )
+}
+
+// ── JSON expanded view ───────────────────────────────────────────────────────
+function JsonTree({ data }: { data: Record<string, unknown> }) {
+  const entries = Object.entries(data).filter(([, v]) => v !== null && v !== "" && v !== undefined)
+  if (entries.length === 0) return <span className="text-muted-foreground/50 text-[11px]">empty</span>
+  return (
+    <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+      {entries.map(([k, v]) => {
+        const isObj = v !== null && typeof v === "object"
+        const val   = isObj ? JSON.stringify(v) : String(v)
+        return (
+          <>
+            <span key={`k-${k}`} className="text-muted-foreground/60 select-none whitespace-nowrap">#{k}</span>
+            <span key={`v-${k}`} className="text-foreground/80 break-all">{val}</span>
+          </>
+        )
+      })}
+    </div>
+  )
 }
 
 type Props = { clientSlug: string }
 
 export function ClientLogsViewer({ clientSlug }: Props) {
-  const [source, setSource]   = useState<LogSource>("all")
-  const [page, setPage]       = useState(1)
-  const [items, setItems]     = useState<LogEntry[]>([])
-  const [meta, setMeta]       = useState<PaginationMeta | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [source, setSource]     = useState<LogSource>("all")
+  const [page, setPage]         = useState(1)
+  const [items, setItems]       = useState<LogEntry[]>([])
+  const [meta, setMeta]         = useState<PaginationMeta | null>(null)
+  const [loading, setLoading]   = useState(true)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   const load = useCallback((p: number, src: LogSource) => {
     setLoading(true)
+    setExpanded(new Set())
     fetch(`/api/clients/${clientSlug}/events?page=${p}&pageSize=25&source=${src}`)
       .then(r => r.json())
       .then((data: unknown) => {
@@ -84,18 +107,20 @@ export function ClientLogsViewer({ clientSlug }: Props) {
       .finally(() => setLoading(false))
   }, [clientSlug])
 
-  useEffect(() => {
-    setPage(1)
-    load(1, source)
-  }, [source, load])
+  useEffect(() => { setPage(1); load(1, source) }, [source, load])
 
-  function goPage(p: number) {
-    setPage(p)
-    load(p, source)
+  function goPage(p: number) { setPage(p); load(p, source) }
+
+  function toggleRow(id: string) {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card flex flex-col" style={{ minHeight: 0 }}>
+    <div className="rounded-xl border border-border bg-card flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3 border-b border-border/60">
         <div className="flex items-center gap-3">
@@ -110,7 +135,6 @@ export function ClientLogsViewer({ clientSlug }: Props) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {/* Source tabs */}
           <div className="flex gap-0.5 rounded-md border border-border bg-muted/30 p-0.5">
             {SOURCE_TABS.map(tab => (
               <button
@@ -129,7 +153,7 @@ export function ClientLogsViewer({ clientSlug }: Props) {
           <button
             onClick={() => load(page, source)}
             disabled={loading}
-            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+            className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
           >
             <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
           </button>
@@ -137,7 +161,7 @@ export function ClientLogsViewer({ clientSlug }: Props) {
       </div>
 
       {/* Log lines */}
-      <div className="flex-1 overflow-auto font-mono text-xs bg-[#0d0d0f] rounded-b-xl">
+      <div className="overflow-auto font-mono text-xs bg-[#0d0d0f] min-h-[200px]">
         {loading ? (
           <div className="flex items-center justify-center py-14">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-cyan-400" />
@@ -150,42 +174,71 @@ export function ClientLogsViewer({ clientSlug }: Props) {
           <table className="w-full border-collapse">
             <tbody>
               {items.map((entry, i) => {
-                const pairs = buildPairs(entry)
+                const pairs    = buildPairs(entry)
                 const srcColor = SOURCE_COLOR[entry.source] ?? "text-muted-foreground"
+                const isOpen   = expanded.has(entry.id)
+                const hasExtra = !!entry.extra && Object.keys(entry.extra).length > 0
+
                 return (
-                  <tr
-                    key={entry.id}
-                    className={`border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors ${
-                      i % 2 === 0 ? "" : "bg-white/[0.01]"
-                    }`}
-                  >
-                    {/* Timestamp */}
-                    <td className="whitespace-nowrap pl-3 pr-4 py-1.5 text-muted-foreground/60 align-top w-[148px] select-none">
-                      {formatTs(entry.timestamp)}
-                    </td>
-                    {/* Key-value pairs */}
-                    <td className="pr-3 py-1.5 align-top">
-                      <span className={`mr-2 font-semibold ${srcColor}`}>
-                        [{entry.source.toUpperCase()}]
-                      </span>
-                      {pairs.map(([k, v], idx) => (
-                        <span key={idx} className="mr-3 inline-flex gap-1">
-                          <span className="text-muted-foreground/70">#{k}=</span>
-                          <span className={
-                            k === "src_ip"   ? "text-yellow-300/90" :
-                            k === "user"     ? "text-orange-300/90" :
-                            k === "pass"     ? "text-red-300/90" :
-                            k === "event"    ? "text-purple-300/90" :
-                            k === "cmd"      ? "text-green-300/90" :
-                            k === "msg"      ? "text-blue-200/90" :
-                                               "text-foreground/80"
-                          }>
-                            {v.length > 80 ? v.slice(0, 80) + "…" : v}
-                          </span>
+                  <>
+                    {/* Main row */}
+                    <tr
+                      key={entry.id}
+                      onClick={() => hasExtra && toggleRow(entry.id)}
+                      className={`border-b border-white/[0.04] transition-colors
+                        ${i % 2 === 0 ? "" : "bg-white/[0.01]"}
+                        ${hasExtra ? "cursor-pointer hover:bg-white/[0.04]" : ""}
+                        ${isOpen ? "bg-white/[0.03]" : ""}
+                      `}
+                    >
+                      {/* Expand toggle */}
+                      <td className="pl-2 pr-1 py-1.5 align-top w-4 select-none">
+                        {hasExtra && (
+                          isOpen
+                            ? <ChevronDown className="h-3 w-3 text-muted-foreground/50" />
+                            : <CollapseIcon className="h-3 w-3 text-muted-foreground/30" />
+                        )}
+                      </td>
+                      {/* Timestamp */}
+                      <td className="pr-3 py-1.5 text-muted-foreground/50 align-top w-[148px] whitespace-nowrap select-none">
+                        {formatTs(entry.timestamp)}
+                      </td>
+                      {/* Content */}
+                      <td className="pr-3 py-1.5 align-top">
+                        <span className={`mr-2 font-semibold ${srcColor}`}>
+                          [{entry.source.toUpperCase()}]
                         </span>
-                      ))}
-                    </td>
-                  </tr>
+                        {/* Clickable IP */}
+                        <span className="mr-3 inline-flex gap-1">
+                          <span className="text-muted-foreground/60">#src_ip=</span>
+                          <IpEnrichmentPopover ip={entry.srcIp} className="text-yellow-300/90" />
+                        </span>
+                        {pairs.map(([k, v], idx) => (
+                          <span key={idx} className="mr-3 inline-flex gap-1">
+                            <span className="text-muted-foreground/60">#{k}=</span>
+                            <span className={VALUE_COLOR[k] ?? "text-foreground/80"}>
+                              {v.length > 80 ? v.slice(0, 80) + "…" : v}
+                            </span>
+                          </span>
+                        ))}
+                      </td>
+                    </tr>
+
+                    {/* Expanded JSON row */}
+                    {isOpen && entry.extra && (
+                      <tr key={`${entry.id}-exp`} className="border-b border-white/[0.06] bg-white/[0.025]">
+                        <td />
+                        <td className="py-2 align-top text-[11px] text-muted-foreground/50 whitespace-nowrap pr-3">
+                          full event
+                        </td>
+                        <td className="pr-4 py-2.5 align-top">
+                          <div className="rounded-lg bg-black/40 border border-white/[0.06] px-3 py-2.5 text-[11px]">
+                            <JsonTree data={entry.extra} />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 )
               })}
             </tbody>
@@ -196,24 +249,14 @@ export function ClientLogsViewer({ clientSlug }: Props) {
       {/* Pagination */}
       {meta && meta.totalPages > 1 && (
         <div className="flex items-center justify-between px-4 py-2.5 border-t border-border/60 bg-card rounded-b-xl">
-          <span className="text-[11px] text-muted-foreground">
+          <span className="font-mono text-[11px] text-muted-foreground">
             Page {meta.page} of {meta.totalPages} · {meta.total.toLocaleString()} total
           </span>
           <div className="flex gap-1">
-            <Button
-              size="sm" variant="outline"
-              onClick={() => goPage(page - 1)}
-              disabled={!meta.hasPreviousPage || loading}
-              className="h-6 w-6 p-0"
-            >
+            <Button size="sm" variant="outline" onClick={() => goPage(page - 1)} disabled={!meta.hasPreviousPage || loading} className="h-6 w-6 p-0">
               <ChevronLeft className="h-3 w-3" />
             </Button>
-            <Button
-              size="sm" variant="outline"
-              onClick={() => goPage(page + 1)}
-              disabled={!meta.hasNextPage || loading}
-              className="h-6 w-6 p-0"
-            >
+            <Button size="sm" variant="outline" onClick={() => goPage(page + 1)} disabled={!meta.hasNextPage || loading} className="h-6 w-6 p-0">
               <ChevronRight className="h-3 w-3" />
             </Button>
           </div>

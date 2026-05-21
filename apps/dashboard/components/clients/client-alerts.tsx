@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { ShieldAlert, ShieldCheck, Skull, AlertTriangle, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { IpEnrichmentPopover } from "@/components/ip-enrichment-popover"
 
 type ThreatEntry = {
   srcIp: string
@@ -156,7 +157,7 @@ export function ClientAlerts({ clientSlug }: Props) {
                     </td>
                     {/* IP */}
                     <td className="pr-3 py-1.5 align-middle">
-                      <span className="text-yellow-300/90">{entry.srcIp}</span>
+                      <IpEnrichmentPopover ip={entry.srcIp} className="text-yellow-300/90" />
                     </td>
                     {/* Source pills */}
                     <td className="pr-3 py-1.5 align-middle">

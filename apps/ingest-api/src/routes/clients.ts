@@ -245,6 +245,7 @@ export async function clientRoutes(fastify: FastifyInstance) {
       id: string; source: string; protocol: string; src_ip: string
       event_type: string; ts: Date; message: string | null
       command: string | null; username: string | null; password: string | null
+      extra: string | null
     }
 
     // Each source filter: pass as text so SQL can compare
@@ -254,19 +255,20 @@ export async function clientRoutes(fastify: FastifyInstance) {
 
     const [rows, countRows] = await Promise.all([
       fastify.prisma.$queryRaw<LogRow[]>`
-        SELECT id, source, protocol, src_ip, event_type, ts, message, command, username, password
+        SELECT id, source, protocol, src_ip, event_type, ts, message, command, username, password, extra
         FROM (
           SELECT
             e.id::text,
-            'ssh'::text            AS source,
-            'ssh'::text            AS protocol,
+            'ssh'::text                AS source,
+            'ssh'::text                AS protocol,
             e.src_ip,
             e.event_type,
-            e.event_ts             AS ts,
+            e.event_ts                 AS ts,
             e.message,
             e.command,
             e.username,
-            e.password
+            e.password,
+            e.normalized_json::text    AS extra
           FROM events e
           JOIN sessions s  ON s.id         = e.session_id
           JOIN sensors  sn ON sn.sensor_id = s.sensor_id
@@ -277,15 +279,16 @@ export async function clientRoutes(fastify: FastifyInstance) {
 
           SELECT
             ph.id::text,
-            'protocol'::text      AS source,
+            'protocol'::text           AS source,
             ph.protocol,
             ph.src_ip,
             ph.event_type,
-            ph.timestamp          AS ts,
-            NULL::text            AS message,
-            (ph.data->>'command') AS command,
+            ph.timestamp               AS ts,
+            NULL::text                 AS message,
+            (ph.data->>'command')      AS command,
             ph.username,
-            ph.password
+            ph.password,
+            ph.data::text              AS extra
           FROM protocol_hits ph
           JOIN sensors sn ON sn.sensor_id = ph.sensor_id
           WHERE sn.client_id = ${clientId}
@@ -295,15 +298,22 @@ export async function clientRoutes(fastify: FastifyInstance) {
 
           SELECT
             wh.id::text,
-            'web'::text           AS source,
-            'http'::text          AS protocol,
+            'web'::text                AS source,
+            'http'::text               AS protocol,
             wh.src_ip,
-            wh.attack_type        AS event_type,
-            wh.timestamp          AS ts,
-            NULL::text            AS message,
-            wh.path               AS command,
-            NULL::text            AS username,
-            NULL::text            AS password
+            wh.attack_type             AS event_type,
+            wh.timestamp               AS ts,
+            NULL::text                 AS message,
+            wh.path                    AS command,
+            NULL::text                 AS username,
+            NULL::text                 AS password,
+            json_build_object(
+              'method',    wh.method,
+              'path',      wh.path,
+              'query',     wh.query,
+              'userAgent', wh.user_agent,
+              'attackType',wh.attack_type
+            )::text                    AS extra
           FROM web_hits wh
           JOIN sensors sn ON sn.sensor_id = wh.sensor_id
           WHERE sn.client_id = ${clientId}
@@ -348,6 +358,7 @@ export async function clientRoutes(fastify: FastifyInstance) {
         command: r.command,
         username: r.username,
         password: r.password,
+        extra: r.extra ? (() => { try { return JSON.parse(r.extra!) } catch { return null } })() : null,
       })),
       pagination: {
         page, pageSize, total, totalPages,
