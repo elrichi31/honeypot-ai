@@ -425,7 +425,15 @@ export async function clientRoutes(fastify: FastifyInstance) {
     const params = z.object({ clientSlug: z.string().trim().min(1) }).safeParse(request.params)
     if (!params.success) return reply.status(400).send({ error: 'Invalid client slug' })
 
+    const query = z.object({
+      page:     z.coerce.number().int().min(1).default(1),
+      pageSize: z.coerce.number().int().min(1).max(100).default(20),
+    }).safeParse(request.query)
+    if (!query.success) return reply.status(400).send({ error: 'Invalid query params' })
+
     const { clientSlug } = params.data
+    const { page, pageSize } = query.data
+    const offset = (page - 1) * pageSize
 
     const clientRows = await fastify.prisma.$queryRaw<Array<{ id: string }>>`
       SELECT id FROM clients WHERE slug = ${clientSlug} LIMIT 1
@@ -442,48 +450,76 @@ export async function clientRoutes(fastify: FastifyInstance) {
       protocols: string
     }
 
-    const rows = await fastify.prisma.$queryRaw<ThreatRow[]>`
-      SELECT
-        src_ip,
-        COUNT(*)                                                        AS total_events,
-        STRING_AGG(DISTINCT source, ',')                                AS sources,
-        MAX(ts)                                                         AS last_seen,
-        COUNT(*) FILTER (WHERE login_success)                          AS login_successes,
-        STRING_AGG(DISTINCT protocol, ',')                              AS protocols
-      FROM (
-        SELECT s.src_ip, 'ssh' AS source, 'ssh' AS protocol,
-               COALESCE(s.ended_at, s.started_at) AS ts,
-               COALESCE(s.login_success, false) AS login_success
-        FROM sessions s
-        JOIN sensors sn ON sn.sensor_id = s.sensor_id
-        WHERE sn.client_id = ${clientId}
-        UNION ALL
-        SELECT ph.src_ip, 'protocol' AS source, ph.protocol,
-               ph.timestamp AS ts, false AS login_success
-        FROM protocol_hits ph
-        JOIN sensors sn ON sn.sensor_id = ph.sensor_id
-        WHERE sn.client_id = ${clientId}
-        UNION ALL
-        SELECT wh.src_ip, 'web' AS source, 'http' AS protocol,
-               wh.timestamp AS ts, false AS login_success
-        FROM web_hits wh
-        JOIN sensors sn ON sn.sensor_id = wh.sensor_id
-        WHERE sn.client_id = ${clientId}
-      ) AS combined
-      GROUP BY src_ip
-      ORDER BY login_successes DESC, total_events DESC
-      LIMIT 50
-    `
+    const [rows, countRows] = await Promise.all([
+      fastify.prisma.$queryRaw<ThreatRow[]>`
+        SELECT
+          src_ip,
+          COUNT(*)                                   AS total_events,
+          STRING_AGG(DISTINCT source, ',')           AS sources,
+          MAX(ts)                                    AS last_seen,
+          COUNT(*) FILTER (WHERE login_success)      AS login_successes,
+          STRING_AGG(DISTINCT protocol, ',')         AS protocols
+        FROM (
+          SELECT s.src_ip, 'ssh' AS source, 'ssh' AS protocol,
+                 COALESCE(s.ended_at, s.started_at) AS ts,
+                 COALESCE(s.login_success, false) AS login_success
+          FROM sessions s
+          JOIN sensors sn ON sn.sensor_id = s.sensor_id
+          WHERE sn.client_id = ${clientId}
+          UNION ALL
+          SELECT ph.src_ip, 'protocol' AS source, ph.protocol,
+                 ph.timestamp AS ts, false AS login_success
+          FROM protocol_hits ph
+          JOIN sensors sn ON sn.sensor_id = ph.sensor_id
+          WHERE sn.client_id = ${clientId}
+          UNION ALL
+          SELECT wh.src_ip, 'web' AS source, 'http' AS protocol,
+                 wh.timestamp AS ts, false AS login_success
+          FROM web_hits wh
+          JOIN sensors sn ON sn.sensor_id = wh.sensor_id
+          WHERE sn.client_id = ${clientId}
+        ) AS combined
+        GROUP BY src_ip
+        ORDER BY login_successes DESC, last_seen DESC, total_events DESC
+        LIMIT ${pageSize} OFFSET ${offset}
+      `,
+      fastify.prisma.$queryRaw<[{ total: bigint }]>`
+        SELECT COUNT(DISTINCT src_ip) AS total FROM (
+          SELECT s.src_ip
+          FROM sessions s
+          JOIN sensors sn ON sn.sensor_id = s.sensor_id
+          WHERE sn.client_id = ${clientId}
+          UNION ALL
+          SELECT ph.src_ip
+          FROM protocol_hits ph
+          JOIN sensors sn ON sn.sensor_id = ph.sensor_id
+          WHERE sn.client_id = ${clientId}
+          UNION ALL
+          SELECT wh.src_ip
+          FROM web_hits wh
+          JOIN sensors sn ON sn.sensor_id = wh.sensor_id
+          WHERE sn.client_id = ${clientId}
+        ) AS ips
+      `,
+    ])
 
-    return reply.send(
-      rows.map(r => ({
-        srcIp:         r.src_ip,
-        totalEvents:   Number(r.total_events),
-        sources:       r.sources ? r.sources.split(',') : [],
-        protocols:     r.protocols ? r.protocols.split(',') : [],
-        lastSeen:      r.last_seen,
+    const total = Number(countRows[0]?.total ?? 0)
+    const totalPages = Math.ceil(total / pageSize)
+
+    return reply.send({
+      items: rows.map(r => ({
+        srcIp:          r.src_ip,
+        totalEvents:    Number(r.total_events),
+        sources:        r.sources  ? r.sources.split(',')  : [],
+        protocols:      r.protocols ? r.protocols.split(',') : [],
+        lastSeen:       r.last_seen,
         loginSuccesses: Number(r.login_successes),
-      }))
-    )
+      })),
+      pagination: {
+        page, pageSize, total, totalPages,
+        hasNextPage:     page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    })
   })
 }
