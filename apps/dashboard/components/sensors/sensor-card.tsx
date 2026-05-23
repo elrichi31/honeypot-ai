@@ -71,8 +71,25 @@ export function SensorCard({
   const [deleting, setDeleting] = useState(false)
   const [controlState, setControlState] = useState<ControlState>("idle")
   const [controlMsg, setControlMsg] = useState("")
-  // Local override so buttons respond immediately after stop/start without waiting for heartbeat to expire
-  const [localRunning, setLocalRunning] = useState<boolean | null>(null)
+
+  const sessionKey = `sensor-running:${sensor.sensorId}`
+
+  // Persist running override in sessionStorage so it survives router.refresh() remounts
+  function getLocalRunning(): boolean | null {
+    try {
+      const v = sessionStorage.getItem(sessionKey)
+      if (v === "true") return true
+      if (v === "false") return false
+    } catch { /* SSR / private mode */ }
+    return null
+  }
+
+  function setLocalRunning(value: boolean | null) {
+    try {
+      if (value === null) sessionStorage.removeItem(sessionKey)
+      else sessionStorage.setItem(sessionKey, String(value))
+    } catch { /* ignore */ }
+  }
 
   const meta = PROTOCOL_META[sensor.protocol] ?? {
     label: sensor.protocol, icon: Server, color: "text-slate-400", bg: "bg-slate-400/10",
@@ -81,7 +98,11 @@ export function SensorCard({
 
   const isInternal = isPrivateIp(sensor.ip)
   const hasContainer = !!sensor.probeHost
-  // Use local state when available (reflects immediate stop/start), fall back to heartbeat
+
+  // Use sessionStorage override when available, fall back to heartbeat.
+  // Clear the override once the heartbeat catches up (sensor.online flips to match).
+  const localRunning = getLocalRunning()
+  if (localRunning !== null && localRunning === sensor.online) setLocalRunning(null)
   const effectivelyRunning = localRunning !== null ? localRunning : sensor.online
 
   async function handleDelete() {
@@ -109,7 +130,7 @@ export function SensorCard({
         setControlMsg(action === "stop" ? "Detenido" : action === "start" ? "Iniciado" : "Reiniciado")
         if (action === "stop") setLocalRunning(false)
         if (action === "start" || action === "restart") setLocalRunning(true)
-        setTimeout(() => { setControlState("idle"); router.refresh() }, 2000)
+        setTimeout(() => { setControlState("idle"); router.refresh() }, 3000)
       } else {
         setControlState("error")
         setControlMsg(data.error ?? "Error")
