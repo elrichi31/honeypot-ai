@@ -71,6 +71,8 @@ export function SensorCard({
   const [deleting, setDeleting] = useState(false)
   const [controlState, setControlState] = useState<ControlState>("idle")
   const [controlMsg, setControlMsg] = useState("")
+  // Local override so buttons respond immediately after stop/start without waiting for heartbeat to expire
+  const [localRunning, setLocalRunning] = useState<boolean | null>(null)
 
   const meta = PROTOCOL_META[sensor.protocol] ?? {
     label: sensor.protocol, icon: Server, color: "text-slate-400", bg: "bg-slate-400/10",
@@ -79,6 +81,8 @@ export function SensorCard({
 
   const isInternal = isPrivateIp(sensor.ip)
   const hasContainer = !!sensor.probeHost
+  // Use local state when available (reflects immediate stop/start), fall back to heartbeat
+  const effectivelyRunning = localRunning !== null ? localRunning : sensor.online
 
   async function handleDelete() {
     setDeleting(true)
@@ -103,6 +107,8 @@ export function SensorCard({
       if (res.ok) {
         setControlState("ok")
         setControlMsg(action === "stop" ? "Detenido" : action === "start" ? "Iniciado" : "Reiniciado")
+        if (action === "stop") setLocalRunning(false)
+        if (action === "start" || action === "restart") setLocalRunning(true)
         setTimeout(() => { setControlState("idle"); router.refresh() }, 2000)
       } else {
         setControlState("error")
@@ -273,14 +279,14 @@ export function SensorCard({
               icon={Play}
               label="Iniciar"
               color="text-emerald-400 hover:bg-emerald-400/10"
-              disabled={controlState === "loading" || sensor.online}
+              disabled={controlState === "loading" || effectivelyRunning}
               onClick={() => handleControl("start")}
             />
             <ControlButton
               icon={Square}
               label="Detener"
               color="text-red-400 hover:bg-red-400/10"
-              disabled={controlState === "loading" || !sensor.online}
+              disabled={controlState === "loading" || !effectivelyRunning}
               onClick={() => handleControl("stop")}
             />
             <ControlButton
