@@ -41,7 +41,18 @@ export default async function SensorsPage() {
   }
 
   const config = readConfig()
-  const honeypotPublicIp = config.honeypotIp ?? process.env.HONEYPOT_IP ?? ""
+  let honeypotPublicIp = config.honeypotIp ?? process.env.HONEYPOT_IP ?? ""
+
+  // Derive public IP from the first external (non-private) sensor if not configured
+  if (!honeypotPublicIp) {
+    const externalSensor = sensors.find((s) => {
+      const ip = s.ip?.startsWith("::ffff:") ? s.ip.slice(7) : s.ip
+      if (!ip || ip === "-" || !/^\d+\.\d+\.\d+\.\d+$/.test(ip)) return false
+      const [a, b] = ip.split(".").map(Number)
+      return !(a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168))
+    })
+    honeypotPublicIp = externalSensor?.ip ?? ""
+  }
 
   const online = sensors.filter((sensor) => sensor.online).length
   const total = sensors.length

@@ -229,39 +229,53 @@ export function SensorCard({
       {/* Ports */}
       {sensor.ports.length > 0 && (
         <div className="flex flex-wrap gap-1">
-          {sensor.ports.map((port) => {
-            const up = sensor.portStatus?.[port]
-            const probeFailedWhileOnline = sensor.online && up === false
-            return (
+          {isInternal ? (
+            // Internal deception nodes: port probe doesn't apply (not reachable from outside)
+            sensor.ports.map((port) => (
               <span
                 key={port}
-                title={
-                  up === true
-                    ? `Puerto ${port} accesible`
-                    : probeFailedWhileOnline
-                      ? `Puerto ${port} no alcanzable desde el servidor (firewall o NAT)`
-                      : up === false
-                        ? `Puerto ${port} offline`
-                        : `Puerto ${port} — sin datos de probe`
-                }
-                className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono font-medium cursor-default ${
-                  up === true
-                    ? "bg-emerald-400/15 text-emerald-400"
-                    : probeFailedWhileOnline
-                      ? "bg-amber-400/15 text-amber-300"
-                      : up === false
-                        ? "bg-red-400/15 text-red-400"
-                        : "bg-muted/60 text-muted-foreground"
-                }`}
+                title={`Puerto ${port} — red interna, no expuesto al exterior`}
+                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono font-medium cursor-default bg-violet-400/10 text-violet-400"
               >
-                {up === true ? <CheckCircle2 className="h-2.5 w-2.5" />
-                  : probeFailedWhileOnline ? <AlertTriangle className="h-2.5 w-2.5" />
-                  : up === false ? <XCircle className="h-2.5 w-2.5" />
-                  : null}
+                <Lock className="h-2.5 w-2.5" />
                 :{port}
               </span>
-            )
-          })}
+            ))
+          ) : (
+            sensor.ports.map((port) => {
+              const up = sensor.portStatus?.[port]
+              const probeFailedWhileOnline = sensor.online && up === false
+              return (
+                <span
+                  key={port}
+                  title={
+                    up === true
+                      ? `Puerto ${port} accesible`
+                      : probeFailedWhileOnline
+                        ? `Puerto ${port} no alcanzable desde el servidor (firewall o NAT)`
+                        : up === false
+                          ? `Puerto ${port} offline`
+                          : `Puerto ${port} — sin datos de probe`
+                  }
+                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono font-medium cursor-default ${
+                    up === true
+                      ? "bg-emerald-400/15 text-emerald-400"
+                      : probeFailedWhileOnline
+                        ? "bg-amber-400/15 text-amber-300"
+                        : up === false
+                          ? "bg-red-400/15 text-red-400"
+                          : "bg-muted/60 text-muted-foreground"
+                  }`}
+                >
+                  {up === true ? <CheckCircle2 className="h-2.5 w-2.5" />
+                    : probeFailedWhileOnline ? <AlertTriangle className="h-2.5 w-2.5" />
+                    : up === false ? <XCircle className="h-2.5 w-2.5" />
+                    : null}
+                  :{port}
+                </span>
+              )
+            })
+          )}
         </div>
       )}
 
