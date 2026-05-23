@@ -72,24 +72,6 @@ export function SensorCard({
   const [controlState, setControlState] = useState<ControlState>("idle")
   const [controlMsg, setControlMsg] = useState("")
 
-  const sessionKey = `sensor-running:${sensor.sensorId}`
-
-  // Persist running override in sessionStorage so it survives router.refresh() remounts
-  function getLocalRunning(): boolean | null {
-    try {
-      const v = sessionStorage.getItem(sessionKey)
-      if (v === "true") return true
-      if (v === "false") return false
-    } catch { /* SSR / private mode */ }
-    return null
-  }
-
-  function setLocalRunning(value: boolean | null) {
-    try {
-      if (value === null) sessionStorage.removeItem(sessionKey)
-      else sessionStorage.setItem(sessionKey, String(value))
-    } catch { /* ignore */ }
-  }
 
   const meta = PROTOCOL_META[sensor.protocol] ?? {
     label: sensor.protocol, icon: Server, color: "text-slate-400", bg: "bg-slate-400/10",
@@ -98,12 +80,6 @@ export function SensorCard({
 
   const isInternal = isPrivateIp(sensor.ip)
   const hasContainer = !!sensor.probeHost
-
-  // Use sessionStorage override when available, fall back to heartbeat.
-  // Clear the override once the heartbeat catches up (sensor.online flips to match).
-  const localRunning = getLocalRunning()
-  if (localRunning !== null && localRunning === sensor.online) setLocalRunning(null)
-  const effectivelyRunning = localRunning !== null ? localRunning : sensor.online
 
   async function handleDelete() {
     setDeleting(true)
@@ -128,8 +104,6 @@ export function SensorCard({
       if (res.ok) {
         setControlState("ok")
         setControlMsg(action === "stop" ? "Detenido" : action === "start" ? "Iniciado" : "Reiniciado")
-        if (action === "stop") setLocalRunning(false)
-        if (action === "start" || action === "restart") setLocalRunning(true)
         setTimeout(() => { setControlState("idle"); router.refresh() }, 3000)
       } else {
         setControlState("error")
@@ -314,14 +288,14 @@ export function SensorCard({
               icon={Play}
               label="Iniciar"
               color="text-emerald-400 hover:bg-emerald-400/10"
-              disabled={controlState === "loading" || effectivelyRunning}
+              disabled={controlState === "loading"}
               onClick={() => handleControl("start")}
             />
             <ControlButton
               icon={Square}
               label="Detener"
               color="text-red-400 hover:bg-red-400/10"
-              disabled={controlState === "loading" || !effectivelyRunning}
+              disabled={controlState === "loading"}
               onClick={() => handleControl("stop")}
             />
             <ControlButton
