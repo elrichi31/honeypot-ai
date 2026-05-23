@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   AlertTriangle, CheckCircle2, Database, Globe, Network, Server,
-  WifiOff, XCircle, Trash2, Loader2,
+  WifiOff, XCircle, Trash2, Loader2, Play, Square, RotateCcw, Lock,
 } from "lucide-react"
 import {
   AlertDialog,
@@ -31,6 +31,16 @@ const PROTOCOL_META: Record<string, { label: string; icon: React.ElementType; co
   rpc:        { label: "RPC",       icon: Network, color: "text-indigo-400", bg: "bg-indigo-400/10" },
   tftp:       { label: "TFTP",      icon: Server,  color: "text-lime-400",   bg: "bg-lime-400/10"   },
   mqtt:       { label: "MQTT",      icon: Network, color: "text-teal-400",   bg: "bg-teal-400/10"   },
+  deception:  { label: "Deception", icon: Lock,    color: "text-violet-400", bg: "bg-violet-400/10" },
+}
+
+// RFC 1918 private ranges
+function isPrivateIp(ip: string): boolean {
+  if (!ip || ip === "-") return false
+  const v4 = ip.startsWith("::ffff:") ? ip.slice(7) : ip
+  if (!/^\d+\.\d+\.\d+\.\d+$/.test(v4)) return false
+  const [a, b] = v4.split(".").map(Number)
+  return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
 }
 
 function formatRelative(value: string | null | undefined) {
@@ -45,14 +55,30 @@ function formatRelative(value: string | null | undefined) {
   return `${Math.floor(hr / 24)}d ago`
 }
 
-export function SensorCard({ sensor, clientCode }: { sensor: Sensor; clientCode?: string }) {
+type ControlAction = "start" | "stop" | "restart"
+type ControlState = "idle" | "loading" | "ok" | "error"
+
+export function SensorCard({
+  sensor,
+  clientCode,
+  honeypotPublicIp,
+}: {
+  sensor: Sensor
+  clientCode?: string
+  honeypotPublicIp?: string
+}) {
   const router = useRouter()
   const [deleting, setDeleting] = useState(false)
+  const [controlState, setControlState] = useState<ControlState>("idle")
+  const [controlMsg, setControlMsg] = useState("")
 
   const meta = PROTOCOL_META[sensor.protocol] ?? {
     label: sensor.protocol, icon: Server, color: "text-slate-400", bg: "bg-slate-400/10",
   }
   const Icon = meta.icon
+
+  const isInternal = isPrivateIp(sensor.ip)
+  const hasContainer = !!sensor.probeHost
 
   async function handleDelete() {
     setDeleting(true)
@@ -61,6 +87,32 @@ export function SensorCard({ sensor, clientCode }: { sensor: Sensor; clientCode?
       router.refresh()
     } finally {
       setDeleting(false)
+    }
+  }
+
+  async function handleControl(action: ControlAction) {
+    setControlState("loading")
+    setControlMsg("")
+    try {
+      const res = await fetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/control`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setControlState("ok")
+        setControlMsg(action === "stop" ? "Detenido" : action === "start" ? "Iniciado" : "Reiniciado")
+        setTimeout(() => { setControlState("idle"); router.refresh() }, 2000)
+      } else {
+        setControlState("error")
+        setControlMsg(data.error ?? "Error")
+        setTimeout(() => setControlState("idle"), 4000)
+      }
+    } catch {
+      setControlState("error")
+      setControlMsg("No se pudo conectar")
+      setTimeout(() => setControlState("idle"), 4000)
     }
   }
 
@@ -131,23 +183,40 @@ export function SensorCard({ sensor, clientCode }: { sensor: Sensor; clientCode?
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-2">
-        <div>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">IP</p>
-          <p className="font-mono text-xs text-foreground">{sensor.ip || "-"}</p>
+        {/* IP section — shows internal + external when applicable */}
+        <div className="col-span-2 grid grid-cols-2 gap-2">
+          {isInternal ? (
+            <>
+              <div>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">IP Interna</p>
+                <p className="font-mono text-xs text-violet-400">{sensor.ip}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">IP Externa</p>
+                <p className="font-mono text-xs text-foreground">{honeypotPublicIp || "-"}</p>
+              </div>
+            </>
+          ) : (
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">IP</p>
+              <p className="font-mono text-xs text-foreground">{sensor.ip || "-"}</p>
+            </div>
+          )}
         </div>
+
         <div>
           <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Events</p>
           <p className="font-semibold text-sm text-foreground">{sensor.eventsTotal.toLocaleString()}</p>
         </div>
         <div>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Last seen</p>
+          <p className="text-xs text-foreground">{formatRelative(sensor.lastSeen)}</p>
+        </div>
+        <div className="col-span-2">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Sensor ID</p>
           <p className="font-mono text-[10px] text-muted-foreground truncate">
             {clientCode ? `${sensor.sensorId}-${clientCode}` : sensor.sensorId}
           </p>
-        </div>
-        <div>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Last seen</p>
-          <p className="text-xs text-foreground">{formatRelative(sensor.lastSeen)}</p>
         </div>
       </div>
 
@@ -195,6 +264,68 @@ export function SensorCard({ sensor, clientCode }: { sensor: Sensor; clientCode?
           <p className="text-[10px] font-mono text-muted-foreground">v{sensor.version}</p>
         </div>
       )}
+
+      {/* Container controls */}
+      {hasContainer && (
+        <div className="border-t border-border/50 pt-2.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1">
+            <ControlButton
+              icon={Play}
+              label="Iniciar"
+              color="text-emerald-400 hover:bg-emerald-400/10"
+              disabled={controlState === "loading" || sensor.online}
+              onClick={() => handleControl("start")}
+            />
+            <ControlButton
+              icon={Square}
+              label="Detener"
+              color="text-red-400 hover:bg-red-400/10"
+              disabled={controlState === "loading" || !sensor.online}
+              onClick={() => handleControl("stop")}
+            />
+            <ControlButton
+              icon={controlState === "loading" ? Loader2 : RotateCcw}
+              label="Reiniciar"
+              color="text-amber-400 hover:bg-amber-400/10"
+              disabled={controlState === "loading"}
+              spinning={controlState === "loading"}
+              onClick={() => handleControl("restart")}
+            />
+          </div>
+          {controlState !== "idle" && controlState !== "loading" && (
+            <span className={`text-[10px] font-medium ${controlState === "ok" ? "text-emerald-400" : "text-red-400"}`}>
+              {controlMsg}
+            </span>
+          )}
+        </div>
+      )}
     </div>
+  )
+}
+
+function ControlButton({
+  icon: Icon,
+  label,
+  color,
+  disabled,
+  spinning,
+  onClick,
+}: {
+  icon: React.ElementType
+  label: string
+  color: string
+  disabled?: boolean
+  spinning?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      className={`rounded p-1.5 text-muted-foreground/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${color}`}
+    >
+      <Icon className={`h-3.5 w-3.5 ${spinning ? "animate-spin" : ""}`} />
+    </button>
   )
 }

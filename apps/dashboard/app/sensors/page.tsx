@@ -3,6 +3,7 @@ import { Activity, Server, Wifi } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { SensorCard } from "@/components/sensors/sensor-card"
 import { fetchSensors } from "@/lib/api"
+import { readConfig } from "@/lib/server-config"
 import type { Sensor } from "@/lib/api"
 
 function groupSensorsByClient(sensors: Sensor[]) {
@@ -38,6 +39,9 @@ export default async function SensorsPage() {
   } catch {
     sensors = []
   }
+
+  const config = readConfig()
+  const honeypotPublicIp = config.honeypotIp ?? process.env.HONEYPOT_IP ?? ""
 
   const online = sensors.filter((sensor) => sensor.online).length
   const total = sensors.length
@@ -111,7 +115,7 @@ export default async function SensorsPage() {
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {group.sensors.map((sensor) => (
-                  <SensorCard key={sensor.sensorId} sensor={sensor} clientCode={sensor.clientCode} />
+                  <SensorCard key={sensor.sensorId} sensor={sensor} clientCode={sensor.clientCode} honeypotPublicIp={honeypotPublicIp} />
                 ))}
               </div>
             </section>

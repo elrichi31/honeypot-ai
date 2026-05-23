@@ -7,7 +7,6 @@ import { EnrichmentForm } from "@/components/settings/enrichment-form"
 import { DiscordForm } from "@/components/settings/discord-form"
 import { AlertsForm } from "@/components/settings/alerts-form"
 import { DataRetentionCard, SecurityCard } from "@/components/settings/static-cards"
-import { OvaConfigCard } from "@/components/settings/ingest-api-card"
 
 export default function SettingsPage() {
   return (
@@ -19,7 +18,6 @@ export default function SettingsPage() {
 
       <div className="max-w-2xl space-y-6">
         <InfrastructureForm />
-        <OvaConfigCard />
         <DiscordForm />
         <AlertsForm />
         <DataRetentionCard />

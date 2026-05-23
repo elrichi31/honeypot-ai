@@ -61,6 +61,7 @@ export interface Sensor {
   ip: string
   version: string
   ports: number[]
+  probeHost: string
   lastSeen: string
   createdAt: string
   eventsTotal: number
