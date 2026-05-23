@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { exec } from "child_process"
-import { promisify } from "util"
+import http from "http"
 import { requireRole } from "@/lib/roles"
 import { logAudit } from "@/lib/audit"
 
-const execAsync = promisify(exec)
-
 const ALLOWED_ACTIONS = new Set(["start", "stop", "restart"])
-
-// Only allow alphanumeric + dash + underscore container names to prevent injection
 const SAFE_NAME_RE = /^[a-zA-Z0-9_-]+$/
+const DOCKER_SOCKET = "/var/run/docker.sock"
 
 const internalApiUrl =
   process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
@@ -27,6 +23,26 @@ async function getContainerName(sensorId: string): Promise<string | null> {
   } catch {
     return null
   }
+}
+
+function dockerPost(path: string): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        socketPath: DOCKER_SOCKET,
+        path,
+        method: "POST",
+        headers: { "Content-Length": 0 },
+      },
+      (res) => {
+        let body = ""
+        res.on("data", (chunk) => { body += chunk })
+        res.on("end", () => resolve({ status: res.statusCode ?? 0, body }))
+      },
+    )
+    req.on("error", reject)
+    req.end()
+  })
 }
 
 export async function POST(
@@ -54,21 +70,38 @@ export async function POST(
   }
 
   try {
-    const { stdout, stderr } = await execAsync(`docker container ${action} ${containerName}`)
-    const output = (stdout + stderr).trim()
+    // Docker Engine API: POST /containers/{name}/start|stop|restart
+    const { status, body: responseBody } = await dockerPost(
+      `/containers/${containerName}/${action}`,
+    )
+
+    // 204 = success (no content), 304 = already in desired state, 404 = not found
+    if (status === 404) {
+      return NextResponse.json({ error: `Container "${containerName}" not found on this host.` }, { status: 404 })
+    }
+    if (status >= 500) {
+      return NextResponse.json({ error: responseBody || "Docker daemon error" }, { status: 502 })
+    }
 
     await logAudit({
       action: "UPDATE",
       resource: "SENSOR",
       resourceId: sensorId,
       resourceName: sensorId,
-      details: { dockerAction: action, container: containerName, output },
+      details: { dockerAction: action, container: containerName },
       request: req,
     })
 
-    return NextResponse.json({ ok: true, action, container: containerName, output })
+    return NextResponse.json({ ok: true, action, container: containerName })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
+    // Socket not found = Docker socket not mounted
+    if (message.includes("ENOENT") || message.includes("EACCES")) {
+      return NextResponse.json(
+        { error: "Docker socket not available. Mount /var/run/docker.sock in the dashboard container." },
+        { status: 503 },
+      )
+    }
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
