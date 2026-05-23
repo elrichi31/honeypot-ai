@@ -1,0 +1,28 @@
+{
+    "device.node_id": "opencanary-fake-dc",
+    "ip.ignorelist": [],
+    "logtype.ignorelist": [],
+    "logger": {
+        "class": "PyLogger",
+        "kwargs": {
+            "formatters": {
+                "plain": {"format": "%(message)s"}
+            },
+            "handlers": {
+                "file": {
+                    "class": "logging.FileHandler",
+                    "filename": "/var/log/opencanary/fake-dc.json",
+                    "formatter": "plain"
+                }
+            }
+        }
+    },
+    "portscan.enabled": false,
+    "http.enabled": true,
+    "http.port": 80,
+    "http.banner": "Microsoft-IIS/10.0",
+    "http.skin": "nasadmin",
+    "ssh.enabled": true,
+    "ssh.port": 22,
+    "ssh.version": "SSH-2.0-OpenSSH_for_Windows_8.1"
+}

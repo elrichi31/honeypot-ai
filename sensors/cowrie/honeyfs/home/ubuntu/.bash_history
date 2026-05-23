@@ -3,29 +3,28 @@ cd /var/www/html
 ls -la wp-content/
 sudo service apache2 status
 sudo service mysql status
-mysql -u wpuser -p
-sudo nano /etc/apache2/sites-enabled/000-default.conf
-sudo systemctl reload apache2
 cd /home/ubuntu
 df -h
 free -m
 uptime
 w
 sudo tail -n 50 /var/log/apache2/error.log
-sudo tail -f /var/log/apache2/access.log
-sudo apt update
-sudo apt upgrade -y
-sudo ufw status
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo certbot renew --dry-run
-ls /var/www/html/wp-content/plugins/
-sudo chown -R www-data:www-data /var/www/html/
-sudo find /var/www/html -name "*.php" -type f | wc -l
-ps aux | grep apache
+cat /home/ubuntu/.env
+cat /etc/app/config.php
+ssh db-primary
+ssh db-replica
+ssh cache
+ssh intranet
+ssh fileserver
+redis-cli -h cache.internal ping
+redis-cli -h cache.internal info
+mysql -h db-primary.internal -u app_user app_production
+mysql -h db-replica.internal -u app_readonly app_production -e "SHOW SLAVE STATUS\G"
+scp ubuntu@fileserver.internal:/mnt/shared/backups/db_20240312.sql.gz /tmp/
+ls /mnt/shared/backups/
 netstat -tlnp
 ss -tlnp
-cat /etc/mysql/mysql.conf.d/mysqld.cnf | grep bind
-tar -czf /home/ubuntu/backup_$(date +%Y%m%d).tar.gz /var/www/html/wp-content/
-ls -lh backup_*.tar.gz
+ps aux | grep apache
+arp -n
+ifconfig
 exit

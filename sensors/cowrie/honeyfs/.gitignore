@@ -1,0 +1,11 @@
+# Never commit private keys or cloud credentials from the fake filesystem
+home/ubuntu/.ssh/id_rsa
+home/ubuntu/.ssh/id_ecdsa
+home/ubuntu/.ssh/id_ed25519
+root/.ssh/id_rsa
+root/.ssh/id_ecdsa
+root/.ssh/id_ed25519
+home/ubuntu/.aws/credentials
+home/ubuntu/.aws/config
+root/.aws/credentials
+root/.aws/config

@@ -5,3 +5,11 @@ tcp        0      0 127.0.0.1:3306          0.0.0.0:*               LISTEN      
 tcp6       0      0 :::80                   :::*                    LISTEN      1185/apache2
 tcp6       0      0 :::443                  :::*                    LISTEN      1185/apache2
 tcp6       0      0 :::22                   :::*                    LISTEN      892/sshd: /usr/sbin
+
+Active Internet connections (established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name
+tcp        0      0 10.0.1.100:54312        10.0.1.10:3306          ESTABLISHED 1847/php-fpm: pool
+tcp        0      0 10.0.1.100:54318        10.0.1.10:3306          ESTABLISHED 1848/php-fpm: pool
+tcp        0      0 10.0.1.100:54321        10.0.1.10:3306          ESTABLISHED 1849/php-fpm: pool
+tcp        0      0 10.0.1.100:41204        10.0.1.20:6379          ESTABLISHED 1847/php-fpm: pool
+tcp        0      0 10.0.1.100:41207        10.0.1.20:6379          ESTABLISHED 1848/php-fpm: pool

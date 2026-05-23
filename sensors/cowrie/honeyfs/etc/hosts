@@ -8,6 +8,11 @@ ff00::0 ip6-mcastprefix
 ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters
 
-10.0.1.10  db-primary.internal
-10.0.1.11  db-replica.internal
-10.0.1.20  cache.internal
+# Internal network — 10.0.1.0/24
+10.0.1.2   dc.internal          fake-dc
+10.0.1.5   intranet.internal    portal
+10.0.1.10  db-primary.internal  db-primary
+10.0.1.11  db-replica.internal  db-replica
+10.0.1.15  fileserver.internal  files
+10.0.1.20  cache.internal       redis
+10.0.1.100 web-prod-01

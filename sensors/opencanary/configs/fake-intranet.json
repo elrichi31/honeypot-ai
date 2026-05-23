@@ -1,0 +1,28 @@
+{
+    "device.node_id": "opencanary-fake-intranet",
+    "ip.ignorelist": [],
+    "logtype.ignorelist": [],
+    "logger": {
+        "class": "PyLogger",
+        "kwargs": {
+            "formatters": {
+                "plain": {"format": "%(message)s"}
+            },
+            "handlers": {
+                "file": {
+                    "class": "logging.FileHandler",
+                    "filename": "/var/log/opencanary/fake-intranet.json",
+                    "formatter": "plain"
+                }
+            }
+        }
+    },
+    "portscan.enabled": false,
+    "http.enabled": true,
+    "http.port": 80,
+    "http.banner": "Apache/2.4.41 (Ubuntu)",
+    "http.skin": "basicLogin",
+    "ssh.enabled": true,
+    "ssh.port": 22,
+    "ssh.version": "SSH-2.0-OpenSSH_8.2p1 Ubuntu-4ubuntu0.5"
+}

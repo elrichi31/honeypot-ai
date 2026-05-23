@@ -1,16 +1,27 @@
-Apr 14 21:58:03 web-prod-01 sshd[892]: Server listening on 0.0.0.0 port 22.
-Apr 14 21:58:03 web-prod-01 sshd[892]: Server listening on :: port 22.
-Apr 14 22:03:44 web-prod-01 sshd[1891]: Accepted publickey for ubuntu from 203.0.113.42 port 51234 ssh2: RSA SHA256:abc123
-Apr 14 22:03:44 web-prod-01 sshd[1891]: pam_unix(sshd:session): session opened for user ubuntu by (uid=0)
-Apr 14 22:04:12 web-prod-01 sshd[1891]: pam_unix(sshd:session): session closed for user ubuntu
-Apr 15 09:14:22 web-prod-01 sshd[2341]: Accepted publickey for ubuntu from 10.0.2.15 port 49876 ssh2: RSA SHA256:def456
-Apr 15 09:14:22 web-prod-01 sshd[2341]: pam_unix(sshd:session): session opened for user ubuntu by (uid=0)
-Apr 15 11:28:07 web-prod-01 sshd[2341]: pam_unix(sshd:session): session closed for user ubuntu
-Apr 15 14:22:18 web-prod-01 sshd[3102]: Invalid user admin from 198.51.100.73 port 42312
-Apr 15 14:22:18 web-prod-01 sshd[3102]: pam_unix(sshd:auth): authentication failure; logname= uid=0 euid=0 tty=ssh ruser= rhost=198.51.100.73
-Apr 15 14:22:20 web-prod-01 sshd[3102]: Failed password for invalid user admin from 198.51.100.73 port 42312 ssh2
-Apr 15 14:22:21 web-prod-01 sshd[3103]: Failed password for invalid user admin from 198.51.100.73 port 42314 ssh2
-Apr 15 14:22:22 web-prod-01 sshd[3104]: Failed password for invalid user admin from 198.51.100.73 port 42316 ssh2
-Apr 15 14:22:23 web-prod-01 sshd[3102]: Connection closed by invalid user admin 198.51.100.73 port 42312 [preauth]
-Apr 16 09:14:22 web-prod-01 sshd[4291]: Accepted publickey for ubuntu from 10.0.2.15 port 50012 ssh2: RSA SHA256:def456
-Apr 16 09:14:22 web-prod-01 sshd[4291]: pam_unix(sshd:session): session opened for user ubuntu by (uid=0)
+May 18 09:14:02 web-prod-01 sshd[892]: Server listening on 0.0.0.0 port 22.
+May 18 09:14:02 web-prod-01 sshd[892]: Server listening on :: port 22.
+May 18 10:23:17 web-prod-01 sshd[2341]: Accepted publickey for ubuntu from 10.0.1.10 port 52841 ssh2: RSA SHA256:mN9kL4pQ7rT2sV5xW8yZ1aB3cD6eF0gH
+May 18 10:23:17 web-prod-01 systemd-logind[847]: New session 14 of user ubuntu.
+May 18 10:23:17 web-prod-01 sshd[2341]: pam_unix(sshd:session): session opened for user ubuntu by (uid=0)
+May 18 10:41:33 web-prod-01 sshd[2341]: pam_unix(sshd:session): session closed for user ubuntu
+May 18 10:41:33 web-prod-01 sshd[2341]: Disconnected from user ubuntu 10.0.1.10 port 52841
+May 18 14:05:49 web-prod-01 sshd[3102]: Accepted publickey for ubuntu from 10.0.1.5 port 48923 ssh2: RSA SHA256:mN9kL4pQ7rT2sV5xW8yZ1aB3cD6eF0gH
+May 18 14:05:49 web-prod-01 systemd-logind[847]: New session 21 of user ubuntu.
+May 18 14:05:49 web-prod-01 sshd[3102]: pam_unix(sshd:session): session opened for user ubuntu by (uid=0)
+May 18 14:28:11 web-prod-01 sshd[3102]: pam_unix(sshd:session): session closed for user ubuntu
+May 18 14:28:11 web-prod-01 sshd[3102]: Disconnected from user ubuntu 10.0.1.5 port 48923
+May 19 08:30:04 web-prod-01 sshd[4219]: Accepted publickey for ubuntu from 10.0.1.10 port 51204 ssh2: RSA SHA256:mN9kL4pQ7rT2sV5xW8yZ1aB3cD6eF0gH
+May 19 08:30:04 web-prod-01 systemd-logind[847]: New session 38 of user ubuntu.
+May 19 08:30:04 web-prod-01 sshd[4219]: pam_unix(sshd:session): session opened for user ubuntu by (uid=0)
+May 19 09:12:55 web-prod-01 sshd[4219]: pam_unix(sshd:session): session closed for user ubuntu
+May 19 09:12:55 web-prod-01 sshd[4219]: Disconnected from user ubuntu 10.0.1.10 port 51204
+May 20 11:47:23 web-prod-01 sshd[5483]: Invalid user admin from 185.220.101.47 port 39281
+May 20 11:47:23 web-prod-01 sshd[5483]: pam_unix(sshd:auth): authentication failure; logname= uid=0 euid=0 tty=ssh ruser= rhost=185.220.101.47
+May 20 11:47:25 web-prod-01 sshd[5483]: Failed password for invalid user admin from 185.220.101.47 port 39281 ssh2
+May 20 11:47:31 web-prod-01 sshd[5487]: Failed password for root from 185.220.101.47 port 39284 ssh2
+May 20 11:47:38 web-prod-01 sshd[5491]: Failed password for ubuntu from 185.220.101.47 port 39289 ssh2
+May 21 07:15:02 web-prod-01 sshd[6001]: Accepted publickey for ubuntu from 10.0.1.10 port 54108 ssh2: RSA SHA256:mN9kL4pQ7rT2sV5xW8yZ1aB3cD6eF0gH
+May 21 07:15:02 web-prod-01 systemd-logind[847]: New session 52 of user ubuntu.
+May 21 07:15:02 web-prod-01 sshd[6001]: pam_unix(sshd:session): session opened for user ubuntu by (uid=0)
+May 21 07:44:18 web-prod-01 sshd[6001]: pam_unix(sshd:session): session closed for user ubuntu
+May 21 07:44:18 web-prod-01 sshd[6001]: Disconnected from user ubuntu 10.0.1.10 port 54108

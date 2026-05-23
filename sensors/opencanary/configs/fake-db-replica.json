@@ -1,0 +1,24 @@
+{
+    "device.node_id": "opencanary-fake-db-replica",
+    "ip.ignorelist": [],
+    "logtype.ignorelist": [],
+    "logger": {
+        "class": "PyLogger",
+        "kwargs": {
+            "formatters": {
+                "plain": {"format": "%(message)s"}
+            },
+            "handlers": {
+                "file": {
+                    "class": "logging.FileHandler",
+                    "filename": "/var/log/opencanary/fake-db-replica.json",
+                    "formatter": "plain"
+                }
+            }
+        }
+    },
+    "portscan.enabled": false,
+    "mysql.enabled": true,
+    "mysql.port": 3306,
+    "mysql.banner": "5.7.35-log"
+}
