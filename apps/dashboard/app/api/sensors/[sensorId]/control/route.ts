@@ -25,15 +25,10 @@ async function getContainerName(sensorId: string): Promise<string | null> {
   }
 }
 
-function dockerPost(path: string): Promise<{ status: number; body: string }> {
+function dockerRequest(method: string, path: string): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const req = http.request(
-      {
-        socketPath: DOCKER_SOCKET,
-        path,
-        method: "POST",
-        headers: { "Content-Length": 0 },
-      },
+      { socketPath: DOCKER_SOCKET, path, method, headers: { "Content-Length": 0 } },
       (res) => {
         let body = ""
         res.on("data", (chunk) => { body += chunk })
@@ -45,6 +40,40 @@ function dockerPost(path: string): Promise<{ status: number; body: string }> {
   })
 }
 
+// GET — returns actual Docker container state
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ sensorId: string }> },
+) {
+  const { sensorId } = await params
+  const containerName = await getContainerName(sensorId)
+  if (!containerName) {
+    return NextResponse.json({ error: "Sensor not found" }, { status: 404 })
+  }
+
+  try {
+    const { status, body } = await dockerRequest("GET", `/containers/${containerName}/json`)
+    if (status === 404) return NextResponse.json({ status: "not_found" })
+    if (status !== 200) return NextResponse.json({ status: "unknown" })
+    const info = JSON.parse(body)
+    return NextResponse.json({
+      status: info.State?.Status ?? "unknown",   // running | exited | paused | restarting
+      running: info.State?.Running ?? false,
+      paused: info.State?.Paused ?? false,
+      startedAt: info.State?.StartedAt,
+      finishedAt: info.State?.FinishedAt,
+      container: containerName,
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    if (message.includes("ENOENT") || message.includes("EACCES")) {
+      return NextResponse.json({ status: "socket_unavailable" })
+    }
+    return NextResponse.json({ status: "unknown" })
+  }
+}
+
+// POST — start | stop | restart
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ sensorId: string }> },
@@ -70,14 +99,12 @@ export async function POST(
   }
 
   try {
-    // Docker Engine API: POST /containers/{name}/start|stop|restart
-    const { status, body: responseBody } = await dockerPost(
-      `/containers/${containerName}/${action}`,
+    const { status, body: responseBody } = await dockerRequest(
+      "POST", `/containers/${containerName}/${action}`,
     )
 
-    // 204 = success (no content), 304 = already in desired state, 404 = not found
     if (status === 404) {
-      return NextResponse.json({ error: `Container "${containerName}" not found on this host.` }, { status: 404 })
+      return NextResponse.json({ error: `Container "${containerName}" not found.` }, { status: 404 })
     }
     if (status >= 500) {
       return NextResponse.json({ error: responseBody || "Docker daemon error" }, { status: 502 })
@@ -95,7 +122,6 @@ export async function POST(
     return NextResponse.json({ ok: true, action, container: containerName })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    // Socket not found = Docker socket not mounted
     if (message.includes("ENOENT") || message.includes("EACCES")) {
       return NextResponse.json(
         { error: "Docker socket not available. Mount /var/run/docker.sock in the dashboard container." },

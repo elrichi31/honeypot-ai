@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import {
   AlertTriangle, CheckCircle2, Database, Globe, Network, Server,
@@ -71,7 +71,7 @@ export function SensorCard({
   const [deleting, setDeleting] = useState(false)
   const [controlState, setControlState] = useState<ControlState>("idle")
   const [controlMsg, setControlMsg] = useState("")
-
+  const [dockerStatus, setDockerStatus] = useState<string | null>(null)
 
   const meta = PROTOCOL_META[sensor.protocol] ?? {
     label: sensor.protocol, icon: Server, color: "text-slate-400", bg: "bg-slate-400/10",
@@ -80,6 +80,23 @@ export function SensorCard({
 
   const isInternal = isPrivateIp(sensor.ip)
   const hasContainer = !!sensor.probeHost
+
+  const fetchDockerStatus = useCallback(async () => {
+    if (!hasContainer) return
+    try {
+      const res = await fetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/control`, { cache: "no-store" })
+      if (res.ok) {
+        const data = await res.json()
+        setDockerStatus(data.status ?? null)
+      }
+    } catch { /* ignore */ }
+  }, [sensor.sensorId, hasContainer])
+
+  useEffect(() => {
+    fetchDockerStatus()
+    const id = setInterval(fetchDockerStatus, 10000)
+    return () => clearInterval(id)
+  }, [fetchDockerStatus])
 
   async function handleDelete() {
     setDeleting(true)
@@ -104,6 +121,11 @@ export function SensorCard({
       if (res.ok) {
         setControlState("ok")
         setControlMsg(action === "stop" ? "Detenido" : action === "start" ? "Iniciado" : "Reiniciado")
+        // Optimistic docker status
+        if (action === "stop") setDockerStatus("exited")
+        if (action === "start" || action === "restart") setDockerStatus("running")
+        // Confirm real status after a moment
+        setTimeout(() => fetchDockerStatus(), 2000)
         setTimeout(() => { setControlState("idle"); router.refresh() }, 3000)
       } else {
         setControlState("error")
@@ -131,7 +153,10 @@ export function SensorCard({
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {sensor.online ? (
+          {/* Docker container state badge — shown when available, takes priority over heartbeat */}
+          {hasContainer && dockerStatus ? (
+            <DockerStatusBadge status={dockerStatus} />
+          ) : sensor.online ? (
             <div className="flex items-center gap-1.5">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -287,21 +312,21 @@ export function SensorCard({
             <ControlButton
               icon={Play}
               label="Iniciar"
-              color="text-emerald-400 hover:bg-emerald-400/10"
+              color="text-emerald-400 hover:bg-emerald-400/15"
               disabled={controlState === "loading"}
               onClick={() => handleControl("start")}
             />
             <ControlButton
               icon={Square}
               label="Detener"
-              color="text-red-400 hover:bg-red-400/10"
+              color="text-red-400 hover:bg-red-400/15"
               disabled={controlState === "loading"}
               onClick={() => handleControl("stop")}
             />
             <ControlButton
               icon={controlState === "loading" ? Loader2 : RotateCcw}
               label="Reiniciar"
-              color="text-amber-400 hover:bg-amber-400/10"
+              color="text-amber-400 hover:bg-amber-400/15"
               disabled={controlState === "loading"}
               spinning={controlState === "loading"}
               onClick={() => handleControl("restart")}
@@ -338,9 +363,64 @@ function ControlButton({
       onClick={onClick}
       disabled={disabled}
       title={label}
-      className={`rounded p-1.5 text-muted-foreground/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${color}`}
+      className={`rounded p-1.5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${color}`}
     >
       <Icon className={`h-3.5 w-3.5 ${spinning ? "animate-spin" : ""}`} />
     </button>
+  )
+}
+
+function DockerStatusBadge({ status }: { status: string }) {
+  if (status === "running") {
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+        </span>
+        <span className="text-xs font-medium text-emerald-400">Iniciado</span>
+      </div>
+    )
+  }
+  if (status === "restarting") {
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-400" />
+        </span>
+        <span className="text-xs font-medium text-amber-400">Reiniciando</span>
+      </div>
+    )
+  }
+  if (status === "exited" || status === "dead") {
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className="inline-flex h-2 w-2 rounded-full bg-red-500" />
+        <span className="text-xs font-medium text-red-400">Detenido</span>
+      </div>
+    )
+  }
+  if (status === "paused") {
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className="inline-flex h-2 w-2 rounded-full bg-slate-400" />
+        <span className="text-xs font-medium text-slate-400">Pausado</span>
+      </div>
+    )
+  }
+  if (status === "not_found") {
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className="inline-flex h-2 w-2 rounded-full bg-muted-foreground/50" />
+        <span className="text-xs text-muted-foreground">No encontrado</span>
+      </div>
+    )
+  }
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="inline-flex h-2 w-2 rounded-full bg-muted-foreground/30" />
+      <span className="text-xs text-muted-foreground capitalize">{status}</span>
+    </div>
   )
 }
