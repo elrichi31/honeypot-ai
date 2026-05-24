@@ -8,9 +8,9 @@ mkdir -p /var/log/suricata
 # Download rules if not present (first run when using jasonish/suricata:latest directly)
 if [ ! -f /var/lib/suricata/rules/suricata.rules ]; then
   echo "[suricata] Rules not found — running suricata-update (first run, takes ~1 min)..."
-  suricata-update update-sources --no-reload 2>/dev/null || true
+  suricata-update update-sources 2>/dev/null || true
   suricata-update enable-source et/open 2>/dev/null || true
-  suricata-update --no-reload
+  suricata-update
 fi
 
 echo "[suricata] Starting on interface: ${IFACE}"

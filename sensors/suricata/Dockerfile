@@ -1,10 +1,9 @@
 FROM jasonish/suricata:latest
 
 # Pre-fetch ET Open rules at build time so startup is instant
-RUN suricata-update update-sources --no-reload && \
+RUN suricata-update update-sources && \
     suricata-update enable-source et/open && \
-    suricata-update --no-reload && \
-    # Verify rules were downloaded
+    suricata-update && \
     test -f /var/lib/suricata/rules/suricata.rules && \
     echo "[suricata] ET Open rules downloaded OK"
 
