@@ -109,7 +109,7 @@ app-layer:
     ssh:
       enabled: yes
     dns:
-      enabled: no
+      enabled: yes
     dcerpc:
       enabled: no
     smb:
@@ -121,7 +121,7 @@ app-layer:
     krb5:
       enabled: no
     snmp:
-      enabled: no
+      enabled: yes
     tftp:
       enabled: no
     rdp:
