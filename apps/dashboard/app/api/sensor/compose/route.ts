@@ -150,7 +150,7 @@ services:
     volumes:
       - /proc:/host/proc:ro
       - /sys/kernel/tracing:/sys/kernel/tracing:ro
-      - /var/run/docker.sock:/host/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock
       - ./sensors/falco/falco.yaml:/etc/falco/falco.yaml:ro
       - falco_logs:/var/log/falco
     pids_limit: 128
