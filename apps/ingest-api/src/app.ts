@@ -21,6 +21,7 @@ import { sensorProvisionRoutes } from './routes/sensor-provision.js'
 import { malwareRoutes } from './routes/malware.js';
 import { storageRoutes } from './routes/storage.js';
 import { retentionPlugin } from './plugins/retention.js';
+import { suricataRoutes } from './routes/suricata.js';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -67,6 +68,7 @@ export async function buildApp() {
   await app.register(sensorProvisionRoutes);
   await app.register(malwareRoutes);
   await app.register(storageRoutes);
+  await app.register(suricataRoutes);
   await app.register(retentionPlugin);
 
   return app;

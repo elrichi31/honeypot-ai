@@ -83,6 +83,26 @@ services:
       - /tmp
     pids_limit: 128
 
+  suricata:
+    logging: *json-logging
+    build:
+      context: ./sensors/suricata
+    container_name: suricata
+    restart: unless-stopped
+    init: true
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    cap_drop:
+      - ALL
+    environment:
+      SURICATA_INTERFACE: ${SURICATA_INTERFACE:-eth0}
+    volumes:
+      - suricata_logs:/var/log/suricata
+    pids_limit: 256
+
   vector:
     <<: *service-defaults
     logging: *json-logging
@@ -92,12 +112,15 @@ services:
       - cowrie
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var:ro
-      - ./vector/cowrie.toml:/etc/vector/vector.toml:ro
+      - suricata_logs:/var/log/suricata:ro
+      - ./vector/cowrie.toml:/etc/vector/cowrie.toml:ro
+      - ./vector/suricata.toml:/etc/vector/suricata.toml:ro
       - vector_data:/var/lib/vector
-    command: ["--config", "/etc/vector/vector.toml"]
+    command: ["--config", "/etc/vector/cowrie.toml", "--config", "/etc/vector/suricata.toml"]
     environment:
       COWRIE_LOG_PATH: /cowrie/cowrie-git/var/log/cowrie/cowrie.json
       SENSOR_ID: ${SENSOR_ID_SSH:-cowrie-ssh-01}
+      SURICATA_SENSOR_ID: ${SENSOR_ID_SURICATA:-suricata-01}
       INGEST_API_URL: ${INGEST_API_URL}
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
     networks:
@@ -181,6 +204,7 @@ services:
 volumes:
   cowrie_var:
   vector_data:
+  suricata_logs:
 
 networks:
   edge:

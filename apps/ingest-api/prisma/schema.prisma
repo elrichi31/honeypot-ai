@@ -195,6 +195,34 @@ model ThreatAlertCooldown {
   @@map("threat_alert_cooldown")
 }
 
+model SuricataAlert {
+  id          String   @id @default(uuid())
+  sensorId    String   @default("") @map("sensor_id")
+  timestamp   DateTime
+  srcIp       String   @default("") @map("src_ip")
+  srcPort     Int?     @map("src_port")
+  destIp      String   @default("") @map("dest_ip")
+  destPort    Int?     @map("dest_port")
+  proto       String   @default("")
+  action      String   @default("allowed")
+  signatureId Int      @default(0) @map("signature_id")
+  signature   String   @default("")
+  category    String   @default("")
+  severity    Int      @default(3)
+  flowId      BigInt?  @map("flow_id")
+  inIface     String?  @map("in_iface")
+  raw         Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([srcIp])
+  @@index([severity])
+  @@index([signatureId])
+  @@index([timestamp(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@index([srcIp, timestamp(sort: Desc)])
+  @@map("suricata_alerts")
+}
+
 model WebHit {
   id          String   @id @default(uuid())
   eventId     String   @unique @map("event_id")

@@ -1,0 +1,130 @@
+%YAML 1.1
+---
+# Minimal Suricata config for honeypot IDS — alert-only, EVE JSON output.
+# The capture interface is overridden at runtime via: suricata -i ${SURICATA_INTERFACE}
+
+vars:
+  address-groups:
+    HOME_NET: "[192.168.0.0/16,10.0.0.0/8,172.16.0.0/12]"
+    EXTERNAL_NET: "!$HOME_NET"
+    HTTP_SERVERS: "$HOME_NET"
+    SMTP_SERVERS: "$HOME_NET"
+    SQL_SERVERS: "$HOME_NET"
+    DNS_SERVERS: "$HOME_NET"
+    TELNET_SERVERS: "$HOME_NET"
+    AIM_SERVERS: "$EXTERNAL_NET"
+    DC_SERVERS: "$HOME_NET"
+    DNP3_SERVER: "$HOME_NET"
+    DNP3_CLIENT: "$HOME_NET"
+    MODBUS_CLIENT: "$HOME_NET"
+    MODBUS_SERVER: "$HOME_NET"
+    ENIP_CLIENT: "$HOME_NET"
+    ENIP_SERVER: "$HOME_NET"
+  port-groups:
+    HTTP_PORTS: "80"
+    SHELLCODE_PORTS: "!80"
+    ORACLE_PORTS: 1521
+    SSH_PORTS: 22
+    DNP3_PORTS: 20000
+    MODBUS_PORTS: 502
+    FILE_DATA_PORTS: "[$HTTP_PORTS,110,143]"
+    FTP_PORTS: 21
+    VXLAN_PORTS: 4789
+    TEREDO_PORTS: 3544
+
+default-log-dir: /var/log/suricata/
+
+stats:
+  enabled: no
+
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      # Only alert events — no flows, dns, http etc. to keep volume low
+      types:
+        - alert:
+            payload: no
+            packet: no
+            metadata: no
+
+  # Disable all other log outputs
+  - fast:
+      enabled: no
+  - unified2-alert:
+      enabled: no
+  - http-log:
+      enabled: no
+  - pcap-log:
+      enabled: no
+  - alert-debug:
+      enabled: no
+  - stats:
+      enabled: no
+
+af-packet:
+  - interface: default
+    threads: auto
+    cluster-id: 99
+    cluster-type: cluster_flow
+    defrag: yes
+    use-mmap: yes
+
+default-rule-path: /var/lib/suricata/rules
+rule-files:
+  - suricata.rules
+
+logging:
+  default-log-level: notice
+  outputs:
+    - console:
+        enabled: yes
+    - file:
+        enabled: no
+    - syslog:
+        enabled: no
+
+legacy:
+  uricontent: enabled
+
+detection:
+  profile: medium
+  sgh-mpm-context: auto
+  inspection-recursion-limit: 3000
+  prefilter:
+    default: mpm
+
+# Disable app-layer parsers not needed for basic IDS
+app-layer:
+  protocols:
+    tls:
+      enabled: yes
+    http:
+      enabled: yes
+    ftp:
+      enabled: yes
+    smtp:
+      enabled: no
+    ssh:
+      enabled: yes
+    dns:
+      enabled: no
+    dcerpc:
+      enabled: no
+    smb:
+      enabled: yes
+    nfs:
+      enabled: no
+    ikev2:
+      enabled: no
+    krb5:
+      enabled: no
+    snmp:
+      enabled: no
+    tftp:
+      enabled: no
+    rdp:
+      enabled: yes
+    http2:
+      enabled: no
