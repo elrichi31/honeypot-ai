@@ -1,676 +1,236 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Maximize2, Minimize2, Globe, Map as MapIcon } from "lucide-react"
-import createGlobe from "cobe"
-import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from "react-simple-maps"
-import {
-  PROTOCOL_CHIP_CLASS,
-  getProtocolChipClass,
-  getProtocolDotClass,
-  getProtocolMarkerColor,
-} from "@/lib/protocol-colors"
+import { useCallback, useEffect, useRef, useState } from "react"
+import type React from "react"
+import { LiveAttackControls } from "@/components/live-attack-controls"
+import { LiveAttackGlobe } from "@/components/live-attack-globe"
+import { LiveAttackMap2D } from "@/components/live-attack-map-2d"
+import { CountryHoverTooltip, RecentAttacksSidebar } from "@/components/live-attack-sidebar"
+import type {
+  Attack,
+  CountryHit,
+  GlobeArc,
+  HoverCountry,
+  LiveArc,
+  LiveMarkerEntry,
+  RawEvent,
+  SensorLocation,
+  ViewMode,
+} from "@/components/live-attack-map-types"
 
-const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"
-
-const ISO2_NUM: Record<string, number> = {
-  AF: 4, AL: 8, DZ: 12, AS: 16, AD: 20, AO: 24, AI: 660, AQ: 10, AG: 28, AR: 32, AM: 51, AW: 533,
-  AU: 36, AT: 40, AZ: 31, BS: 44, BH: 48, BD: 50, BB: 52, BY: 112, BE: 56, BZ: 84, BJ: 204, BM: 60,
-  BT: 64, BO: 68, BA: 70, BW: 72, BR: 76, BN: 96, BG: 100, BF: 854, BI: 108, CV: 132, KH: 116,
-  CM: 120, CA: 124, KY: 136, CF: 140, TD: 148, CL: 152, CN: 156, CO: 170, KM: 174, CD: 180,
-  CG: 178, CK: 184, CR: 188, CI: 384, HR: 191, CU: 192, CY: 196, CZ: 203, DK: 208, DJ: 262,
-  DM: 212, DO: 214, EC: 218, EG: 818, SV: 222, GQ: 226, ER: 232, EE: 233, SZ: 748, ET: 231,
-  FJ: 242, FI: 246, FR: 250, GA: 266, GM: 270, GE: 268, DE: 276, GH: 288, GR: 300, GL: 304,
-  GD: 308, GT: 320, GN: 324, GW: 624, GY: 328, HT: 332, HN: 340, HK: 344, HU: 348, IS: 352,
-  IN: 356, ID: 360, IR: 364, IQ: 368, IE: 372, IL: 376, IT: 380, JM: 388, JP: 392, JO: 400,
-  KZ: 398, KE: 404, KI: 296, KP: 408, KR: 410, KW: 414, KG: 417, LA: 418, LV: 428, LB: 422,
-  LS: 426, LR: 430, LY: 434, LI: 438, LT: 440, LU: 442, MO: 446, MG: 450, MW: 454, MY: 458,
-  MV: 462, ML: 466, MT: 470, MH: 584, MR: 478, MU: 480, MX: 484, FM: 583, MD: 498, MC: 492,
-  MN: 496, ME: 499, MA: 504, MZ: 508, MM: 104, NA: 516, NP: 524, NL: 528, NZ: 554, NI: 558,
-  NE: 562, NG: 566, NO: 578, OM: 512, PK: 586, PW: 585, PA: 591, PG: 598, PY: 600, PE: 604,
-  PH: 608, PL: 616, PT: 620, PR: 630, QA: 634, RO: 642, RU: 643, RW: 646, KN: 659, LC: 662,
-  VC: 670, WS: 882, SM: 674, ST: 678, SA: 682, SN: 686, RS: 688, SC: 690, SL: 694, SG: 702,
-  SK: 703, SI: 705, SB: 90, SO: 706, ZA: 710, SS: 728, ES: 724, LK: 144, SD: 729, SR: 740,
-  SE: 752, CH: 756, SY: 760, TW: 158, TJ: 762, TZ: 834, TH: 764, TL: 626, TG: 768, TO: 776,
-  TT: 780, TN: 788, TR: 792, TM: 795, UG: 800, UA: 804, AE: 784, GB: 826, US: 840, UY: 858,
-  UZ: 860, VU: 548, VE: 862, VN: 704, YE: 887, ZM: 894, ZW: 716,
-}
-
-const NUM_TO_ISO2 = Object.fromEntries(
-  Object.entries(ISO2_NUM).map(([iso2, numeric]) => [numeric, iso2]),
-) as Record<number, string>
-
-const COUNTRY_NAMES = new Intl.DisplayNames(["en"], { type: "region" })
-
-type AttackType = keyof typeof PROTOCOL_CHIP_CLASS
-
-interface SensorLocation {
-  ip: string
-  protocol: string
-  lat: number
-  lng: number
-  country: string
-}
-
-interface CountryHit {
-  country: string
-  lat: number
-  lng: number
-  type: string
-  count: number
-}
-
-interface LiveArc {
-  id: string
-  srcLng: number
-  srcLat: number
-  type: string
-  expiresAt: number
-}
-
-interface Attack {
-  id: string
-  type: string
-  ip: string
-  lat: number
-  lng: number
-  country: string
-  timestamp: number
-  dstPort?: number
-}
-
-interface RawEvent {
-  type: string
-  ip: string
-  lat: number
-  lng: number
-  country: string
-  timestamp: string
-  dstPort?: number
-}
-
-interface HoverCountry {
-  country: string
-  count: number
-  x: number
-  y: number
-}
-
-interface LiveMarkerEntry {
-  lat: number
-  lng: number
-  count: number
-  lastHitAt: number
-  lastType: string
-}
-
-// Globe marker color per protocol
-function typeToGlobeColor(type: string): [number, number, number] {
-  switch (type) {
-    case "ssh":       return [0.13, 0.83, 0.93]
-    case "http":      return [1.00, 0.58, 0.13]
-    case "ftp":       return [0.98, 0.85, 0.13]
-    case "mysql":     return [0.85, 0.32, 1.00]
-    case "port-scan": return [0.13, 0.93, 0.45]
-    default:          return [0.80, 0.80, 0.80]
-  }
-}
-
-function project(coords: [number, number]): [number, number] {
-  const [lng, lat] = coords
-  const toRad = Math.PI / 180
-  const scale = 130
-  const w = 800
-  const h = 600
-  const cLng = 10
-  const cLat = 25
-  const rawX = lng * toRad
-  const rawY = -Math.log(Math.tan(Math.PI / 4 + (lat * toRad) / 2))
-  const rawCX = cLng * toRad
-  const rawCY = -Math.log(Math.tan(Math.PI / 4 + (cLat * toRad) / 2))
-  return [scale * (rawX - rawCX) + w / 2, scale * (rawY - rawCY) + h / 2]
-}
-
-function typeColor(type: string) {
-  return getProtocolMarkerColor(type)
-}
-
-function arcPath(src: [number, number], dst: [number, number]): string | null {
-  const [x1, y1] = project(src)
-  const [x2, y2] = project(dst)
-  const dx = x2 - x1
-  const dy = y2 - y1
-  const len = Math.sqrt(dx * dx + dy * dy)
-  if (len < 3) return null
-  const off = Math.min(len * 0.28, 60)
-  const cx = (x1 + x2) / 2 - (dy / len) * off
-  const cy = (y1 + y2) / 2 + (dx / len) * off
-  return `M ${x1.toFixed(1)} ${y1.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`
-}
-
-function LiveArcLine({ src, dst, type }: { src: [number, number]; dst: [number, number]; type: string }) {
-  const d = arcPath(src, dst)
-  if (!d) return null
-  const c = typeColor(type)
-
-  return (
-    <g>
-      <path d={d} stroke={c} strokeWidth={1.15} fill="none" opacity={0.22} />
-      <path
-        d={d}
-        stroke={c}
-        strokeWidth={6}
-        fill="none"
-        strokeDasharray="8 700"
-        filter="url(#arc-glow)"
-        opacity={0}
-      >
-        <animate attributeName="stroke-dashoffset" from="8" to="-700" dur="4.8s" fill="freeze" />
-        <animate
-          attributeName="opacity"
-          from="0.5"
-          to="0"
-          begin="0s"
-          dur="4.8s"
-          fill="freeze"
-          calcMode="spline"
-          keyTimes="0;0.6;1"
-          keySplines="0.4 0 0.6 1;0.4 0 0.6 1"
-          values="0;0.5;0"
-        />
-      </path>
-      <path
-        d={d}
-        stroke={c}
-        strokeWidth={2.4}
-        fill="none"
-        strokeDasharray="8 700"
-        opacity={0}
-      >
-        <animate attributeName="stroke-dashoffset" from="8" to="-700" dur="4.8s" fill="freeze" />
-        <animate
-          attributeName="opacity"
-          from="1"
-          to="0"
-          begin="0s"
-          dur="4.8s"
-          fill="freeze"
-          calcMode="spline"
-          keyTimes="0;0.7;1"
-          keySplines="0.4 0 0.6 1;0.4 0 0.6 1"
-          values="0;0.95;0"
-        />
-      </path>
-    </g>
-  )
-}
+const EMPTY_STATS = { ssh: 0, http: 0, ftp: 0, mysql: 0, "port-scan": 0 }
 
 function todayUTC() {
   return new Date().toISOString().slice(0, 10)
 }
 
-function countryLabel(code: string) {
-  return COUNTRY_NAMES.of(code) ?? code
-}
-
 export function LiveAttackMap() {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const [viewMode, setViewMode] = useState<"2d" | "3d">("2d")
+  const liveMarkersRef = useRef<Map<string, LiveMarkerEntry>>(new Map())
+  const globeArcsRef = useRef<GlobeArc[]>([])
+  const todayRef = useRef(todayUTC())
 
-  // 2D state
+  const [viewMode, setViewMode] = useState<ViewMode>("2d")
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const [sensors, setSensors] = useState<SensorLocation[]>([])
   const [countryHits, setCountryHits] = useState<CountryHit[]>([])
   const [attackedCodes, setAttackedCodes] = useState<Set<string>>(new Set())
   const [liveArcs, setLiveArcs] = useState<LiveArc[]>([])
   const [recent, setRecent] = useState<Attack[]>([])
-  const [stats, setStats] = useState<Record<string, number>>({
-    ssh: 0, http: 0, ftp: 0, mysql: 0, "port-scan": 0,
-  })
+  const [stats, setStats] = useState<Record<string, number>>(EMPTY_STATS)
   const [connected, setConnected] = useState(false)
   const [hoverCountry, setHoverCountry] = useState<HoverCountry | null>(null)
-  const todayRef = useRef(todayUTC())
-
-  // 3D globe refs — all mutable, no re-renders
-  const globeCanvasRef = useRef<HTMLCanvasElement>(null)
-  const globeRafRef = useRef<number>(0)
-  const globePhiRef = useRef(0)
-  const globePointerRef = useRef<number | null>(null)
-  const globeMovementRef = useRef(0)
-  const liveMarkersRef = useRef<Map<string, LiveMarkerEntry>>(new Map())
-
-  useEffect(() => {
-    const handler = () => setIsFullscreen(!!document.fullscreenElement)
-    document.addEventListener("fullscreenchange", handler)
-    return () => document.removeEventListener("fullscreenchange", handler)
-  }, [])
-
-  function toggleFullscreen() {
-    if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen()
-    } else {
-      document.exitFullscreen()
-    }
-  }
-
-  const countryHitMap = useMemo(
-    () => new Map(countryHits.map((hit) => [hit.country, hit])),
-    [countryHits],
-  )
 
   const loadToday = useCallback(async () => {
     try {
       const res = await fetch("/api/attacks/today")
       if (!res.ok) return
       const data = (await res.json()) as { attackedCountries: CountryHit[]; sensors: SensorLocation[] }
-      setSensors(data.sensors ?? [])
-      setCountryHits(data.attackedCountries ?? [])
-      setAttackedCodes(new Set((data.attackedCountries ?? []).map((c) => c.country)))
-
-      // Pre-populate globe markers from historical data
-      liveMarkersRef.current.clear()
-      for (const hit of data.attackedCountries ?? []) {
-        liveMarkersRef.current.set(hit.country, {
-          lat: hit.lat,
-          lng: hit.lng,
-          count: hit.count,
-          lastHitAt: 0,
-          lastType: hit.type,
-        })
-      }
+      applyTodayData(data, setSensors, setCountryHits, setAttackedCodes, liveMarkersRef)
     } catch {
-      // ignore
+      return
     }
   }, [])
 
-  // Day rollover
-  useEffect(() => {
-    const iv = setInterval(() => {
-      const now = todayUTC()
-      if (now !== todayRef.current) {
-        todayRef.current = now
-        setCountryHits([])
-        setAttackedCodes(new Set())
-        setLiveArcs([])
-        setRecent([])
-        setStats({ ssh: 0, http: 0, ftp: 0, mysql: 0, "port-scan": 0 })
-        liveMarkersRef.current.clear()
-        loadToday()
-      }
-    }, 60_000)
-    return () => clearInterval(iv)
-  }, [loadToday])
-
-  // 2D arc expiry
-  useEffect(() => {
-    const iv = setInterval(() => {
-      const now = Date.now()
-      setLiveArcs((prev) => prev.filter((a) => a.expiresAt > now))
-    }, 500)
-    return () => clearInterval(iv)
+  const addAttack = useCallback((event: RawEvent) => {
+    const timestamp = Date.now()
+    addLiveArc(event, timestamp, setLiveArcs)
+    updateCountryHits(event, setCountryHits, setAttackedCodes)
+    setRecent((prev) => [{ ...event, id: crypto.randomUUID(), timestamp }, ...prev].slice(0, 25))
+    setStats((prev) => ({ ...prev, [event.type]: (prev[event.type] ?? 0) + 1 }))
+    updateGlobeMarker(event, timestamp, liveMarkersRef)
+    globeArcsRef.current.push(globeArc(event, timestamp))
   }, [])
 
-  const addAttack = useCallback((ev: RawEvent) => {
-    const ts = Date.now()
+  useFullscreenListener(setIsFullscreen)
+  useLiveEvents(loadToday, addAttack, setConnected)
+  useDayRollover(todayRef, loadToday, resetLiveState)
+  useArcExpiry(setLiveArcs)
 
-    // 2D arc
-    setLiveArcs((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), srcLng: ev.lng, srcLat: ev.lat, type: ev.type, expiresAt: ts + 5_000 },
-    ])
+  function resetLiveState() {
+    setCountryHits([])
+    setAttackedCodes(new Set())
+    setLiveArcs([])
+    setRecent([])
+    setStats(EMPTY_STATS)
+    liveMarkersRef.current.clear()
+    globeArcsRef.current = []
+  }
 
-    // 2D country heat
-    setCountryHits((prev) => {
-      const key = ev.country || `${ev.lat},${ev.lng}`
-      const idx = prev.findIndex((c) => c.country === key)
-      if (idx === -1) {
-        return [...prev, { country: key, lat: ev.lat, lng: ev.lng, type: ev.type, count: 1 }]
-      }
-      const next = [...prev]
-      next[idx] = { ...next[idx], count: next[idx].count + 1, type: ev.type }
-      return next
-    })
-    if (ev.country) {
-      setAttackedCodes((prev) => {
-        if (prev.has(ev.country)) return prev
-        return new Set(prev).add(ev.country)
-      })
-    }
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) containerRef.current?.requestFullscreen()
+    else document.exitFullscreen()
+  }
 
-    setRecent((prev) => [{ ...ev, id: crypto.randomUUID(), timestamp: ts }, ...prev].slice(0, 25))
-    setStats((prev) => ({ ...prev, [ev.type]: (prev[ev.type] ?? 0) + 1 }))
-
-    // 3D globe marker — update mutable ref directly (no re-render needed)
-    const key = ev.country || `${Math.round(ev.lat)},${Math.round(ev.lng)}`
-    const existing = liveMarkersRef.current.get(key)
-    liveMarkersRef.current.set(key, {
-      lat: ev.lat,
-      lng: ev.lng,
-      count: (existing?.count ?? 0) + 1,
-      lastHitAt: ts,
-      lastType: ev.type,
-    })
-  }, [])
-
-  // SSE connection
-  useEffect(() => {
-    loadToday()
-    const es = new EventSource("/api/events/live")
-    es.onopen = () => setConnected(true)
-    es.onerror = () => setConnected(false)
-    es.onmessage = (e) => {
-      try { addAttack(JSON.parse(e.data) as RawEvent) } catch { /* ignore */ }
-    }
-    return () => es.close()
-  }, [loadToday, addAttack])
-
-  // 3D globe lifecycle — created/destroyed when switching modes
-  useEffect(() => {
-    if (viewMode !== "3d") return
-    const canvas = globeCanvasRef.current
-    if (!canvas) return
-
-    let width = canvas.offsetWidth
-    const onResize = () => { width = canvas.offsetWidth }
-    window.addEventListener("resize", onResize)
-
-    const globe = createGlobe(canvas, {
-      devicePixelRatio: Math.min(window.devicePixelRatio, 2),
-      width: width * 2,
-      height: width * 2,
-      phi: globePhiRef.current,
-      theta: 0.28,
-      dark: 1,
-      diffuse: 2.8,
-      mapSamples: 20000,
-      mapBrightness: 1.8,
-      baseColor: [0.05, 0.09, 0.20],
-      markerColor: [1, 0.25, 0.25],
-      glowColor: [0.12, 0.10, 0.30],
-      markers: [],
-    })
-
-    const render = () => {
-      if (globePointerRef.current === null) globePhiRef.current += 0.004
-      const phi = globePhiRef.current + globeMovementRef.current
-      const now = Date.now()
-
-      const entries = Array.from(liveMarkersRef.current.values())
-      const maxCount = Math.max(1, ...entries.map((e) => e.count))
-
-      const markers = entries.map((e) => {
-        const t = Math.log1p(e.count) / Math.log1p(maxCount)
-        // Flash: markers grow briefly on new hit, then fade back to normal size
-        const age = now - e.lastHitAt
-        const flash = e.lastHitAt > 0 && age < 1800 ? 1 + (1 - age / 1800) * 1.2 : 1
-        return {
-          location: [e.lat, e.lng] as [number, number],
-          size: (0.018 + t * 0.042) * flash,
-          color: typeToGlobeColor(e.lastType),
-        }
-      })
-
-      globe.update({ phi, width: width * 2, height: width * 2, markers })
-      globeRafRef.current = requestAnimationFrame(render)
-    }
-    globeRafRef.current = requestAnimationFrame(render)
-
-    const onDown = (e: PointerEvent) => {
-      globePointerRef.current = e.clientX - globeMovementRef.current
-      canvas.style.cursor = "grabbing"
-    }
-    const onMove = (e: PointerEvent) => {
-      if (globePointerRef.current !== null) {
-        globeMovementRef.current = e.clientX - globePointerRef.current
-      }
-    }
-    const onUp = () => {
-      if (globePointerRef.current !== null) {
-        globePhiRef.current += globeMovementRef.current
-        globeMovementRef.current = 0
-        globePointerRef.current = null
-      }
-      canvas.style.cursor = "grab"
-    }
-
-    canvas.addEventListener("pointerdown", onDown)
-    canvas.addEventListener("pointermove", onMove)
-    canvas.addEventListener("pointerup", onUp)
-    canvas.addEventListener("pointerout", onUp)
-    setTimeout(() => { canvas.style.opacity = "1" }, 50)
-
-    return () => {
-      cancelAnimationFrame(globeRafRef.current)
-      globe.destroy()
-      canvas.removeEventListener("pointerdown", onDown)
-      canvas.removeEventListener("pointermove", onMove)
-      canvas.removeEventListener("pointerup", onUp)
-      canvas.removeEventListener("pointerout", onUp)
-      window.removeEventListener("resize", onResize)
-    }
-  }, [viewMode])
-
-  const primary = sensors[0]
   const total24h = countryHits.reduce((sum, hit) => sum + hit.count, 0)
-
   return (
-    <div
-      ref={containerRef}
-      className="relative h-full w-full overflow-hidden rounded-xl border border-white/5 bg-[#060b18] [&:fullscreen]:rounded-none"
-    >
-      {/* ── Top-left controls (shared) ── */}
-      <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
-        {/* Protocol chips */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {(Object.keys(PROTOCOL_CHIP_CLASS) as AttackType[]).map((t) => (
-            <div
-              key={t}
-              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-medium tracking-wide ${getProtocolChipClass(t)}`}
-            >
-              <span className="opacity-60 uppercase">{t}</span>
-              <span className="font-bold">{(stats[t] ?? 0).toLocaleString()}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Status bar */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[10px] text-slate-300">
-            <span className="opacity-60">24h</span>
-            <span className="font-bold">{total24h.toLocaleString()}</span>
-          </div>
-          {attackedCodes.size > 0 && (
-            <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[10px] text-slate-400">
-              <span className="inline-block h-1.5 w-1.5 rounded-sm" style={{ background: "#f43f5e88" }} />
-              {attackedCodes.size} countries
-            </div>
-          )}
-          <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[10px]">
-            <span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-emerald-400 animate-pulse" : "bg-slate-500"}`} />
-            <span className={connected ? "text-emerald-400" : "text-slate-500"}>{connected ? "Live" : "Offline"}</span>
-          </div>
-
-          {/* 2D / 3D toggle */}
-          <div className="flex overflow-hidden rounded-full border border-white/10 bg-white/5">
-            <button
-              onClick={() => setViewMode("2d")}
-              className={`flex items-center gap-1 px-2.5 py-0.5 text-[10px] font-medium transition-colors ${
-                viewMode === "2d" ? "bg-white/15 text-white" : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <MapIcon className="h-3 w-3" />
-              2D
-            </button>
-            <button
-              onClick={() => setViewMode("3d")}
-              className={`flex items-center gap-1 px-2.5 py-0.5 text-[10px] font-medium transition-colors ${
-                viewMode === "3d" ? "bg-white/15 text-white" : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <Globe className="h-3 w-3" />
-              3D
-            </button>
-          </div>
-
-          <button
-            onClick={toggleFullscreen}
-            className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[10px] text-slate-300 transition-colors hover:bg-white/10"
-            title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
-          >
-            {isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
-            {isFullscreen ? "Salir" : "Fullscreen"}
-          </button>
-        </div>
-      </div>
-
-      {/* ── Country hover tooltip (2D only) ── */}
-      {viewMode === "2d" && hoverCountry && (
-        <div className="absolute bottom-4 left-4 z-20 rounded-md border border-white/10 bg-[#0a1020]/92 px-3 py-2 text-xs text-slate-200 shadow-2xl backdrop-blur-sm">
-          <p className="font-medium">{countryLabel(hoverCountry.country)}</p>
-          <p className="text-slate-400">{hoverCountry.count.toLocaleString()} attacks · last 24h</p>
-        </div>
-      )}
-
-      {/* ── 2D flat map ── */}
-      <div
-        className="absolute inset-0"
-        style={{ display: viewMode === "2d" ? "block" : "none" }}
-      >
-        <ComposableMap
-          projection="geoMercator"
-          style={{ width: "100%", height: "100%" }}
-          projectionConfig={{ scale: 130, center: [10, 25] }}
-          onMouseLeave={() => setHoverCountry(null)}
-        >
-          <defs>
-            <filter id="arc-glow" x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            <filter id="dot-glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="2.5" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-          <ZoomableGroup>
-            <Geographies geography={GEO_URL}>
-              {({ geographies }) =>
-                geographies.map((geo) => {
-                  const numericId = Number(geo.id)
-                  const countryCode = NUM_TO_ISO2[numericId]
-                  const hit = countryCode ? countryHitMap.get(countryCode) : undefined
-                  return (
-                    <Geography
-                      key={geo.rsmKey}
-                      geography={geo}
-                      fill={hit ? "rgba(244,63,94,0.18)" : "#0d1526"}
-                      stroke={hit ? "rgba(244,63,94,0.5)" : "#1a2540"}
-                      strokeWidth={hit ? 0.5 : 0.3}
-                      onMouseEnter={(evt) => {
-                        if (!countryCode || !hit) return setHoverCountry(null)
-                        setHoverCountry({ country: countryCode, count: hit.count, x: evt.clientX, y: evt.clientY })
-                      }}
-                      onMouseMove={(evt) => {
-                        if (!countryCode || !hit) return
-                        setHoverCountry({ country: countryCode, count: hit.count, x: evt.clientX, y: evt.clientY })
-                      }}
-                      onMouseLeave={() => setHoverCountry(null)}
-                      style={{
-                        default: { outline: "none" },
-                        hover: { outline: "none" },
-                        pressed: { outline: "none" },
-                      }}
-                    />
-                  )
-                })
-              }
-            </Geographies>
-
-            {primary &&
-              liveArcs.map((a) => (
-                <LiveArcLine key={a.id} src={[a.srcLng, a.srcLat]} dst={[primary.lng, primary.lat]} type={a.type} />
-              ))}
-
-            {sensors.map((s) => (
-              <Marker key={s.ip} coordinates={[s.lng, s.lat]}>
-                <title>{`Honeypot ${s.ip}`}</title>
-                <circle r={0} fill="none" stroke="#22d3ee" strokeWidth={1.2} opacity={0}>
-                  <animate attributeName="r" from="6" to="22" dur="2.4s" repeatCount="indefinite" />
-                  <animate attributeName="opacity" from="0.6" to="0" dur="2.4s" repeatCount="indefinite" />
-                </circle>
-                <circle r={4.5} fill="#22d3ee" opacity={0.9} filter="url(#dot-glow)" />
-                <circle r={2} fill="#fff" opacity={0.9} />
-              </Marker>
-            ))}
-          </ZoomableGroup>
-        </ComposableMap>
-      </div>
-
-      {/* ── 3D live globe ── */}
-      <div
-        className="absolute inset-0 flex items-center justify-center"
-        style={{ display: viewMode === "3d" ? "flex" : "none" }}
-      >
-        <div className="relative" style={{ width: "min(85%, 85vh)", aspectRatio: "1" }}>
-          <canvas
-            ref={globeCanvasRef}
-            style={{
-              width: "100%",
-              height: "100%",
-              opacity: 0,
-              transition: "opacity 1s ease",
-              cursor: "grab",
-              contain: "layout paint size",
-              display: "block",
-            }}
-          />
-          {/* Protocol legend for 3D mode */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 rounded-full border border-white/10 bg-[#060b18]/80 px-4 py-1.5 backdrop-blur-sm">
-            {(["ssh", "http", "ftp", "mysql", "port-scan"] as const).map((t) => {
-              const [r, g, b] = typeToGlobeColor(t)
-              const hex = `rgb(${Math.round(r * 255)},${Math.round(g * 255)},${Math.round(b * 255)})`
-              return (
-                <span key={t} className="flex items-center gap-1 text-[10px] text-slate-300">
-                  <span className="h-2 w-2 rounded-full" style={{ background: hex }} />
-                  {t}
-                </span>
-              )
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Recent attacks sidebar (shared) ── */}
-      <div className="absolute right-4 top-4 z-20 w-56 overflow-hidden rounded-xl border border-white/8 bg-[#0a1020]/85 backdrop-blur-sm">
-        <div className="border-b border-white/8 px-3 py-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">Recent Attacks</p>
-        </div>
-        {recent.length === 0 ? (
-          <p className="px-3 py-5 text-center text-[11px] text-slate-500">Waiting for events...</p>
-        ) : (
-          <div className="max-h-[65vh] divide-y divide-white/5 overflow-y-auto">
-            {recent.map((a) => (
-              <div key={a.id} className="flex items-center gap-2 px-3 py-1.5">
-                <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${getProtocolDotClass(a.type)}`} />
-                <span className="flex-1 truncate font-mono text-[10px] text-slate-200">{a.ip}</span>
-                <span className="flex-shrink-0 text-[9px] text-slate-500">{a.country || "??"}</span>
-                <span
-                  className="flex-shrink-0 rounded px-1 py-0.5 text-[8px] font-bold uppercase"
-                  style={{ color: typeColor(a.type), background: `${typeColor(a.type)}22` }}
-                >
-                  {a.dstPort ? `${a.type}:${a.dstPort}` : a.type}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+    <div ref={containerRef} className="relative h-full w-full overflow-hidden rounded-xl border border-white/5 bg-[#060b18] [&:fullscreen]:rounded-none">
+      <LiveAttackControls
+        stats={stats}
+        total24h={total24h}
+        countryCount={attackedCodes.size}
+        connected={connected}
+        viewMode={viewMode}
+        isFullscreen={isFullscreen}
+        setViewMode={setViewMode}
+        toggleFullscreen={toggleFullscreen}
+      />
+      <CountryHoverTooltip hoverCountry={hoverCountry} visible={viewMode === "2d"} />
+      <LiveAttackMap2D
+        visible={viewMode === "2d"}
+        sensors={sensors}
+        countryHits={countryHits}
+        liveArcs={liveArcs}
+        setHoverCountry={setHoverCountry}
+      />
+      <LiveAttackGlobe
+        visible={viewMode === "3d"}
+        sensors={sensors}
+        liveMarkersRef={liveMarkersRef}
+        globeArcsRef={globeArcsRef}
+      />
+      <RecentAttacksSidebar recent={recent} />
     </div>
   )
+}
+
+function useFullscreenListener(setIsFullscreen: (value: boolean) => void) {
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener("fullscreenchange", handler)
+    return () => document.removeEventListener("fullscreenchange", handler)
+  }, [setIsFullscreen])
+}
+
+function useLiveEvents(loadToday: () => Promise<void>, addAttack: (event: RawEvent) => void, setConnected: (value: boolean) => void) {
+  useEffect(() => {
+    loadToday()
+    const events = new EventSource("/api/events/live")
+    events.onopen = () => setConnected(true)
+    events.onerror = () => setConnected(false)
+    events.onmessage = (message) => parseLiveEvent(message.data, addAttack)
+    return () => events.close()
+  }, [loadToday, addAttack, setConnected])
+}
+
+function useDayRollover(todayRef: React.MutableRefObject<string>, loadToday: () => Promise<void>, resetLiveState: () => void) {
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = todayUTC()
+      if (now === todayRef.current) return
+      todayRef.current = now
+      resetLiveState()
+      loadToday()
+    }, 60_000)
+    return () => clearInterval(interval)
+  }, [todayRef, loadToday, resetLiveState])
+}
+
+function useArcExpiry(setLiveArcs: React.Dispatch<React.SetStateAction<LiveArc[]>>) {
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now()
+      setLiveArcs((prev) => prev.filter((arc) => arc.expiresAt > now))
+    }, 500)
+    return () => clearInterval(interval)
+  }, [setLiveArcs])
+}
+
+function parseLiveEvent(data: string, addAttack: (event: RawEvent) => void) {
+  try {
+    addAttack(JSON.parse(data) as RawEvent)
+  } catch {
+    return
+  }
+}
+
+function applyTodayData(
+  data: { attackedCountries: CountryHit[]; sensors: SensorLocation[] },
+  setSensors: (sensors: SensorLocation[]) => void,
+  setCountryHits: (hits: CountryHit[]) => void,
+  setAttackedCodes: (codes: Set<string>) => void,
+  liveMarkersRef: React.MutableRefObject<Map<string, LiveMarkerEntry>>,
+) {
+  const attackedCountries = data.attackedCountries ?? []
+  setSensors(data.sensors ?? [])
+  setCountryHits(attackedCountries)
+  setAttackedCodes(new Set(attackedCountries.map((country) => country.country)))
+  liveMarkersRef.current.clear()
+  for (const hit of attackedCountries) {
+    liveMarkersRef.current.set(hit.country, {
+      lat: hit.lat,
+      lng: hit.lng,
+      count: hit.count,
+      lastHitAt: 0,
+      lastType: hit.type,
+    })
+  }
+}
+
+function addLiveArc(event: RawEvent, timestamp: number, setLiveArcs: React.Dispatch<React.SetStateAction<LiveArc[]>>) {
+  setLiveArcs((prev) => [
+    ...prev,
+    { id: crypto.randomUUID(), srcLng: event.lng, srcLat: event.lat, type: event.type, expiresAt: timestamp + 5_000 },
+  ])
+}
+
+function updateCountryHits(
+  event: RawEvent,
+  setCountryHits: React.Dispatch<React.SetStateAction<CountryHit[]>>,
+  setAttackedCodes: React.Dispatch<React.SetStateAction<Set<string>>>,
+) {
+  setCountryHits((prev) => nextCountryHits(prev, event))
+  if (!event.country) return
+  setAttackedCodes((prev) => prev.has(event.country) ? prev : new Set(prev).add(event.country))
+}
+
+function nextCountryHits(prev: CountryHit[], event: RawEvent) {
+  const key = event.country || `${event.lat},${event.lng}`
+  const index = prev.findIndex((country) => country.country === key)
+  if (index === -1) return [...prev, { country: key, lat: event.lat, lng: event.lng, type: event.type, count: 1 }]
+  const next = [...prev]
+  next[index] = { ...next[index], count: next[index].count + 1, type: event.type }
+  return next
+}
+
+function updateGlobeMarker(event: RawEvent, timestamp: number, liveMarkersRef: React.MutableRefObject<Map<string, LiveMarkerEntry>>) {
+  const key = event.country || `${Math.round(event.lat)},${Math.round(event.lng)}`
+  const existing = liveMarkersRef.current.get(key)
+  liveMarkersRef.current.set(key, {
+    lat: event.lat,
+    lng: event.lng,
+    count: (existing?.count ?? 0) + 1,
+    lastHitAt: timestamp,
+    lastType: event.type,
+  })
+}
+
+function globeArc(event: RawEvent, timestamp: number): GlobeArc {
+  return {
+    id: crypto.randomUUID(),
+    srcLat: event.lat,
+    srcLng: event.lng,
+    type: event.type,
+    createdAt: timestamp,
+  }
 }

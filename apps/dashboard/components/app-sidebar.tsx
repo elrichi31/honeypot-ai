@@ -26,12 +26,9 @@ import {
   Server,
   Biohazard,
   FileCode,
-  Share2,
-  Wifi,
   HardDrive,
   Users,
   ClipboardList,
-  Waypoints,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { signOut, useSession } from "@/lib/auth-client"
@@ -42,7 +39,6 @@ const navSections = [
     icon: BarChart2,
     items: [
       { title: "Dashboard", href: "/", icon: BarChart2 },
-      { title: "Live Attack Map", href: "/live", icon: Radar },
     ],
   },
   {
@@ -59,10 +55,7 @@ const navSections = [
     title: "Web Honeypot",
     icon: Globe,
     items: [
-      { title: "Attackers", href: "/web-attacks", icon: Globe },
-      { title: "Timeline", href: "/web-attacks/timeline", icon: BarChart2 },
-      { title: "Paths", href: "/web-attacks/paths", icon: FolderSearch },
-      { title: "Geo", href: "/web-attacks/geo", icon: Map },
+      { title: "Web Attacks", href: "/web-attacks", icon: Globe },
     ],
   },
   {
@@ -71,10 +64,7 @@ const navSections = [
     items: [
       { title: "Overview", href: "/services", icon: Network },
       { title: "FTP", href: "/services/ftp", icon: HardDrive },
-      { title: "SMB", href: "/services/smb", icon: Share2 },
-      { title: "MSSQL", href: "/services/mssql", icon: Database },
       { title: "MySQL", href: "/services/mysql", icon: Database },
-      { title: "MQTT", href: "/services/mqtt", icon: Wifi },
       { title: "Port Scan", href: "/services/ports", icon: Radar },
     ],
   },
@@ -95,7 +85,6 @@ const navSections = [
     items: [
       { title: "Clients", href: "/clients", icon: Layers3 },
       { title: "Sensors", href: "/sensors", icon: Server },
-      { title: "Network Map", href: "/network", icon: Waypoints },
       { title: "Storage", href: "/storage", icon: HardDrive },
       { title: "Settings", href: "/settings", icon: Settings },
     ],

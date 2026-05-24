@@ -1,5 +1,6 @@
 import { Suspense } from "react"
-import { Terminal } from "lucide-react"
+import Link from "next/link"
+import { Terminal, Radar } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { DashboardInsightsView } from "@/components/dashboard-insights"
 import { CrossSensorActivityChart } from "@/components/cross-sensor-activity-chart"
@@ -160,12 +161,21 @@ export default async function DashboardPage({
 
   return (
     <PageShell>
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          {activeSources} active source{activeSources !== 1 ? "s" : ""} ·{" "}
-          {totalEvents.toLocaleString("en-US")} total events captured
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            {activeSources} active source{activeSources !== 1 ? "s" : ""} ·{" "}
+            {totalEvents.toLocaleString("en-US")} total events captured
+          </p>
+        </div>
+        <Link
+          href="/live"
+          className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground hover:bg-muted/40"
+        >
+          <Radar className="h-4 w-4 text-cyan-400" />
+          Live Map
+        </Link>
       </div>
 
       {/* Cross-sensor KPI strip */}
