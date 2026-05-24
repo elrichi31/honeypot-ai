@@ -95,7 +95,6 @@ detection:
   prefilter:
     default: mpm
 
-# Disable app-layer parsers not needed for basic IDS
 app-layer:
   protocols:
     tls:
@@ -105,26 +104,26 @@ app-layer:
     ftp:
       enabled: yes
     smtp:
-      enabled: no
+      enabled: yes
     ssh:
       enabled: yes
     dns:
       enabled: yes
     dcerpc:
-      enabled: no
+      enabled: yes
     smb:
       enabled: yes
     nfs:
-      enabled: no
+      enabled: yes
     ikev2:
-      enabled: no
+      enabled: yes
     krb5:
-      enabled: no
+      enabled: yes
     snmp:
       enabled: yes
     tftp:
-      enabled: no
+      enabled: yes
     rdp:
       enabled: yes
     http2:
-      enabled: no
+      enabled: yes
