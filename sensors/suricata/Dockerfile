@@ -13,4 +13,6 @@ RUN chmod +x /entrypoint.sh
 
 VOLUME ["/var/log/suricata"]
 
+# Run as root so entrypoint can fix volume permissions before dropping to suricata user
+USER root
 ENTRYPOINT ["/entrypoint.sh"]
