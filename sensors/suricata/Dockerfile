@@ -7,12 +7,9 @@ RUN suricata-update update-sources && \
     test -f /var/lib/suricata/rules/suricata.rules && \
     echo "[suricata] ET Open rules downloaded OK"
 
-COPY suricata.yaml /etc/suricata/suricata.yaml
+COPY suricata.yaml /opt/suricata.yaml
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-VOLUME ["/var/log/suricata"]
-
-# Run as root so entrypoint can fix volume permissions before dropping to suricata user
 USER root
 ENTRYPOINT ["/entrypoint.sh"]

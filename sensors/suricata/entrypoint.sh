@@ -18,7 +18,7 @@ echo "[suricata] Starting on interface: ${IFACE}"
 echo "[suricata] Rules: $(wc -l < /var/lib/suricata/rules/suricata.rules 2>/dev/null || echo 0) signatures loaded"
 
 exec suricata \
-  -c /etc/suricata/suricata.yaml \
+  -c /opt/suricata.yaml \
   -i "${IFACE}" \
   --init-errors-fatal \
   -v
