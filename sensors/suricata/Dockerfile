@@ -1,4 +1,4 @@
-FROM jasonish/suricata:7
+FROM jasonish/suricata:latest
 
 # Pre-fetch ET Open rules at build time so startup is instant
 RUN suricata-update update-sources --no-reload && \
