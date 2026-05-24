@@ -126,13 +126,28 @@ services:
       - NET_ADMIN
       - NET_RAW
       - SYS_NICE
-    cap_drop:
-      - ALL
+      - SETPCAP
+      - SETUID
+      - SETGID
     environment:
       SURICATA_INTERFACE: \${SURICATA_INTERFACE:-eth0}
     volumes:
-      - suricata_logs:/var/log/suricata
+      - suricata_logs:/tmp/suricata-logs
     pids_limit: 256
+
+  falco:
+    image: falcosecurity/falco-no-driver:latest
+    container_name: falco
+    restart: unless-stopped
+    init: true
+    privileged: true
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - ./sensors/falco/falco.yaml:/etc/falco/falco.yaml:ro
+      - falco_logs:/var/log/falco
+    pids_limit: 128
 
   vector:
     <<: *service-defaults
@@ -143,16 +158,19 @@ services:
       - cowrie
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var:ro
-      - suricata_logs:/var/log/suricata:ro
+      - suricata_logs:/tmp/suricata-logs:ro
+      - falco_logs:/var/log/falco:ro
       - ./vector/cowrie.toml:/etc/vector/cowrie.toml:ro
       - ./vector/suricata.toml:/etc/vector/suricata.toml:ro
+      - ./vector/falco.toml:/etc/vector/falco.toml:ro
       - vector_data:/var/lib/vector
-    command: ["--config", "/etc/vector/cowrie.toml", "--config", "/etc/vector/suricata.toml"]
+    command: ["--config", "/etc/vector/cowrie.toml", "--config", "/etc/vector/suricata.toml", "--config", "/etc/vector/falco.toml"]
     environment:
       <<: *ingest-env
       COWRIE_LOG_PATH: /cowrie/cowrie-git/var/log/cowrie/cowrie.json
       SENSOR_ID: cowrie-ssh-01
       SURICATA_SENSOR_ID: suricata-01
+      FALCO_SENSOR_ID: falco-01
     networks:
       - edge
     pids_limit: 128
@@ -226,6 +244,7 @@ volumes:
   cowrie_var:
   vector_data:
   suricata_logs:
+  falco_logs:
 
 networks:
   edge:

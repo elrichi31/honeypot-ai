@@ -84,7 +84,8 @@ const navSections = [
     items: [
       { title: "Threats",     href: "/threats",      icon: ShieldAlert },
       { title: "Malware",     href: "/malware",      icon: Biohazard   },
-      { title: "Network IDS", href: "/suricata",     icon: FileCode    },
+      { title: "Network IDS",    href: "/suricata", icon: FileCode },
+      { title: "Container IDS", href: "/falco",    icon: Bug      },
       { title: "API Defense", href: "/api-defense",  icon: Radar       },
     ],
   },

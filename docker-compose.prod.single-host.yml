@@ -176,6 +176,21 @@ services:
       - suricata_logs:/tmp/suricata-logs
     pids_limit: 256
 
+  falco:
+    image: falcosecurity/falco-no-driver:latest
+    container_name: falco
+    restart: unless-stopped
+    init: true
+    privileged: true
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - ./sensors/falco/falco.yaml:/etc/falco/falco.yaml:ro
+      - falco_logs:/var/log/falco
+    logging: *json-logging
+    pids_limit: 128
+
   vector:
     <<: *service-defaults
     logging: *json-logging
@@ -189,14 +204,17 @@ services:
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var:ro
       - suricata_logs:/tmp/suricata-logs:ro
+      - falco_logs:/var/log/falco:ro
       - ./vector/cowrie.toml:/etc/vector/cowrie.toml:ro
       - ./vector/suricata.toml:/etc/vector/suricata.toml:ro
+      - ./vector/falco.toml:/etc/vector/falco.toml:ro
       - vector_data:/var/lib/vector
-    command: ["--config", "/etc/vector/cowrie.toml", "--config", "/etc/vector/suricata.toml"]
+    command: ["--config", "/etc/vector/cowrie.toml", "--config", "/etc/vector/suricata.toml", "--config", "/etc/vector/falco.toml"]
     environment:
       COWRIE_LOG_PATH: /cowrie/cowrie-git/var/log/cowrie/cowrie.json
       SENSOR_ID: ${SENSOR_ID_SSH:-cowrie-ssh-01}
       SURICATA_SENSOR_ID: ${SENSOR_ID_SURICATA:-suricata-01}
+      FALCO_SENSOR_ID: ${SENSOR_ID_FALCO:-falco-01}
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
     networks:
@@ -486,6 +504,7 @@ volumes:
   dashboard_data:
   vector_data:
   suricata_logs:
+  falco_logs:
   opencanary_logs:
   opencanary_shipper_state:
 

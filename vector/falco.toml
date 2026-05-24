@@ -1,0 +1,52 @@
+# vector/falco.toml — Falco alert shipper
+#
+# Tails /var/log/falco/falco.json (JSON-per-line), ships each alert
+# to the ingest-api.
+#
+# Environment variables (required):
+#   FALCO_SENSOR_ID      — sensor identifier (e.g. falco-01)
+#   INGEST_API_URL       — base URL of ingest-api (e.g. http://ingest-api:3000)
+#   INGEST_SHARED_SECRET — shared secret for X-Ingest-Token header
+
+# ── Source: tail Falco JSON output ─────────────────────────────────────────
+[sources.falco_events]
+type       = "file"
+include    = ["/var/log/falco/falco.json"]
+read_from  = "end"
+fingerprint.strategy = "device_and_inode"
+
+# ── Transform: parse JSON and attach sensor_id ──────────────────────────────
+[transforms.parse_falco]
+type          = "remap"
+inputs        = ["falco_events"]
+drop_on_error = true
+source        = '''
+  . = parse_json!(string!(.message))
+  .sensor_id = "${FALCO_SENSOR_ID}"
+'''
+
+# ── Sink: POST batches to ingest-api ────────────────────────────────────────
+[sinks.falco_ingest]
+type    = "http"
+inputs  = ["parse_falco"]
+uri     = "${INGEST_API_URL}/ingest/falco/alert"
+method  = "post"
+
+encoding.codec = "json"
+
+[sinks.falco_ingest.batch]
+max_events   = 50
+timeout_secs = 5
+
+[sinks.falco_ingest.request]
+headers.Content-Type   = "application/json"
+headers.X-Ingest-Token = "${INGEST_SHARED_SECRET}"
+timeout_secs               = 20
+retry_attempts             = 360
+retry_initial_backoff_secs = 1
+retry_max_duration_secs    = 10
+
+[sinks.falco_ingest.buffer]
+type      = "disk"
+max_size  = 268435488
+when_full = "block"
