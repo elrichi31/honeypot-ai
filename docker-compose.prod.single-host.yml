@@ -167,6 +167,9 @@ services:
       - NET_ADMIN
       - NET_RAW
       - SYS_NICE
+      - SETPCAP   # capng_change_id needs this to drop privileges internally
+      - SETUID
+      - SETGID
     environment:
       SURICATA_INTERFACE: ${SURICATA_INTERFACE:-eth0}
     volumes:
