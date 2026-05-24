@@ -104,7 +104,26 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS "audit_log_createdAt_idx" ON "audit_log" ("createdAt" DESC);
   `)
 
-  const requiredTables = ["user", "session", "account", "verification", "audit_log"]
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "ip_enrichment_cache" (
+      "ip"                   TEXT        NOT NULL PRIMARY KEY,
+      "abuseipdb_data"       JSONB,
+      "ipinfo_data"          JSONB,
+      "abuseipdb_fetched_at" TIMESTAMPTZ,
+      "ipinfo_fetched_at"    TIMESTAMPTZ,
+      "cached_at"            TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "ai_threat_cache" (
+      "ip"          TEXT        NOT NULL PRIMARY KEY,
+      "analysis"    JSONB       NOT NULL DEFAULT '{}',
+      "analyzed_at" TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `)
+
+  const requiredTables = ["user", "session", "account", "verification", "audit_log", "ip_enrichment_cache", "ai_threat_cache"]
   const result = await pool.query(
     `
       SELECT table_name

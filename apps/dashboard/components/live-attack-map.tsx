@@ -1,7 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Maximize2, Minimize2 } from "lucide-react"
+import { Maximize2, Minimize2, Globe, Map as MapIcon } from "lucide-react"
+import createGlobe from "cobe"
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from "react-simple-maps"
 import {
   PROTOCOL_CHIP_CLASS,
@@ -93,6 +94,26 @@ interface HoverCountry {
   count: number
   x: number
   y: number
+}
+
+interface LiveMarkerEntry {
+  lat: number
+  lng: number
+  count: number
+  lastHitAt: number
+  lastType: string
+}
+
+// Globe marker color per protocol
+function typeToGlobeColor(type: string): [number, number, number] {
+  switch (type) {
+    case "ssh":       return [0.13, 0.83, 0.93]
+    case "http":      return [1.00, 0.58, 0.13]
+    case "ftp":       return [0.98, 0.85, 0.13]
+    case "mysql":     return [0.85, 0.32, 1.00]
+    case "port-scan": return [0.13, 0.93, 0.45]
+    default:          return [0.80, 0.80, 0.80]
+  }
 }
 
 function project(coords: [number, number]): [number, number] {
@@ -195,21 +216,28 @@ function countryLabel(code: string) {
 export function LiveAttackMap() {
   const containerRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [viewMode, setViewMode] = useState<"2d" | "3d">("2d")
+
+  // 2D state
   const [sensors, setSensors] = useState<SensorLocation[]>([])
   const [countryHits, setCountryHits] = useState<CountryHit[]>([])
   const [attackedCodes, setAttackedCodes] = useState<Set<string>>(new Set())
   const [liveArcs, setLiveArcs] = useState<LiveArc[]>([])
   const [recent, setRecent] = useState<Attack[]>([])
   const [stats, setStats] = useState<Record<string, number>>({
-    ssh: 0,
-    http: 0,
-    ftp: 0,
-    mysql: 0,
-    "port-scan": 0,
+    ssh: 0, http: 0, ftp: 0, mysql: 0, "port-scan": 0,
   })
   const [connected, setConnected] = useState(false)
   const [hoverCountry, setHoverCountry] = useState<HoverCountry | null>(null)
   const todayRef = useRef(todayUTC())
+
+  // 3D globe refs — all mutable, no re-renders
+  const globeCanvasRef = useRef<HTMLCanvasElement>(null)
+  const globeRafRef = useRef<number>(0)
+  const globePhiRef = useRef(0)
+  const globePointerRef = useRef<number | null>(null)
+  const globeMovementRef = useRef(0)
+  const liveMarkersRef = useRef<Map<string, LiveMarkerEntry>>(new Map())
 
   useEffect(() => {
     const handler = () => setIsFullscreen(!!document.fullscreenElement)
@@ -238,11 +266,24 @@ export function LiveAttackMap() {
       setSensors(data.sensors ?? [])
       setCountryHits(data.attackedCountries ?? [])
       setAttackedCodes(new Set((data.attackedCountries ?? []).map((c) => c.country)))
+
+      // Pre-populate globe markers from historical data
+      liveMarkersRef.current.clear()
+      for (const hit of data.attackedCountries ?? []) {
+        liveMarkersRef.current.set(hit.country, {
+          lat: hit.lat,
+          lng: hit.lng,
+          count: hit.count,
+          lastHitAt: 0,
+          lastType: hit.type,
+        })
+      }
     } catch {
       // ignore
     }
   }, [])
 
+  // Day rollover
   useEffect(() => {
     const iv = setInterval(() => {
       const now = todayUTC()
@@ -253,12 +294,14 @@ export function LiveAttackMap() {
         setLiveArcs([])
         setRecent([])
         setStats({ ssh: 0, http: 0, ftp: 0, mysql: 0, "port-scan": 0 })
+        liveMarkersRef.current.clear()
         loadToday()
       }
     }, 60_000)
     return () => clearInterval(iv)
   }, [loadToday])
 
+  // 2D arc expiry
   useEffect(() => {
     const iv = setInterval(() => {
       const now = Date.now()
@@ -269,16 +312,14 @@ export function LiveAttackMap() {
 
   const addAttack = useCallback((ev: RawEvent) => {
     const ts = Date.now()
+
+    // 2D arc
     setLiveArcs((prev) => [
       ...prev,
-      {
-        id: crypto.randomUUID(),
-        srcLng: ev.lng,
-        srcLat: ev.lat,
-        type: ev.type,
-        expiresAt: ts + 5_000,
-      },
+      { id: crypto.randomUUID(), srcLng: ev.lng, srcLat: ev.lat, type: ev.type, expiresAt: ts + 5_000 },
     ])
+
+    // 2D country heat
     setCountryHits((prev) => {
       const key = ev.country || `${ev.lat},${ev.lng}`
       const idx = prev.findIndex((c) => c.country === key)
@@ -292,36 +333,134 @@ export function LiveAttackMap() {
     if (ev.country) {
       setAttackedCodes((prev) => {
         if (prev.has(ev.country)) return prev
-        const next = new Set(prev)
-        next.add(ev.country)
-        return next
+        return new Set(prev).add(ev.country)
       })
     }
+
     setRecent((prev) => [{ ...ev, id: crypto.randomUUID(), timestamp: ts }, ...prev].slice(0, 25))
     setStats((prev) => ({ ...prev, [ev.type]: (prev[ev.type] ?? 0) + 1 }))
+
+    // 3D globe marker — update mutable ref directly (no re-render needed)
+    const key = ev.country || `${Math.round(ev.lat)},${Math.round(ev.lng)}`
+    const existing = liveMarkersRef.current.get(key)
+    liveMarkersRef.current.set(key, {
+      lat: ev.lat,
+      lng: ev.lng,
+      count: (existing?.count ?? 0) + 1,
+      lastHitAt: ts,
+      lastType: ev.type,
+    })
   }, [])
 
+  // SSE connection
   useEffect(() => {
     loadToday()
     const es = new EventSource("/api/events/live")
     es.onopen = () => setConnected(true)
     es.onerror = () => setConnected(false)
     es.onmessage = (e) => {
-      try {
-        addAttack(JSON.parse(e.data) as RawEvent)
-      } catch {
-        // ignore malformed events
-      }
+      try { addAttack(JSON.parse(e.data) as RawEvent) } catch { /* ignore */ }
     }
     return () => es.close()
   }, [loadToday, addAttack])
+
+  // 3D globe lifecycle — created/destroyed when switching modes
+  useEffect(() => {
+    if (viewMode !== "3d") return
+    const canvas = globeCanvasRef.current
+    if (!canvas) return
+
+    let width = canvas.offsetWidth
+    const onResize = () => { width = canvas.offsetWidth }
+    window.addEventListener("resize", onResize)
+
+    const globe = createGlobe(canvas, {
+      devicePixelRatio: Math.min(window.devicePixelRatio, 2),
+      width: width * 2,
+      height: width * 2,
+      phi: globePhiRef.current,
+      theta: 0.28,
+      dark: 1,
+      diffuse: 2.8,
+      mapSamples: 20000,
+      mapBrightness: 1.8,
+      baseColor: [0.05, 0.09, 0.20],
+      markerColor: [1, 0.25, 0.25],
+      glowColor: [0.12, 0.10, 0.30],
+      markers: [],
+    })
+
+    const render = () => {
+      if (globePointerRef.current === null) globePhiRef.current += 0.004
+      const phi = globePhiRef.current + globeMovementRef.current
+      const now = Date.now()
+
+      const entries = Array.from(liveMarkersRef.current.values())
+      const maxCount = Math.max(1, ...entries.map((e) => e.count))
+
+      const markers = entries.map((e) => {
+        const t = Math.log1p(e.count) / Math.log1p(maxCount)
+        // Flash: markers grow briefly on new hit, then fade back to normal size
+        const age = now - e.lastHitAt
+        const flash = e.lastHitAt > 0 && age < 1800 ? 1 + (1 - age / 1800) * 1.2 : 1
+        return {
+          location: [e.lat, e.lng] as [number, number],
+          size: (0.018 + t * 0.042) * flash,
+          color: typeToGlobeColor(e.lastType),
+        }
+      })
+
+      globe.update({ phi, width: width * 2, height: width * 2, markers })
+      globeRafRef.current = requestAnimationFrame(render)
+    }
+    globeRafRef.current = requestAnimationFrame(render)
+
+    const onDown = (e: PointerEvent) => {
+      globePointerRef.current = e.clientX - globeMovementRef.current
+      canvas.style.cursor = "grabbing"
+    }
+    const onMove = (e: PointerEvent) => {
+      if (globePointerRef.current !== null) {
+        globeMovementRef.current = e.clientX - globePointerRef.current
+      }
+    }
+    const onUp = () => {
+      if (globePointerRef.current !== null) {
+        globePhiRef.current += globeMovementRef.current
+        globeMovementRef.current = 0
+        globePointerRef.current = null
+      }
+      canvas.style.cursor = "grab"
+    }
+
+    canvas.addEventListener("pointerdown", onDown)
+    canvas.addEventListener("pointermove", onMove)
+    canvas.addEventListener("pointerup", onUp)
+    canvas.addEventListener("pointerout", onUp)
+    setTimeout(() => { canvas.style.opacity = "1" }, 50)
+
+    return () => {
+      cancelAnimationFrame(globeRafRef.current)
+      globe.destroy()
+      canvas.removeEventListener("pointerdown", onDown)
+      canvas.removeEventListener("pointermove", onMove)
+      canvas.removeEventListener("pointerup", onUp)
+      canvas.removeEventListener("pointerout", onUp)
+      window.removeEventListener("resize", onResize)
+    }
+  }, [viewMode])
 
   const primary = sensors[0]
   const total24h = countryHits.reduce((sum, hit) => sum + hit.count, 0)
 
   return (
-    <div ref={containerRef} className="relative h-full w-full overflow-hidden rounded-xl border border-white/5 bg-[#060b18] [&:fullscreen]:rounded-none">
+    <div
+      ref={containerRef}
+      className="relative h-full w-full overflow-hidden rounded-xl border border-white/5 bg-[#060b18] [&:fullscreen]:rounded-none"
+    >
+      {/* ── Top-left controls (shared) ── */}
       <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
+        {/* Protocol chips */}
         <div className="flex items-center gap-2 flex-wrap">
           {(Object.keys(PROTOCOL_CHIP_CLASS) as AttackType[]).map((t) => (
             <div
@@ -333,7 +472,9 @@ export function LiveAttackMap() {
             </div>
           ))}
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* Status bar */}
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[10px] text-slate-300">
             <span className="opacity-60">24h</span>
             <span className="font-bold">{total24h.toLocaleString()}</span>
@@ -348,6 +489,29 @@ export function LiveAttackMap() {
             <span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-emerald-400 animate-pulse" : "bg-slate-500"}`} />
             <span className={connected ? "text-emerald-400" : "text-slate-500"}>{connected ? "Live" : "Offline"}</span>
           </div>
+
+          {/* 2D / 3D toggle */}
+          <div className="flex overflow-hidden rounded-full border border-white/10 bg-white/5">
+            <button
+              onClick={() => setViewMode("2d")}
+              className={`flex items-center gap-1 px-2.5 py-0.5 text-[10px] font-medium transition-colors ${
+                viewMode === "2d" ? "bg-white/15 text-white" : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <MapIcon className="h-3 w-3" />
+              2D
+            </button>
+            <button
+              onClick={() => setViewMode("3d")}
+              className={`flex items-center gap-1 px-2.5 py-0.5 text-[10px] font-medium transition-colors ${
+                viewMode === "3d" ? "bg-white/15 text-white" : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <Globe className="h-3 w-3" />
+              3D
+            </button>
+          </div>
+
           <button
             onClick={toggleFullscreen}
             className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[10px] text-slate-300 transition-colors hover:bg-white/10"
@@ -359,100 +523,130 @@ export function LiveAttackMap() {
         </div>
       </div>
 
-      {hoverCountry && (
+      {/* ── Country hover tooltip (2D only) ── */}
+      {viewMode === "2d" && hoverCountry && (
         <div className="absolute bottom-4 left-4 z-20 rounded-md border border-white/10 bg-[#0a1020]/92 px-3 py-2 text-xs text-slate-200 shadow-2xl backdrop-blur-sm">
           <p className="font-medium">{countryLabel(hoverCountry.country)}</p>
           <p className="text-slate-400">{hoverCountry.count.toLocaleString()} attacks · last 24h</p>
         </div>
       )}
 
-      <ComposableMap
-        projection="geoMercator"
-        style={{ width: "100%", height: "100%" }}
-        projectionConfig={{ scale: 130, center: [10, 25] }}
-        onMouseLeave={() => setHoverCountry(null)}
+      {/* ── 2D flat map ── */}
+      <div
+        className="absolute inset-0"
+        style={{ display: viewMode === "2d" ? "block" : "none" }}
       >
-        <defs>
-          <filter id="arc-glow" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <filter id="dot-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="2.5" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
+        <ComposableMap
+          projection="geoMercator"
+          style={{ width: "100%", height: "100%" }}
+          projectionConfig={{ scale: 130, center: [10, 25] }}
+          onMouseLeave={() => setHoverCountry(null)}
+        >
+          <defs>
+            <filter id="arc-glow" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="dot-glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="2.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          <ZoomableGroup>
+            <Geographies geography={GEO_URL}>
+              {({ geographies }) =>
+                geographies.map((geo) => {
+                  const numericId = Number(geo.id)
+                  const countryCode = NUM_TO_ISO2[numericId]
+                  const hit = countryCode ? countryHitMap.get(countryCode) : undefined
+                  return (
+                    <Geography
+                      key={geo.rsmKey}
+                      geography={geo}
+                      fill={hit ? "rgba(244,63,94,0.18)" : "#0d1526"}
+                      stroke={hit ? "rgba(244,63,94,0.5)" : "#1a2540"}
+                      strokeWidth={hit ? 0.5 : 0.3}
+                      onMouseEnter={(evt) => {
+                        if (!countryCode || !hit) return setHoverCountry(null)
+                        setHoverCountry({ country: countryCode, count: hit.count, x: evt.clientX, y: evt.clientY })
+                      }}
+                      onMouseMove={(evt) => {
+                        if (!countryCode || !hit) return
+                        setHoverCountry({ country: countryCode, count: hit.count, x: evt.clientX, y: evt.clientY })
+                      }}
+                      onMouseLeave={() => setHoverCountry(null)}
+                      style={{
+                        default: { outline: "none" },
+                        hover: { outline: "none" },
+                        pressed: { outline: "none" },
+                      }}
+                    />
+                  )
+                })
+              }
+            </Geographies>
 
-        <ZoomableGroup>
-          <Geographies geography={GEO_URL}>
-            {({ geographies }) =>
-              geographies.map((geo) => {
-                const numericId = Number(geo.id)
-                const countryCode = NUM_TO_ISO2[numericId]
-                const hit = countryCode ? countryHitMap.get(countryCode) : undefined
+            {primary &&
+              liveArcs.map((a) => (
+                <LiveArcLine key={a.id} src={[a.srcLng, a.srcLat]} dst={[primary.lng, primary.lat]} type={a.type} />
+              ))}
 
-                return (
-                  <Geography
-                    key={geo.rsmKey}
-                    geography={geo}
-                    fill={hit ? "rgba(244,63,94,0.18)" : "#0d1526"}
-                    stroke={hit ? "rgba(244,63,94,0.5)" : "#1a2540"}
-                    strokeWidth={hit ? 0.5 : 0.3}
-                    onMouseEnter={(evt) => {
-                      if (!countryCode || !hit) return setHoverCountry(null)
-                      setHoverCountry({
-                        country: countryCode,
-                        count: hit.count,
-                        x: evt.clientX,
-                        y: evt.clientY,
-                      })
-                    }}
-                    onMouseMove={(evt) => {
-                      if (!countryCode || !hit) return
-                      setHoverCountry({
-                        country: countryCode,
-                        count: hit.count,
-                        x: evt.clientX,
-                        y: evt.clientY,
-                      })
-                    }}
-                    onMouseLeave={() => setHoverCountry(null)}
-                    style={{
-                      default: { outline: "none" },
-                      hover: { outline: "none" },
-                      pressed: { outline: "none" },
-                    }}
-                  />
-                )
-              })
-            }
-          </Geographies>
-
-          {primary &&
-            liveArcs.map((a) => (
-              <LiveArcLine key={a.id} src={[a.srcLng, a.srcLat]} dst={[primary.lng, primary.lat]} type={a.type} />
+            {sensors.map((s) => (
+              <Marker key={s.ip} coordinates={[s.lng, s.lat]}>
+                <title>{`Honeypot ${s.ip}`}</title>
+                <circle r={0} fill="none" stroke="#22d3ee" strokeWidth={1.2} opacity={0}>
+                  <animate attributeName="r" from="6" to="22" dur="2.4s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" from="0.6" to="0" dur="2.4s" repeatCount="indefinite" />
+                </circle>
+                <circle r={4.5} fill="#22d3ee" opacity={0.9} filter="url(#dot-glow)" />
+                <circle r={2} fill="#fff" opacity={0.9} />
+              </Marker>
             ))}
+          </ZoomableGroup>
+        </ComposableMap>
+      </div>
 
-          {sensors.map((s) => (
-            <Marker key={s.ip} coordinates={[s.lng, s.lat]}>
-              <title>{`Honeypot ${s.ip}`}</title>
-              <circle r={0} fill="none" stroke="#22d3ee" strokeWidth={1.2} opacity={0}>
-                <animate attributeName="r" from="6" to="22" dur="2.4s" repeatCount="indefinite" />
-                <animate attributeName="opacity" from="0.6" to="0" dur="2.4s" repeatCount="indefinite" />
-              </circle>
-              <circle r={4.5} fill="#22d3ee" opacity={0.9} filter="url(#dot-glow)" />
-              <circle r={2} fill="#fff" opacity={0.9} />
-            </Marker>
-          ))}
-        </ZoomableGroup>
-      </ComposableMap>
+      {/* ── 3D live globe ── */}
+      <div
+        className="absolute inset-0 flex items-center justify-center"
+        style={{ display: viewMode === "3d" ? "flex" : "none" }}
+      >
+        <div className="relative" style={{ width: "min(85%, 85vh)", aspectRatio: "1" }}>
+          <canvas
+            ref={globeCanvasRef}
+            style={{
+              width: "100%",
+              height: "100%",
+              opacity: 0,
+              transition: "opacity 1s ease",
+              cursor: "grab",
+              contain: "layout paint size",
+              display: "block",
+            }}
+          />
+          {/* Protocol legend for 3D mode */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 rounded-full border border-white/10 bg-[#060b18]/80 px-4 py-1.5 backdrop-blur-sm">
+            {(["ssh", "http", "ftp", "mysql", "port-scan"] as const).map((t) => {
+              const [r, g, b] = typeToGlobeColor(t)
+              const hex = `rgb(${Math.round(r * 255)},${Math.round(g * 255)},${Math.round(b * 255)})`
+              return (
+                <span key={t} className="flex items-center gap-1 text-[10px] text-slate-300">
+                  <span className="h-2 w-2 rounded-full" style={{ background: hex }} />
+                  {t}
+                </span>
+              )
+            })}
+          </div>
+        </div>
+      </div>
 
+      {/* ── Recent attacks sidebar (shared) ── */}
       <div className="absolute right-4 top-4 z-20 w-56 overflow-hidden rounded-xl border border-white/8 bg-[#0a1020]/85 backdrop-blur-sm">
         <div className="border-b border-white/8 px-3 py-2">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">Recent Attacks</p>
