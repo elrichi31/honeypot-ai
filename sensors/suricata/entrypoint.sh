@@ -3,7 +3,7 @@ set -e
 
 IFACE="${SURICATA_INTERFACE:-eth0}"
 
-mkdir -p /tmp/suricata-logs
+mkdir -p /tmp/suricata-logs && chmod 777 /tmp/suricata-logs
 
 # Download rules if not present (first run when using jasonish/suricata:latest directly)
 if [ ! -f /var/lib/suricata/rules/suricata.rules ]; then
