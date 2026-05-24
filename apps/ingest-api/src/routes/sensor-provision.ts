@@ -74,6 +74,7 @@ export async function sensorProvisionRoutes(fastify: FastifyInstance) {
       FROM sensor_provision_tokens t
       JOIN clients c ON c.id = t.client_id
       WHERE t.token = ${parsed.data.token}
+        AND t.used_at IS NULL
       LIMIT 1
     `
 

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Bell, Eye, EyeOff, CheckCircle, Loader2, Send } from "lucide-react"
+import { Bell, Eye, EyeOff, CheckCircle, Loader2, Send, AlertTriangle } from "lucide-react"
 import { SaveFeedback, CardHeader, type SaveStatus } from "./setting-card"
 
 export function DiscordForm() {
@@ -14,13 +14,14 @@ export function DiscordForm() {
   const [status, setStatus] = useState<SaveStatus>("loading")
   const [error, setError] = useState("")
   const [testing, setTesting] = useState(false)
+  const [testError, setTestError] = useState("")
 
   useEffect(() => {
     fetch("/api/config")
       .then((r) => r.json())
       .then((d) => {
         setHasWebhook(d.hasDiscordWebhook)
-        setUrl(d.hasDiscordWebhook ? d.discordWebhookUrl : "")
+        // Never pre-populate the URL field — the masked value would overwrite the real one on save
         setStatus("idle")
       })
       .catch(() => setStatus("idle"))
@@ -30,13 +31,16 @@ export function DiscordForm() {
     setStatus("saving")
     setError("")
     try {
+      const body: Record<string, string> = {}
+      // Only include the URL if the user actually typed something
+      if (url.trim()) body.discordWebhookUrl = url.trim()
       const res = await fetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ discordWebhookUrl: url }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error()
-      setHasWebhook(!!url.trim())
+      if (url.trim()) setHasWebhook(true)
       setStatus("saved")
       setTimeout(() => setStatus("idle"), 3000)
     } catch {
@@ -47,8 +51,16 @@ export function DiscordForm() {
 
   async function sendTest() {
     setTesting(true)
+    setTestError("")
     try {
-      await fetch("/api/alerts/test", { method: "POST" })
+      const res = await fetch("/api/alerts/test", { method: "POST" })
+      if (res.status === 401 || res.status === 403) {
+        setTestError("Se requiere rol admin para enviar la prueba.")
+      } else if (!res.ok) {
+        setTestError("Error al enviar la prueba.")
+      }
+    } catch {
+      setTestError("No se pudo conectar.")
     } finally {
       setTesting(false)
     }
@@ -94,7 +106,7 @@ export function DiscordForm() {
                 <Input
                   id="discord-webhook"
                   type={show ? "text" : "password"}
-                  placeholder="https://discord.com/api/webhooks/..."
+                  placeholder={hasWebhook ? "Pega una URL nueva para reemplazar el webhook actual" : "https://discord.com/api/webhooks/..."}
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && save()}
@@ -131,17 +143,24 @@ export function DiscordForm() {
         </div>
 
         {hasWebhook && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={sendTest}
-            disabled={testing}
-            className="gap-2"
-          >
-            {testing
-              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Enviando...</>
-              : <><Send className="h-3.5 w-3.5" />Enviar mensaje de prueba</>}
-          </Button>
+          <div className="flex flex-col gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={sendTest}
+              disabled={testing}
+              className="gap-2 self-start"
+            >
+              {testing
+                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Enviando...</>
+                : <><Send className="h-3.5 w-3.5" />Enviar mensaje de prueba</>}
+            </Button>
+            {testError && (
+              <p className="flex items-center gap-1.5 text-xs text-destructive">
+                <AlertTriangle className="h-3 w-3 shrink-0" />{testError}
+              </p>
+            )}
+          </div>
         )}
 
         <div className="rounded-lg border border-border bg-secondary/50 p-3 text-xs text-muted-foreground">

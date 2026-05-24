@@ -6,6 +6,7 @@ import { mkdir, unlink, writeFile, rm, stat } from "fs/promises"
 import { pipeline } from "stream/promises"
 import { createReadStream } from "fs"
 import path from "path"
+import { requireRole } from "@/lib/roles"
 
 const exec = promisify(execCb)
 
@@ -172,6 +173,9 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ clientId: string }> },
 ) {
+  const auth_check = await requireRole("analyst")
+  if (!auth_check.ok) return auth_check.response
+
   const { clientId } = await params
 
   try {

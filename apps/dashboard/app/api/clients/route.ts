@@ -14,6 +14,9 @@ function ingestHeaders(contentType = true) {
 }
 
 export async function GET() {
+  const auth_check = await requireRole("viewer")
+  if (!auth_check.ok) return auth_check.response
+
   const res = await fetch(`${INTERNAL_API}/clients`, { cache: "no-store" })
   const body = await res.text()
 

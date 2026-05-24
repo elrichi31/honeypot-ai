@@ -224,25 +224,32 @@ def _tail_file(log_path: str) -> None:
                         time.sleep(1)
                         break
 
-                    offset = fh.tell()
-                    _save_offset(log_path, offset)
+                    pending_offset = fh.tell()
 
                     line = line.strip()
                     if not line:
+                        offset = pending_offset
+                        _save_offset(log_path, offset)
                         continue
 
                     try:
                         raw = json.loads(line)
                     except Exception:
+                        offset = pending_offset
+                        _save_offset(log_path, offset)
                         continue
 
                     event = _to_event(raw)
                     if not event:
+                        offset = pending_offset
+                        _save_offset(log_path, offset)
                         continue
 
                     try:
                         status = _post_json(f"{INGEST_URL}/ingest/protocol/event", event)
                         if status in (200, 201):
+                            offset = pending_offset
+                            _save_offset(log_path, offset)
                             print(
                                 f"[opencanary-shipper] {name}: shipped"
                                 f" protocol={event['protocol']}"
@@ -251,8 +258,14 @@ def _tail_file(log_path: str) -> None:
                                 f" type={event['eventType']}",
                                 flush=True,
                             )
+                        else:
+                            print(f"[opencanary-shipper] {name}: ingest returned {status}, will retry", flush=True)
+                            time.sleep(2)
+                            break
                     except Exception as exc:
-                        print(f"[opencanary-shipper] {name}: ship error: {exc}", flush=True)
+                        print(f"[opencanary-shipper] {name}: ship error: {exc}, will retry", flush=True)
+                        time.sleep(2)
+                        break
 
         except Exception as exc:
             print(f"[opencanary-shipper] {name}: tail error: {exc}", flush=True)

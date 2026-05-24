@@ -24,7 +24,18 @@ import { retentionPlugin } from './plugins/retention.js';
 export async function buildApp() {
   const app = Fastify({ logger: true });
 
-  await app.register(cors, { origin: true });
+  const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || process.env.DASHBOARD_URL || '')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean)
+
+  await app.register(cors, {
+    origin: allowedOrigins.length > 0
+      ? allowedOrigins
+      : false,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    credentials: true,
+  });
   await app.register(prismaPlugin);
   await app.register(defensePlugin);
   await app.register(healthRoutes);

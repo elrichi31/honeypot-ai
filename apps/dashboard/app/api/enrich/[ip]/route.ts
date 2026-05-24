@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { readConfig } from "@/lib/server-config"
 import { sendDiscordAlert } from "@/lib/discord"
+import { requireRole } from "@/lib/roles"
 
 export interface AbuseReport {
   reportedAt: string
@@ -127,6 +128,9 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ ip: string }> }
 ) {
+  const auth_check = await requireRole("viewer")
+  if (!auth_check.ok) return auth_check.response
+
   const { ip } = await params
   const srcIp = decodeURIComponent(ip)
   const config = readConfig()

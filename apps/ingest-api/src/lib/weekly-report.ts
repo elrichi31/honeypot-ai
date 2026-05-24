@@ -9,6 +9,9 @@ interface WeeklyStats {
   uniqueSshIps: number
   webHits: number
   uniqueWebIps: number
+  protocolHits: number
+  uniqueProtocolIps: number
+  topProtocols: Array<{ protocol: string; count: number }>
   topSshIps: Array<{ ip: string; count: number }>
   topCommands: Array<{ cmd: string; count: number }>
   topPaths: Array<{ path: string; count: number }>
@@ -23,6 +26,9 @@ async function collectStats(prisma: PrismaClient, since: Date): Promise<WeeklySt
     uniqueSshIpRows,
     webHitRows,
     uniqueWebIpRows,
+    protocolHitRows,
+    uniqueProtocolIpRows,
+    topProtocolRows,
     topSshIpRows,
     topCommandRows,
     topPathRows,
@@ -39,6 +45,14 @@ async function collectStats(prisma: PrismaClient, since: Date): Promise<WeeklySt
       SELECT COUNT(*) FROM web_hits WHERE timestamp >= ${since}`,
     prisma.$queryRaw<[{ count: bigint }]>`
       SELECT COUNT(DISTINCT src_ip) FROM web_hits WHERE timestamp >= ${since}`,
+    prisma.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(*) FROM protocol_hits WHERE timestamp >= ${since}`,
+    prisma.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(DISTINCT src_ip) FROM protocol_hits WHERE timestamp >= ${since}`,
+    prisma.$queryRaw<Array<{ protocol: string; cnt: bigint }>>`
+      SELECT protocol, COUNT(*) AS cnt FROM protocol_hits
+      WHERE timestamp >= ${since}
+      GROUP BY protocol ORDER BY cnt DESC LIMIT 5`,
     prisma.$queryRaw<Array<{ src_ip: string; cnt: bigint }>>`
       SELECT src_ip, COUNT(*) AS cnt FROM sessions
       WHERE started_at >= ${since}
@@ -74,6 +88,9 @@ async function collectStats(prisma: PrismaClient, since: Date): Promise<WeeklySt
     uniqueSshIps: Number(uniqueSshIpRows[0]?.count ?? 0),
     webHits: Number(webHitRows[0]?.count ?? 0),
     uniqueWebIps: Number(uniqueWebIpRows[0]?.count ?? 0),
+    protocolHits: Number(protocolHitRows[0]?.count ?? 0),
+    uniqueProtocolIps: Number(uniqueProtocolIpRows[0]?.count ?? 0),
+    topProtocols: topProtocolRows.map(r => ({ protocol: r.protocol, count: Number(r.cnt) })),
     topSshIps: topSshIpRows.map(r => ({ ip: r.src_ip, count: Number(r.cnt) })),
     topCommands: topCommandRows.map(r => ({ cmd: r.command, count: Number(r.cnt) })),
     topPaths: topPathRows.map(r => ({ path: r.path, count: Number(r.cnt) })),
@@ -104,7 +121,7 @@ export async function sendPeriodicReport(prisma: PrismaClient): Promise<void> {
     return
   }
 
-  const total = stats.sshSessions + stats.webHits
+  const total = stats.sshSessions + stats.webHits + stats.protocolHits
   if (total === 0) return
 
   const sshLines = [
@@ -128,6 +145,15 @@ export async function sendPeriodicReport(prisma: PrismaClient): Promise<void> {
       : '',
   ].filter(Boolean).join('\n')
 
+  const protocolLines = stats.protocolHits > 0
+    ? [
+        `📡 **${fmt(stats.protocolHits)}** hits  |  🌐 **${fmt(stats.uniqueProtocolIps)}** unique IPs`,
+        stats.topProtocols.length > 0
+          ? `Protocols: ${stats.topProtocols.map(r => `${r.protocol.toUpperCase()} (${r.count})`).join(' · ')}`
+          : '',
+      ].filter(Boolean).join('\n')
+    : null
+
   const level = total > 5000 ? 'critical' : total > 1000 ? 'high' : 'info'
   const timeLabel = formatTimeInTimezone(now, timezone)
   const intervalLabel = reportIntervalHours === 1 ? '1 hora' : `${reportIntervalHours} horas`
@@ -135,11 +161,12 @@ export async function sendPeriodicReport(prisma: PrismaClient): Promise<void> {
   await sendDiscordAlert({
     level,
     title: `📊 Reporte cada ${intervalLabel} — (as of ${timeLabel})`,
-    description: `**${fmt(total)}** eventos capturados en SSH y HTTP en las últimas ${intervalLabel}.`,
+    description: `**${fmt(total)}** eventos capturados en las últimas ${intervalLabel}.`,
     fields: [
-      { name: '🔐 SSH Honeypot', value: sshLines || 'No activity', inline: false },
+      { name: '🔐 SSH Honeypot', value: sshLines || 'Sin actividad', inline: false },
       { name: '💻 Top Commands', value: commandLines, inline: true },
-      { name: '🕸️ Web Honeypot', value: webLines || 'No activity', inline: false },
+      { name: '🕸️ Web Honeypot', value: webLines || 'Sin actividad', inline: false },
+      ...(protocolLines ? [{ name: '📡 Otros Protocolos', value: protocolLines, inline: false }] : []),
       ...(stats.highRiskSessions > 0
         ? [{ name: '⚠️ High-Risk IPs', value: `${stats.highRiskSessions} IPs with successful login + active commands`, inline: false }]
         : []),
