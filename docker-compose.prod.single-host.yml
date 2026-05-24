@@ -167,12 +167,6 @@ services:
       - NET_ADMIN
       - NET_RAW
       - SYS_NICE
-      - CHOWN
-      - FOWNER
-      - SETUID
-      - SETGID
-    cap_drop:
-      - ALL
     environment:
       SURICATA_INTERFACE: ${SURICATA_INTERFACE:-eth0}
     volumes:
