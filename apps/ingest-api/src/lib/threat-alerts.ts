@@ -72,7 +72,6 @@ const SUSPICIOUS_COMMAND_CATEGORIES: CommandCategory[] = [
 const SENSOR_OFFLINE_COOLDOWN_MS = 2 * 60 * 60 * 1000
 const THREAT_ALERT_DEBOUNCE_MS = 1500
 
-const lastAlertSent = new Map<string, number>()
 const pendingThreatAlertTimers = new Map<string, NodeJS.Timeout>()
 const runningThreatAlerts = new Set<string>()
 
@@ -144,12 +143,19 @@ function buildTimeWindowMinutes(...ranges: Array<{ firstSeen: Date | null; lastS
   return Math.max(0, Math.round((lastSeen.getTime() - firstSeen.getTime()) / 60000))
 }
 
-function shouldSendAlert(key: string, cooldownMs: number) {
-  const now = Date.now()
-  const lastSent = lastAlertSent.get(key)
-  if (lastSent && now - lastSent < cooldownMs) return false
-  lastAlertSent.set(key, now)
-  return true
+async function shouldSendAlert(prisma: PrismaClient, key: string, cooldownMs: number): Promise<boolean> {
+  // Atomic upsert: only update if the existing row's cooldown has already expired.
+  // If a row exists and expires_at >= NOW(), the WHERE clause blocks the update → RETURNING is empty → skip.
+  // Works correctly across multiple ingest-api replicas.
+  const rows = await prisma.$queryRaw<Array<{ key: string }>>`
+    INSERT INTO threat_alert_cooldown (key, expires_at)
+    VALUES (${key}, NOW() + (${cooldownMs}::bigint * interval '1 millisecond'))
+    ON CONFLICT (key) DO UPDATE
+      SET expires_at = NOW() + (${cooldownMs}::bigint * interval '1 millisecond')
+      WHERE threat_alert_cooldown.expires_at < NOW()
+    RETURNING key
+  `
+  return rows.length > 0
 }
 
 export function deriveMultiServiceLevel(serviceFamilyCount: number): 'HIGH' | 'CRITICAL' | null {
@@ -177,15 +183,18 @@ export function hasSuspiciousPostAuthActivity(commandCategories: Record<CommandC
   return SUSPICIOUS_COMMAND_CATEGORIES.some((category) => commandCategories[category].length > 0)
 }
 
-async function sendAlertOnce(input: {
-  key: string
-  cooldownMs: number
-  level: 'critical' | 'high' | 'info'
-  title: string
-  description: string
-  fields: Array<{ name: string; value: string; inline?: boolean }>
-}) {
-  if (!shouldSendAlert(input.key, input.cooldownMs)) return
+async function sendAlertOnce(
+  prisma: PrismaClient,
+  input: {
+    key: string
+    cooldownMs: number
+    level: 'critical' | 'high' | 'info'
+    title: string
+    description: string
+    fields: Array<{ name: string; value: string; inline?: boolean }>
+  },
+) {
+  if (!await shouldSendAlert(prisma, input.key, input.cooldownMs)) return
   await sendDiscordAlert({
     level: input.level,
     title: input.title,
@@ -194,8 +203,9 @@ async function sendAlertOnce(input: {
   })
 }
 
-export function clearSensorOfflineAlert(sensorId: string) {
-  lastAlertSent.delete(`sensor-offline:${sensorId}`)
+export async function clearSensorOfflineAlert(prisma: PrismaClient, sensorId: string): Promise<void> {
+  const key = `sensor-offline:${sensorId}`
+  await prisma.$queryRaw`DELETE FROM threat_alert_cooldown WHERE key = ${key}`
 }
 
 export function scheduleThreatAlert(prisma: PrismaClient, ip: string, debounceMs = THREAT_ALERT_DEBOUNCE_MS) {
@@ -243,7 +253,7 @@ export async function checkSensorHealthAlerts(prisma: PrismaClient): Promise<voi
   const timezone = getTimezone()
 
   for (const sensor of offlineSensors) {
-    await sendAlertOnce({
+    await sendAlertOnce(prisma, {
       key: `sensor-offline:${sensor.sensor_id}`,
       cooldownMs: SENSOR_OFFLINE_COOLDOWN_MS,
       level: 'high',
@@ -431,7 +441,7 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
     level === 'CRITICAL' || alertCfg.minLevel === 'high'
 
   if (alertCfg.types.threatScore && levelPasses(risk.level as 'HIGH' | 'CRITICAL') && (risk.level === 'CRITICAL' || risk.level === 'HIGH')) {
-    await sendAlertOnce({
+    await sendAlertOnce(prisma, {
       key: `threat_score:${ip}`,
       cooldownMs: alertCfg.cooldownMs,
       level: risk.level === 'CRITICAL' ? 'critical' : 'high',
@@ -461,7 +471,7 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
 
   const multiServiceLevel = deriveMultiServiceLevel(recentServiceFamilyCount)
   if (alertCfg.types.multiService && multiServiceLevel && levelPasses(multiServiceLevel)) {
-    await sendAlertOnce({
+    await sendAlertOnce(prisma, {
       key: `multi_service:${ip}`,
       cooldownMs: alertCfg.cooldownMs,
       level: multiServiceLevel === 'CRITICAL' ? 'critical' : 'high',
@@ -499,7 +509,7 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
 
   const authBurstLevel = deriveAuthBurstLevel(totalAuthAttempts)
   if (alertCfg.types.authBurst && authBurstLevel && levelPasses(authBurstLevel)) {
-    await sendAlertOnce({
+    await sendAlertOnce(prisma, {
       key: `auth_burst:${ip}`,
       cooldownMs: alertCfg.cooldownMs,
       level: authBurstLevel === 'CRITICAL' ? 'critical' : 'high',
@@ -521,7 +531,7 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
       .map((category) => `${category}: ${recentCommandCategories[category][0]}`)
       .slice(0, 4)
 
-    await sendAlertOnce({
+    await sendAlertOnce(prisma, {
       key: `post_auth:${ip}`,
       cooldownMs: alertCfg.cooldownMs,
       level: 'critical',
@@ -544,7 +554,7 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
     })
   ) {
     const webTypes = (recentWeb?.attack_types ?? []).filter((type) => WEB_EXPLOIT_TYPES.includes(type))
-    await sendAlertOnce({
+    await sendAlertOnce(prisma, {
       key: `attack_chain:${ip}`,
       cooldownMs: alertCfg.cooldownMs,
       level: 'critical',

@@ -142,7 +142,7 @@ export async function sensorRoutes(fastify: FastifyInstance) {
         last_seen   = EXCLUDED.last_seen
     `
 
-    clearSensorOfflineAlert(d.sensorId)
+    void clearSensorOfflineAlert(fastify.prisma, d.sensorId)
     return reply.status(200).send({ ok: true })
   })
 
