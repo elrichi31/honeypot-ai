@@ -3,6 +3,7 @@ import OpenAI from "openai"
 import { db } from "@/lib/db"
 import { getOpenAiKey } from "@/lib/server-config"
 import type { ThreatDetail } from "@/lib/api"
+import { requireRole } from "@/lib/roles"
 
 export interface ThreatAnalysis {
   actorProfile: string
@@ -14,6 +15,9 @@ export interface ThreatAnalysis {
 }
 
 export async function GET(req: NextRequest) {
+  const auth_check = await requireRole("analyst")
+  if (!auth_check.ok) return auth_check.response
+
   const ip = req.nextUrl.searchParams.get("ip")
   if (!ip) return NextResponse.json(null)
 
@@ -30,6 +34,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth_check = await requireRole("analyst")
+  if (!auth_check.ok) return auth_check.response
+
   const apiKey = getOpenAiKey()
   if (!apiKey) {
     return NextResponse.json(

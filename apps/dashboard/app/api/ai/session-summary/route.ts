@@ -3,6 +3,7 @@ import OpenAI from "openai"
 import { getOpenAiKey } from "@/lib/server-config"
 import { analyzeRisk, preClassify } from "@/lib/risk-score"
 import type { HoneypotEvent, ApiSession } from "@/lib/api"
+import { requireRole } from "@/lib/roles"
 
 export interface SessionAnalysis {
   summary: string
@@ -21,6 +22,9 @@ export interface SessionAnalysis {
 }
 
 export async function POST(req: NextRequest) {
+  const auth_check = await requireRole("analyst")
+  if (!auth_check.ok) return auth_check.response
+
   const apiKey = getOpenAiKey()
   if (!apiKey) {
     return NextResponse.json(

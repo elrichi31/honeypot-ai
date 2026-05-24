@@ -176,7 +176,13 @@ export async function POST(
   const auth_check = await requireRole("analyst")
   if (!auth_check.ok) return auth_check.response
 
-  const { clientId } = await params
+  const { clientId: rawClientId } = await params
+
+  // Sanitize clientId before using in shell commands
+  const clientId = rawClientId.replace(/[^a-zA-Z0-9_-]/g, "")
+  if (!clientId) {
+    return NextResponse.json({ error: "Invalid client ID" }, { status: 400 })
+  }
 
   try {
     const body = await req.json().catch(() => ({})) as { services?: string[] }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { requireRole } from "@/lib/roles"
 
 const INTERNAL_API =
   process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
@@ -7,6 +8,9 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth_check = await requireRole("analyst")
+  if (!auth_check.ok) return auth_check.response
+
   const { id } = await params
 
   try {

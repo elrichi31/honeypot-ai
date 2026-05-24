@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { requireRole } from "@/lib/roles"
 
 async function getVmdkInfo(): Promise<{ releasedAt: string | null }> {
   let releasedAt: string | null = null
@@ -34,6 +35,9 @@ async function getVmdkInfo(): Promise<{ releasedAt: string | null }> {
 }
 
 export async function GET() {
+  const auth_check = await requireRole("analyst")
+  if (!auth_check.ok) return auth_check.response
+
   let ingestUrl: string
   let source: "SENSOR_INGEST_URL" | "NEXT_PUBLIC_API_URL" | "auto-detected"
 

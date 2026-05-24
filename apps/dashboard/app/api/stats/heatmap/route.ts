@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { readConfig } from "@/lib/server-config"
+import { requireRole } from "@/lib/roles"
 
 export async function GET(req: NextRequest) {
+  const auth_check = await requireRole("viewer")
+  if (!auth_check.ok) return auth_check.response
+
   const config = readConfig()
   const apiUrl = config.ingestApiUrl ?? process.env.INTERNAL_API_URL ?? "http://localhost:3000"
   const timezone = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"

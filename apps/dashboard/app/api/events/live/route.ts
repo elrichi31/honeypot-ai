@@ -1,9 +1,13 @@
 import { getApiUrl } from "@/lib/api/client"
+import { requireRole } from "@/lib/roles"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 export async function GET(request: Request) {
+  const auth_check = await requireRole("viewer")
+  if (!auth_check.ok) return auth_check.response
+
   const controller = new AbortController()
   request.signal.addEventListener("abort", () => controller.abort())
 
