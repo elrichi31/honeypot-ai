@@ -181,11 +181,17 @@ services:
     container_name: falco
     restart: unless-stopped
     init: true
-    privileged: true
     pid: host
+    cap_drop:
+      - ALL
+    cap_add:
+      - SYS_ADMIN    # modern eBPF loader
+      - SYS_RESOURCE # memlock for eBPF maps
+      - SYS_PTRACE   # process inspection
     volumes:
       - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
+      - /sys/kernel/tracing:/sys/kernel/tracing:ro
+      - /var/run/docker.sock:/host/var/run/docker.sock
       - ./sensors/falco/falco.yaml:/etc/falco/falco.yaml:ro
       - falco_logs:/var/log/falco
     logging: *json-logging

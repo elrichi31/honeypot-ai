@@ -1,8 +1,11 @@
 %YAML 1.1
 ---
 # Falco config for honeypot platform
-# Uses modern eBPF driver (kernel >= 5.8, no kernel module needed)
+# Uses modern eBPF driver (kernel >= 5.8, BTF required — check: test -f /sys/kernel/btf/vmlinux)
 # JSON output to file — Vector tails it and ships alerts to ingest-api
+
+engine:
+  kind: modern_ebpf
 
 json_output: true
 json_include_output_property: true
@@ -20,7 +23,7 @@ file_output:
 stdout_output:
   enabled: false
 
-# Use default rule files bundled in the image
+# Default rule files bundled in the image
 rules_file:
   - /etc/falco/falco_rules.yaml
   - /etc/falco/falco_rules.local.yaml
