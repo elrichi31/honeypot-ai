@@ -169,6 +169,8 @@ services:
       - SYS_NICE
       - CHOWN
       - FOWNER
+      - SETUID
+      - SETGID
     cap_drop:
       - ALL
     environment:
