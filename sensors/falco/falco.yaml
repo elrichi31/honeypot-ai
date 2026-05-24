@@ -18,7 +18,7 @@ json_include_tags_property: true
 
 log_stderr: true
 log_syslog: false
-log_level: info
+log_level: warning
 
 file_output:
   enabled: true
@@ -26,7 +26,7 @@ file_output:
   filename: /var/log/falco/falco.json
 
 stdout_output:
-  enabled: true
+  enabled: false
 
 # Default rule files bundled in the image
 rules_files:
