@@ -10,7 +10,6 @@ engine:
 container_engines:
   docker:
     enabled: true
-    socket: /host/var/run/docker.sock
 
 json_output: true
 json_include_output_property: true
