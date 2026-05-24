@@ -34,11 +34,6 @@ vars:
 
 default-log-dir: /tmp/suricata-logs/
 
-# Keep running as root so it can write to the Docker-mounted volume
-run-as:
-  user: root
-  group: root
-
 stats:
   enabled: no
 
