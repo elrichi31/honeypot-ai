@@ -32,7 +32,7 @@ vars:
     VXLAN_PORTS: 4789
     TEREDO_PORTS: 3544
 
-default-log-dir: /var/log/suricata/
+default-log-dir: /tmp/suricata-logs/
 
 # Keep running as root so it can write to the Docker-mounted volume
 run-as:

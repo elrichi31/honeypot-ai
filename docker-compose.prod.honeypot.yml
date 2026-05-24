@@ -100,7 +100,7 @@ services:
     environment:
       SURICATA_INTERFACE: ${SURICATA_INTERFACE:-eth0}
     volumes:
-      - suricata_logs:/var/log/suricata
+      - suricata_logs:/tmp/suricata-logs
     pids_limit: 256
 
   vector:
@@ -112,7 +112,7 @@ services:
       - cowrie
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var:ro
-      - suricata_logs:/var/log/suricata:ro
+      - suricata_logs:/tmp/suricata-logs:ro
       - ./vector/cowrie.toml:/etc/vector/cowrie.toml:ro
       - ./vector/suricata.toml:/etc/vector/suricata.toml:ro
       - vector_data:/var/lib/vector

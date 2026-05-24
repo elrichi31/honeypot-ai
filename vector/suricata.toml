@@ -11,7 +11,7 @@
 # ── Source: tail Suricata EVE JSON ─────────────────────────────────────────
 [sources.suricata_eve]
 type       = "file"
-include    = ["/var/log/suricata/eve.json"]
+include    = ["/tmp/suricata-logs/eve.json"]
 read_from  = "end"
 fingerprint.strategy = "device_and_inode"
 
