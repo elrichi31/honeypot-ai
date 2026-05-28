@@ -111,34 +111,27 @@ function LiveArcLine({ src, dst, type }: { src: [number, number]; dst: [number, 
   return (
     <g>
       {/* Static faint trail */}
-      <path d={d} stroke={color} strokeWidth={0.4} fill="none" opacity={0.15} strokeLinecap="round" />
+      <path d={d} stroke={color} strokeWidth={0.3} fill="none" opacity={0.12} strokeLinecap="round" />
 
-      {/* Outer soft halo */}
-      <path d={d} pathLength="1" stroke={color} strokeWidth={6} fill="none" strokeLinecap="round"
-        filter="url(#arc-glow-outer)" strokeDasharray="0.35 0.65" opacity={0}>
-        <animate attributeName="stroke-dashoffset" from="0.35" to="-0.65" dur={DUR} repeatCount="indefinite" />
-        <animate attributeName="opacity" values="0;0.25;0" keyTimes="0;0.5;1" dur={DUR} repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" />
-      </path>
-
-      {/* Mid glow */}
-      <path d={d} pathLength="1" stroke={color} strokeWidth={3} fill="none" strokeLinecap="round"
+      {/* Subtle glow */}
+      <path d={d} pathLength="1" stroke={color} strokeWidth={2.5} fill="none" strokeLinecap="round"
         filter="url(#arc-glow)" strokeDasharray="0.3 0.7" opacity={0}>
         <animate attributeName="stroke-dashoffset" from="0.3" to="-0.7" dur={DUR} repeatCount="indefinite" />
-        <animate attributeName="opacity" values="0;0.55;0" keyTimes="0;0.5;1" dur={DUR} repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" />
+        <animate attributeName="opacity" values="0;0.35;0" keyTimes="0;0.5;1" dur={DUR} repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" />
       </path>
 
       {/* Bright colored core */}
-      <path d={d} pathLength="1" stroke={color} strokeWidth={1.1} fill="none" strokeLinecap="round"
+      <path d={d} pathLength="1" stroke={color} strokeWidth={0.9} fill="none" strokeLinecap="round"
         strokeDasharray="0.28 0.72" opacity={0}>
         <animate attributeName="stroke-dashoffset" from="0.28" to="-0.72" dur={DUR} repeatCount="indefinite" />
-        <animate attributeName="opacity" values="0;1;0" keyTimes="0;0.5;1" dur={DUR} repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" />
+        <animate attributeName="opacity" values="0;0.95;0" keyTimes="0;0.5;1" dur={DUR} repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" />
       </path>
 
       {/* White-hot leading tip */}
-      <path d={d} pathLength="1" stroke="#ffffff" strokeWidth={0.6} fill="none" strokeLinecap="round"
-        strokeDasharray="0.1 0.9" opacity={0}>
+      <path d={d} pathLength="1" stroke="#ffffff" strokeWidth={0.4} fill="none" strokeLinecap="round"
+        strokeDasharray="0.08 0.92" opacity={0}>
         <animate attributeName="stroke-dashoffset" from="0.24" to="-0.76" dur={DUR} repeatCount="indefinite" />
-        <animate attributeName="opacity" values="0;0.85;0" keyTimes="0;0.5;1" dur={DUR} repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" />
+        <animate attributeName="opacity" values="0;0.75;0" keyTimes="0;0.5;1" dur={DUR} repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" />
       </path>
     </g>
   )
