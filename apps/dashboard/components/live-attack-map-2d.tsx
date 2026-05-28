@@ -41,12 +41,16 @@ export function LiveAttackMap2D({ visible, sensors, countryHits, liveArcs, setHo
 function MapFilters() {
   return (
     <defs>
-      <filter id="arc-glow" x="-30%" y="-30%" width="160%" height="160%">
-        <feGaussianBlur stdDeviation="3" result="blur" />
+      <filter id="arc-glow" x="-80%" y="-80%" width="260%" height="260%">
+        <feGaussianBlur stdDeviation="5" result="blur" />
         <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
       </filter>
-      <filter id="dot-glow" x="-50%" y="-50%" width="200%" height="200%">
-        <feGaussianBlur stdDeviation="2.5" result="blur" />
+      <filter id="arc-glow-outer" x="-150%" y="-150%" width="400%" height="400%">
+        <feGaussianBlur stdDeviation="10" result="blur" />
+        <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+      </filter>
+      <filter id="dot-glow" x="-100%" y="-100%" width="300%" height="300%">
+        <feGaussianBlur stdDeviation="3" result="blur" />
         <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
       </filter>
     </defs>
@@ -83,12 +87,18 @@ function SensorMarker({ sensor }: { sensor: SensorLocation }) {
   return (
     <Marker coordinates={[sensor.lng, sensor.lat]}>
       <title>{`Honeypot ${sensor.ip}`}</title>
-      <circle r={0} fill="none" stroke="#22d3ee" strokeWidth={1.2} opacity={0}>
-        <animate attributeName="r" from="6" to="22" dur="2.4s" repeatCount="indefinite" />
-        <animate attributeName="opacity" from="0.6" to="0" dur="2.4s" repeatCount="indefinite" />
+      {/* Outer slow pulse */}
+      <circle r={0} fill="none" stroke="#22d3ee" strokeWidth={0.8} opacity={0}>
+        <animate attributeName="r" from="8" to="28" dur="3s" repeatCount="indefinite" />
+        <animate attributeName="opacity" from="0.5" to="0" dur="3s" repeatCount="indefinite" />
       </circle>
-      <circle r={4.5} fill="#22d3ee" opacity={0.9} filter="url(#dot-glow)" />
-      <circle r={2} fill="#fff" opacity={0.9} />
+      {/* Inner fast pulse */}
+      <circle r={0} fill="none" stroke="#22d3ee" strokeWidth={1.4} opacity={0}>
+        <animate attributeName="r" from="5" to="16" dur="2s" repeatCount="indefinite" begin="0.6s" />
+        <animate attributeName="opacity" from="0.7" to="0" dur="2s" repeatCount="indefinite" begin="0.6s" />
+      </circle>
+      <circle r={5} fill="#22d3ee" opacity={0.95} filter="url(#dot-glow)" />
+      <circle r={2.5} fill="#fff" opacity={0.95} />
     </Marker>
   )
 }
@@ -97,21 +107,40 @@ function LiveArcLine({ src, dst, type }: { src: [number, number]; dst: [number, 
   const d = arcPath(src, dst)
   if (!d) return null
   const color = getProtocolMarkerColor(type)
+  const DUR = "3.2s"
   return (
     <g>
-      <path d={d} stroke={color} strokeWidth={1.15} fill="none" opacity={0.22} />
-      <AnimatedArcPath d={d} color={color} strokeWidth={6} opacity="0;0.5;0" />
-      <AnimatedArcPath d={d} color={color} strokeWidth={2.4} opacity="0;0.95;0" />
-    </g>
-  )
-}
+      {/* Static faint trail */}
+      <path d={d} stroke={color} strokeWidth={0.7} fill="none" opacity={0.2} strokeLinecap="round" />
 
-function AnimatedArcPath({ d, color, strokeWidth, opacity }: { d: string; color: string; strokeWidth: number; opacity: string }) {
-  return (
-    <path d={d} stroke={color} strokeWidth={strokeWidth} fill="none" strokeDasharray="8 700" filter={strokeWidth > 3 ? "url(#arc-glow)" : undefined} opacity={0}>
-      <animate attributeName="stroke-dashoffset" from="8" to="-700" dur="4.8s" fill="freeze" />
-      <animate attributeName="opacity" begin="0s" dur="4.8s" fill="freeze" calcMode="spline" keyTimes="0;0.6;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" values={opacity} />
-    </path>
+      {/* Outer soft halo */}
+      <path d={d} pathLength="1" stroke={color} strokeWidth={16} fill="none" strokeLinecap="round"
+        filter="url(#arc-glow-outer)" strokeDasharray="0.35 0.65" opacity={0}>
+        <animate attributeName="stroke-dashoffset" from="0.35" to="-0.65" dur={DUR} repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0;0.3;0" keyTimes="0;0.5;1" dur={DUR} repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" />
+      </path>
+
+      {/* Mid glow */}
+      <path d={d} pathLength="1" stroke={color} strokeWidth={8} fill="none" strokeLinecap="round"
+        filter="url(#arc-glow)" strokeDasharray="0.3 0.7" opacity={0}>
+        <animate attributeName="stroke-dashoffset" from="0.3" to="-0.7" dur={DUR} repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0;0.65;0" keyTimes="0;0.5;1" dur={DUR} repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" />
+      </path>
+
+      {/* Bright colored core */}
+      <path d={d} pathLength="1" stroke={color} strokeWidth={2.5} fill="none" strokeLinecap="round"
+        strokeDasharray="0.28 0.72" opacity={0}>
+        <animate attributeName="stroke-dashoffset" from="0.28" to="-0.72" dur={DUR} repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0;1;0" keyTimes="0;0.5;1" dur={DUR} repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" />
+      </path>
+
+      {/* White-hot leading tip */}
+      <path d={d} pathLength="1" stroke="#ffffff" strokeWidth={1.2} fill="none" strokeLinecap="round"
+        strokeDasharray="0.1 0.9" opacity={0}>
+        <animate attributeName="stroke-dashoffset" from="0.24" to="-0.76" dur={DUR} repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0;0.85;0" keyTimes="0;0.5;1" dur={DUR} repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" />
+      </path>
+    </g>
   )
 }
 
@@ -122,7 +151,7 @@ function arcPath(src: [number, number], dst: [number, number]): string | null {
   const dy = y2 - y1
   const len = Math.sqrt(dx * dx + dy * dy)
   if (len < 3) return null
-  const off = Math.min(len * 0.28, 60)
+  const off = Math.min(len * 0.42, 95)
   const cx = (x1 + x2) / 2 - (dy / len) * off
   const cy = (y1 + y2) / 2 + (dx / len) * off
   return `M ${x1.toFixed(1)} ${y1.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`
