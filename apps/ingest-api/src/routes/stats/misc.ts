@@ -211,6 +211,10 @@ export async function miscRoutes(fastify: FastifyInstance) {
     const timezone = query.timezone || 'UTC'
     const days = Math.min(Math.max(parseInt(query.days || '90', 10), 1), 365)
 
+    const cacheKey = `stats:heatmap:${days}:${timezone.replace(/\//g, '_')}`
+    const cached = await fastify.cache?.get(cacheKey)
+    if (cached) return JSON.parse(cached)
+
     interface HeatmapRow { dow: number; hour: number; count: bigint }
     const rows = await fastify.prisma.$queryRaw<HeatmapRow[]>(Prisma.sql`
       SELECT EXTRACT(DOW  FROM started_at AT TIME ZONE ${timezone})::int AS dow,
@@ -225,6 +229,8 @@ export async function miscRoutes(fastify: FastifyInstance) {
     const totalSessions = cells.reduce((s, c) => s + c.count, 0)
     const hourTotals = Array.from({ length: 24 }, (_, h) => cells.filter(c => c.hour === h).reduce((s, c) => s + c.count, 0))
 
-    return { cells, maxCount, totalSessions, hourTotals, days }
+    const result = { cells, maxCount, totalSessions, hourTotals, days }
+    await fastify.cache?.set(cacheKey, 120, JSON.stringify(result))
+    return result
   })
 }

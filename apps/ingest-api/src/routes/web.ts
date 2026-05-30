@@ -244,21 +244,30 @@ async function handleByIp(fastify: FastifyInstance, request: FastifyRequest, rep
 }
 
 async function handleStats(fastify: FastifyInstance, _request: FastifyRequest, reply: FastifyReply) {
+  const cached = await fastify.cache?.get('web-hits:stats')
+  if (cached) return reply.send(JSON.parse(cached))
+
   const [attackTypeRows, topIpRows, totalRows] = await Promise.all([
     fastify.prisma.$queryRaw<AttackTypeStatRow[]>`
-      SELECT attack_type, COUNT(*)::int AS count FROM web_hits GROUP BY attack_type ORDER BY count DESC
+      SELECT attack_type, COUNT(*)::int AS count FROM web_hits
+      WHERE timestamp >= NOW() - INTERVAL '30 days'
+      GROUP BY attack_type ORDER BY count DESC
     `,
     fastify.prisma.$queryRaw<IpStatRow[]>`
-      SELECT src_ip, COUNT(*)::int AS count FROM web_hits GROUP BY src_ip ORDER BY count DESC LIMIT 10
+      SELECT src_ip, COUNT(*)::int AS count FROM web_hits
+      WHERE timestamp >= NOW() - INTERVAL '30 days'
+      GROUP BY src_ip ORDER BY count DESC LIMIT 10
     `,
     fastify.prisma.$queryRaw<Array<{ total: number }>>`SELECT COUNT(*)::int AS total FROM web_hits`,
   ]);
 
-  return reply.send({
+  const result = {
     total: totalRows[0]?.total ?? 0,
     byAttackType: attackTypeRows.map((r) => ({ attackType: r.attack_type, count: r.count })),
     topIps: topIpRows.map((r) => ({ srcIp: r.src_ip, count: r.count })),
-  });
+  }
+  await fastify.cache?.set('web-hits:stats', 300, JSON.stringify(result))
+  return reply.send(result)
 }
 
 export async function webRoutes(fastify: FastifyInstance) {
