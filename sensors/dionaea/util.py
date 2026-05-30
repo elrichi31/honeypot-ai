@@ -88,17 +88,24 @@ def detect_shellshock(connection, data, report_incidents=True):
         r"(wget|curl).+(?P<url>(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?)"
     )
     download_dir = "/opt/dionaea/var/lib/dionaea/binaries/"
+    src_ip, src_port = "", None
+    try:
+        src_ip = str(connection.remote.host)
+        src_port = int(connection.remote.port)
+    except Exception:
+        pass
+
     for m in regex.finditer(data):
         url = m.group("url")
         logger.warning("Found download URL: %s", url)
         urls.append(url)
         if report_incidents:
-            threading.Thread(target=_fetch_binary, args=(url, download_dir), daemon=True).start()
+            threading.Thread(target=_fetch_binary, args=(url, download_dir, src_ip, src_port), daemon=True).start()
 
     return urls
 
 
-def _fetch_binary(url, download_dir):
+def _fetch_binary(url, download_dir, _connection_ip="", _connection_port=None):
     import json
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -115,7 +122,7 @@ def _fetch_binary(url, download_dir):
         if not os.path.exists(meta_path):
             source_name = url.rstrip("/").split("/")[-1] or md5
             with open(meta_path, "w") as f:
-                json.dump({"sourceUrl": url, "sourceName": source_name}, f)
+                json.dump({"sourceUrl": url, "sourceName": source_name, "srcIp": _connection_ip, "srcPort": _connection_port}, f)
         logger.warning("Shellshock download saved: %s (%d bytes) → %s", url, len(content), md5)
     except Exception as e:
         logger.warning("Shellshock download failed for %s: %s", url, e)

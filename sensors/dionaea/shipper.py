@@ -387,6 +387,29 @@ def _collect_files(directory):
     return result
 
 
+def _last_connection_for(proto_name):
+    """Scan the tail of dionaea.json to find the most recent accept connection for a protocol."""
+    try:
+        size = os.path.getsize(DIONAEA_LOG_PATH)
+        with open(DIONAEA_LOG_PATH, "r", encoding="utf-8", errors="ignore") as f:
+            f.seek(max(0, size - 65536))
+            lines = f.read().splitlines()
+        for line in reversed(lines):
+            try:
+                data = json.loads(line)
+                conn = data.get("connection", {})
+                if conn.get("protocol") == proto_name and conn.get("type") == "accept":
+                    return str(data.get("src_ip") or ""), _to_int(data.get("src_port"))
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return "", None
+
+
+PROTO_MAP = {"ftp": "ftpd", "tftp": "tftpd"}
+
+
 def _unify_upload(src_path, source_type, source_name):
     try:
         if os.path.getsize(src_path) == 0:
@@ -398,11 +421,14 @@ def _unify_upload(src_path, source_type, source_name):
         if not os.path.exists(dest):
             shutil.copy2(src_path, dest)
         if not os.path.exists(meta):
+            src_ip, src_port = _last_connection_for(PROTO_MAP.get(source_type, source_type))
             with open(meta, "w") as f:
                 json.dump({
                     "sourceUrl": f"{source_type}://upload/{source_name}",
                     "sourceName": source_name,
                     "sourceType": source_type,
+                    "srcIp": src_ip,
+                    "srcPort": src_port,
                 }, f)
         print(f"[dionaea-shipper] unified {source_type} upload → binaries/{md5} ({source_name})", flush=True)
     except Exception as exc:
