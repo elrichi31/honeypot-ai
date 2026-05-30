@@ -133,15 +133,7 @@ function buildCampaignGeo(
     .slice(0, 12)
 }
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ range?: string }>
-}) {
-  const params = await searchParams
-  const range: TimeRange =
-    params.range === "day" || params.range === "week" || params.range === "month" ? params.range : "week"
-
+export default async function DashboardPage() {
   const config = readConfig()
   const timezone = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
 
@@ -149,7 +141,7 @@ export default async function DashboardPage({
     fetchDashboardInsights(),
     fetchGeoSummary(),
     fetchHoneypotOverview(),
-    fetchCrossSensorTimeline({ range, timezone }),
+    fetchCrossSensorTimeline({ range: "day", timezone }),
   ])
 
   const countryAttacks = geolocateIps(geoData)
@@ -225,7 +217,7 @@ export default async function DashboardPage({
       {/* Cross-sensor activity timeline + distribution */}
       <div className="mb-6 grid gap-4 xl:grid-cols-[2fr_1fr]">
         <Suspense fallback={<div className="h-[500px] rounded-xl border border-border bg-card" />}>
-          <CrossSensorActivityChart timeline={crossTimeline} range={range} />
+          <CrossSensorActivityChart timeline={crossTimeline} range="day" />
         </Suspense>
         <ProtocolDistributionChart overview={overview} />
       </div>
