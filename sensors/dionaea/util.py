@@ -75,6 +75,7 @@ def detect_shellshock(connection, data, report_incidents=True):
     """
     from dionaea.core import incident
     if isinstance(data, bytes): data = data.decode("latin-1")
+    logger.warning("detect_shellshock called with: %r", data[:80])
     regex = re.compile(r"\(\)\s*\t*\{.*;\s*\}\s*;")
     if not regex.search(data):
         return None
