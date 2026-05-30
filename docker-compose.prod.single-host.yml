@@ -24,7 +24,7 @@ services:
       - "2222:2222"
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var
-      - ./sensors/cowrie/cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
+      - cowrie_signal:/signal
       - ./sensors/cowrie/userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
     networks:
       edge:
@@ -54,8 +54,10 @@ services:
       SENSOR_HOST: cowrie
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      SIGNAL_DIR: /signal
     volumes:
       - ./sensors/cowrie/heartbeat.py:/heartbeat.py:ro
+      - cowrie_signal:/signal
     command: ["python3", "/heartbeat.py"]
     networks:
       - honeypot_ingest
@@ -512,6 +514,7 @@ services:
 
 volumes:
   cowrie_var:
+  cowrie_signal:
   dionaea_var:
   dionaea_shipper_state:
   pg_data:

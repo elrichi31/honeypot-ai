@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
+import { Settings2 } from "lucide-react"
 import { isPrivateIp } from "@/lib/sensor-display"
 import { SensorHeader } from "./sensor-header"
 import { SensorStats } from "./sensor-stats"
 import { SensorPorts } from "./sensor-ports"
 import { SensorActions } from "./sensor-actions"
+import { SensorConfigDialog } from "./sensor-config-dialog"
 import type { ControlAction, ControlState } from "./sensor-actions"
 import type { Sensor } from "@/lib/api"
 
@@ -40,6 +42,9 @@ export function SensorCard({
   const [controlState, setControlState] = useState<ControlState>("idle")
   const [controlMsg, setControlMsg] = useState("")
   const [dockerStatus, setDockerStatus] = useState<string | null>(null)
+  const [configOpen, setConfigOpen] = useState(false)
+
+  const isConfigurable = sensor.protocol === "ssh"
 
   const hasContainer = !!sensor.probeHost
   const isInternal = isPrivateIp(sensor.ip)
@@ -109,8 +114,24 @@ export function SensorCard({
           <p className="text-[10px] font-mono text-muted-foreground">v{sensor.version}</p>
         </div>
       )}
+      {isConfigurable && (
+        <button
+          onClick={() => setConfigOpen(true)}
+          className="flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground w-full justify-center"
+        >
+          <Settings2 className="h-3.5 w-3.5" />
+          Configure
+        </button>
+      )}
       {hasContainer && (
         <SensorActions controlState={controlState} controlMsg={controlMsg} onControl={handleControl} />
+      )}
+      {isConfigurable && (
+        <SensorConfigDialog
+          sensorId={sensor.sensorId}
+          open={configOpen}
+          onClose={() => setConfigOpen(false)}
+        />
       )}
     </div>
   )

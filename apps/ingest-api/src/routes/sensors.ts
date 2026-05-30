@@ -1,9 +1,22 @@
+import { createHash } from 'crypto'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import { ensureIngestToken } from '../lib/ingest-auth.js'
 import { clearSensorOfflineAlert } from '../lib/threat-alerts.js'
 import { normalizeIp, normalizeSlug } from '../lib/sensor-utils.js'
 import { resolveClientId, querySensors, probeSensorPorts, formatSensor } from '../lib/sensor-queries.js'
+
+const cowrieConfigSchema = z.object({
+  hostname:               z.string().min(1).max(64).default('web-prod-01'),
+  interactive_timeout:    z.number().int().min(30).max(3600).default(300),
+  authentication_timeout: z.number().int().min(10).max(600).default(120),
+  kernel_version:         z.string().min(1).max(128).default('5.15.0-91-generic'),
+  kernel_build_string:    z.string().min(1).max(256).default('#101-Ubuntu SMP Tue Nov 14 13:30:08 UTC 2023'),
+  hardware_platform:      z.string().min(1).max(32).default('x86_64'),
+  ssh_version:            z.string().min(1).max(128).default('SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6'),
+})
+
+const DEFAULT_COWRIE_CONFIG = cowrieConfigSchema.parse({})
 
 const heartbeatSchema = z.object({
   sensorId:    z.string().min(1),
@@ -123,9 +136,49 @@ async function handleDeleteSensor(fastify: FastifyInstance, request: FastifyRequ
   return reply.send({ deleted: true, sensorId: deleted.sensor_id })
 }
 
+async function handleGetConfig(fastify: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
+  const params = z.object({ sensorId: z.string().min(1) }).safeParse(request.params)
+  if (!params.success) return reply.status(400).send({ error: 'Invalid sensorId' })
+
+  const rows = await fastify.prisma.$queryRaw<Array<{ config: unknown; config_hash: string }>>`
+    SELECT config, config_hash FROM sensor_configs WHERE sensor_id = ${params.data.sensorId}
+  `
+  const row = rows[0]
+  return reply.send({
+    config: row?.config ?? DEFAULT_COWRIE_CONFIG,
+    configHash: row?.config_hash ?? '',
+  })
+}
+
+async function handlePutConfig(fastify: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
+  if (!ensureIngestToken(request, reply)) return reply
+
+  const params = z.object({ sensorId: z.string().min(1) }).safeParse(request.params)
+  const body = cowrieConfigSchema.safeParse(request.body)
+  if (!params.success || !body.success) {
+    return reply.status(400).send({ error: 'Invalid config', details: body.error?.flatten() })
+  }
+
+  const configStr = JSON.stringify(body.data)
+  const hash = createHash('sha256').update(configStr).digest('hex').slice(0, 16)
+
+  await fastify.prisma.$executeRaw`
+    INSERT INTO sensor_configs (sensor_id, config, config_hash, updated_at)
+    VALUES (${params.data.sensorId}, CAST(${configStr} AS jsonb), ${hash}, NOW())
+    ON CONFLICT (sensor_id) DO UPDATE SET
+      config      = EXCLUDED.config,
+      config_hash = EXCLUDED.config_hash,
+      updated_at  = EXCLUDED.updated_at
+  `
+
+  return reply.send({ ok: true, configHash: hash })
+}
+
 export async function sensorRoutes(fastify: FastifyInstance) {
   fastify.post('/sensors/heartbeat', (req, rep) => handleHeartbeat(fastify, req, rep))
   fastify.get('/sensors',            (req, rep) => handleListSensors(fastify, req, rep))
   fastify.put('/sensors/:sensorId/client', (req, rep) => handleAssignClient(fastify, req, rep))
   fastify.delete('/sensors/:sensorId',     (req, rep) => handleDeleteSensor(fastify, req, rep))
+  fastify.get('/sensors/:sensorId/config', (req, rep) => handleGetConfig(fastify, req, rep))
+  fastify.put('/sensors/:sensorId/config', (req, rep) => handlePutConfig(fastify, req, rep))
 }

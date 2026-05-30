@@ -229,6 +229,15 @@ model SuricataAlert {
   @@map("suricata_alerts")
 }
 
+model SensorConfig {
+  sensorId   String   @id @map("sensor_id")
+  config     Json     @default("{}")
+  configHash String   @default("") @map("config_hash")
+  updatedAt  DateTime @default(now()) @map("updated_at")
+
+  @@map("sensor_configs")
+}
+
 model WebHit {
   id          String   @id @default(uuid())
   eventId     String   @unique @map("event_id")
