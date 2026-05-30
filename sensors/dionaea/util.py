@@ -7,7 +7,10 @@
 
 import hashlib
 import logging
+import os
 import re
+import threading
+import urllib.request
 
 
 logger = logging.getLogger("util")
@@ -75,30 +78,41 @@ def detect_shellshock(connection, data, report_incidents=True):
     """
     from dionaea.core import incident
     if isinstance(data, bytes): data = data.decode("latin-1")
-    logger.warning("detect_shellshock called with: %r", data[:80])
     regex = re.compile(r"\(\)\s*\t*\{.*;\s*\}\s*;")
     if not regex.search(data):
         return None
-    logger.warning("Shellshock attack found - data: %s", data[:100])
+    logger.warning("Shellshock attack detected")
 
     urls = []
     regex = re.compile(
         r"(wget|curl).+(?P<url>(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?)"
     )
+    download_dir = "/opt/dionaea/var/lib/dionaea/binaries/"
     for m in regex.finditer(data):
-        logger.warning("Found download URL: %s", m.group("url"))
-        urls.append(m.group("url"))
+        url = m.group("url")
+        logger.warning("Found download URL: %s", url)
+        urls.append(url)
         if report_incidents:
-            try:
-                i = incident("dionaea.download.offer")
-                i.con = connection
-                i.url = m.group("url")
-                i.report()
-                logger.warning("Incident reported for URL: %s", m.group("url"))
-            except Exception as e:
-                logger.warning("Incident failed: %s", e)
+            threading.Thread(target=_fetch_binary, args=(url, download_dir), daemon=True).start()
 
     return urls
+
+
+def _fetch_binary(url, download_dir):
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            content = resp.read()
+        if not content:
+            return
+        md5 = hashlib.md5(content).hexdigest()
+        dest = os.path.join(download_dir, md5)
+        if not os.path.exists(dest):
+            with open(dest, "wb") as f:
+                f.write(content)
+        logger.warning("Shellshock download saved: %s (%d bytes) → %s", url, len(content), md5)
+    except Exception as e:
+        logger.warning("Shellshock download failed for %s: %s", url, e)
 
 
 def find_shell_download(connection, data, report_incidents=True):
