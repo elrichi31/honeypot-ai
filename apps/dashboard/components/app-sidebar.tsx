@@ -29,7 +29,6 @@ import {
   HardDrive,
   Users,
   ClipboardList,
-  Activity,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { signOut, useSession } from "@/lib/auth-client"
