@@ -1,5 +1,6 @@
 import { PageShell } from "@/components/page-shell"
 import { SessionsTable } from "@/components/sessions-table"
+import { ErrorState } from "@/components/ui/data-states"
 import { fetchSessionScanGroupsPage, fetchSessionsPage } from "@/lib/api"
 import { lookupIp } from "@/lib/geo"
 
@@ -29,22 +30,23 @@ export default async function SessionsPage({
   const actor = VALID_ACTORS.has(params.actor ?? "") ? params.actor as "all" | "bot" | "human" | "unknown" : undefined
   const sortDir = VALID_SORT_DIR.has(params.sortDir ?? "") ? (params.sortDir as "asc" | "desc") : "desc"
 
-  const sessionPage = await (
-    tab === "scans"
-      ? fetchSessionScanGroupsPage({
-          page,
-          pageSize,
-          q,
-        })
-      : fetchSessionsPage({
-          page,
-          pageSize,
-          q,
-          outcome: "compromised",
-          actor,
-          sortDir,
-        })
-  )
+  let sessionPage: Awaited<ReturnType<typeof fetchSessionsPage>> | null = null
+  try {
+    sessionPage = await (
+      tab === "scans"
+        ? fetchSessionScanGroupsPage({ page, pageSize, q })
+        : fetchSessionsPage({ page, pageSize, q, outcome: "compromised", actor, sortDir })
+    )
+  } catch {
+    return (
+      <PageShell>
+        <div className="mb-6">
+          <h1 className="text-2xl font-semibold text-foreground">Sessions</h1>
+        </div>
+        <ErrorState description="Could not fetch session data from the API." />
+      </PageShell>
+    )
+  }
   const sessions = sessionPage.items
 
   const geoCache = new Map<string, { country: string; countryName: string } | null>()

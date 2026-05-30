@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { TableShell } from "@/components/table-shell"
+import { EmptyState } from "@/components/ui/data-states"
 import type { PaginationMeta, ThreatSummary } from "@/lib/api"
 import { LEVEL_STYLES, CMD_COLORS, CMD_LABELS_SHORT as CMD_LABELS } from "@/lib/attack-types"
 
@@ -75,10 +76,11 @@ export function ThreatsTable({
       pagination={pagination}
     >
       {threats.length === 0 ? (
-        <div className="p-12 text-center">
-          <p className="text-sm text-muted-foreground">No threat data yet.</p>
-          <p className="mt-1 text-xs text-muted-foreground/60">They will appear here when attackers are detected on SSH, HTTP or correlated services.</p>
-        </div>
+        <EmptyState
+          icon="shield"
+          title="No threats detected"
+          description="Threat intelligence will appear here once attackers are detected across SSH, HTTP or network protocols."
+        />
       ) : (
         <table className="min-w-[1180px] w-full text-sm">
           <thead>

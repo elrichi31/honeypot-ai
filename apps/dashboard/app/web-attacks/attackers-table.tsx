@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { formatDistanceToNow } from "date-fns"
 import type { WebHitByIp } from "@/lib/api"
 import { ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
+import { EmptyState } from "@/components/ui/data-states"
 
 function countryFlag(code: string): string {
   return code
@@ -25,8 +26,12 @@ export function AttackersTable({
   if (attackers.length === 0) {
     return (
       <tr>
-        <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-          No data — visit http://localhost:8080 to generate attacks
+        <td colSpan={6}>
+          <EmptyState
+            icon="globe"
+            title="No web attacks recorded"
+            description="HTTP attacks will appear here once the web honeypot receives requests."
+          />
         </td>
       </tr>
     )

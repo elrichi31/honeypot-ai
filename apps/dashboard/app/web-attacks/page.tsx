@@ -2,6 +2,7 @@ import Link from "next/link"
 import { Search, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { fetchWebHitsByIpPage, fetchWebHitsStats } from "@/lib/api"
 import { PageShell } from "@/components/page-shell"
+import { ErrorState } from "@/components/ui/data-states"
 import { lookupIp } from "@/lib/geo"
 import { AttackersTable } from "./attackers-table"
 import { WebAttacksNav } from "@/components/web-attacks-nav"
@@ -50,10 +51,23 @@ export default async function WebAttacksPage({
   const sortBy = VALID_WEB_SORT_BY.has(params.sortBy ?? "") ? (params.sortBy as "totalHits" | "lastSeen" | "firstSeen") : "totalHits"
   const sortDir = VALID_SORT_DIR.has(params.sortDir ?? "") ? (params.sortDir as "asc" | "desc") : "desc"
 
-  const [attackersPage, stats] = await Promise.all([
-    fetchWebHitsByIpPage({ page, pageSize, q, sortBy, sortDir }),
-    fetchWebHitsStats(),
-  ])
+  let attackersPage: Awaited<ReturnType<typeof fetchWebHitsByIpPage>>
+  let stats: Awaited<ReturnType<typeof fetchWebHitsStats>>
+  try {
+    ;[attackersPage, stats] = await Promise.all([
+      fetchWebHitsByIpPage({ page, pageSize, q, sortBy, sortDir }),
+      fetchWebHitsStats(),
+    ])
+  } catch {
+    return (
+      <PageShell>
+        <div className="mb-6">
+          <h1 className="text-2xl font-semibold text-foreground">Web Attacks</h1>
+        </div>
+        <ErrorState description="Could not fetch web attack data from the API." />
+      </PageShell>
+    )
+  }
 
   const geoMap: Record<string, { country: string; countryName: string } | null> = {}
   for (const attacker of attackersPage.items) {
