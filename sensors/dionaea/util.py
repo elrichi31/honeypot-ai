@@ -95,9 +95,8 @@ def detect_shellshock(connection, data, report_incidents=True):
             src_ip = str(getattr(remote, 'host', '') or '')
             port_raw = getattr(remote, 'port', None)
             src_port = int(port_raw) if port_raw else None
-        logger.warning("extracted src_ip=%r src_port=%r", src_ip, src_port)
-    except Exception as e:
-        logger.warning("IP extraction failed: %s", e)
+    except Exception:
+        pass
 
     for m in regex.finditer(data):
         url = m.group("url")
