@@ -6,8 +6,15 @@ interface WebOverviewRow { hits: bigint; uniqueIps: bigint; lastSeen: Date | nul
 interface WebTopAttackRow { attackType: string }
 interface ProtocolOverviewRow { protocol: string; count: bigint; uniqueIps: bigint; authAttempts: bigint; lastSeen: Date | null }
 
+const OVERVIEW_TTL = 300   // 5 minutes
+const GEO_TTL = 600        // 10 minutes
+const TIMELINE_TTL = 120   // 2 minutes
+
 export async function miscRoutes(fastify: FastifyInstance) {
   fastify.get('/stats/honeypot-overview', async () => {
+    const cached = await fastify.cache?.get('stats:honeypot-overview')
+    if (cached) return JSON.parse(cached)
+
     const [sshRows, webRows, webTopAttackRows, protocolRows] = await Promise.all([
       fastify.prisma.$queryRaw<SshOverviewRow[]>(Prisma.sql`
         SELECT COUNT(*)::bigint AS sessions,
@@ -52,7 +59,7 @@ export async function miscRoutes(fastify: FastifyInstance) {
       (webCount > 0 ? 1 : 0) +
       protocolRows.filter(r => Number(r.count) > 0).length
 
-    return {
+    const result = {
       ssh: {
         sessions: sshCount,
         uniqueIps: Number(ssh.uniqueIps),
@@ -77,6 +84,9 @@ export async function miscRoutes(fastify: FastifyInstance) {
         activeSources,
       },
     }
+
+    await fastify.cache?.set('stats:honeypot-overview', OVERVIEW_TTL, JSON.stringify(result))
+    return result
   })
 
 
@@ -84,6 +94,9 @@ export async function miscRoutes(fastify: FastifyInstance) {
     const query = request.query as Record<string, string | undefined>
     const range = query.range === 'week' || query.range === 'month' ? query.range : 'day'
     const timezone = query.timezone || 'UTC'
+    const cacheKey = `stats:cross-sensor-timeline:${range}:${timezone.replace(/\//g, '_')}`
+    const cached = await fastify.cache?.get(cacheKey)
+    if (cached) return JSON.parse(cached)
     const now = new Date()
     const endDate = new Date(now)
     const startDate = new Date(now)
@@ -158,14 +171,22 @@ export async function miscRoutes(fastify: FastifyInstance) {
       for (const p of protoList) if ((e as Record<string, number>)[p] === undefined) (e as Record<string, number>)[p] = 0
     }
 
-    return { buckets: Array.from(map.values()), activeProtocols: protoList }
+    const result = { buckets: Array.from(map.values()), activeProtocols: protoList }
+    await fastify.cache?.set(cacheKey, TIMELINE_TTL, JSON.stringify(result))
+    return result
   })
 
   fastify.get('/stats/geo', async () => {
-    return fastify.prisma.$queryRaw<{ srcIp: string; loginSuccess: boolean | null }[]>(Prisma.sql`
+    const cached = await fastify.cache?.get('stats:geo')
+    if (cached) return JSON.parse(cached)
+
+    const rows = await fastify.prisma.$queryRaw<{ srcIp: string; loginSuccess: boolean | null }[]>(Prisma.sql`
       SELECT src_ip AS "srcIp", BOOL_OR(login_success IS TRUE) AS "loginSuccess"
       FROM sessions GROUP BY src_ip
     `)
+
+    await fastify.cache?.set('stats:geo', GEO_TTL, JSON.stringify(rows))
+    return rows
   })
 
   fastify.get('/stats/session-commands', async (request) => {

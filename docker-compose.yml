@@ -29,6 +29,17 @@ services:
       timeout: 3s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    container_name: honeypot-redis
+    restart: unless-stopped
+    command: redis-server --save "" --appendonly no
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   ingest-api:
     build:
       context: ./apps/ingest-api
@@ -38,11 +49,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD:-honeypot}@postgres:5432/honeypot_prod
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       CORS_ALLOWED_ORIGINS: ${BETTER_AUTH_URL:-http://localhost:4000}
+      REDIS_URL: redis://redis:6379
       PORT: "3000"
       HOST: "0.0.0.0"
     healthcheck:

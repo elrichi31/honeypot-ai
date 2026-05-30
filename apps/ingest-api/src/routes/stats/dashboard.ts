@@ -7,8 +7,14 @@ import type {
 } from './types.js'
 import { toNumber, toOffsetISOString } from './utils.js'
 
+const CACHE_KEY = 'stats:dashboards'
+const CACHE_TTL = 300 // 5 minutes
+
 export async function dashboardRoute(fastify: FastifyInstance) {
   fastify.get('/stats/dashboards', async () => {
+    const cached = await fastify.cache?.get(CACHE_KEY)
+    if (cached) return JSON.parse(cached)
+
     const [windowRows, funnelRows, countrySuccessCandidates, credentialCampaignRows,
       recurringIpRows, commandPatternRows, depthBucketRows, depthStatsRows] =
       await Promise.all([
@@ -26,7 +32,7 @@ export async function dashboardRoute(fastify: FastifyInstance) {
     const funnel = funnelRows[0] ?? { connections: 0, authAttempts: 0, loginSuccess: 0, commands: 0, highSignalCompromise: 0 }
     const depthStats = depthStatsRows[0] ?? { averageCommands: 0, maxCommands: 0, interactiveSessions: 0 }
 
-    return {
+    const result = {
       window: { firstSeen: toOffsetISOString(window.firstSeen), lastSeen: toOffsetISOString(window.lastSeen), totalSessions: toNumber(window.totalSessions), uniqueIps: toNumber(window.uniqueIps) },
       funnel: { connections: toNumber(funnel.connections), authAttempts: toNumber(funnel.authAttempts), loginSuccess: toNumber(funnel.loginSuccess), commands: toNumber(funnel.commands), highSignalCompromise: toNumber(funnel.highSignalCompromise) },
       countrySuccessCandidates: countrySuccessCandidates.map(r => ({ srcIp: r.srcIp, sessions: toNumber(r.sessions), successes: toNumber(r.successes) })),
@@ -35,6 +41,9 @@ export async function dashboardRoute(fastify: FastifyInstance) {
       commandPatterns: commandPatternRows.map(r => ({ sequence: r.sequence, sessions: toNumber(r.sessions), uniqueIps: toNumber(r.uniqueIps) })),
       successfulDepth: { buckets: depthBucketRows.map(r => ({ bucket: r.bucket, sessions: toNumber(r.sessions) })), averageCommands: depthStats.averageCommands ?? 0, maxCommands: depthStats.maxCommands ?? 0, interactiveSessions: toNumber(depthStats.interactiveSessions) },
     }
+
+    await fastify.cache?.set(CACHE_KEY, CACHE_TTL, JSON.stringify(result))
+    return result
   })
 }
 

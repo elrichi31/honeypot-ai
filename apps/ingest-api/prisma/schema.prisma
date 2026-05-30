@@ -30,6 +30,8 @@ model Session {
   @@index([sensorId])
   @@index([startedAt(sort: Desc)])
   @@index([loginSuccess, startedAt(sort: Desc)])
+  @@index([sessionType])
+  @@index([sessionType, startedAt(sort: Desc)])
   @@map("sessions")
 }
 
@@ -59,6 +61,8 @@ model Event {
   @@index([eventTs(sort: Desc)])
   @@index([srcIp, eventTs(sort: Desc)])
   @@index([eventType, eventTs(sort: Desc)])
+  @@index([sessionId, eventType])
+  @@index([eventType, success])
   @@map("events")
 }
 
@@ -82,6 +86,8 @@ model ProtocolHit {
   @@index([dstPort])
   @@index([sensorId])
   @@index([timestamp(sort: Desc)])
+  @@index([protocol, timestamp(sort: Desc)])
+  @@index([srcIp, protocol, timestamp(sort: Desc)])
   @@map("protocol_hits")
 }
 
@@ -270,5 +276,7 @@ model WebHit {
   @@index([attackType])
   @@index([timestamp])
   @@index([srcIp, timestamp(sort: Desc)])
+  @@index([attackType, timestamp(sort: Desc)])
+  @@index([path])
   @@map("web_hits")
 }

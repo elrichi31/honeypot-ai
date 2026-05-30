@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { checkIngestRateLimit } from './lib/ingest-rate-limiter.js';
 import prismaPlugin from './plugins/prisma.js';
+import redisPlugin from './plugins/redis.js';
 import { healthRoutes } from './routes/health.js';
 import { ingestRoutes } from './routes/ingest.js';
 import { sessionRoutes } from './routes/sessions.js';
@@ -40,6 +41,7 @@ export async function buildApp() {
     credentials: true,
   });
   await app.register(prismaPlugin);
+  await app.register(redisPlugin);
   await app.register(defensePlugin);
 
   const ingestRpmLimit = parseInt(process.env.INGEST_RATE_LIMIT_RPM ?? '300', 10)
