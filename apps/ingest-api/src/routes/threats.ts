@@ -67,12 +67,15 @@ function buildThreat(ip: string, ssh: SshAggRow | undefined, web: WebAggRow | un
   return formatThreatResponse(agg, risk)
 }
 
-async function fetchThreats(fastify: FastifyInstance) {
+const THREATS_CACHE_KEY = 'threats:list'
+const THREATS_CACHE_TTL = 180 // 3 minutes
+
+async function fetchThreats(fastify: FastifyInstance, ipFilter?: string) {
   const [sshRows, cmdRows, webRows, protocolRows] = await Promise.all([
-    queryThreatSshRows(fastify.prisma),
-    queryThreatCommandRows(fastify.prisma),
-    queryThreatWebRows(fastify.prisma),
-    queryThreatProtocolRows(fastify.prisma),
+    queryThreatSshRows(fastify.prisma, ipFilter),
+    queryThreatCommandRows(fastify.prisma, ipFilter),
+    queryThreatWebRows(fastify.prisma, ipFilter),
+    queryThreatProtocolRows(fastify.prisma, ipFilter),
   ])
   const sshMap = new Map(sshRows.map((row) => [row.src_ip, row]))
   const webMap = new Map(webRows.map((row) => [row.src_ip, row]))
@@ -116,7 +119,28 @@ async function handleListThreats(fastify: FastifyInstance, query: unknown, reply
   const parsed = threatListQuerySchema.safeParse(query)
   if (!parsed.success) return sendInvalidQuery(reply, parsed.error)
   const { page, pageSize, offset } = getPagination(parsed.data)
-  const threats = filterThreats(await fetchThreats(fastify), parsed.data)
+
+  const hasFilters = parsed.data.q || parsed.data.level || parsed.data.crossProtocol !== undefined
+
+  let threats: ThreatItem[]
+
+  if (hasFilters) {
+    // With filters: push IP search to DB, apply other filters in-memory
+    threats = filterThreats(await fetchThreats(fastify, parsed.data.q), parsed.data)
+  } else {
+    // No filters: serve from Redis cache when available
+    const cached = await fastify.cache?.get(THREATS_CACHE_KEY)
+    if (cached) {
+      threats = JSON.parse(cached) as ThreatItem[]
+    } else {
+      threats = await fetchThreats(fastify)
+      sortThreats(threats, parsed.data)
+      await fastify.cache?.set(THREATS_CACHE_KEY, THREATS_CACHE_TTL, JSON.stringify(threats))
+      const items = threats.slice(offset, offset + pageSize)
+      return reply.send({ items, summary: buildSummary(threats), pagination: buildPaginationResponse(threats.length, page, pageSize) })
+    }
+  }
+
   sortThreats(threats, parsed.data)
   const items = threats.slice(offset, offset + pageSize)
   return reply.send({
