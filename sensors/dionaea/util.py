@@ -86,13 +86,17 @@ def detect_shellshock(connection, data, report_incidents=True):
         r"(wget|curl).+(?P<url>(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?)"
     )
     for m in regex.finditer(data):
-        logger.debug("Found download command with url %s", m.group("url"))
+        logger.warning("Found download URL: %s", m.group("url"))
         urls.append(m.group("url"))
         if report_incidents:
-            i = incident("dionaea.download.offer")
-            i.con = connection
-            i.url = m.group("url")
-            i.report()
+            try:
+                i = incident("dionaea.download.offer")
+                i.con = connection
+                i.url = m.group("url")
+                i.report()
+                logger.warning("Incident reported for URL: %s", m.group("url"))
+            except Exception as e:
+                logger.warning("Incident failed: %s", e)
 
     return urls
 
