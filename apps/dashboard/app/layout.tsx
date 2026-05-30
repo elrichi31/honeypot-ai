@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { TimezoneProvider } from '@/components/timezone-provider'
+import { SidebarLayout } from '@/components/sidebar-layout'
 import { readConfig } from '@/lib/server-config'
 import './globals.css'
 
@@ -42,7 +43,7 @@ export default function RootLayout({
     <html lang="en" className="bg-background">
       <body className="font-sans antialiased">
         <TimezoneProvider timezone={timezone}>
-          {children}
+          <SidebarLayout>{children}</SidebarLayout>
         </TimezoneProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

@@ -106,14 +106,23 @@ function useHealthCheck() {
   const [status, setStatus] = useState<{
     apiOnline: boolean | null
     lastEventAt: string | null
-  }>({ apiOnline: null, lastEventAt: null })
+  }>(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("sidebar_health")
+      if (cached) return JSON.parse(cached)
+    }
+    return { apiOnline: null, lastEventAt: null }
+  })
 
   useEffect(() => {
     function check() {
       fetch("/api/health")
-        .then((response) => response.json())
-        .then(setStatus)
-        .catch(() => setStatus({ apiOnline: false, lastEventAt: null }))
+        .then((r) => r.json())
+        .then((data) => {
+          setStatus(data)
+          localStorage.setItem("sidebar_health", JSON.stringify(data))
+        })
+        .catch(() => setStatus((prev) => ({ ...prev, apiOnline: false })))
     }
 
     check()
@@ -134,12 +143,22 @@ export function AppSidebar() {
   const router = useRouter()
   const health = useHealthCheck()
   const { data: session } = useSession()
-  const [myRole, setMyRole] = useState<Role>("viewer")
+  const [myRole, setMyRole] = useState<Role>(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("sidebar_role") as Role) || "viewer"
+    }
+    return "viewer"
+  })
 
   useEffect(() => {
     fetch("/api/me")
       .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (data?.role) setMyRole(data.role as Role) })
+      .then((data) => {
+        if (data?.role) {
+          setMyRole(data.role as Role)
+          localStorage.setItem("sidebar_role", data.role)
+        }
+      })
       .catch(() => {})
   }, [])
 
