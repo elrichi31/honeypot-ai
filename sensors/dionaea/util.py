@@ -90,8 +90,11 @@ def detect_shellshock(connection, data, report_incidents=True):
     download_dir = "/opt/dionaea/var/lib/dionaea/binaries/"
     src_ip, src_port = "", None
     try:
-        src_ip = str(connection.remote.host)
-        src_port = int(connection.remote.port)
+        remote = getattr(connection, 'remote', None)
+        if remote:
+            src_ip = str(getattr(remote, 'host', '') or getattr(remote, 'address', '') or '')
+            port_raw = getattr(remote, 'port', None)
+            src_port = int(port_raw) if port_raw else None
     except Exception:
         pass
 
