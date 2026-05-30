@@ -29,6 +29,7 @@ import {
   HardDrive,
   Users,
   ClipboardList,
+  Activity,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { signOut, useSession } from "@/lib/auth-client"
@@ -86,6 +87,7 @@ const navSections = [
       { title: "Clients", href: "/clients", icon: Layers3 },
       { title: "Sensors", href: "/sensors", icon: Server },
       { title: "Storage", href: "/storage", icon: HardDrive },
+      { title: "Monitoring", href: "/monitoring", icon: Activity },
       { title: "Settings", href: "/settings", icon: Settings },
     ],
   },

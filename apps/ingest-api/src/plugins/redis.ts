@@ -5,6 +5,7 @@ import type { FastifyInstance } from 'fastify'
 interface AppCache {
   get(key: string): Promise<string | null>
   set(key: string, ttlSeconds: number, value: string): Promise<void>
+  info(): Promise<string | null>
 }
 
 declare module 'fastify' {
@@ -48,6 +49,13 @@ export default fp(async (fastify: FastifyInstance) => {
       try {
         await redis.setex(key, ttlSeconds, value)
       } catch {}
+    },
+    async info(): Promise<string | null> {
+      try {
+        return await redis.info()
+      } catch {
+        return null
+      }
     },
   })
 
