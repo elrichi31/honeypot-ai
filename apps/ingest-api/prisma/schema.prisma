@@ -229,33 +229,6 @@ model SuricataAlert {
   @@map("suricata_alerts")
 }
 
-model FalcoAlert {
-  id            String   @id @default(uuid())
-  sensorId      String   @default("") @map("sensor_id")
-  rule          String   @default("")
-  priority      String   @default("warning")
-  output        String   @default("")
-  containerId   String?  @map("container_id")
-  containerName String?  @map("container_name")
-  procName      String?  @map("proc_name")
-  procCmdline   String?  @map("proc_cmdline")
-  userName      String?  @map("user_name")
-  evtType       String?  @map("evt_type")
-  fdName        String?  @map("fd_name")
-  tags          String[] @default([])
-  outputFields  Json     @default("{}") @map("output_fields")
-  timestamp     DateTime
-  createdAt     DateTime @default(now()) @map("created_at")
-
-  @@index([sensorId])
-  @@index([rule])
-  @@index([priority])
-  @@index([containerName])
-  @@index([timestamp(sort: Desc)])
-  @@index([createdAt(sort: Desc)])
-  @@map("falco_alerts")
-}
-
 model WebHit {
   id          String   @id @default(uuid())
   eventId     String   @unique @map("event_id")

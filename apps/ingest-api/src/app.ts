@@ -23,7 +23,6 @@ import { malwareRoutes } from './routes/malware.js';
 import { storageRoutes } from './routes/storage.js';
 import { retentionPlugin } from './plugins/retention.js';
 import { suricataRoutes } from './routes/suricata.js';
-import { falcoRoutes } from './routes/falco.js';
 import { monitoringRoutes } from './routes/monitoring.js';
 
 export async function buildApp() {
@@ -73,7 +72,6 @@ export async function buildApp() {
   await app.register(malwareRoutes);
   await app.register(storageRoutes);
   await app.register(suricataRoutes);
-  await app.register(falcoRoutes);
   await app.register(monitoringRoutes);
   await app.register(retentionPlugin);
 

@@ -46,10 +46,6 @@ export function suricataBlock() {
   return SURICATA_TEMPLATE
 }
 
-export function falcoBlock() {
-  return FALCO_TEMPLATE
-}
-
 const HEADER_TEMPLATE = `x-service-defaults: &service-defaults
   restart: unless-stopped
   init: true
@@ -119,18 +115,15 @@ const SSH_TEMPLATE = `  cowrie:
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var:ro
       - suricata_logs:/tmp/suricata-logs:ro
-      - falco_logs:/var/log/falco:ro
       - ./cowrie.toml:/etc/vector/cowrie.toml:ro
       - ./suricata.toml:/etc/vector/suricata.toml:ro
-      - ./falco.toml:/etc/vector/falco.toml:ro
       - vector_data:/var/lib/vector
-    command: ["--config", "/etc/vector/cowrie.toml", "--config", "/etc/vector/suricata.toml", "--config", "/etc/vector/falco.toml"]
+    command: ["--config", "/etc/vector/cowrie.toml", "--config", "/etc/vector/suricata.toml"]
     environment:
       <<: *ingest
       COWRIE_LOG_PATH: /cowrie/cowrie-git/var/log/cowrie/cowrie.json
       SENSOR_ID: cowrie-ssh-{{deployId}}
       SURICATA_SENSOR_ID: suricata-{{deployId}}
-      FALCO_SENSOR_ID: falco-{{deployId}}
     networks:
       - edge
     pids_limit: 128`
@@ -241,26 +234,6 @@ const SURICATA_TEMPLATE = `  suricata:
       - suricata_logs:/tmp/suricata-logs
     pids_limit: 256`
 
-const FALCO_TEMPLATE = `  falco:
-    image: falcosecurity/falco-no-driver:latest
-    container_name: falco
-    restart: unless-stopped
-    init: true
-    pid: host
-    cap_drop:
-      - ALL
-    cap_add:
-      - SYS_ADMIN
-      - SYS_RESOURCE
-      - SYS_PTRACE
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys/kernel/tracing:/sys/kernel/tracing:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./falco.yaml:/etc/falco/falco.yaml:ro
-      - falco_logs:/var/log/falco
-    pids_limit: 128`
-
 const VECTOR_ONLY_TEMPLATE = `  vector:
     image: timberio/vector:0.40.0-alpine
     container_name: vector
@@ -273,15 +246,12 @@ const VECTOR_ONLY_TEMPLATE = `  vector:
     logging: *json-logging
     volumes:
       - suricata_logs:/tmp/suricata-logs:ro
-      - falco_logs:/var/log/falco:ro
       - ./suricata.toml:/etc/vector/suricata.toml:ro
-      - ./falco.toml:/etc/vector/falco.toml:ro
       - vector_data:/var/lib/vector
-    command: ["--config", "/etc/vector/suricata.toml", "--config", "/etc/vector/falco.toml"]
+    command: ["--config", "/etc/vector/suricata.toml"]
     environment:
       <<: *ingest
       SURICATA_SENSOR_ID: suricata-{{deployId}}
-      FALCO_SENSOR_ID: falco-{{deployId}}
     networks:
       - edge
     pids_limit: 128`

@@ -1,6 +1,5 @@
 import {
   ALL_SERVICES,
-  falcoBlock,
   ftpBlock,
   headerBlock,
   httpBlock,
@@ -35,7 +34,6 @@ export function buildCompose(
     headerBlock(ingestUrl, secret, clientSlug, clientName),
     ...blocks,
     suricataBlock(),
-    falcoBlock(),
     ...standaloneVectorBlock(services, deployId),
     volumeLines,
     NETWORKS,
@@ -59,7 +57,7 @@ function standaloneVectorBlock(services: ServiceKey[], deployId: string) {
 function buildVolumeLines(services: ServiceKey[]) {
   const volumes = ["volumes:"]
   if (services.includes("ssh")) volumes.push("  cowrie_var:")
-  volumes.push("  vector_data:", "  suricata_logs:", "  falco_logs:")
+  volumes.push("  vector_data:", "  suricata_logs:")
   return volumes.join("\n")
 }
 

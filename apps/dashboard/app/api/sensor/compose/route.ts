@@ -45,8 +45,6 @@ function composeInstructions(deployId: string) {
 #        curl -fsSL "$RAW/sensors/cowrie/userdb.txt"   -o userdb.txt
 #        curl -fsSL "$RAW/vector/cowrie.toml"          -o cowrie.toml
 #        curl -fsSL "$RAW/vector/suricata.toml"        -o suricata.toml
-#        curl -fsSL "$RAW/vector/falco.toml"           -o falco.toml
-#        curl -fsSL "$RAW/sensors/falco/falco.yaml"    -o falco.yaml
 #
 #   2. Set SURICATA_INTERFACE to your public-facing network interface:
 #        export SURICATA_INTERFACE=$(ip route | grep '^default' | awk '{print $5}' | head -1)
