@@ -182,68 +182,63 @@ export async function suricataRoutes(fastify: FastifyInstance) {
     })
   })
 
-  fastify.get('/suricata/stats', async (_request, reply) => {
+  fastify.get('/suricata/stats', async (request, reply) => {
+    const rangeParam = (request.query as Record<string, string>).range ?? '24h'
+    const validRanges = { '24h': { interval: '24 hours', trunc: 'hour' }, '7d': { interval: '7 days', trunc: 'day' }, '30d': { interval: '30 days', trunc: 'day' } } as const
+    const { interval, trunc } = validRanges[rangeParam as keyof typeof validRanges] ?? validRanges['24h']
+
     const ownIpList = [...OWN_IPS].map(ip => `'${ip}'`).join(',')
     const ownIpFilter = ownIpList ? `AND src_ip NOT IN (${ownIpList})` : ''
 
     const [totals, threatTotals, topSigs, topThreatSigs, topSources, timeline] = await Promise.all([
-      // All alerts last 24h (including noise)
       fastify.prisma.$queryRawUnsafe<Array<{ total: bigint; critical: bigint; high: bigint; medium: bigint; low: bigint }>>(`
-        SELECT
-          COUNT(*) AS total,
+        SELECT COUNT(*) AS total,
           COUNT(*) FILTER (WHERE severity = 1) AS critical,
           COUNT(*) FILTER (WHERE severity = 2) AS high,
           COUNT(*) FILTER (WHERE severity = 3) AS medium,
           COUNT(*) FILTER (WHERE severity = 4) AS low
         FROM suricata_alerts
-        WHERE created_at > NOW() - INTERVAL '24 hours'
+        WHERE timestamp > NOW() - INTERVAL '${interval}'
       `),
-      // Real threats only (no noise, no own IPs)
       fastify.prisma.$queryRawUnsafe<Array<{ total: bigint; critical: bigint; high: bigint; medium: bigint; low: bigint }>>(`
-        SELECT
-          COUNT(*) AS total,
+        SELECT COUNT(*) AS total,
           COUNT(*) FILTER (WHERE severity = 1) AS critical,
           COUNT(*) FILTER (WHERE severity = 2) AS high,
           COUNT(*) FILTER (WHERE severity = 3) AS medium,
           COUNT(*) FILTER (WHERE severity = 4) AS low
         FROM suricata_alerts
-        WHERE created_at > NOW() - INTERVAL '24 hours'
+        WHERE timestamp > NOW() - INTERVAL '${interval}'
           AND ${NOISE_PATTERN} ${ownIpFilter}
       `),
-      // Top all signatures
       fastify.prisma.$queryRawUnsafe<Array<{ signature: string; count: bigint; severity: number }>>(`
         SELECT signature, severity, COUNT(*) AS count
         FROM suricata_alerts
-        WHERE created_at > NOW() - INTERVAL '24 hours'
+        WHERE timestamp > NOW() - INTERVAL '${interval}'
         GROUP BY signature, severity ORDER BY count DESC LIMIT 10
       `),
-      // Top threat signatures (no noise, no own IPs)
       fastify.prisma.$queryRawUnsafe<Array<{ signature: string; count: bigint; severity: number; category: string }>>(`
         SELECT signature, severity, category, COUNT(*) AS count
         FROM suricata_alerts
-        WHERE created_at > NOW() - INTERVAL '24 hours'
+        WHERE timestamp > NOW() - INTERVAL '${interval}'
           AND ${NOISE_PATTERN} ${ownIpFilter}
         GROUP BY signature, severity, category ORDER BY count DESC LIMIT 10
       `),
-      // Top sources (no own IPs), with count
       fastify.prisma.$queryRawUnsafe<Array<{ src_ip: string; count: bigint }>>(`
         SELECT src_ip, COUNT(*) AS count
         FROM suricata_alerts
-        WHERE created_at > NOW() - INTERVAL '24 hours'
-          ${ownIpFilter}
-          AND ${NOISE_PATTERN}
+        WHERE timestamp > NOW() - INTERVAL '${interval}'
+          ${ownIpFilter} AND ${NOISE_PATTERN}
         GROUP BY src_ip ORDER BY count DESC LIMIT 10
       `),
-      // 7-day hourly timeline (threats only, no own IPs)
-      fastify.prisma.$queryRawUnsafe<Array<{ hour: Date; total: bigint; threats: bigint }>>(`
+      fastify.prisma.$queryRawUnsafe<Array<{ bucket: Date; total: bigint; threats: bigint }>>(`
         SELECT
-          DATE_TRUNC('hour', timestamp) AS hour,
+          DATE_TRUNC('${trunc}', timestamp) AS bucket,
           COUNT(*) AS total,
           COUNT(*) FILTER (WHERE ${NOISE_PATTERN}) AS threats
         FROM suricata_alerts
-        WHERE timestamp > NOW() - INTERVAL '7 days'
+        WHERE timestamp > NOW() - INTERVAL '${interval}'
           ${ownIpFilter}
-        GROUP BY hour ORDER BY hour ASC
+        GROUP BY bucket ORDER BY bucket ASC
       `),
     ])
 
@@ -278,7 +273,7 @@ export async function suricataRoutes(fastify: FastifyInstance) {
         return { srcIp: s.src_ip, count: Number(s.count), country: geo?.country ?? null }
       }),
       timeline: timeline.map(r => ({
-        hour: r.hour,
+        bucket: r.bucket,
         total: Number(r.total),
         threats: Number(r.threats),
       })),

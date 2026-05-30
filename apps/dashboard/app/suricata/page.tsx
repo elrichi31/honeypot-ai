@@ -21,13 +21,15 @@ interface Alert {
   category: string; severity: number; in_iface: string | null; country: string | null
 }
 
+type Range = "24h" | "7d" | "30d"
+
 interface Stats {
   last24h: { total: number; critical: number; high: number; medium: number; low: number }
   threats24h: { total: number; critical: number; high: number; medium: number; low: number }
   topSignatures: Array<{ signature: string; severity: number; severityLabel: string; count: number }>
   topThreatSignatures: Array<{ signature: string; severity: number; severityLabel: string; category: string; count: number }>
   topSources: Array<{ srcIp: string; count: number; country: string | null }>
-  timeline: Array<{ hour: string; total: number; threats: number }>
+  timeline: Array<{ bucket: string; total: number; threats: number }>
 }
 
 interface Pagination {
@@ -75,29 +77,29 @@ function ToggleButton({ active, onClick, icon: Icon, label }: {
   )
 }
 
-function TimelineChart({ data }: { data: Stats["timeline"] }) {
+const RANGE_LABELS: Record<Range, string> = { "24h": "24h", "7d": "7 days", "30d": "30 days" }
+
+function TimelineChart({ data, range }: { data: Stats["timeline"]; range: Range }) {
   if (!data.length) return null
+  const dateFormat = range === "24h" ? "MM/dd HH:mm" : "MM/dd"
   const chartData = data.map(d => ({
-    hour: format(new Date(d.hour), "MM/dd HH:mm"),
+    label: format(new Date(d.bucket), dateFormat),
     threats: d.threats,
     noise: d.total - d.threats,
   }))
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <p className="mb-3 text-sm font-medium text-foreground">Alert Timeline (7 days)</p>
-      <ResponsiveContainer width="100%" height={120}>
-        <BarChart data={chartData} barSize={4} barGap={1}>
-          <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#6b7280" }} interval="preserveStartEnd" />
-          <YAxis tick={{ fontSize: 9, fill: "#6b7280" }} width={30} />
-          <Tooltip
-            contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 6, fontSize: 11 }}
-            labelStyle={{ color: "#94a3b8" }}
-          />
-          <Bar dataKey="threats" stackId="a" fill="#f97316" name="Threats" radius={[0,0,0,0]} />
-          <Bar dataKey="noise"   stackId="a" fill="#334155" name="Noise"   radius={[2,2,0,0]} />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
+    <ResponsiveContainer width="100%" height={120}>
+      <BarChart data={chartData} barSize={range === "30d" ? 6 : 4} barGap={1}>
+        <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#6b7280" }} interval="preserveStartEnd" />
+        <YAxis tick={{ fontSize: 9, fill: "#6b7280" }} width={32} />
+        <Tooltip
+          contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 6, fontSize: 11 }}
+          labelStyle={{ color: "#94a3b8" }}
+        />
+        <Bar dataKey="threats" stackId="a" fill="#f97316" name="Threats" radius={[0,0,0,0]} />
+        <Bar dataKey="noise"   stackId="a" fill="#334155" name="Noise"   radius={[2,2,0,0]} />
+      </BarChart>
+    </ResponsiveContainer>
   )
 }
 
@@ -113,13 +115,14 @@ export default function SuricataPage() {
   const [hideNoise, setHideNoise]   = useState(true)
   const [excludeOwn, setExcludeOwn] = useState(true)
   const [tab, setTab]               = useState<"threats" | "all">("threats")
+  const [range, setRange]           = useState<Range>("24h")
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch("/api/suricata/stats")
+      const res = await fetch(`/api/suricata/stats?range=${range}`)
       if (res.ok) setStats(await res.json())
     } catch {}
-  }, [])
+  }, [range])
 
   const fetchAlerts = useCallback(async () => {
     setLoading(true)
@@ -140,7 +143,7 @@ export default function SuricataPage() {
     }
   }, [page, severity, q, hideNoise, excludeOwn])
 
-  useEffect(() => { fetchStats() }, [fetchStats])
+  useEffect(() => { fetchStats(); setPage(1) }, [fetchStats])
   useEffect(() => { fetchAlerts() }, [fetchAlerts])
 
   function handleSearch(e: React.FormEvent) {
@@ -157,16 +160,25 @@ export default function SuricataPage() {
 
   return (
     <PageShell>
-      <div className="mb-6 flex items-start justify-between gap-4">
+      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-3 mb-1">
             <Shield className="h-5 w-5 text-blue-400" />
             <h1 className="text-2xl font-semibold text-foreground">Network IDS</h1>
             <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-xs text-blue-400">Suricata</span>
           </div>
-          <p className="text-sm text-muted-foreground">ET Open rules · last 24h stats · 7-day timeline</p>
+          <p className="text-sm text-muted-foreground">ET Open rules · real-time intrusion detection</p>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          {/* Range selector */}
+          <div className="flex gap-1 rounded-lg border border-border bg-muted/20 p-1">
+            {(["24h", "7d", "30d"] as Range[]).map(r => (
+              <button key={r} onClick={() => setRange(r)}
+                className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${range === r ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                {r}
+              </button>
+            ))}
+          </div>
           <ToggleButton active={hideNoise} onClick={() => { setHideNoise(v => !v); setPage(1) }} icon={hideNoise ? EyeOff : Eye} label="Hide noise" />
           <ToggleButton active={excludeOwn} onClick={() => { setExcludeOwn(v => !v); setPage(1) }} icon={excludeOwn ? EyeOff : Eye} label="Exclude own IPs" />
         </div>
@@ -190,7 +202,7 @@ export default function SuricataPage() {
       {/* Stats cards */}
       {displayed ? (
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
-          <StatCard label="Total"    value={displayed.total}    sub="last 24h" />
+          <StatCard label="Total"    value={displayed.total}    sub={`last ${RANGE_LABELS[range]}`} />
           <StatCard label="Critical" value={displayed.critical} className="text-red-400" />
           <StatCard label="High"     value={displayed.high}     className="text-orange-400" />
           <StatCard label="Medium"   value={displayed.medium}   className="text-yellow-400" />
@@ -205,7 +217,15 @@ export default function SuricataPage() {
       )}
 
       {/* Timeline */}
-      {stats?.timeline && <div className="mb-6"><TimelineChart data={stats.timeline} /></div>}
+      {stats?.timeline && (
+        <div className="mb-6 rounded-xl border border-border bg-card p-4">
+          <p className="mb-3 text-sm font-medium text-foreground">
+            Alert Timeline
+            <span className="ml-2 text-xs text-muted-foreground">— {RANGE_LABELS[range]}</span>
+          </p>
+          <TimelineChart data={stats.timeline} range={range} />
+        </div>
+      )}
 
       {/* Top sigs + top sources */}
       {stats && (
