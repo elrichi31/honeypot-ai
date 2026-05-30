@@ -78,7 +78,7 @@ def detect_shellshock(connection, data, report_incidents=True):
     regex = re.compile(r"\(\)\s*\t*\{.*;\s*\}\s*;")
     if not regex.search(data):
         return None
-    logger.debug("Shellshock attack found")
+    logger.warning("Shellshock attack found - data: %s", data[:100])
 
     urls = []
     regex = re.compile(
