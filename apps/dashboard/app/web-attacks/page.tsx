@@ -1,8 +1,9 @@
+import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import Link from "next/link"
-import { Search, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { fetchWebHitsByIpPage, fetchWebHitsStats } from "@/lib/api"
 import { PageShell } from "@/components/page-shell"
 import { ErrorState } from "@/components/ui/data-states"
+import { SearchInput } from "@/components/ui/search-input"
 import { lookupIp } from "@/lib/geo"
 import { AttackersTable } from "./attackers-table"
 import { WebAttacksNav } from "@/components/web-attacks-nav"
@@ -86,38 +87,12 @@ export default async function WebAttacksPage({
       <WebAttacksNav active="attackers" />
 
       <div className="mb-6 rounded-xl border border-border bg-card p-4">
-        <form className="flex flex-wrap items-center gap-3">
-          <input type="hidden" name="pageSize" value={String(attackersPage.pagination.pageSize)} />
-          <input type="hidden" name="sortBy" value={sortBy} />
-          <input type="hidden" name="sortDir" value={sortDir} />
-          <div className="relative min-w-[320px] flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              name="q"
-              defaultValue={q ?? ""}
-              placeholder="Search attacker IP..."
-              className="h-10 w-full rounded-md border border-border bg-background pl-10 pr-3 text-sm text-foreground"
-            />
-          </div>
-          <button
-            type="submit"
-            className="h-10 rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
-          >
-            Search
-          </button>
-          {q && (
-            <Link
-              href={`/web-attacks?pageSize=${attackersPage.pagination.pageSize}&sortBy=${sortBy}&sortDir=${sortDir}`}
-              className="inline-flex h-10 items-center rounded-md border border-border px-4 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            >
-              Clear
-            </Link>
-          )}
+        <div className="flex flex-wrap items-center gap-3">
+          <SearchInput defaultValue={q ?? ""} placeholder="Search attacker IP..." />
           <span className="inline-flex items-center rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
             {attackersPage.items.length} rows on this page
           </span>
-        </form>
+        </div>
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">

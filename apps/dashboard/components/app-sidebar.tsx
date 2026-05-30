@@ -137,7 +137,7 @@ function hasPermission(userRole: Role, required: Role) {
   return ROLE_ORDER.indexOf(userRole) >= ROLE_ORDER.indexOf(required)
 }
 
-export function AppSidebar() {
+export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
   const pathname = usePathname()
   const router = useRouter()
   const health = useHealthCheck()
@@ -189,7 +189,10 @@ export function AppSidebar() {
   }
 
   return (
-    <aside className="fixed left-0 top-0 z-40 flex h-screen w-72 flex-col border-r border-border bg-sidebar">
+    <aside className={mobile
+      ? "flex h-full w-72 flex-col border-r border-border bg-sidebar"
+      : "fixed left-0 top-0 z-40 flex h-screen w-72 flex-col border-r border-border bg-sidebar"
+    }>
       <div className="flex h-14 items-center gap-2 border-b border-border px-4">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent">
           <Bug className="h-4 w-4 text-accent-foreground" />

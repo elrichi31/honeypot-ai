@@ -1,6 +1,6 @@
-import Link from "next/link"
-import { Search, ShieldAlert } from "lucide-react"
+import { ShieldAlert } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
+import { SearchInput } from "@/components/ui/search-input"
 import { fetchThreatsPage } from "@/lib/api"
 import { ThreatsTable } from "./threats-table"
 
@@ -58,38 +58,12 @@ export default async function ThreatsPage({
       </div>
 
       <div className="mb-6 rounded-xl border border-border bg-card p-4">
-        <form className="flex flex-wrap items-center gap-3">
-          <input type="hidden" name="pageSize" value={String(pageData.pagination.pageSize)} />
-          <input type="hidden" name="sortBy" value={sortBy} />
-          <input type="hidden" name="sortDir" value={sortDir} />
-          <div className="relative min-w-[320px] flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              name="q"
-              defaultValue={q ?? ""}
-              placeholder="Search IP..."
-              className="h-10 w-full rounded-md border border-border bg-background pl-10 pr-3 text-sm text-foreground"
-            />
-          </div>
-          <button
-            type="submit"
-            className="h-10 rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
-          >
-            Search
-          </button>
-          {q && (
-            <Link
-              href={`/threats?pageSize=${pageData.pagination.pageSize}&sortBy=${sortBy}&sortDir=${sortDir}`}
-              className="inline-flex h-10 items-center rounded-md border border-border px-4 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            >
-              Clear
-            </Link>
-          )}
+        <div className="flex flex-wrap items-center gap-3">
+          <SearchInput defaultValue={q ?? ""} placeholder="Search IP..." />
           <span className="inline-flex items-center rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
             {pageData.items.length} rows on this page
           </span>
-        </form>
+        </div>
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
