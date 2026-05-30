@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { detectBot } from '../lib/bot-detector.js';
 import { toOffsetISOString } from '../lib/date-utils.js';
@@ -135,25 +136,66 @@ async function handleGetSession(fastify: FastifyInstance, request: FastifyReques
 
 async function handleBackfillActor(fastify: FastifyInstance, _request: FastifyRequest, reply: FastifyReply) {
   type UnclassifiedRow = { id: string; client_version: string | null; hassh: string | null; started_at: Date; ended_at: Date | null; login_success: boolean | null; password: string | null };
+  type CommandRow     = { session_id: string; command: string | null };
+  type AuthRow        = { session_id: string };
 
   const sessions = await fastify.prisma.$queryRaw<UnclassifiedRow[]>`
     SELECT id, client_version, hassh, started_at, ended_at, login_success, password
     FROM sessions WHERE session_type = 'unknown' LIMIT 5000
   `;
 
-  let updated = 0;
-  for (const s of sessions) {
-    const [commandEvents, authEvents] = await Promise.all([
-      fastify.prisma.event.findMany({ where: { sessionId: s.id, eventType: 'command.input' }, select: { command: true } }),
-      fastify.prisma.event.findMany({ where: { sessionId: s.id, eventType: { in: ['auth.success', 'auth.failed'] } }, select: { id: true } }),
-    ]);
-    const durationSec = toDurationSec(s.started_at, s.ended_at);
-    const { actor } = detectBot({ clientVersion: s.client_version, hassh: s.hassh, durationSec, commands: commandEvents.map(e => e.command ?? '').filter(Boolean), authAttemptCount: authEvents.length, loginSuccess: s.login_success, password: s.password });
-    await fastify.prisma.session.update({ where: { id: s.id }, data: { sessionType: actor } });
-    updated++;
+  if (sessions.length === 0) return reply.send({ backfilled: 0, remaining: 0 });
+
+  const ids = sessions.map(s => s.id);
+
+  // 2 batch queries instead of 2 × N
+  const [commandRows, authRows] = await Promise.all([
+    fastify.prisma.$queryRaw<CommandRow[]>`
+      SELECT session_id, command FROM events
+      WHERE session_id IN (${Prisma.join(ids)}) AND event_type = 'command.input'
+    `,
+    fastify.prisma.$queryRaw<AuthRow[]>`
+      SELECT session_id FROM events
+      WHERE session_id IN (${Prisma.join(ids)}) AND event_type IN ('auth.success', 'auth.failed')
+    `,
+  ]);
+
+  // Build in-memory lookup maps
+  const commandsBySession = new Map<string, string[]>();
+  for (const row of commandRows) {
+    if (!commandsBySession.has(row.session_id)) commandsBySession.set(row.session_id, []);
+    if (row.command) commandsBySession.get(row.session_id)!.push(row.command);
+  }
+  const authCountBySession = new Map<string, number>();
+  for (const row of authRows) {
+    authCountBySession.set(row.session_id, (authCountBySession.get(row.session_id) ?? 0) + 1);
   }
 
-  return reply.send({ backfilled: updated, remaining: sessions.length === 5000 ? 'more' : 0 });
+  // Classify all sessions in-memory (no DB calls)
+  const updates: { id: string; actor: string }[] = [];
+  for (const s of sessions) {
+    const durationSec = toDurationSec(s.started_at, s.ended_at);
+    const { actor } = detectBot({
+      clientVersion: s.client_version,
+      hassh: s.hassh,
+      durationSec,
+      commands: commandsBySession.get(s.id) ?? [],
+      authAttemptCount: authCountBySession.get(s.id) ?? 0,
+      loginSuccess: s.login_success,
+      password: s.password,
+    });
+    updates.push({ id: s.id, actor });
+  }
+
+  // 1 bulk UPDATE instead of N individual updates
+  const valuesSql = updates.map(u => Prisma.sql`(${u.id}::uuid, ${u.actor}::text)`);
+  await fastify.prisma.$executeRaw`
+    UPDATE sessions SET session_type = v.actor
+    FROM (VALUES ${Prisma.join(valuesSql)}) AS v(id uuid, actor text)
+    WHERE sessions.id = v.id
+  `;
+
+  return reply.send({ backfilled: updates.length, remaining: sessions.length === 5000 ? 'more' : 0 });
 }
 
 export async function sessionRoutes(fastify: FastifyInstance) {
