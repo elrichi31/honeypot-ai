@@ -49,12 +49,43 @@ function defaultSortBy(mainTab: CredentialsMainTab, rankingType: CredentialsRank
 
 function getRankingOrderSql(rankingType: CredentialsRankingType, sortBy: string, sortDir: CredentialsSortDirection) {
   const d = sortDir === 'asc' ? 'ASC' : 'DESC'
-  const col = rankingType === 'pairs'
-    ? ({ credentialPair: Prisma.raw(`"username" ${d} NULLS LAST, "password" ${d} NULLS LAST`), attempts: Prisma.raw(`"attempts" ${d}, "lastSeen" DESC`), successCount: Prisma.raw(`"successCount" ${d}, "attempts" DESC`), failedCount: Prisma.raw(`"failedCount" ${d}, "attempts" DESC`), uniqueIps: Prisma.raw(`"uniqueIps" ${d}, "attempts" DESC`), lastSeen: Prisma.raw(`"lastSeen" ${d}, "attempts" DESC`), firstSeen: Prisma.raw(`"firstSeen" ${d}, "attempts" DESC`) }[sortBy] ?? Prisma.raw(`"attempts" DESC, "lastSeen" DESC`))
-    : rankingType === 'passwords'
-    ? ({ password: Prisma.raw(`"password" ${d} NULLS LAST`), attempts: Prisma.raw(`"attempts" ${d}, "successCount" DESC`), successCount: Prisma.raw(`"successCount" ${d}, "attempts" DESC`), failedCount: Prisma.raw(`"failedCount" ${d}, "attempts" DESC`), usernameCount: Prisma.raw(`"usernameCount" ${d}, "attempts" DESC`), uniqueIps: Prisma.raw(`"uniqueIps" ${d}, "attempts" DESC`) }[sortBy] ?? Prisma.raw(`"attempts" DESC, "successCount" DESC`))
-    : ({ username: Prisma.raw(`"username" ${d} NULLS LAST`), attempts: Prisma.raw(`"attempts" ${d}, "successCount" DESC`), successCount: Prisma.raw(`"successCount" ${d}, "attempts" DESC`), failedCount: Prisma.raw(`"failedCount" ${d}, "attempts" DESC`), passwordCount: Prisma.raw(`"passwordCount" ${d}, "attempts" DESC`), uniqueIps: Prisma.raw(`"uniqueIps" ${d}, "attempts" DESC`) }[sortBy] ?? Prisma.raw(`"attempts" DESC, "successCount" DESC`))
-  return Prisma.sql`ORDER BY ${col}`
+
+  const colMaps: Record<CredentialsRankingType, Record<string, string>> = {
+    pairs: {
+      credentialPair: `"username" ${d} NULLS LAST, "password" ${d} NULLS LAST`,
+      attempts:       `"attempts" ${d}, "lastSeen" DESC`,
+      successCount:   `"successCount" ${d}, "attempts" DESC`,
+      failedCount:    `"failedCount" ${d}, "attempts" DESC`,
+      uniqueIps:      `"uniqueIps" ${d}, "attempts" DESC`,
+      lastSeen:       `"lastSeen" ${d}, "attempts" DESC`,
+      firstSeen:      `"firstSeen" ${d}, "attempts" DESC`,
+    },
+    passwords: {
+      password:      `"password" ${d} NULLS LAST`,
+      attempts:      `"attempts" ${d}, "successCount" DESC`,
+      successCount:  `"successCount" ${d}, "attempts" DESC`,
+      failedCount:   `"failedCount" ${d}, "attempts" DESC`,
+      usernameCount: `"usernameCount" ${d}, "attempts" DESC`,
+      uniqueIps:     `"uniqueIps" ${d}, "attempts" DESC`,
+    },
+    usernames: {
+      username:      `"username" ${d} NULLS LAST`,
+      attempts:      `"attempts" ${d}, "successCount" DESC`,
+      successCount:  `"successCount" ${d}, "attempts" DESC`,
+      failedCount:   `"failedCount" ${d}, "attempts" DESC`,
+      passwordCount: `"passwordCount" ${d}, "attempts" DESC`,
+      uniqueIps:     `"uniqueIps" ${d}, "attempts" DESC`,
+    },
+  }
+
+  const defaults: Record<CredentialsRankingType, string> = {
+    pairs:     `"attempts" DESC, "lastSeen" DESC`,
+    passwords: `"attempts" DESC, "successCount" DESC`,
+    usernames: `"attempts" DESC, "successCount" DESC`,
+  }
+
+  const col = colMaps[rankingType]?.[sortBy] ?? defaults[rankingType]
+  return Prisma.sql`ORDER BY ${Prisma.raw(col)}`
 }
 
 function getRecentOrderSql(sortBy: string, sortDir: CredentialsSortDirection) {

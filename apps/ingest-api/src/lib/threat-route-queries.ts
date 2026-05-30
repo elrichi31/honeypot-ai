@@ -16,11 +16,15 @@ export type CommandDetailRow = {
 // Without filter the query returns the top 2000 IPs by activity so we never load 50k+
 // IPs into memory.
 
+function buildIpFilter(ipFilter: string | undefined, col: Prisma.Sql = Prisma.raw('src_ip')) {
+  return {
+    where: ipFilter ? Prisma.sql`WHERE ${col} ILIKE ${`%${ipFilter}%`}` : Prisma.empty,
+    limit: ipFilter ? Prisma.sql`LIMIT 200` : Prisma.sql`LIMIT 2000`,
+  }
+}
+
 export async function queryThreatSshRows(prisma: PrismaClient, ipFilter?: string) {
-  const where = ipFilter
-    ? Prisma.sql`WHERE s.src_ip ILIKE ${`%${ipFilter}%`}`
-    : Prisma.empty
-  const limit = ipFilter ? Prisma.sql`LIMIT 200` : Prisma.sql`LIMIT 2000`
+  const { where, limit } = buildIpFilter(ipFilter, Prisma.raw('s.src_ip'))
   return prisma.$queryRaw<Array<SshAggRow>>`
     SELECT
       s.src_ip,
@@ -39,9 +43,8 @@ export async function queryThreatSshRows(prisma: PrismaClient, ipFilter?: string
 }
 
 export async function queryThreatCommandRows(prisma: PrismaClient, ipFilter?: string) {
-  const where = ipFilter
-    ? Prisma.sql`WHERE e.event_type = 'command.input' AND e.command IS NOT NULL AND e.src_ip ILIKE ${`%${ipFilter}%`}`
-    : Prisma.sql`WHERE e.event_type = 'command.input' AND e.command IS NOT NULL`
+  const ipClause = ipFilter ? Prisma.sql`AND e.src_ip ILIKE ${`%${ipFilter}%`}` : Prisma.empty
+  const where = Prisma.sql`WHERE e.event_type = 'command.input' AND e.command IS NOT NULL ${ipClause}`
   const limit = ipFilter ? Prisma.sql`LIMIT 2000` : Prisma.sql`LIMIT 20000`
   return prisma.$queryRaw<Array<CommandAggRow>>`
     SELECT DISTINCT e.src_ip, e.command
@@ -52,10 +55,7 @@ export async function queryThreatCommandRows(prisma: PrismaClient, ipFilter?: st
 }
 
 export async function queryThreatWebRows(prisma: PrismaClient, ipFilter?: string) {
-  const where = ipFilter
-    ? Prisma.sql`WHERE src_ip ILIKE ${`%${ipFilter}%`}`
-    : Prisma.empty
-  const limit = ipFilter ? Prisma.sql`LIMIT 200` : Prisma.sql`LIMIT 2000`
+  const { where, limit } = buildIpFilter(ipFilter)
   return prisma.$queryRaw<Array<WebAggRow>>`
     SELECT
       src_ip,
@@ -72,10 +72,7 @@ export async function queryThreatWebRows(prisma: PrismaClient, ipFilter?: string
 }
 
 export async function queryThreatProtocolRows(prisma: PrismaClient, ipFilter?: string) {
-  const where = ipFilter
-    ? Prisma.sql`WHERE src_ip ILIKE ${`%${ipFilter}%`}`
-    : Prisma.empty
-  const limit = ipFilter ? Prisma.sql`LIMIT 200` : Prisma.sql`LIMIT 2000`
+  const { where, limit } = buildIpFilter(ipFilter)
   return prisma.$queryRaw<Array<ProtocolAggRow>>`
     SELECT
       src_ip,
