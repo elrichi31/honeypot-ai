@@ -5,46 +5,43 @@ import type {
   CredentialCampaignRow, RecurringIpRow, CommandPatternRow,
   DepthBucketRow, DepthStatsRow,
 } from './types.js'
+import { withCache } from '../../lib/cache-helper.js'
 import { toNumber, toOffsetISOString } from './utils.js'
 
 const CACHE_KEY = 'stats:dashboards'
-const CACHE_TTL = 300 // 5 minutes
+const CACHE_TTL = 300
 
 export async function dashboardRoute(fastify: FastifyInstance) {
-  fastify.get('/stats/dashboards', async () => {
-    const cached = await fastify.cache?.get(CACHE_KEY)
-    if (cached) return JSON.parse(cached)
+  fastify.get('/stats/dashboards', () =>
+    withCache(fastify.cache, CACHE_KEY, CACHE_TTL, async () => {
+      const [windowRows, funnelRows, countrySuccessCandidates, credentialCampaignRows,
+        recurringIpRows, commandPatternRows, depthBucketRows, depthStatsRows] =
+        await Promise.all([
+          queryWindow(fastify),
+          queryFunnel(fastify),
+          queryCountrySuccessCandidates(fastify),
+          queryCredentialCampaigns(fastify),
+          queryRecurringIps(fastify),
+          queryCommandPatterns(fastify),
+          queryDepthBuckets(fastify),
+          queryDepthStats(fastify),
+        ])
 
-    const [windowRows, funnelRows, countrySuccessCandidates, credentialCampaignRows,
-      recurringIpRows, commandPatternRows, depthBucketRows, depthStatsRows] =
-      await Promise.all([
-        queryWindow(fastify),
-        queryFunnel(fastify),
-        queryCountrySuccessCandidates(fastify),
-        queryCredentialCampaigns(fastify),
-        queryRecurringIps(fastify),
-        queryCommandPatterns(fastify),
-        queryDepthBuckets(fastify),
-        queryDepthStats(fastify),
-      ])
+      const window = windowRows[0] ?? { firstSeen: null, lastSeen: null, totalSessions: 0, uniqueIps: 0 }
+      const funnel = funnelRows[0] ?? { connections: 0, authAttempts: 0, loginSuccess: 0, commands: 0, highSignalCompromise: 0 }
+      const depthStats = depthStatsRows[0] ?? { averageCommands: 0, maxCommands: 0, interactiveSessions: 0 }
 
-    const window = windowRows[0] ?? { firstSeen: null, lastSeen: null, totalSessions: 0, uniqueIps: 0 }
-    const funnel = funnelRows[0] ?? { connections: 0, authAttempts: 0, loginSuccess: 0, commands: 0, highSignalCompromise: 0 }
-    const depthStats = depthStatsRows[0] ?? { averageCommands: 0, maxCommands: 0, interactiveSessions: 0 }
-
-    const result = {
-      window: { firstSeen: toOffsetISOString(window.firstSeen), lastSeen: toOffsetISOString(window.lastSeen), totalSessions: toNumber(window.totalSessions), uniqueIps: toNumber(window.uniqueIps) },
-      funnel: { connections: toNumber(funnel.connections), authAttempts: toNumber(funnel.authAttempts), loginSuccess: toNumber(funnel.loginSuccess), commands: toNumber(funnel.commands), highSignalCompromise: toNumber(funnel.highSignalCompromise) },
-      countrySuccessCandidates: countrySuccessCandidates.map(r => ({ srcIp: r.srcIp, sessions: toNumber(r.sessions), successes: toNumber(r.successes) })),
-      credentialCampaigns: credentialCampaignRows.map(r => ({ bucketStart: toOffsetISOString(r.bucketStart), username: r.username, password: r.password, attempts: toNumber(r.attempts), successCount: toNumber(r.successCount), uniqueIps: toNumber(r.uniqueIps), ips: r.ips })),
-      recurringIps: recurringIpRows.map(r => ({ srcIp: r.srcIp, totalSessions: toNumber(r.totalSessions), failedSessions: toNumber(r.failedSessions), successfulSessions: toNumber(r.successfulSessions), credentialCount: toNumber(r.credentialCount), firstSeen: toOffsetISOString(r.firstSeen), lastSeen: toOffsetISOString(r.lastSeen), returnAfterMinutes: r.returnAfterMinutes === null ? null : toNumber(r.returnAfterMinutes), clientVersion: r.clientVersion })),
-      commandPatterns: commandPatternRows.map(r => ({ sequence: r.sequence, sessions: toNumber(r.sessions), uniqueIps: toNumber(r.uniqueIps) })),
-      successfulDepth: { buckets: depthBucketRows.map(r => ({ bucket: r.bucket, sessions: toNumber(r.sessions) })), averageCommands: depthStats.averageCommands ?? 0, maxCommands: depthStats.maxCommands ?? 0, interactiveSessions: toNumber(depthStats.interactiveSessions) },
-    }
-
-    await fastify.cache?.set(CACHE_KEY, CACHE_TTL, JSON.stringify(result))
-    return result
-  })
+      return {
+        window: { firstSeen: toOffsetISOString(window.firstSeen), lastSeen: toOffsetISOString(window.lastSeen), totalSessions: toNumber(window.totalSessions), uniqueIps: toNumber(window.uniqueIps) },
+        funnel: { connections: toNumber(funnel.connections), authAttempts: toNumber(funnel.authAttempts), loginSuccess: toNumber(funnel.loginSuccess), commands: toNumber(funnel.commands), highSignalCompromise: toNumber(funnel.highSignalCompromise) },
+        countrySuccessCandidates: countrySuccessCandidates.map(r => ({ srcIp: r.srcIp, sessions: toNumber(r.sessions), successes: toNumber(r.successes) })),
+        credentialCampaigns: credentialCampaignRows.map(r => ({ bucketStart: toOffsetISOString(r.bucketStart), username: r.username, password: r.password, attempts: toNumber(r.attempts), successCount: toNumber(r.successCount), uniqueIps: toNumber(r.uniqueIps), ips: r.ips })),
+        recurringIps: recurringIpRows.map(r => ({ srcIp: r.srcIp, totalSessions: toNumber(r.totalSessions), failedSessions: toNumber(r.failedSessions), successfulSessions: toNumber(r.successfulSessions), credentialCount: toNumber(r.credentialCount), firstSeen: toOffsetISOString(r.firstSeen), lastSeen: toOffsetISOString(r.lastSeen), returnAfterMinutes: r.returnAfterMinutes === null ? null : toNumber(r.returnAfterMinutes), clientVersion: r.clientVersion })),
+        commandPatterns: commandPatternRows.map(r => ({ sequence: r.sequence, sessions: toNumber(r.sessions), uniqueIps: toNumber(r.uniqueIps) })),
+        successfulDepth: { buckets: depthBucketRows.map(r => ({ bucket: r.bucket, sessions: toNumber(r.sessions) })), averageCommands: depthStats.averageCommands ?? 0, maxCommands: depthStats.maxCommands ?? 0, interactiveSessions: toNumber(depthStats.interactiveSessions) },
+      }
+    })
+  )
 }
 
 function queryWindow(fastify: FastifyInstance) {

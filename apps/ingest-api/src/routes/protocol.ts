@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
+import { withCache } from '../lib/cache-helper.js'
 import { ensureIngestToken } from '../lib/ingest-auth.js'
 import { eventBus } from '../lib/event-bus.js'
 import { lookupGeo } from '../lib/geo.js'
@@ -126,9 +127,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
     const q = insightsQuerySchema.parse(request.query)
 
     const cacheKey = `protocol-insights:${q.protocol}`
-    const cached = await fastify.cache?.get(cacheKey)
-    if (cached) return reply.send(JSON.parse(cached))
-
+    return reply.send(await withCache(fastify.cache, cacheKey, 300, async () => {
     const [totals, topIps, topPorts, topUsernames, topPasswords, topCommands, topServices, topDatabases] = await Promise.all([
       fastify.prisma.$queryRaw<Array<{
         total: number; unique_ips: number; auth_attempts: number; command_events: number; last_seen: Date | null;
@@ -202,83 +201,38 @@ export async function protocolRoutes(fastify: FastifyInstance) {
 
     const total = totals[0]
 
-    const result = {
-      totals: {
-        total: total?.total ?? 0,
-        uniqueIps: total?.unique_ips ?? 0,
-        authAttempts: total?.auth_attempts ?? 0,
-        commandEvents: total?.command_events ?? 0,
-        lastSeen: total?.last_seen ?? null,
-      },
-      topIps: topIps.map(r => ({ srcIp: r.src_ip, count: r.count, lastSeen: r.last_seen })),
-      topPorts: topPorts.map(r => ({ dstPort: r.dst_port, count: r.count, lastSeen: r.last_seen })),
-      topUsernames,
-      topPasswords,
-      topCommands,
-      topServices,
-      topDatabases,
-    }
-
-    await fastify.cache?.set(cacheKey, 300, JSON.stringify(result))
-    return reply.send(result)
-  })
-
-  fastify.get('/protocol-hits/stats', async (_request, reply) => {
-    const cached = await fastify.cache?.get('protocol-hits:stats')
-    if (cached) return reply.send(JSON.parse(cached))
-
-    const rows = await fastify.prisma.$queryRaw<Array<{
-      protocol: string; count: bigint; last_seen: Date; auth_attempts: bigint;
-    }>>`
-      SELECT
-        protocol,
-        COUNT(*) AS count,
-        MAX(timestamp) AS last_seen,
-        COUNT(*) FILTER (WHERE event_type = 'auth') AS auth_attempts
-      FROM protocol_hits
-      WHERE timestamp >= NOW() - INTERVAL '30 days'
-      GROUP BY protocol
-      ORDER BY count DESC
-    `
-
-    const result = rows.map(r => ({
-      protocol: r.protocol,
-      count: Number(r.count),
-      lastSeen: r.last_seen,
-      authAttempts: Number(r.auth_attempts),
+      return {
+        totals: { total: total?.total ?? 0, uniqueIps: total?.unique_ips ?? 0, authAttempts: total?.auth_attempts ?? 0, commandEvents: total?.command_events ?? 0, lastSeen: total?.last_seen ?? null },
+        topIps: topIps.map(r => ({ srcIp: r.src_ip, count: r.count, lastSeen: r.last_seen })),
+        topPorts: topPorts.map(r => ({ dstPort: r.dst_port, count: r.count, lastSeen: r.last_seen })),
+        topUsernames, topPasswords, topCommands, topServices, topDatabases,
+      }
     }))
-    await fastify.cache?.set('protocol-hits:stats', 300, JSON.stringify(result))
-    return reply.send(result)
   })
 
-  fastify.get('/protocol-hits/ports/stats', async (_request, reply) => {
-    const cached = await fastify.cache?.get('protocol-hits:ports-stats')
-    if (cached) return reply.send(JSON.parse(cached))
+  fastify.get('/protocol-hits/stats', (_request, reply) =>
+    withCache(fastify.cache, 'protocol-hits:stats', 300, async () => {
+      const rows = await fastify.prisma.$queryRaw<Array<{ protocol: string; count: bigint; last_seen: Date; auth_attempts: bigint }>>`
+        SELECT protocol, COUNT(*) AS count, MAX(timestamp) AS last_seen,
+               COUNT(*) FILTER (WHERE event_type = 'auth') AS auth_attempts
+        FROM protocol_hits
+        WHERE timestamp >= NOW() - INTERVAL '30 days'
+        GROUP BY protocol ORDER BY count DESC
+      `
+      return rows.map(r => ({ protocol: r.protocol, count: Number(r.count), lastSeen: r.last_seen, authAttempts: Number(r.auth_attempts) }))
+    }).then(result => reply.send(result))
+  )
 
-    const rows = await fastify.prisma.$queryRaw<Array<{
-      protocol: string; dst_port: number; count: bigint; last_seen: Date; auth_attempts: bigint;
-    }>>`
-      SELECT
-        protocol,
-        dst_port,
-        COUNT(*) AS count,
-        MAX(timestamp) AS last_seen,
-        COUNT(*) FILTER (WHERE event_type = 'auth') AS auth_attempts
-      FROM protocol_hits
-      WHERE timestamp >= NOW() - INTERVAL '30 days'
-      GROUP BY protocol, dst_port
-      ORDER BY count DESC, last_seen DESC
-      LIMIT 50
-    `
-
-    const result = rows.map(r => ({
-      protocol: r.protocol,
-      dstPort: r.dst_port,
-      count: Number(r.count),
-      lastSeen: r.last_seen,
-      authAttempts: Number(r.auth_attempts),
-    }))
-    await fastify.cache?.set('protocol-hits:ports-stats', 300, JSON.stringify(result))
-    return reply.send(result)
-  })
+  fastify.get('/protocol-hits/ports/stats', (_request, reply) =>
+    withCache(fastify.cache, 'protocol-hits:ports-stats', 300, async () => {
+      const rows = await fastify.prisma.$queryRaw<Array<{ protocol: string; dst_port: number; count: bigint; last_seen: Date; auth_attempts: bigint }>>`
+        SELECT protocol, dst_port, COUNT(*) AS count, MAX(timestamp) AS last_seen,
+               COUNT(*) FILTER (WHERE event_type = 'auth') AS auth_attempts
+        FROM protocol_hits
+        WHERE timestamp >= NOW() - INTERVAL '30 days'
+        GROUP BY protocol, dst_port ORDER BY count DESC, last_seen DESC LIMIT 50
+      `
+      return rows.map(r => ({ protocol: r.protocol, dstPort: r.dst_port, count: Number(r.count), lastSeen: r.last_seen, authAttempts: Number(r.auth_attempts) }))
+    }).then(result => reply.send(result))
+  )
 }

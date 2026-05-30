@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply } from 'fastify'
+import { withCache } from '../lib/cache-helper.js'
 import { z } from 'zod'
 import { classifyCommands, computeRiskScore } from '../lib/risk-score.js'
 import { basePaginationSchema, buildPaginationResponse, getPagination } from '../lib/pagination.js'
@@ -122,24 +123,9 @@ async function handleListThreats(fastify: FastifyInstance, query: unknown, reply
 
   const hasFilters = parsed.data.q || parsed.data.level || parsed.data.crossProtocol !== undefined
 
-  let threats: ThreatItem[]
-
-  if (hasFilters) {
-    // With filters: push IP search to DB, apply other filters in-memory
-    threats = filterThreats(await fetchThreats(fastify, parsed.data.q), parsed.data)
-  } else {
-    // No filters: serve from Redis cache when available
-    const cached = await fastify.cache?.get(THREATS_CACHE_KEY)
-    if (cached) {
-      threats = JSON.parse(cached) as ThreatItem[]
-    } else {
-      threats = await fetchThreats(fastify)
-      sortThreats(threats, parsed.data)
-      await fastify.cache?.set(THREATS_CACHE_KEY, THREATS_CACHE_TTL, JSON.stringify(threats))
-      const items = threats.slice(offset, offset + pageSize)
-      return reply.send({ items, summary: buildSummary(threats), pagination: buildPaginationResponse(threats.length, page, pageSize) })
-    }
-  }
+  const threats: ThreatItem[] = hasFilters
+    ? filterThreats(await fetchThreats(fastify, parsed.data.q), parsed.data)
+    : await withCache(fastify.cache, THREATS_CACHE_KEY, THREATS_CACHE_TTL, () => fetchThreats(fastify))
 
   sortThreats(threats, parsed.data)
   const items = threats.slice(offset, offset + pageSize)

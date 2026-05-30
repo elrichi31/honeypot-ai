@@ -7,6 +7,7 @@ import type {
   SprayPasswordRow, TargetedUsernameRow, DiversifiedAttackerRow, CountOnlyRow,
 } from './types.js'
 import { parseDate, toNumber, toOffsetISOString, buildAuthWhereSql, buildClauseBlock } from './utils.js'
+import { withCache } from '../../lib/cache-helper.js'
 
 const DEFAULT_PAGE_SIZE = 50
 const MAX_PAGE_SIZE = 200
@@ -80,9 +81,8 @@ export async function credentialsRoute(fastify: FastifyInstance) {
     const recentSortDir: CredentialsSortDirection = p.mainTab === 'recent' ? activeSortDir : 'desc'
 
     const cacheKey = `credentials:${JSON.stringify({ mainTab: p.mainTab, rankingType: p.rankingType, outcome: p.outcome, frequency: p.frequency, search: search ?? '', sortBy: activeSortBy, sortDir: activeSortDir, page, pageSize, startDate: p.startDate ?? '', endDate: p.endDate ?? '' })}`
-    const cached = await fastify.cache?.get(cacheKey)
-    if (cached) return JSON.parse(cached)
 
+    return withCache(fastify.cache, cacheKey, 300, async () => {
     const authWhere = buildAuthWhereSql({ startDate, endDate })
     const anyCredWhere = buildAuthWhereSql({ startDate, endDate, extra: [Prisma.sql`(username IS NOT NULL OR password IS NOT NULL)`] })
     const userWhere = buildAuthWhereSql({ startDate, endDate, extra: [Prisma.sql`username IS NOT NULL`] })
@@ -145,8 +145,8 @@ export async function credentialsRoute(fastify: FastifyInstance) {
       current: { mainTab: p.mainTab, rankingType: p.rankingType, outcome: p.outcome, frequency: p.frequency, search: search ?? '', sortBy: activeSortBy, sortDir: activeSortDir },
     }
 
-    await fastify.cache?.set(cacheKey, 300, JSON.stringify(response))
-    return response
+      return response
+    })
   })
 }
 

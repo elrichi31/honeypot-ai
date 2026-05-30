@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { lookupGeo } from '../lib/geo.js'
+import { withCache } from '../lib/cache-helper.js'
 
 type SessionRow = { src_ip: string; count: bigint }
 type WebRow = { src_ip: string; count: bigint }
@@ -8,9 +9,7 @@ type SensorRow = { ip: string; protocol: string }
 
 export async function attacksTodayRoutes(fastify: FastifyInstance) {
   fastify.get('/attacks/today', async (_request, reply) => {
-    const cached = await fastify.cache?.get('attacks:today')
-    if (cached) return reply.send(JSON.parse(cached))
-
+    const result = await withCache(fastify.cache, 'attacks:today', 300, async () => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
     const [sshRows, webRows, protocolRows, sensors] = await Promise.all([
@@ -73,11 +72,11 @@ export async function attacksTodayRoutes(fastify: FastifyInstance) {
       })
       .filter((s): s is NonNullable<typeof s> => s !== null)
 
-    const result = {
-      attackedCountries: Array.from(countryMap.values()),
-      sensors: sensorLocations,
-    }
-    await fastify.cache?.set('attacks:today', 300, JSON.stringify(result))
+      return {
+        attackedCountries: Array.from(countryMap.values()),
+        sensors: sensorLocations,
+      }
+    })
     return reply.send(result)
   })
 }
