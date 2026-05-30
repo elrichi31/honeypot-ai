@@ -99,6 +99,7 @@ def detect_shellshock(connection, data, report_incidents=True):
 
 
 def _fetch_binary(url, download_dir):
+    import json
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=15) as resp:
@@ -110,6 +111,11 @@ def _fetch_binary(url, download_dir):
         if not os.path.exists(dest):
             with open(dest, "wb") as f:
                 f.write(content)
+        meta_path = dest + ".meta.json"
+        if not os.path.exists(meta_path):
+            source_name = url.rstrip("/").split("/")[-1] or md5
+            with open(meta_path, "w") as f:
+                json.dump({"sourceUrl": url, "sourceName": source_name}, f)
         logger.warning("Shellshock download saved: %s (%d bytes) → %s", url, len(content), md5)
     except Exception as e:
         logger.warning("Shellshock download failed for %s: %s", url, e)
