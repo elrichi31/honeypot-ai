@@ -290,7 +290,7 @@ services:
       DIONAEA_OFFSET_FILE: /state/dionaea.offset
       READ_FROM_END: "1"
     volumes:
-      - dionaea_var:/opt/dionaea/var/lib/dionaea:ro
+      - dionaea_var:/opt/dionaea/var/lib/dionaea
       - dionaea_shipper_state:/state
       - ./sensors/dionaea/shipper.py:/shipper.py:ro
     command: ["python3", "/shipper.py"]

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
+import hashlib
 import json
 import os
+import shutil
 import socket
 import threading
 import time
@@ -359,6 +361,74 @@ def _tail_loop():
             time.sleep(2)
 
 
+BINARIES_DIR = "/opt/dionaea/var/lib/dionaea/binaries"
+UPLOAD_WATCH_DIRS = {
+    "ftp":  "/opt/dionaea/var/lib/dionaea/ftp/root",
+    "tftp": "/opt/dionaea/var/lib/dionaea/tftp/root",
+}
+
+
+def _md5_file(path):
+    h = hashlib.md5()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _collect_files(directory):
+    result = []
+    try:
+        for root, _, files in os.walk(directory):
+            for name in files:
+                result.append(os.path.join(root, name))
+    except Exception:
+        pass
+    return result
+
+
+def _unify_upload(src_path, source_type, source_name):
+    try:
+        if os.path.getsize(src_path) == 0:
+            return
+        md5 = _md5_file(src_path)
+        dest = os.path.join(BINARIES_DIR, md5)
+        meta = os.path.join(BINARIES_DIR, md5 + ".meta.json")
+        os.makedirs(BINARIES_DIR, exist_ok=True)
+        if not os.path.exists(dest):
+            shutil.copy2(src_path, dest)
+        if not os.path.exists(meta):
+            with open(meta, "w") as f:
+                json.dump({
+                    "sourceUrl": f"{source_type}://upload/{source_name}",
+                    "sourceName": source_name,
+                    "sourceType": source_type,
+                }, f)
+        print(f"[dionaea-shipper] unified {source_type} upload → binaries/{md5} ({source_name})", flush=True)
+    except Exception as exc:
+        print(f"[dionaea-shipper] unify error {src_path}: {exc}", flush=True)
+
+
+def _upload_watcher_loop():
+    seen = set()
+    # Seed with already-existing files so we don't re-process old uploads
+    for source_type, directory in UPLOAD_WATCH_DIRS.items():
+        for path in _collect_files(directory):
+            seen.add(path)
+
+    print(f"[dionaea-shipper] upload watcher started, watching {list(UPLOAD_WATCH_DIRS.keys())}", flush=True)
+    while True:
+        time.sleep(5)
+        for source_type, directory in UPLOAD_WATCH_DIRS.items():
+            for path in _collect_files(directory):
+                if path in seen:
+                    continue
+                seen.add(path)
+                source_name = os.path.basename(path)
+                _unify_upload(path, source_type, source_name)
+
+
 if __name__ == "__main__":
     threading.Thread(target=_heartbeat_loop, daemon=True).start()
+    threading.Thread(target=_upload_watcher_loop, daemon=True).start()
     _tail_loop()
