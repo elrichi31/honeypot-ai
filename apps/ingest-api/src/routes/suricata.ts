@@ -4,6 +4,17 @@ import { ensureIngestToken } from '../lib/ingest-auth.js'
 import { lookupGeo } from '../lib/geo.js'
 import { eventBus } from '../lib/event-bus.js'
 
+// IPs to exclude from stats/alerts (own server IPs)
+const OWN_IPS = new Set(
+  (process.env.SURICATA_OWN_IPS ?? '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+)
+
+// Signatures that are Suricata-internal TCP/IP noise (not real attacks)
+const NOISE_PATTERN = "signature NOT ILIKE 'SURICATA %'"
+
 const eveAlertSchema = z.object({
   timestamp: z.string(),
   flow_id: z.number().optional(),
@@ -62,7 +73,10 @@ async function persistAlert(fastify: FastifyInstance, alert: EveAlert) {
       ${alert.in_iface ?? null},
       CAST(${JSON.stringify(alert)} AS jsonb)
     )
+    ON CONFLICT DO NOTHING
   `
+
+  if (OWN_IPS.has(alert.src_ip)) return
 
   const geo = lookupGeo(alert.src_ip)
   if (geo) {
@@ -76,7 +90,6 @@ async function persistAlert(fastify: FastifyInstance, alert: EveAlert) {
 }
 
 export async function suricataRoutes(fastify: FastifyInstance) {
-  // POST /ingest/suricata/alert — receives EVE JSON alerts from Vector
   fastify.post('/ingest/suricata/alert', async (request, reply) => {
     if (!ensureIngestToken(request, reply)) return reply
 
@@ -88,10 +101,7 @@ export async function suricataRoutes(fastify: FastifyInstance) {
 
     for (const event of events) {
       const parsed = eveAlertSchema.safeParse(event)
-      if (!parsed.success) {
-        rejected++
-        continue
-      }
+      if (!parsed.success) { rejected++; continue }
       try {
         await persistAlert(fastify, parsed.data)
         accepted++
@@ -104,7 +114,6 @@ export async function suricataRoutes(fastify: FastifyInstance) {
     return reply.status(200).send({ accepted, rejected })
   })
 
-  // GET /suricata/alerts — paginated alerts with optional filters
   fastify.get('/suricata/alerts', async (request, reply) => {
     const querySchema = z.object({
       page: z.coerce.number().int().min(1).default(1),
@@ -112,58 +121,45 @@ export async function suricataRoutes(fastify: FastifyInstance) {
       severity: z.coerce.number().int().min(1).max(4).optional(),
       srcIp: z.string().optional(),
       q: z.string().optional(),
+      hideNoise: z.coerce.boolean().default(true),
+      excludeOwnIps: z.coerce.boolean().default(true),
     })
 
     const params = querySchema.safeParse(request.query)
-    if (!params.success) {
-      return reply.status(400).send({ error: 'Invalid query params' })
-    }
+    if (!params.success) return reply.status(400).send({ error: 'Invalid query params' })
 
-    const { page, pageSize, severity, srcIp, q } = params.data
+    const { page, pageSize, severity, srcIp, q, hideNoise, excludeOwnIps } = params.data
     const offset = (page - 1) * pageSize
 
-    // Only allow valid IP characters to prevent injection via srcIp
     const safeIp = srcIp && /^[0-9a-fA-F.:]+$/.test(srcIp) ? srcIp : null
-    // Limit q to 100 chars and strip SQL metacharacters
     const safeQ = q ? q.slice(0, 100).replace(/[%_\\]/g, '\\$&') : null
 
-    const severityFilter = severity != null ? `AND severity = ${severity}` : ''
-    const ipFilter = safeIp ? `AND src_ip = '${safeIp}'` : ''
-    const qFilter = safeQ
-      ? `AND (signature ILIKE '%${safeQ}%' OR category ILIKE '%${safeQ}%' OR src_ip ILIKE '%${safeQ}%')`
-      : ''
+    const ownIpList = [...OWN_IPS].map(ip => `'${ip}'`).join(',')
+
+    const filters = [
+      severity != null ? `AND severity = ${severity}` : '',
+      safeIp ? `AND src_ip = '${safeIp}'` : '',
+      safeQ ? `AND (signature ILIKE '%${safeQ}%' OR category ILIKE '%${safeQ}%' OR src_ip ILIKE '%${safeQ}%')` : '',
+      hideNoise ? `AND ${NOISE_PATTERN}` : '',
+      excludeOwnIps && ownIpList ? `AND src_ip NOT IN (${ownIpList})` : '',
+    ].join(' ')
 
     const [alerts, countRows] = await Promise.all([
       fastify.prisma.$queryRawUnsafe<Array<{
-        id: string
-        sensor_id: string
-        timestamp: Date
-        src_ip: string
-        src_port: number | null
-        dest_ip: string
-        dest_port: number | null
-        proto: string
-        action: string
-        signature_id: number
-        signature: string
-        category: string
-        severity: number
-        flow_id: bigint | null
-        in_iface: string | null
-        created_at: Date
+        id: string; sensor_id: string; timestamp: Date
+        src_ip: string; src_port: number | null; dest_ip: string; dest_port: number | null
+        proto: string; action: string; signature_id: number; signature: string
+        category: string; severity: number; flow_id: bigint | null; in_iface: string | null
       }>>(`
         SELECT id, sensor_id, timestamp, src_ip, src_port, dest_ip, dest_port,
-               proto, action, signature_id, signature, category, severity,
-               flow_id, in_iface, created_at
+               proto, action, signature_id, signature, category, severity, flow_id, in_iface
         FROM suricata_alerts
-        WHERE 1=1 ${severityFilter} ${ipFilter} ${qFilter}
+        WHERE 1=1 ${filters}
         ORDER BY timestamp DESC
         LIMIT ${pageSize} OFFSET ${offset}
       `),
       fastify.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(`
-        SELECT COUNT(*) AS count
-        FROM suricata_alerts
-        WHERE 1=1 ${severityFilter} ${ipFilter} ${qFilter}
+        SELECT COUNT(*) AS count FROM suricata_alerts WHERE 1=1 ${filters}
       `),
     ])
 
@@ -175,11 +171,10 @@ export async function suricataRoutes(fastify: FastifyInstance) {
         flowId: a.flow_id !== null ? Number(a.flow_id) : null,
         flow_id: undefined,
         severityLabel: severityLabel(a.severity),
+        country: lookupGeo(a.src_ip)?.country ?? null,
       })),
       pagination: {
-        page,
-        pageSize,
-        total,
+        page, pageSize, total,
         totalPages: Math.ceil(total / pageSize),
         hasNextPage: page * pageSize < total,
         hasPreviousPage: page > 1,
@@ -187,16 +182,13 @@ export async function suricataRoutes(fastify: FastifyInstance) {
     })
   })
 
-  // GET /suricata/stats — summary stats for the dashboard
   fastify.get('/suricata/stats', async (_request, reply) => {
-    const [totals, topSigs, topSources, recentHourly] = await Promise.all([
-      fastify.prisma.$queryRaw<Array<{
-        total: bigint
-        critical: bigint
-        high: bigint
-        medium: bigint
-        low: bigint
-      }>>`
+    const ownIpList = [...OWN_IPS].map(ip => `'${ip}'`).join(',')
+    const ownIpFilter = ownIpList ? `AND src_ip NOT IN (${ownIpList})` : ''
+
+    const [totals, threatTotals, topSigs, topThreatSigs, topSources, timeline] = await Promise.all([
+      // All alerts last 24h (including noise)
+      fastify.prisma.$queryRawUnsafe<Array<{ total: bigint; critical: bigint; high: bigint; medium: bigint; low: bigint }>>(`
         SELECT
           COUNT(*) AS total,
           COUNT(*) FILTER (WHERE severity = 1) AS critical,
@@ -205,33 +197,59 @@ export async function suricataRoutes(fastify: FastifyInstance) {
           COUNT(*) FILTER (WHERE severity = 4) AS low
         FROM suricata_alerts
         WHERE created_at > NOW() - INTERVAL '24 hours'
-      `,
-      fastify.prisma.$queryRaw<Array<{ signature: string; count: bigint; severity: number }>>`
+      `),
+      // Real threats only (no noise, no own IPs)
+      fastify.prisma.$queryRawUnsafe<Array<{ total: bigint; critical: bigint; high: bigint; medium: bigint; low: bigint }>>(`
+        SELECT
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE severity = 1) AS critical,
+          COUNT(*) FILTER (WHERE severity = 2) AS high,
+          COUNT(*) FILTER (WHERE severity = 3) AS medium,
+          COUNT(*) FILTER (WHERE severity = 4) AS low
+        FROM suricata_alerts
+        WHERE created_at > NOW() - INTERVAL '24 hours'
+          AND ${NOISE_PATTERN} ${ownIpFilter}
+      `),
+      // Top all signatures
+      fastify.prisma.$queryRawUnsafe<Array<{ signature: string; count: bigint; severity: number }>>(`
         SELECT signature, severity, COUNT(*) AS count
         FROM suricata_alerts
         WHERE created_at > NOW() - INTERVAL '24 hours'
-        GROUP BY signature, severity
-        ORDER BY count DESC
-        LIMIT 10
-      `,
-      fastify.prisma.$queryRaw<Array<{ src_ip: string; count: bigint }>>`
+        GROUP BY signature, severity ORDER BY count DESC LIMIT 10
+      `),
+      // Top threat signatures (no noise, no own IPs)
+      fastify.prisma.$queryRawUnsafe<Array<{ signature: string; count: bigint; severity: number; category: string }>>(`
+        SELECT signature, severity, category, COUNT(*) AS count
+        FROM suricata_alerts
+        WHERE created_at > NOW() - INTERVAL '24 hours'
+          AND ${NOISE_PATTERN} ${ownIpFilter}
+        GROUP BY signature, severity, category ORDER BY count DESC LIMIT 10
+      `),
+      // Top sources (no own IPs), with count
+      fastify.prisma.$queryRawUnsafe<Array<{ src_ip: string; count: bigint }>>(`
         SELECT src_ip, COUNT(*) AS count
         FROM suricata_alerts
         WHERE created_at > NOW() - INTERVAL '24 hours'
-        GROUP BY src_ip
-        ORDER BY count DESC
-        LIMIT 10
-      `,
-      fastify.prisma.$queryRaw<Array<{ hour: Date; count: bigint }>>`
-        SELECT DATE_TRUNC('hour', created_at) AS hour, COUNT(*) AS count
+          ${ownIpFilter}
+          AND ${NOISE_PATTERN}
+        GROUP BY src_ip ORDER BY count DESC LIMIT 10
+      `),
+      // 7-day hourly timeline (threats only, no own IPs)
+      fastify.prisma.$queryRawUnsafe<Array<{ hour: Date; total: bigint; threats: bigint }>>(`
+        SELECT
+          DATE_TRUNC('hour', timestamp) AS hour,
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE ${NOISE_PATTERN}) AS threats
         FROM suricata_alerts
-        WHERE created_at > NOW() - INTERVAL '24 hours'
-        GROUP BY hour
-        ORDER BY hour ASC
-      `,
+        WHERE timestamp > NOW() - INTERVAL '7 days'
+          ${ownIpFilter}
+        GROUP BY hour ORDER BY hour ASC
+      `),
     ])
 
     const t = totals[0]
+    const th = threatTotals[0]
+
     return reply.send({
       last24h: {
         total: Number(t?.total ?? 0),
@@ -240,19 +258,29 @@ export async function suricataRoutes(fastify: FastifyInstance) {
         medium: Number(t?.medium ?? 0),
         low: Number(t?.low ?? 0),
       },
-      topSignatures: topSigs.map((s) => ({
-        signature: s.signature,
-        severity: s.severity,
-        severityLabel: severityLabel(s.severity),
-        count: Number(s.count),
+      threats24h: {
+        total: Number(th?.total ?? 0),
+        critical: Number(th?.critical ?? 0),
+        high: Number(th?.high ?? 0),
+        medium: Number(th?.medium ?? 0),
+        low: Number(th?.low ?? 0),
+      },
+      topSignatures: topSigs.map(s => ({
+        signature: s.signature, severity: s.severity,
+        severityLabel: severityLabel(s.severity), count: Number(s.count),
       })),
-      topSources: topSources.map((s) => ({
-        srcIp: s.src_ip,
-        count: Number(s.count),
+      topThreatSignatures: topThreatSigs.map(s => ({
+        signature: s.signature, severity: s.severity, category: s.category,
+        severityLabel: severityLabel(s.severity), count: Number(s.count),
       })),
-      hourly: recentHourly.map((r) => ({
+      topSources: topSources.map(s => {
+        const geo = lookupGeo(s.src_ip)
+        return { srcIp: s.src_ip, count: Number(s.count), country: geo?.country ?? null }
+      }),
+      timeline: timeline.map(r => ({
         hour: r.hour,
-        count: Number(r.count),
+        total: Number(r.total),
+        threats: Number(r.threats),
       })),
     })
   })

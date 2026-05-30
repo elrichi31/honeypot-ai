@@ -156,6 +156,7 @@ services:
       PORT: "3000"
       HOST: "0.0.0.0"
       DIONAEA_BINARIES_PATH: /dionaea/binaries
+      SURICATA_OWN_IPS: ${SURICATA_OWN_IPS:-}
     volumes:
       - dashboard_data:/app/data
       - dionaea_var:/dionaea:ro
