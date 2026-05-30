@@ -424,7 +424,9 @@ def _unify_upload(src_path, source_type, source_name):
 
 def _upload_watcher_loop():
     seen = set()
-    # Seed with already-existing files so we don't re-process old uploads
+    # {path: (source_type, detected_at)} — wait before processing so FTP session can close
+    pending: dict[str, tuple[str, float]] = {}
+
     for source_type, directory in UPLOAD_WATCH_DIRS.items():
         for path in _collect_files(directory):
             seen.add(path)
@@ -432,13 +434,20 @@ def _upload_watcher_loop():
     print(f"[dionaea-shipper] upload watcher started, watching {list(UPLOAD_WATCH_DIRS.keys())}", flush=True)
     while True:
         time.sleep(5)
+        now = time.time()
+
+        # Detect new files → add to pending
         for source_type, directory in UPLOAD_WATCH_DIRS.items():
             for path in _collect_files(directory):
-                if path in seen:
-                    continue
-                seen.add(path)
-                source_name = os.path.basename(path)
-                _unify_upload(path, source_type, source_name)
+                if path not in seen:
+                    seen.add(path)
+                    pending[path] = (source_type, now)
+
+        # Process files that have been pending ≥15s (FTP session should be closed by then)
+        ready = [p for p, (_, t) in pending.items() if now - t >= 15]
+        for path in ready:
+            source_type, _ = pending.pop(path)
+            _unify_upload(path, source_type, os.path.basename(path))
 
 
 if __name__ == "__main__":
