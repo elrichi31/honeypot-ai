@@ -265,6 +265,8 @@ services:
 
   dionaea-shipper:
     <<: *service-defaults
+    cap_add:
+      - DAC_OVERRIDE
     logging: *json-logging
     image: python:3.12-alpine
     container_name: dionaea-shipper
