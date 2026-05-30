@@ -91,11 +91,11 @@ def detect_shellshock(connection, data, report_incidents=True):
     src_ip, src_port = "", None
     try:
         remote = getattr(connection, 'remote', None)
-        logger.warning("connection type=%s remote=%r remote_attrs=%s", type(connection).__name__, remote, [a for a in dir(remote) if not a.startswith('_')] if remote else [])
         if remote:
-            src_ip = str(getattr(remote, 'host', '') or getattr(remote, 'address', '') or '')
+            src_ip = str(getattr(remote, 'host', '') or '')
             port_raw = getattr(remote, 'port', None)
             src_port = int(port_raw) if port_raw else None
+        logger.warning("extracted src_ip=%r src_port=%r", src_ip, src_port)
     except Exception as e:
         logger.warning("IP extraction failed: %s", e)
 
