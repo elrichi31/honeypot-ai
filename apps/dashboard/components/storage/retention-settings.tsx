@@ -8,8 +8,30 @@ import { Switch } from "@/components/ui/switch"
 type RetentionRow = {
   id: string; tableName: string; label: string
   retentionDays: number; enabled: boolean; updatedAt: string
+  oldestDaysAgo: number | null
 }
 type RowState = RetentionRow & { draft: string; saving: boolean; saved: boolean }
+
+function OldestBadge({ oldestDaysAgo, retentionDays, enabled }: {
+  oldestDaysAgo: number | null
+  retentionDays: number
+  enabled: boolean
+}) {
+  if (!enabled) return null
+  if (oldestDaysAgo === null) return (
+    <span className="text-[11px] text-muted-foreground/40 w-44 text-right">no data</span>
+  )
+  const daysLeft = retentionDays - oldestDaysAgo
+  const urgent = daysLeft <= 7
+  return (
+    <span className="text-[11px] text-right w-44 tabular-nums">
+      <span className="text-muted-foreground">oldest {oldestDaysAgo}d ago · </span>
+      <span className={urgent ? "text-red-400 font-medium" : "text-muted-foreground"}>
+        {daysLeft <= 0 ? "purging now" : `${daysLeft}d left`}
+      </span>
+    </span>
+  )
+}
 
 async function callApi(id: string, patch: { retentionDays?: number; enabled?: boolean }) {
   const res = await fetch(`/api/storage/retention/${id}`, {
@@ -93,6 +115,7 @@ export function RetentionSettings() {
             <span className={`flex-1 text-sm ${row.enabled ? "text-foreground" : "text-muted-foreground/50"}`}>
               {row.label}
             </span>
+            <OldestBadge oldestDaysAgo={row.oldestDaysAgo} retentionDays={row.retentionDays} enabled={row.enabled} />
             <div className="flex items-center gap-2">
               <input
                 type="number"

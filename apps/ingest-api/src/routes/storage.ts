@@ -126,8 +126,36 @@ export async function storageRoutes(fastify: FastifyInstance) {
   })
 
   fastify.get('/storage/retention', async (_request, reply) => {
+    const TIMESTAMP_COL: Record<string, string> = {
+      events:             'event_ts',
+      sessions:           'started_at',
+      web_hits:           'timestamp',
+      protocol_hits:      'timestamp',
+      api_defense_events: 'timestamp',
+      suricata_alerts:    'timestamp',
+    }
+
     const rows = await fastify.prisma.retentionSettings.findMany({ orderBy: { tableName: 'asc' } })
-    return reply.send(rows)
+
+    const oldestResults = await Promise.all(
+      rows.map(async row => {
+        const col = TIMESTAMP_COL[row.tableName]
+        if (!col) return { id: row.id, oldestDaysAgo: null }
+        try {
+          const res = await fastify.prisma.$queryRawUnsafe<[{ days: number | null }]>(
+            `SELECT EXTRACT(EPOCH FROM (NOW() - MIN("${col}"))) / 86400 AS days FROM "${row.tableName}"`
+          )
+          const days = res[0]?.days != null ? Math.floor(Number(res[0].days)) : null
+          return { id: row.id, oldestDaysAgo: days }
+        } catch {
+          return { id: row.id, oldestDaysAgo: null }
+        }
+      })
+    )
+
+    const oldestMap = Object.fromEntries(oldestResults.map(r => [r.id, r.oldestDaysAgo]))
+    const enriched = rows.map(r => ({ ...r, oldestDaysAgo: oldestMap[r.id] ?? null }))
+    return reply.send(enriched)
   })
 
   fastify.put('/storage/retention/:id', async (request, reply) => {
