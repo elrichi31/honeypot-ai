@@ -178,9 +178,13 @@ async function handleTimeline(fastify: FastifyInstance, _request: FastifyRequest
 }
 
 async function handlePaths(fastify: FastifyInstance, _request: FastifyRequest, reply: FastifyReply) {
+  const cached = await fastify.cache?.get('web-hits:paths')
+  if (cached) return reply.send(JSON.parse(cached))
+
   const rows = await fastify.prisma.$queryRaw<Array<{ path: string; attack_type: string; count: bigint }>>`
     SELECT path, attack_type, COUNT(*) AS count
     FROM web_hits
+    WHERE timestamp >= NOW() - INTERVAL '30 days'
     GROUP BY path, attack_type
     ORDER BY COUNT(*) DESC LIMIT 200
   `;
@@ -198,7 +202,9 @@ async function handlePaths(fastify: FastifyInstance, _request: FastifyRequest, r
     .sort((a, b) => b.total - a.total)
     .slice(0, 50);
 
-  return reply.send({ paths });
+  const result = { paths }
+  await fastify.cache?.set('web-hits:paths', 600, JSON.stringify(result))
+  return reply.send(result);
 }
 
 function mapByIpRow(row: WebHitsByIpRow) {

@@ -79,6 +79,10 @@ export async function credentialsRoute(fastify: FastifyInstance) {
     const recentSortBy = p.mainTab === 'recent' ? activeSortBy : 'eventTs'
     const recentSortDir: CredentialsSortDirection = p.mainTab === 'recent' ? activeSortDir : 'desc'
 
+    const cacheKey = `credentials:${JSON.stringify({ mainTab: p.mainTab, rankingType: p.rankingType, outcome: p.outcome, frequency: p.frequency, search: search ?? '', sortBy: activeSortBy, sortDir: activeSortDir, page, pageSize, startDate: p.startDate ?? '', endDate: p.endDate ?? '' })}`
+    const cached = await fastify.cache?.get(cacheKey)
+    if (cached) return JSON.parse(cached)
+
     const authWhere = buildAuthWhereSql({ startDate, endDate })
     const anyCredWhere = buildAuthWhereSql({ startDate, endDate, extra: [Prisma.sql`(username IS NOT NULL OR password IS NOT NULL)`] })
     const userWhere = buildAuthWhereSql({ startDate, endDate, extra: [Prisma.sql`username IS NOT NULL`] })
@@ -131,7 +135,7 @@ export async function credentialsRoute(fastify: FastifyInstance) {
     const rankingTotalPages = rankingTotal === 0 ? 1 : Math.ceil(rankingTotal / pageSize)
     const recentTotalPages = recentAttemptsTotal === 0 ? 1 : Math.ceil(recentAttemptsTotal / pageSize)
 
-    return {
+    const response = {
       summary: { totalAttempts, successfulAttempts, failedAttempts, uniqueUsernames: toNumber(uniqueUsernamesRows[0]?.count), uniquePasswords: toNumber(uniquePasswordsRows[0]?.count), uniqueCredentialPairs: toNumber(uniquePairsRows[0]?.count), repeatedCredentialPairs: toNumber(repeatedPairsRows[0]?.count), sprayPasswords: toNumber(sprayPasswordsCountRows[0]?.count), targetedUsernames: toNumber(targetedUsernamesCountRows[0]?.count), successRate: totalAttempts > 0 ? successfulAttempts / totalAttempts : 0 },
       sprayPasswords: sprayPasswordRows.map(r => ({ password: r.password, attempts: toNumber(r.attempts), successCount: toNumber(r.successCount), usernameCount: toNumber(r.usernameCount), ipCount: toNumber(r.ipCount) })),
       targetedUsernames: targetedUsernameRows.map(r => ({ username: r.username, attempts: toNumber(r.attempts), successCount: toNumber(r.successCount), passwordCount: toNumber(r.passwordCount), ipCount: toNumber(r.ipCount) })),
@@ -140,6 +144,9 @@ export async function credentialsRoute(fastify: FastifyInstance) {
       recentAttemptsPage: { items: recentAttempts.map(e => ({ ...e, eventTs: toOffsetISOString(e.eventTs), createdAt: toOffsetISOString(e.createdAt), cowrieTs: toOffsetISOString(new Date(e.cowrieTs as string)) })), pagination: { page, pageSize, total: recentAttemptsTotal, totalPages: recentTotalPages, hasNextPage: page < recentTotalPages, hasPreviousPage: page > 1 }, sortBy: recentSortBy, sortDir: recentSortDir },
       current: { mainTab: p.mainTab, rankingType: p.rankingType, outcome: p.outcome, frequency: p.frequency, search: search ?? '', sortBy: activeSortBy, sortDir: activeSortDir },
     }
+
+    await fastify.cache?.set(cacheKey, 300, JSON.stringify(response))
+    return response
   })
 }
 
