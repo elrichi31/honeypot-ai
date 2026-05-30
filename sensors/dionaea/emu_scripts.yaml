@@ -1,0 +1,6 @@
+- name: emu_scripts
+  config:
+    enabled_handlers:
+      - powershell
+      - vbscript
+      - raw_url

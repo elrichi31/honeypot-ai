@@ -255,6 +255,7 @@ services:
       - dionaea_var:/opt/dionaea/var/lib/dionaea
       - ./sensors/dionaea/dionaea.cfg:/opt/dionaea/etc/dionaea/dionaea.cfg:ro
       - ./sensors/dionaea/log_json.yaml:/opt/dionaea/etc/dionaea/ihandlers/log_json.yaml:ro
+      - ./sensors/dionaea/emu_scripts.yaml:/opt/dionaea/etc/dionaea/ihandlers/emu_scripts.yaml:ro
       - ./sensors/dionaea/services-enabled:/opt/dionaea/etc/dionaea/services-enabled:ro
       - ./sensors/dionaea/util.py:/opt/dionaea/lib/dionaea/python/dionaea/util.py:ro
     networks:
