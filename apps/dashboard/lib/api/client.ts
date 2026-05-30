@@ -2,8 +2,11 @@ export function getApiUrl() {
   return process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
 }
 
-export async function apiFetch<T>(url: string): Promise<T> {
-  const res = await fetch(url, { cache: "no-store" })
+export async function apiFetch<T>(url: string, revalidate?: number): Promise<T> {
+  const init: RequestInit = revalidate != null
+    ? { next: { revalidate } }
+    : { cache: "no-store" }
+  const res = await fetch(url, init)
   if (!res.ok) throw new Error(`API error ${res.status}: ${url}`)
   return res.json()
 }

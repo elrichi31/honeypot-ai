@@ -10,17 +10,17 @@ export async function fetchOverviewStats(params: {
 }
 
 export async function fetchGeoSummary(): Promise<{ srcIp: string; loginSuccess: boolean | null }[]> {
-  const res = await fetch(`${getApiUrl()}/stats/geo`, { cache: "no-store" })
+  const res = await fetch(`${getApiUrl()}/stats/geo`, { next: { revalidate: 600 } })
   if (!res.ok) return []
   return res.json()
 }
 
 export async function fetchDashboardInsights(): Promise<DashboardInsights> {
-  return apiFetch(`${getApiUrl()}/stats/dashboards`)
+  return apiFetch(`${getApiUrl()}/stats/dashboards`, 300)
 }
 
 export async function fetchHoneypotOverview(): Promise<HoneypotOverview> {
-  return apiFetch(`${getApiUrl()}/stats/honeypot-overview`)
+  return apiFetch(`${getApiUrl()}/stats/honeypot-overview`, 300)
 }
 
 export async function fetchCrossSensorTimeline(params: {
@@ -28,7 +28,7 @@ export async function fetchCrossSensorTimeline(params: {
   timezone?: string
 }): Promise<CrossSensorTimeline> {
   const sp = buildSearchParams({ ...params })
-  return apiFetch(`${getApiUrl()}/stats/cross-sensor-timeline?${sp}`)
+  return apiFetch(`${getApiUrl()}/stats/cross-sensor-timeline?${sp}`, 120)
 }
 
 export async function fetchSessionCommands(): Promise<Record<string, string[]>> {
