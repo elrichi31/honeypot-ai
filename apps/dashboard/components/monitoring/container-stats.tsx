@@ -45,10 +45,12 @@ function ContainerTooltip({ active, payload, label, suffix }: any) {
   return (
     <div className="rounded-lg border border-border bg-card px-3 py-2 text-[11px] shadow-lg max-w-[220px]">
       <p className="text-muted-foreground mb-1.5">{label}</p>
-      {payload.map((p: { color: string; name: string; value: number }) => (
-        <p key={p.name} style={{ color: p.color }} className="font-medium">
-          {shortName(p.name)}: {p.value?.toFixed(1)}{suffix}
-        </p>
+      {payload.map((p: { color: string; name: string; value: number | null }) => (
+        p.value != null ? (
+          <p key={p.name} style={{ color: p.color }} className="font-medium">
+            {shortName(p.name)}: {p.value.toFixed(1)}{suffix}
+          </p>
+        ) : null
       ))}
     </div>
   )
