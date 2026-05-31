@@ -15,4 +15,5 @@ COPY --chmod=644 userdb.txt   /cowrie/cowrie-git/etc/userdb.txt
 # Entrypoint: applies pending config from /signal volume, then starts cowrie and
 # watches for reload signals written by the beacon when config changes.
 COPY --chmod=755 entrypoint.sh /entrypoint.sh
-CMD ["/bin/bash", "/entrypoint.sh"]
+# Override the base image ENTRYPOINT so our wrapper runs instead of cowrie directly.
+ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
