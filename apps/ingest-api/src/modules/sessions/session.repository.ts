@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import type { PrismaClient } from '@prisma/client';
 import type { SessionUpsertData } from '../../types/index.js';
 import { detectBot } from '../../lib/bot-detector.js';
@@ -6,50 +7,60 @@ export class SessionRepository {
   constructor(private prisma: PrismaClient) {}
 
   async upsert(data: SessionUpsertData): Promise<{ id: string; created: boolean }> {
-    const existing = await this.prisma.session.findUnique({
-      where: { cowrieSessionId: data.cowrieSessionId },
-      select: { id: true },
-    });
-
-    if (existing) {
-      const updatePayload: Record<string, unknown> = {
-        ...(data.username && { username: data.username }),
-        ...(data.password && { password: data.password }),
-        ...(data.loginSuccess !== undefined && { loginSuccess: data.loginSuccess }),
-        ...(data.hassh && { hassh: data.hassh }),
-        ...(data.clientVersion && { clientVersion: data.clientVersion }),
-        ...(data.endedAt && { endedAt: data.endedAt }),
-      };
-
-      // When a session closes, compute actor classification using all available events.
-      if (data.endedAt) {
-        const classification = await this.classifySession(existing.id, data);
-        updatePayload.sessionType = classification;
-      }
-
-      await this.prisma.session.update({
-        where: { id: existing.id },
-        data: updatePayload,
+    // Session close: needs classifySession (extra queries) — handle separately
+    if (data.endedAt) {
+      const existing = await this.prisma.session.findUnique({
+        where: { cowrieSessionId: data.cowrieSessionId },
+        select: { id: true },
       });
-      return { id: existing.id, created: false };
+
+      if (existing) {
+        const classification = await this.classifySession(existing.id, data);
+        await this.prisma.session.update({
+          where: { id: existing.id },
+          data: {
+            ...(data.username      && { username: data.username }),
+            ...(data.password      && { password: data.password }),
+            ...(data.loginSuccess !== undefined && { loginSuccess: data.loginSuccess }),
+            ...(data.hassh         && { hassh: data.hassh }),
+            ...(data.clientVersion && { clientVersion: data.clientVersion }),
+            endedAt: data.endedAt,
+            sessionType: classification,
+          },
+        });
+        return { id: existing.id, created: false };
+      }
     }
 
-    const session = await this.prisma.session.create({
-      data: {
-        cowrieSessionId: data.cowrieSessionId,
-        srcIp: data.srcIp,
-        protocol: data.protocol,
-        sensorId: data.sensorId ?? null,
-        startedAt: data.startedAt,
-        username: data.username,
-        password: data.password,
-        loginSuccess: data.loginSuccess,
-        hassh: data.hassh,
-        clientVersion: data.clientVersion,
+    // Common path (no endedAt): single upsert instead of findUnique + create/update
+    const session = await this.prisma.session.upsert({
+      where: { cowrieSessionId: data.cowrieSessionId },
+      create: {
+        id:               randomUUID(),
+        cowrieSessionId:  data.cowrieSessionId,
+        srcIp:            data.srcIp,
+        protocol:         data.protocol,
+        sensorId:         data.sensorId ?? null,
+        startedAt:        data.startedAt,
+        username:         data.username,
+        password:         data.password,
+        loginSuccess:     data.loginSuccess,
+        hassh:            data.hassh,
+        clientVersion:    data.clientVersion,
       },
+      update: {
+        ...(data.username      && { username: data.username }),
+        ...(data.password      && { password: data.password }),
+        ...(data.loginSuccess !== undefined && { loginSuccess: data.loginSuccess }),
+        ...(data.hassh         && { hassh: data.hassh }),
+        ...(data.clientVersion && { clientVersion: data.clientVersion }),
+      },
+      select: { id: true, createdAt: true, updatedAt: true },
     });
 
-    return { id: session.id, created: true };
+    // createdAt === updatedAt (within 5ms) means the row was just inserted
+    const created = Math.abs(session.updatedAt.getTime() - session.createdAt.getTime()) < 5;
+    return { id: session.id, created };
   }
 
   async classifySession(
