@@ -8,23 +8,39 @@ import subprocess
 import sys
 import time
 
-SIGNAL_DIR = "/signal"
-RELOAD_FLAG = os.path.join(SIGNAL_DIR, "cowrie-reload")
-NEW_CFG     = os.path.join(SIGNAL_DIR, "cowrie.cfg")
-NEW_UDB     = os.path.join(SIGNAL_DIR, "userdb.txt")
-ACTIVE_CFG  = "/cowrie/cowrie-git/etc/cowrie.cfg"
-ACTIVE_UDB  = "/cowrie/cowrie-git/etc/userdb.txt"
-PYTHON      = "/cowrie/cowrie-env/bin/python3"
-COWRIE_DIR  = "/cowrie/cowrie-git"
+SIGNAL_DIR   = "/signal"
+DEFAULTS_DIR = "/cowrie-defaults"
+RELOAD_FLAG  = os.path.join(SIGNAL_DIR, "cowrie-reload")
+NEW_CFG      = os.path.join(SIGNAL_DIR, "cowrie.cfg")
+NEW_UDB      = os.path.join(SIGNAL_DIR, "userdb.txt")
+ETC_DIR      = "/cowrie/cowrie-git/etc"
+ACTIVE_CFG   = os.path.join(ETC_DIR, "cowrie.cfg")
+ACTIVE_UDB   = os.path.join(ETC_DIR, "userdb.txt")
+PYTHON       = "/cowrie/cowrie-env/bin/python3"
+COWRIE_DIR   = "/cowrie/cowrie-git"
 
 
 def apply_pending():
     os.makedirs(SIGNAL_DIR, exist_ok=True)
+    os.makedirs(ETC_DIR, exist_ok=True)
+
+    # Always copy baked-in defaults first.  The base image declares a VOLUME on
+    # the etc directory so COPY in the Dockerfile is silently discarded; we
+    # copy at runtime instead so the files land AFTER the volume is mounted.
+    for name in ("cowrie.cfg", "userdb.txt"):
+        src = os.path.join(DEFAULTS_DIR, name)
+        dst = os.path.join(ETC_DIR, name)
+        if os.path.exists(src):
+            shutil.copy2(src, dst)
+            print(f"[entrypoint] Installed default {name}", flush=True)
+
+    # Apply any pending dashboard config (overrides defaults).
     for src, dst in [(NEW_CFG, ACTIVE_CFG), (NEW_UDB, ACTIVE_UDB)]:
         if os.path.exists(src):
             shutil.copy2(src, dst)
             os.remove(src)
-            print(f"[entrypoint] Applied {os.path.basename(src)}", flush=True)
+            print(f"[entrypoint] Applied signal {os.path.basename(src)}", flush=True)
+
     try:
         os.remove(RELOAD_FLAG)
     except FileNotFoundError:
