@@ -9,7 +9,7 @@ import { withCache } from '../../lib/cache-helper.js'
 import { toNumber, toOffsetISOString } from './utils.js'
 
 const CACHE_KEY = 'stats:dashboards'
-const CACHE_TTL = 300
+const CACHE_TTL = 1800
 
 export async function dashboardRoute(fastify: FastifyInstance) {
   fastify.get('/stats/dashboards', () =>
@@ -79,10 +79,11 @@ function queryFunnel(fastify: FastifyInstance) {
 }
 
 function queryCountrySuccessCandidates(fastify: FastifyInstance) {
+  const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
   return fastify.prisma.$queryRaw<CountrySuccessCandidateRow[]>(Prisma.sql`
     SELECT src_ip AS "srcIp", COUNT(*)::int AS sessions,
            COUNT(*) FILTER (WHERE login_success IS TRUE)::int AS successes
-    FROM sessions GROUP BY src_ip
+    FROM sessions WHERE started_at >= ${cutoff} GROUP BY src_ip
   `)
 }
 
@@ -103,6 +104,7 @@ function queryCredentialCampaigns(fastify: FastifyInstance) {
 }
 
 function queryRecurringIps(fastify: FastifyInstance) {
+  const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
   return fastify.prisma.$queryRaw<RecurringIpRow[]>(Prisma.sql`
     WITH per_ip AS (
       SELECT src_ip, COUNT(*)::int AS total_sessions,
@@ -112,7 +114,7 @@ function queryRecurringIps(fastify: FastifyInstance) {
              MIN(started_at) AS first_seen, MAX(started_at) AS last_seen,
              MIN(started_at) FILTER (WHERE login_success IS FALSE) AS first_failed_at,
              (ARRAY_AGG(client_version ORDER BY started_at ASC))[1] AS client_version
-      FROM sessions GROUP BY src_ip
+      FROM sessions WHERE started_at >= ${cutoff} GROUP BY src_ip
       HAVING COUNT(*) >= 2 AND COUNT(*) FILTER (WHERE login_success IS FALSE) >= 1
     ),
     next_attempt AS (
@@ -133,8 +135,9 @@ function queryRecurringIps(fastify: FastifyInstance) {
 }
 
 function queryCommandPatterns(fastify: FastifyInstance) {
+  const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
   return fastify.prisma.$queryRaw<CommandPatternRow[]>(Prisma.sql`
-    WITH successful_sessions AS (SELECT id, src_ip FROM sessions WHERE login_success IS TRUE),
+    WITH successful_sessions AS (SELECT id, src_ip FROM sessions WHERE login_success IS TRUE AND started_at >= ${cutoff}),
     ranked_commands AS (
       SELECT s.id AS session_id, s.src_ip, e.command, ROW_NUMBER() OVER (PARTITION BY s.id ORDER BY e.event_ts ASC) AS rn
       FROM successful_sessions s INNER JOIN events e ON e.session_id = s.id
@@ -152,10 +155,11 @@ function queryCommandPatterns(fastify: FastifyInstance) {
 }
 
 function queryDepthBuckets(fastify: FastifyInstance) {
+  const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
   return fastify.prisma.$queryRaw<DepthBucketRow[]>(Prisma.sql`
     WITH successful_command_counts AS (
       SELECT s.id, COUNT(*) FILTER (WHERE e.event_type = 'command.input')::int AS command_count
-      FROM sessions s LEFT JOIN events e ON e.session_id = s.id WHERE s.login_success IS TRUE GROUP BY s.id
+      FROM sessions s LEFT JOIN events e ON e.session_id = s.id WHERE s.login_success IS TRUE AND s.started_at >= ${cutoff} GROUP BY s.id
     )
     SELECT CASE WHEN command_count = 0 THEN '0' WHEN command_count BETWEEN 1 AND 3 THEN '1-3'
                 WHEN command_count BETWEEN 4 AND 10 THEN '4-10' WHEN command_count BETWEEN 11 AND 20 THEN '11-20'
@@ -166,10 +170,11 @@ function queryDepthBuckets(fastify: FastifyInstance) {
 }
 
 function queryDepthStats(fastify: FastifyInstance) {
+  const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
   return fastify.prisma.$queryRaw<DepthStatsRow[]>(Prisma.sql`
     WITH successful_command_counts AS (
       SELECT s.id, COUNT(*) FILTER (WHERE e.event_type = 'command.input')::int AS command_count
-      FROM sessions s LEFT JOIN events e ON e.session_id = s.id WHERE s.login_success IS TRUE GROUP BY s.id
+      FROM sessions s LEFT JOIN events e ON e.session_id = s.id WHERE s.login_success IS TRUE AND s.started_at >= ${cutoff} GROUP BY s.id
     )
     SELECT ROUND(AVG(command_count)::numeric, 2)::float AS "averageCommands",
            MAX(command_count)::int AS "maxCommands",

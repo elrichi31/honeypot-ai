@@ -27,6 +27,7 @@ model Session {
   events Event[]
 
   @@index([srcIp])
+  @@index([srcIp, startedAt(sort: Desc)])
   @@index([sensorId])
   @@index([startedAt(sort: Desc)])
   @@index([loginSuccess, startedAt(sort: Desc)])

@@ -7,13 +7,14 @@ interface WebOverviewRow { hits: bigint; uniqueIps: bigint; lastSeen: Date | nul
 interface WebTopAttackRow { attackType: string }
 interface ProtocolOverviewRow { protocol: string; count: bigint; uniqueIps: bigint; authAttempts: bigint; lastSeen: Date | null }
 
-const OVERVIEW_TTL = 300
-const GEO_TTL     = 600
-const TIMELINE_TTL = 120
+const OVERVIEW_TTL = 1800
+const GEO_TTL     = 1800
+const TIMELINE_TTL = 600
 
 export async function miscRoutes(fastify: FastifyInstance) {
   fastify.get('/stats/honeypot-overview', () =>
     withCache(fastify.cache, 'stats:honeypot-overview', OVERVIEW_TTL, async () => {
+      const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
       const [sshRows, webRows, webTopAttackRows, protocolRows] = await Promise.all([
         fastify.prisma.$queryRaw<SshOverviewRow[]>(Prisma.sql`
           SELECT COUNT(*)::bigint AS sessions,
@@ -21,16 +22,19 @@ export async function miscRoutes(fastify: FastifyInstance) {
                  COUNT(*) FILTER (WHERE login_success IS TRUE)::bigint AS "successfulLogins",
                  MAX(started_at) AS "lastSeen"
           FROM sessions
+          WHERE started_at >= ${cutoff}
         `),
         fastify.prisma.$queryRaw<WebOverviewRow[]>(Prisma.sql`
           SELECT COUNT(*)::bigint AS hits,
                  COUNT(DISTINCT src_ip)::bigint AS "uniqueIps",
                  MAX(timestamp) AS "lastSeen"
           FROM web_hits
+          WHERE timestamp >= ${cutoff}
         `),
         fastify.prisma.$queryRaw<WebTopAttackRow[]>(Prisma.sql`
           SELECT attack_type AS "attackType"
           FROM web_hits
+          WHERE timestamp >= ${cutoff}
           GROUP BY attack_type
           ORDER BY COUNT(*) DESC
           LIMIT 1
@@ -42,6 +46,7 @@ export async function miscRoutes(fastify: FastifyInstance) {
                  COUNT(*) FILTER (WHERE event_type = 'auth')::bigint AS "authAttempts",
                  MAX(timestamp) AS "lastSeen"
           FROM protocol_hits
+          WHERE timestamp >= ${cutoff}
           GROUP BY protocol
           ORDER BY COUNT(*) DESC
         `),
@@ -181,7 +186,7 @@ export async function miscRoutes(fastify: FastifyInstance) {
     const days = Math.min(Math.max(parseInt(query.days || '90', 10), 1), 365)
     const cacheKey = `stats:heatmap:${days}:${timezone.replace(/\//g, '_')}`
 
-    return withCache(fastify.cache, cacheKey, 120, async () => {
+    return withCache(fastify.cache, cacheKey, 1200, async () => {
       interface HeatmapRow { dow: number; hour: number; count: bigint }
       const rows = await fastify.prisma.$queryRaw<HeatmapRow[]>(Prisma.sql`
         SELECT EXTRACT(DOW  FROM started_at AT TIME ZONE ${timezone})::int AS dow,

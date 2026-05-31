@@ -127,7 +127,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
     const q = insightsQuerySchema.parse(request.query)
 
     const cacheKey = `protocol-insights:${q.protocol}`
-    return reply.send(await withCache(fastify.cache, cacheKey, 300, async () => {
+    return reply.send(await withCache(fastify.cache, cacheKey, 1800, async () => {
     const [totals, topIps, topPorts, topUsernames, topPasswords, topCommands, topServices, topDatabases] = await Promise.all([
       fastify.prisma.$queryRaw<Array<{
         total: number; unique_ips: number; auth_attempts: number; command_events: number; last_seen: Date | null;
@@ -211,7 +211,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
   })
 
   fastify.get('/protocol-hits/stats', (_request, reply) =>
-    withCache(fastify.cache, 'protocol-hits:stats', 300, async () => {
+    withCache(fastify.cache, 'protocol-hits:stats', 1800, async () => {
       const rows = await fastify.prisma.$queryRaw<Array<{ protocol: string; count: bigint; last_seen: Date; auth_attempts: bigint }>>`
         SELECT protocol, COUNT(*) AS count, MAX(timestamp) AS last_seen,
                COUNT(*) FILTER (WHERE event_type = 'auth') AS auth_attempts
@@ -224,7 +224,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
   )
 
   fastify.get('/protocol-hits/ports/stats', (_request, reply) =>
-    withCache(fastify.cache, 'protocol-hits:ports-stats', 300, async () => {
+    withCache(fastify.cache, 'protocol-hits:ports-stats', 1800, async () => {
       const rows = await fastify.prisma.$queryRaw<Array<{ protocol: string; dst_port: number; count: bigint; last_seen: Date; auth_attempts: bigint }>>`
         SELECT protocol, dst_port, COUNT(*) AS count, MAX(timestamp) AS last_seen,
                COUNT(*) FILTER (WHERE event_type = 'auth') AS auth_attempts

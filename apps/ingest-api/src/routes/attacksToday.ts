@@ -9,7 +9,7 @@ type SensorRow = { ip: string; protocol: string }
 
 export async function attacksTodayRoutes(fastify: FastifyInstance) {
   fastify.get('/attacks/today', async (_request, reply) => {
-    const result = await withCache(fastify.cache, 'attacks:today', 300, async () => {
+    const result = await withCache(fastify.cache, 'attacks:today', 600, async () => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
     const [sshRows, webRows, protocolRows, sensors] = await Promise.all([
