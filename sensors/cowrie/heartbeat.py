@@ -86,7 +86,7 @@ def _generate_cowrie_cfg(config: dict) -> str:
 
     return f"""[honeypot]
 hostname = {h}
-auth_class = UserDBWithLengthPolicy
+auth_class = UserDB
 log_path = var/log/cowrie
 download_path = var/lib/cowrie/downloads
 share_path = share/cowrie
