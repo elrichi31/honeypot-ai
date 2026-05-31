@@ -80,25 +80,25 @@ export interface Client {
 }
 
 export async function fetchProtocolStats(): Promise<ProtocolStat[]> {
-  return apiFetch<ProtocolStat[]>(`${getApiUrl()}/protocol-hits/stats`)
+  return apiFetch<ProtocolStat[]>(`${getApiUrl()}/protocol-hits/stats`, 300)
 }
 
 export async function fetchTargetPortStats(): Promise<TargetPortStat[]> {
-  return apiFetch<TargetPortStat[]>(`${getApiUrl()}/protocol-hits/ports/stats`)
+  return apiFetch<TargetPortStat[]>(`${getApiUrl()}/protocol-hits/ports/stats`, 300)
 }
 
 export async function fetchProtocolInsights(protocol: string): Promise<ProtocolInsights> {
   const url = new URL(`${getApiUrl()}/protocol-hits/insights`)
   url.searchParams.set('protocol', protocol)
-  return apiFetch<ProtocolInsights>(url.toString())
+  return apiFetch<ProtocolInsights>(url.toString(), 300)
 }
 
 export async function fetchSensors(): Promise<Sensor[]> {
-  return apiFetch<Sensor[]>(`${getApiUrl()}/sensors`)
+  return apiFetch<Sensor[]>(`${getApiUrl()}/sensors`, 30)
 }
 
 export async function fetchClients(): Promise<Client[]> {
-  return apiFetch<Client[]>(`${getApiUrl()}/clients`)
+  return apiFetch<Client[]>(`${getApiUrl()}/clients`, 60)
 }
 
 export async function fetchProtocolHits(
@@ -108,5 +108,5 @@ export async function fetchProtocolHits(
   if (params.page) url.searchParams.set('page', String(params.page))
   if (params.limit) url.searchParams.set('limit', String(params.limit))
   if (params.protocol) url.searchParams.set('protocol', params.protocol)
-  return apiFetch<ProtocolHitsResponse>(url.toString())
+  return apiFetch<ProtocolHitsResponse>(url.toString(), 30)
 }

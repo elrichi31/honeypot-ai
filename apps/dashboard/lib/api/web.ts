@@ -8,13 +8,13 @@ export async function fetchWebHits(params?: {
     limit: params?.limit, offset: params?.offset,
     attackType: params?.attackType, srcIp: params?.srcIp,
   })
-  return apiFetch(`${getApiUrl()}/web-hits?${sp}`)
+  return apiFetch(`${getApiUrl()}/web-hits?${sp}`, 30)
 }
 
 export async function fetchWebTimeline(): Promise<{
   days: ({ day: string } & Record<string, number>)[]; attackTypes: string[]
 }> {
-  const res = await fetch(`${getApiUrl()}/web-hits/timeline`, { cache: "no-store" })
+  const res = await fetch(`${getApiUrl()}/web-hits/timeline`, { next: { revalidate: 300 } })
   if (!res.ok) return { days: [], attackTypes: [] }
   return res.json()
 }
@@ -22,7 +22,7 @@ export async function fetchWebTimeline(): Promise<{
 export async function fetchWebPaths(): Promise<{
   paths: { path: string; total: number; byType: Record<string, number> }[]
 }> {
-  const res = await fetch(`${getApiUrl()}/web-hits/paths`, { cache: "no-store" })
+  const res = await fetch(`${getApiUrl()}/web-hits/paths`, { next: { revalidate: 300 } })
   if (!res.ok) return { paths: [] }
   return res.json()
 }
@@ -38,7 +38,7 @@ export async function fetchWebHitsByIpPage(params?: {
   })
   if (params?.sortBy) sp.set('sortBy', params.sortBy)
   if (params?.sortDir) sp.set('sortDir', params.sortDir)
-  return apiFetch(`${getApiUrl()}/web-hits/by-ip?${sp}`)
+  return apiFetch(`${getApiUrl()}/web-hits/by-ip?${sp}`, 30)
 }
 
 export async function fetchWebHitsByIp(params?: Parameters<typeof fetchWebHitsByIpPage>[0]): Promise<WebHitByIp[]> {
@@ -50,5 +50,5 @@ export async function fetchWebHitsStats(): Promise<{
   byAttackType: { attackType: string; count: number }[]
   topIps: { srcIp: string; count: number }[]
 }> {
-  return apiFetch(`${getApiUrl()}/web-hits/stats`)
+  return apiFetch(`${getApiUrl()}/web-hits/stats`, 60)
 }

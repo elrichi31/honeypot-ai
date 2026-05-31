@@ -148,34 +148,36 @@ async function handleListHits(fastify: FastifyInstance, request: FastifyRequest,
 }
 
 async function handleTimeline(fastify: FastifyInstance, _request: FastifyRequest, reply: FastifyReply) {
-  const rows = await fastify.prisma.$queryRaw<Array<{ isoDay: string; attack_type: string; count: bigint }>>`
-    SELECT
-      TO_CHAR(DATE_TRUNC('day', timestamp AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS "isoDay",
-      attack_type, COUNT(*) AS count
-    FROM web_hits
-    WHERE timestamp >= NOW() - INTERVAL '30 days'
-    GROUP BY 1, 2 ORDER BY 1, 2
-  `;
+  return reply.send(await withCache(fastify.cache, 'web-hits:timeline', 300, async () => {
+    const rows = await fastify.prisma.$queryRaw<Array<{ isoDay: string; attack_type: string; count: bigint }>>`
+      SELECT
+        TO_CHAR(DATE_TRUNC('day', timestamp AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS "isoDay",
+        attack_type, COUNT(*) AS count
+      FROM web_hits
+      WHERE timestamp >= NOW() - INTERVAL '30 days'
+      GROUP BY 1, 2 ORDER BY 1, 2
+    `;
 
-  const dayMap = new Map<string, Record<string, number>>();
-  for (const row of rows) {
-    if (!dayMap.has(row.isoDay)) dayMap.set(row.isoDay, {});
-    dayMap.get(row.isoDay)![row.attack_type] = Number(row.count);
-  }
+    const dayMap = new Map<string, Record<string, number>>();
+    for (const row of rows) {
+      if (!dayMap.has(row.isoDay)) dayMap.set(row.isoDay, {});
+      dayMap.get(row.isoDay)![row.attack_type] = Number(row.count);
+    }
 
-  type WebTimelineDay = { day: string } & Record<string, string | number>;
-  const attackTypes = [...new Set(rows.map((r) => r.attack_type))];
-  const days: WebTimelineDay[] = [];
-  const now = new Date();
-  for (let i = 30; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    const isoDay = d.toISOString().slice(0, 10);
-    const label = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
-    days.push({ day: label, ...(dayMap.get(isoDay) ?? {}) });
-  }
+    type WebTimelineDay = { day: string } & Record<string, string | number>;
+    const attackTypes = [...new Set(rows.map((r) => r.attack_type))];
+    const days: WebTimelineDay[] = [];
+    const now = new Date();
+    for (let i = 30; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const isoDay = d.toISOString().slice(0, 10);
+      const label = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+      days.push({ day: label, ...(dayMap.get(isoDay) ?? {}) });
+    }
 
-  return reply.send({ days, attackTypes });
+    return { days, attackTypes };
+  }));
 }
 
 async function handlePaths(fastify: FastifyInstance, _request: FastifyRequest, reply: FastifyReply) {
@@ -223,19 +225,23 @@ async function handleByIp(fastify: FastifyInstance, request: FastifyRequest, rep
   }
 
   const { page, pageSize, offset } = getPagination(parsed.data);
-  const whereSql = buildByIpWhereSql(parsed.data.q);
-  const orderCol = buildSortSql(parsed.data.sortBy);
-  const orderDir = parsed.data.sortDir === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`;
+  const cacheKey = `web-hits:by-ip:${page}:${pageSize}:${parsed.data.q ?? ''}:${parsed.data.sortBy}:${parsed.data.sortDir}`
 
-  const [total, rows] = await Promise.all([
-    countWebHitsByIp(fastify.prisma, whereSql),
-    queryWebHitsByIp(fastify.prisma, whereSql, orderCol, orderDir, pageSize, offset),
-  ]);
+  return reply.send(await withCache(fastify.cache, cacheKey, 60, async () => {
+    const whereSql = buildByIpWhereSql(parsed.data.q);
+    const orderCol = buildSortSql(parsed.data.sortBy);
+    const orderDir = parsed.data.sortDir === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`;
 
-  return reply.send({
-    items: rows.map(mapByIpRow),
-    pagination: buildPaginationResponse(total, page, pageSize),
-  });
+    const [total, rows] = await Promise.all([
+      countWebHitsByIp(fastify.prisma, whereSql),
+      queryWebHitsByIp(fastify.prisma, whereSql, orderCol, orderDir, pageSize, offset),
+    ]);
+
+    return {
+      items: rows.map(mapByIpRow),
+      pagination: buildPaginationResponse(total, page, pageSize),
+    };
+  }));
 }
 
 async function handleStats(fastify: FastifyInstance, _request: FastifyRequest, reply: FastifyReply) {

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { ensureIngestToken } from '../lib/ingest-auth.js'
+import { withCache } from '../lib/cache-helper.js'
 
 const clientSchema = z.object({
   name: z.string().trim().min(1),
@@ -35,17 +36,20 @@ function deriveClientCode(value: string): string {
 
 export async function clientRoutes(fastify: FastifyInstance) {
   fastify.get('/clients', async (_request, reply) => {
-    const clients = await fastify.prisma.$queryRaw<Array<{
-      id: string; name: string; slug: string; code: string; description: string; forward_url: string; created_at: Date
-    }>>`
-      SELECT id, name, slug, code, description, forward_url, created_at
-      FROM clients ORDER BY name ASC, created_at ASC
-    `
-    return reply.send(clients.map((c) => ({
-      id: c.id, name: c.name, slug: c.slug,
-      code: c.code || deriveClientCode(c.slug || c.name),
-      description: c.description, forwardUrl: c.forward_url, createdAt: c.created_at,
-    })))
+    const clients = await withCache(fastify.cache, 'clients:list', 120, async () => {
+      const rows = await fastify.prisma.$queryRaw<Array<{
+        id: string; name: string; slug: string; code: string; description: string; forward_url: string; created_at: Date
+      }>>`
+        SELECT id, name, slug, code, description, forward_url, created_at
+        FROM clients ORDER BY name ASC, created_at ASC
+      `
+      return rows.map((c) => ({
+        id: c.id, name: c.name, slug: c.slug,
+        code: c.code || deriveClientCode(c.slug || c.name),
+        description: c.description, forwardUrl: c.forward_url, createdAt: c.created_at,
+      }))
+    })
+    return reply.send(clients)
   })
 
   fastify.post('/clients', async (request, reply) => {
