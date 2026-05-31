@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # Cowrie entrypoint: apply pending config from signal volume, then run cowrie
 # and watch for reload signals written by the beacon when config changes.
 set -e

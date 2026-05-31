@@ -16,4 +16,4 @@ COPY --chmod=644 userdb.txt   /cowrie/cowrie-git/etc/userdb.txt
 # watches for reload signals written by the beacon when config changes.
 COPY --chmod=755 entrypoint.sh /entrypoint.sh
 # Override the base image ENTRYPOINT so our wrapper runs instead of cowrie directly.
-ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
+ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
