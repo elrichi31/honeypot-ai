@@ -163,6 +163,8 @@ services:
       HOST: "0.0.0.0"
       DIONAEA_BINARIES_PATH: /dionaea/binaries
       SURICATA_OWN_IPS: ${SURICATA_OWN_IPS:-}
+    group_add:
+      - "112"
     volumes:
       - dashboard_data:/app/data
       - dionaea_var:/dionaea:ro
