@@ -11,8 +11,10 @@ RUN ["/cowrie/cowrie-env/bin/python3", "/cowrie/cowrie-git/patch_auth.py"]
 # Stage defaults outside the VOLUME path — entrypoint.py copies them at runtime.
 # COPY to /cowrie/cowrie-git/etc/ is silently discarded if the base image declares
 # a VOLUME there; /cowrie-defaults/ is safe because it is not a declared VOLUME.
-COPY --chmod=644 cowrie.cfg   /cowrie-defaults/cowrie.cfg
-COPY --chmod=644 userdb.txt   /cowrie-defaults/userdb.txt
+COPY cowrie.cfg   /cowrie-defaults/cowrie.cfg
+COPY userdb.txt   /cowrie-defaults/userdb.txt
+# Ensure the cowrie user (uid=1000) can read the directory and files.
+RUN chmod 755 /cowrie-defaults && chmod 644 /cowrie-defaults/cowrie.cfg /cowrie-defaults/userdb.txt
 
 # Entrypoint: applies pending config from /signal volume, then starts cowrie and
 # watches for reload signals written by the beacon when config changes.
