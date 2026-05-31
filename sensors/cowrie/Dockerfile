@@ -14,7 +14,7 @@ USER root
 COPY cowrie.cfg   /cowrie-defaults/cowrie.cfg
 COPY userdb.txt   /cowrie-defaults/userdb.txt
 RUN ["/cowrie/cowrie-env/bin/python3", "-c", "import os; os.chmod('/cowrie-defaults',0o755); os.chmod('/cowrie-defaults/cowrie.cfg',0o644); os.chmod('/cowrie-defaults/userdb.txt',0o644)"]
-USER cowrie
+# Stay as root so entrypoint.py can write to VOLUME-mounted directories at runtime.
 
 # Entrypoint: applies pending config from /signal volume, then starts cowrie and
 # watches for reload signals written by the beacon when config changes.
