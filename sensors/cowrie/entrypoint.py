@@ -34,12 +34,12 @@ def apply_pending():
 def main():
     apply_pending()
 
-    # cowrie uses twistd internally — same as the base image ENTRYPOINT:
-    # /cowrie/cowrie-env/bin/twistd --umask=0022 --pidfile= -n cowrie
-    TWISTD = "/cowrie/cowrie-env/bin/twistd"
-    print("[entrypoint] Starting cowrie via twistd", flush=True)
+    # cowrie 3.0 uses its own entry point, not twistd directly.
+    # `cowrie start -n` runs in foreground (non-daemon) mode.
+    COWRIE_BIN = "/cowrie/cowrie-env/bin/cowrie"
+    print("[entrypoint] Starting cowrie via 'cowrie start -n'", flush=True)
     proc = subprocess.Popen(
-        [TWISTD, "--umask=0022", "--pidfile=", "-n", "cowrie"],
+        [COWRIE_BIN, "start", "-n"],
         cwd=COWRIE_DIR,
     )
     print(f"[entrypoint] cowrie PID={proc.pid} — watching for reload signal", flush=True)
