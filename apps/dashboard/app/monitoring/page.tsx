@@ -1,21 +1,13 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import dynamic from "next/dynamic"
 import { Activity, RefreshCw } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { SystemCard } from "@/components/monitoring/system-card"
 import { RedisCard } from "@/components/monitoring/redis-card"
 import { ContainersCard } from "@/components/monitoring/containers-card"
-
-const ResourceTimeline = dynamic(
-  () => import("@/components/monitoring/resource-timeline").then(m => m.ResourceTimeline),
-  { ssr: false, loading: () => <div className="h-[240px] rounded-xl border border-border bg-card animate-pulse" /> }
-)
-const ContainerStats = dynamic(
-  () => import("@/components/monitoring/container-stats").then(m => m.ContainerStats),
-  { ssr: false, loading: () => <div className="h-[240px] rounded-xl border border-border bg-card animate-pulse" /> }
-)
+import { ResourceTimeline } from "@/components/monitoring/resource-timeline"
+import { ContainerStats } from "@/components/monitoring/container-stats"
 
 type SystemData = {
   system: {

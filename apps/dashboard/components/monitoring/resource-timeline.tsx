@@ -66,6 +66,7 @@ function RamTooltip({ active, payload, label }: any) {
 }
 
 export function ResourceTimeline() {
+  const [mounted, setMounted] = useState(false)
   const [range, setRange]   = useState<Range>("24h")
   const [data, setData]     = useState<Point[]>([])
   const [loading, setLoading] = useState(true)
@@ -95,9 +96,12 @@ export function ResourceTimeline() {
     }
   }, [])
 
-  useEffect(() => { load(range) }, [range, load])
+  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => { if (mounted) load(range) }, [range, load, mounted])
 
   const tickCount = range === "24h" ? 12 : range === "7d" ? 7 : 10
+
+  if (!mounted) return <div className="rounded-xl border border-border bg-card h-[320px] animate-pulse" />
 
   return (
     <div className="rounded-xl border border-border bg-card p-4 space-y-5">

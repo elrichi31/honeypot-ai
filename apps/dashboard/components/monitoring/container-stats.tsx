@@ -57,6 +57,7 @@ function ContainerTooltip({ active, payload, label, suffix }: any) {
 }
 
 export function ContainerStats() {
+  const [mounted, setMounted]     = useState(false)
   const [live, setLive]           = useState<LiveStat[]>([])
   const [history, setHistory]     = useState<HistoryResponse | null>(null)
   const [range, setRange]         = useState<Range>("24h")
@@ -86,13 +87,18 @@ export function ContainerStats() {
     }
   }, [])
 
+  useEffect(() => { setMounted(true) }, [])
+
   useEffect(() => {
+    if (!mounted) return
     loadLive()
     const id = setInterval(loadLive, 60_000)
     return () => clearInterval(id)
-  }, [loadLive])
+  }, [loadLive, mounted])
 
-  useEffect(() => { loadHistory(range) }, [range, loadHistory])
+  useEffect(() => { if (mounted) loadHistory(range) }, [range, loadHistory, mounted])
+
+  if (!mounted) return <div className="rounded-xl border border-border bg-card h-[420px] animate-pulse" />
 
   const containers = history?.containers ?? []
   const tickCount  = range === "24h" ? 12 : range === "7d" ? 7 : 10
