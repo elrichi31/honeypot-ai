@@ -124,6 +124,7 @@ services:
       -c checkpoint_completion_target=0.9
       -c wal_buffers=16MB
       -c max_connections=50
+      -c password_encryption=md5
     environment:
       POSTGRES_USER: honeypot
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
