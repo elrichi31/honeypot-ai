@@ -16,6 +16,11 @@ services:
   cowrie:
     <<: *service-defaults
     logging: *json-logging
+    # SETUID/SETGID are needed so entrypoint.py (root) can drop to the cowrie
+    # user before starting twistd — cowrie refuses to run as root.
+    cap_add:
+      - SETUID
+      - SETGID
     build:
       context: ./sensors/cowrie
     container_name: cowrie
