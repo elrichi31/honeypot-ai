@@ -15,7 +15,7 @@ import type { Sensor } from "@/lib/api"
 const CONTROL_RESET_DELAY = 3000
 const CONTROL_ERROR_DELAY = 4000
 const DOCKER_CONFIRM_DELAY = 2000
-const DOCKER_POLL_INTERVAL = 10000
+const DOCKER_POLL_INTERVAL = 30000
 
 function optimisticDockerStatus(action: ControlAction): string {
   if (action === "stop") return "exited"
@@ -49,21 +49,25 @@ export function SensorCard({
   const hasContainer = !!sensor.probeHost
   const isInternal = isPrivateIp(sensor.ip)
 
-  const fetchDockerStatus = useCallback(async () => {
+  const fetchDockerStatus = useCallback(async (signal?: AbortSignal) => {
     if (!hasContainer) return
     try {
-      const res = await fetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/control`, { cache: "no-store" })
+      const res = await fetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/control`, { cache: "no-store", signal })
       if (res.ok) {
         const data = await res.json()
         setDockerStatus(data.status ?? null)
       }
-    } catch { /* ignore */ }
+    } catch { /* ignore aborts and errors */ }
   }, [sensor.sensorId, hasContainer])
 
   useEffect(() => {
-    fetchDockerStatus()
-    const id = setInterval(fetchDockerStatus, DOCKER_POLL_INTERVAL)
-    return () => clearInterval(id)
+    const controller = new AbortController()
+    fetchDockerStatus(controller.signal)
+    const id = setInterval(() => {
+      const ctrl = new AbortController()
+      fetchDockerStatus(ctrl.signal)
+    }, DOCKER_POLL_INTERVAL)
+    return () => { controller.abort(); clearInterval(id) }
   }, [fetchDockerStatus])
 
   async function handleDelete() {

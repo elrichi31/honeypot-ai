@@ -10,7 +10,14 @@ const DOCKER_SOCKET = "/var/run/docker.sock"
 const internalApiUrl =
   process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
 
+// Cache container names for 60s to avoid hitting ingest-api on every poll
+const containerNameCache = new Map<string, { name: string | null; expiresAt: number }>()
+
 async function getContainerName(sensorId: string): Promise<string | null> {
+  const now = Date.now()
+  const cached = containerNameCache.get(sensorId)
+  if (cached && cached.expiresAt > now) return cached.name
+
   try {
     const res = await fetch(`${internalApiUrl}/sensors`, {
       headers: { "X-Ingest-Token": process.env.INGEST_SHARED_SECRET ?? "" },
@@ -19,7 +26,9 @@ async function getContainerName(sensorId: string): Promise<string | null> {
     if (!res.ok) return null
     const sensors = await res.json() as Array<{ sensorId: string; probeHost: string }>
     const sensor = sensors.find((s) => s.sensorId === sensorId)
-    return sensor?.probeHost || null
+    const name = sensor?.probeHost || null
+    containerNameCache.set(sensorId, { name, expiresAt: now + 60_000 })
+    return name
   } catch {
     return null
   }
