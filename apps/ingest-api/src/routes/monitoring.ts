@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs'
 import type { FastifyInstance } from 'fastify'
 import { sampleContainerStatsLive } from '../lib/docker-stats.js'
+import { withCache } from '../lib/cache-helper.js'
 
 function parseMeminfo() {
   try {
@@ -83,122 +84,127 @@ type Range = keyof typeof RANGE_CONFIG
 
 export async function monitoringRoutes(fastify: FastifyInstance) {
   fastify.get('/monitoring/system', async () => {
-    const [memory, loadAvg, uptime, redisRaw] = await Promise.all([
-      Promise.resolve(parseMeminfo()),
-      Promise.resolve(parseLoadAvg()),
-      Promise.resolve(parseUptime()),
-      fastify.cache?.info() ?? Promise.resolve(null),
-    ])
-
-    return {
-      system:  { uptime, loadAvg, memory },
-      redis:   redisRaw ? parseRedisInfo(redisRaw) : { connected: false },
-    }
+    return withCache(fastify.cache, 'monitoring:system', 30, async () => {
+      const [memory, loadAvg, uptime, redisRaw] = await Promise.all([
+        Promise.resolve(parseMeminfo()),
+        Promise.resolve(parseLoadAvg()),
+        Promise.resolve(parseUptime()),
+        fastify.cache?.info() ?? Promise.resolve(null),
+      ])
+      return {
+        system: { uptime, loadAvg, memory },
+        redis:  redisRaw ? parseRedisInfo(redisRaw) : { connected: false },
+      }
+    })
   })
 
   fastify.get('/monitoring/history', async (request) => {
     const { range = '24h' } = request.query as { range?: string }
     const cfg = RANGE_CONFIG[(range as Range)] ?? RANGE_CONFIG['24h']
-    const since = new Date(Date.now() - cfg.lookbackMs)
-    const intervalSec = cfg.intervalMinutes * 60
 
-    type BucketRow = {
-      bucket: Date
-      avg_cpu: number
-      avg_ram_pct: number
-      avg_ram_used_kb: number
-      avg_ram_total_kb: number
-    }
+    return withCache(fastify.cache, `monitoring:history:${range}`, 120, async () => {
+      const since = new Date(Date.now() - cfg.lookbackMs)
+      const intervalSec = cfg.intervalMinutes * 60
 
-    const rows = await fastify.prisma.$queryRaw<BucketRow[]>`
-      SELECT
-        date_bin(
-          (${intervalSec} || ' seconds')::interval,
-          sampled_at,
-          TIMESTAMP '2001-01-01'
-        ) AS bucket,
-        ROUND(AVG(cpu_load_1m)::numeric, 2)::float  AS avg_cpu,
-        ROUND(AVG(ram_pct)::numeric, 1)::float       AS avg_ram_pct,
-        ROUND(AVG(ram_used_kb)::numeric)::int        AS avg_ram_used_kb,
-        ROUND(AVG(ram_total_kb)::numeric)::int       AS avg_ram_total_kb
-      FROM monitoring_snapshots
-      WHERE sampled_at >= ${since}
-      GROUP BY bucket
-      ORDER BY bucket ASC
-    `
+      type BucketRow = {
+        bucket: Date
+        avg_cpu: number
+        avg_ram_pct: number
+        avg_ram_used_kb: number
+        avg_ram_total_kb: number
+      }
 
-    return rows.map(r => ({
-      ts:         r.bucket.toISOString(),
-      cpu:        r.avg_cpu,
-      ramPct:     r.avg_ram_pct,
-      ramUsedKb:  r.avg_ram_used_kb,
-      ramTotalKb: r.avg_ram_total_kb,
-    }))
+      const rows = await fastify.prisma.$queryRaw<BucketRow[]>`
+        SELECT
+          date_bin(
+            (${intervalSec} || ' seconds')::interval,
+            sampled_at,
+            TIMESTAMP '2001-01-01'
+          ) AS bucket,
+          ROUND(AVG(cpu_load_1m)::numeric, 2)::float  AS avg_cpu,
+          ROUND(AVG(ram_pct)::numeric, 1)::float       AS avg_ram_pct,
+          ROUND(AVG(ram_used_kb)::numeric)::int        AS avg_ram_used_kb,
+          ROUND(AVG(ram_total_kb)::numeric)::int       AS avg_ram_total_kb
+        FROM monitoring_snapshots
+        WHERE sampled_at >= ${since}
+        GROUP BY bucket
+        ORDER BY bucket ASC
+      `
+
+      return rows.map(r => ({
+        ts:         r.bucket.toISOString(),
+        cpu:        r.avg_cpu,
+        ramPct:     r.avg_ram_pct,
+        ramUsedKb:  r.avg_ram_used_kb,
+        ramTotalKb: r.avg_ram_total_kb,
+      }))
+    })
   })
 
-  // Current container CPU/RAM (live)
+  // Current container CPU/RAM (live) — cached 30s, avoids 20+ Docker calls + 500ms sleep per request
   fastify.get('/monitoring/containers/stats', async () => {
-    return sampleContainerStatsLive()
+    return withCache(fastify.cache, 'monitoring:containers:stats', 30, () => sampleContainerStatsLive())
   })
 
   // Historical container stats — top 6 containers by avg CPU in range
   fastify.get('/monitoring/containers/history', async (request) => {
     const { range = '24h' } = request.query as { range?: string }
     const cfg = RANGE_CONFIG[(range as Range)] ?? RANGE_CONFIG['24h']
-    const since = new Date(Date.now() - cfg.lookbackMs)
-    const intervalSec = cfg.intervalMinutes * 60
 
-    type TopRow    = { container: string }
-    type BucketRow = { container: string; bucket: Date; avg_cpu: number; avg_mem_mb: number }
+    return withCache(fastify.cache, `monitoring:containers:history:${range}`, 120, async () => {
+      const since = new Date(Date.now() - cfg.lookbackMs)
+      const intervalSec = cfg.intervalMinutes * 60
 
-    // Pick top 6 containers by avg CPU in the selected range
-    const tops = await fastify.prisma.$queryRaw<TopRow[]>`
-      SELECT container
-      FROM container_snapshots
-      WHERE sampled_at >= ${since}
-      GROUP BY container
-      ORDER BY AVG(cpu_pct) DESC
-      LIMIT 6
-    `
-    if (tops.length === 0) return []
+      type TopRow    = { container: string }
+      type BucketRow = { container: string; bucket: Date; avg_cpu: number; avg_mem_mb: number }
 
-    const names = tops.map(t => t.container)
+      const tops = await fastify.prisma.$queryRaw<TopRow[]>`
+        SELECT container
+        FROM container_snapshots
+        WHERE sampled_at >= ${since}
+        GROUP BY container
+        ORDER BY AVG(cpu_pct) DESC
+        LIMIT 6
+      `
+      if (tops.length === 0) return []
 
-    const rows = await fastify.prisma.$queryRaw<BucketRow[]>`
-      SELECT
-        container,
-        date_bin(
-          (${intervalSec} || ' seconds')::interval,
-          sampled_at,
-          TIMESTAMP '2001-01-01'
-        ) AS bucket,
-        ROUND(AVG(cpu_pct)::numeric, 2)::float  AS avg_cpu,
-        ROUND(AVG(mem_mb)::numeric,  1)::float  AS avg_mem_mb
-      FROM container_snapshots
-      WHERE sampled_at >= ${since}
-        AND container = ANY(${names}::text[])
-      GROUP BY container, bucket
-      ORDER BY bucket ASC
-    `
+      const names = tops.map(t => t.container)
 
-    // Pivot: { ts -> { container -> { cpu, mem } } }
-    const bucketMap = new Map<string, Record<string, { cpu: number; mem: number }>>()
-    for (const r of rows) {
-      const ts = r.bucket.toISOString()
-      if (!bucketMap.has(ts)) bucketMap.set(ts, {})
-      bucketMap.get(ts)![r.container] = { cpu: r.avg_cpu, mem: r.avg_mem_mb }
-    }
+      const rows = await fastify.prisma.$queryRaw<BucketRow[]>`
+        SELECT
+          container,
+          date_bin(
+            (${intervalSec} || ' seconds')::interval,
+            sampled_at,
+            TIMESTAMP '2001-01-01'
+          ) AS bucket,
+          ROUND(AVG(cpu_pct)::numeric, 2)::float  AS avg_cpu,
+          ROUND(AVG(mem_mb)::numeric,  1)::float  AS avg_mem_mb
+        FROM container_snapshots
+        WHERE sampled_at >= ${since}
+          AND container = ANY(${names}::text[])
+        GROUP BY container, bucket
+        ORDER BY bucket ASC
+      `
 
-    return {
-      containers: names,
-      points: Array.from(bucketMap.entries())
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([ts, values]) => ({ ts, ...Object.fromEntries(
-          names.flatMap(n => [
-            [`${n}__cpu`, values[n]?.cpu ?? null],
-            [`${n}__mem`, values[n]?.mem ?? null],
-          ])
-        )})),
-    }
+      const bucketMap = new Map<string, Record<string, { cpu: number; mem: number }>>()
+      for (const r of rows) {
+        const ts = r.bucket.toISOString()
+        if (!bucketMap.has(ts)) bucketMap.set(ts, {})
+        bucketMap.get(ts)![r.container] = { cpu: r.avg_cpu, mem: r.avg_mem_mb }
+      }
+
+      return {
+        containers: names,
+        points: Array.from(bucketMap.entries())
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([ts, values]) => ({ ts, ...Object.fromEntries(
+            names.flatMap(n => [
+              [`${n}__cpu`, values[n]?.cpu ?? null],
+              [`${n}__mem`, values[n]?.mem ?? null],
+            ])
+          )})),
+      }
+    })
   })
 }
