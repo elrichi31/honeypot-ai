@@ -14,6 +14,11 @@ const cowrieConfigSchema = z.object({
   kernel_build_string:    z.string().min(1).max(256).default('#101-Ubuntu SMP Tue Nov 14 13:30:08 UTC 2023'),
   hardware_platform:      z.string().min(1).max(32).default('x86_64'),
   ssh_version:            z.string().min(1).max(128).default('SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6'),
+  usernames:              z.array(z.string().min(1).max(64)).min(1).max(50)
+    .default(['root','ubuntu','admin','oracle','postgres','git','deploy','centos','ansible','ec2-user','pi','user']),
+  passwords:              z.array(z.string().min(8).max(256)).min(1).max(200)
+    .default(['HoneyTrap2026!','AtlasNode91','CedarRoot88','DeltaForge73','EmberStack64',
+              'FalconMesh52','GraniteKey47','HarborPulse39','IronVector28','JadeMatrix84']),
 })
 
 const DEFAULT_COWRIE_CONFIG = cowrieConfigSchema.parse({})

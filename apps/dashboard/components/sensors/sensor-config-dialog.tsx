@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Save, X, RotateCcw, Info } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { Save, X, RotateCcw, Info, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -22,6 +22,8 @@ export interface CowrieConfig {
   kernel_build_string: string
   hardware_platform: string
   ssh_version: string
+  usernames: string[]
+  passwords: string[]
 }
 
 const DEFAULTS: CowrieConfig = {
@@ -32,6 +34,8 @@ const DEFAULTS: CowrieConfig = {
   kernel_build_string: "#101-Ubuntu SMP Tue Nov 14 13:30:08 UTC 2023",
   hardware_platform: "x86_64",
   ssh_version: "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6",
+  usernames: ["root", "ubuntu", "admin", "oracle", "postgres", "git", "deploy", "centos", "ansible", "ec2-user", "pi", "user"],
+  passwords: ["HoneyTrap2026!", "AtlasNode91", "CedarRoot88", "DeltaForge73", "EmberStack64", "FalconMesh52", "GraniteKey47", "HarborPulse39", "IronVector28", "JadeMatrix84"],
 }
 
 function Field({
@@ -48,6 +52,72 @@ function Field({
       <Label className="text-xs font-medium text-foreground">{label}</Label>
       {children}
       {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+    </div>
+  )
+}
+
+function TagInput({
+  values,
+  onChange,
+  placeholder,
+  validate,
+}: {
+  values: string[]
+  onChange: (v: string[]) => void
+  placeholder?: string
+  validate?: (v: string) => string | null
+}) {
+  const [draft, setDraft] = useState("")
+  const [err, setErr] = useState("")
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  function add() {
+    const val = draft.trim()
+    if (!val) return
+    if (validate) {
+      const msg = validate(val)
+      if (msg) { setErr(msg); return }
+    }
+    if (!values.includes(val)) onChange([...values, val])
+    setDraft("")
+    setErr("")
+  }
+
+  function remove(idx: number) {
+    onChange(values.filter((_, i) => i !== idx))
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1.5 rounded-md border border-border bg-muted/20 p-2 min-h-[2.5rem]">
+        {values.map((v, i) => (
+          <span key={i} className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs font-mono text-foreground">
+            {v}
+            <button type="button" onClick={() => remove(i)} className="text-muted-foreground hover:text-red-400 ml-0.5">
+              <X className="h-2.5 w-2.5" />
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => { setDraft(e.target.value); setErr("") }}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add() } }}
+          placeholder={placeholder}
+          className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+        <button
+          type="button"
+          onClick={add}
+          className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/40"
+        >
+          <Plus className="h-3 w-3" />
+          Add
+        </button>
+      </div>
+      {err && <p className="text-[11px] text-red-400">{err}</p>}
     </div>
   )
 }
@@ -204,6 +274,32 @@ export function SensorConfigDialog({
                     />
                   </Field>
                 </div>
+              </div>
+
+              {/* Credentials */}
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Accepted Credentials</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Every username gets every password. Total entries: {cfg.usernames.length} × {cfg.passwords.length} = {cfg.usernames.length * cfg.passwords.length}
+                  </p>
+                </div>
+                <Field label="Usernames" hint="Press Enter or click Add to add each username">
+                  <TagInput
+                    values={cfg.usernames}
+                    onChange={(v) => set("usernames", v)}
+                    placeholder="e.g. root"
+                    validate={(v) => /\s/.test(v) ? "No spaces allowed" : null}
+                  />
+                </Field>
+                <Field label="Passwords" hint="Minimum 8 characters each (enforced by Cowrie)">
+                  <TagInput
+                    values={cfg.passwords}
+                    onChange={(v) => set("passwords", v)}
+                    placeholder="e.g. MyBaitPass99!"
+                    validate={(v) => v.length < 8 ? "Minimum 8 characters" : null}
+                  />
+                </Field>
               </div>
 
               {/* Restart notice */}

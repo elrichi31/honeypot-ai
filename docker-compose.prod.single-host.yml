@@ -25,7 +25,6 @@ services:
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var
       - cowrie_signal:/signal
-      - ./sensors/cowrie/userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
     networks:
       edge:
       honeypot_ingest:

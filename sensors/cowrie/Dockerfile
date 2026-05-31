@@ -8,8 +8,9 @@ COPY txtcmds/ /cowrie/cowrie-git/txtcmds/
 COPY --chmod=644 patch_auth.py /cowrie/cowrie-git/patch_auth.py
 RUN ["/cowrie/cowrie-env/bin/python3", "/cowrie/cowrie-git/patch_auth.py"]
 
-# Bake in the default config — can be overridden at runtime via the signal volume.
-COPY --chmod=644 cowrie.cfg /cowrie/cowrie-git/etc/cowrie.cfg
+# Bake in default config + credentials — both overrideable at runtime via the signal volume.
+COPY --chmod=644 cowrie.cfg   /cowrie/cowrie-git/etc/cowrie.cfg
+COPY --chmod=644 userdb.txt   /cowrie/cowrie-git/etc/userdb.txt
 
 # Entrypoint: applies pending config from /signal volume, then starts cowrie and
 # watches for reload signals written by the beacon when config changes.
