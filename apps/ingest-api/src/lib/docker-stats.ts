@@ -62,7 +62,7 @@ export async function sampleContainerStats(): Promise<ContainerStat[]> {
     const results = await Promise.allSettled(
       running.map(async (c) => {
         const name = c.Names[0]?.replace(/^\//, '') ?? c.Id.slice(0, 12)
-        const body = await dockerGet(`/containers/${c.Id}/stats?stream=false&one-shot=true`)
+        const body = await dockerGet(`/containers/${c.Id}/stats?stream=false`)
         const stats: DockerStats = JSON.parse(body)
         return {
           container: name,
