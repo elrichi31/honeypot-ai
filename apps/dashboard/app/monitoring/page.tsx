@@ -69,7 +69,9 @@ export default function MonitoringPage() {
 
   useEffect(() => {
     refresh()
-    const id = setInterval(refresh, 30_000)
+    const id = setInterval(() => {
+      if (!document.hidden) refresh()
+    }, 60_000)
     return () => clearInterval(id)
   }, [refresh])
 
@@ -97,7 +99,7 @@ export default function MonitoringPage() {
           </div>
         </div>
         <p className="text-sm text-muted-foreground">
-          Server resources, cache stats and container health. Refreshes every 30s.
+          Server resources, cache stats and container health. Refreshes every 60s.
         </p>
       </div>
 

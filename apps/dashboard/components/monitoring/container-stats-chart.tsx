@@ -80,7 +80,9 @@ export default function ContainerStatsChart() {
 
   useEffect(() => {
     loadLive()
-    const id = setInterval(loadLive, 60_000)
+    const id = setInterval(() => {
+      if (!document.hidden) loadLive()
+    }, 120_000)
     return () => clearInterval(id)
   }, [loadLive])
 
