@@ -6,6 +6,7 @@ import { PageShell } from "@/components/page-shell"
 import { SystemCard } from "@/components/monitoring/system-card"
 import { RedisCard } from "@/components/monitoring/redis-card"
 import { ContainersCard } from "@/components/monitoring/containers-card"
+import { ResourceTimeline } from "@/components/monitoring/resource-timeline"
 
 type SystemData = {
   system: {
@@ -112,6 +113,11 @@ export default function MonitoringPage() {
               <SystemCard system={systemData.system} />
             </div>
           )}
+
+          {/* Resource timeline */}
+          <div>
+            <ResourceTimeline />
+          </div>
 
           {/* Cache + Containers side by side on wide screens */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

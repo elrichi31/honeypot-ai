@@ -60,6 +60,26 @@ function parseRedisInfo(raw: string) {
   }
 }
 
+export function readSystemMetrics() {
+  const mem  = parseMeminfo()
+  const load = parseLoadAvg()
+  return {
+    cpuLoad1m:  load[0],
+    cpuLoad5m:  load[1],
+    ramUsedKb:  mem.usedKb,
+    ramTotalKb: mem.totalKb,
+    ramPct:     mem.usedPercent,
+  }
+}
+
+const RANGE_CONFIG = {
+  '24h': { intervalMinutes: 5,   lookbackMs: 24 * 60 * 60 * 1000 },
+  '7d':  { intervalMinutes: 60,  lookbackMs: 7  * 24 * 60 * 60 * 1000 },
+  '30d': { intervalMinutes: 240, lookbackMs: 30 * 24 * 60 * 60 * 1000 },
+} as const
+
+type Range = keyof typeof RANGE_CONFIG
+
 export async function monitoringRoutes(fastify: FastifyInstance) {
   fastify.get('/monitoring/system', async () => {
     const [memory, loadAvg, uptime, redisRaw] = await Promise.all([
@@ -73,5 +93,45 @@ export async function monitoringRoutes(fastify: FastifyInstance) {
       system:  { uptime, loadAvg, memory },
       redis:   redisRaw ? parseRedisInfo(redisRaw) : { connected: false },
     }
+  })
+
+  fastify.get('/monitoring/history', async (request) => {
+    const { range = '24h' } = request.query as { range?: string }
+    const cfg = RANGE_CONFIG[(range as Range)] ?? RANGE_CONFIG['24h']
+    const since = new Date(Date.now() - cfg.lookbackMs)
+    const intervalSec = cfg.intervalMinutes * 60
+
+    type BucketRow = {
+      bucket: Date
+      avg_cpu: number
+      avg_ram_pct: number
+      avg_ram_used_kb: number
+      avg_ram_total_kb: number
+    }
+
+    const rows = await fastify.prisma.$queryRaw<BucketRow[]>`
+      SELECT
+        date_bin(
+          (${intervalSec} || ' seconds')::interval,
+          sampled_at,
+          TIMESTAMP '2001-01-01'
+        ) AS bucket,
+        ROUND(AVG(cpu_load_1m)::numeric, 2)::float  AS avg_cpu,
+        ROUND(AVG(ram_pct)::numeric, 1)::float       AS avg_ram_pct,
+        ROUND(AVG(ram_used_kb)::numeric)::int        AS avg_ram_used_kb,
+        ROUND(AVG(ram_total_kb)::numeric)::int       AS avg_ram_total_kb
+      FROM monitoring_snapshots
+      WHERE sampled_at >= ${since}
+      GROUP BY bucket
+      ORDER BY bucket ASC
+    `
+
+    return rows.map(r => ({
+      ts:         r.bucket.toISOString(),
+      cpu:        r.avg_cpu,
+      ramPct:     r.avg_ram_pct,
+      ramUsedKb:  r.avg_ram_used_kb,
+      ramTotalKb: r.avg_ram_total_kb,
+    }))
   })
 }

@@ -195,6 +195,19 @@ model DefenseAllowlist {
   @@map("defense_allowlist")
 }
 
+model MonitoringSnapshot {
+  id            Int      @id @default(autoincrement())
+  cpuLoad1m     Float    @map("cpu_load_1m")
+  cpuLoad5m     Float    @map("cpu_load_5m")
+  ramUsedKb     Int      @map("ram_used_kb")
+  ramTotalKb    Int      @map("ram_total_kb")
+  ramPct        Float    @map("ram_pct")
+  sampledAt     DateTime @default(now()) @map("sampled_at")
+
+  @@index([sampledAt(sort: Desc)])
+  @@map("monitoring_snapshots")
+}
+
 model ThreatAlertCooldown {
   key       String   @id
   expiresAt DateTime @map("expires_at")
