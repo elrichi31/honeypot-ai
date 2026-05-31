@@ -6,6 +6,7 @@ import { eventBus } from '../lib/event-bus.js'
 import { lookupGeo } from '../lib/geo.js'
 import { scheduleThreatAlert } from '../lib/threat-alerts.js'
 import { forwardClientEventBySensorId } from '../lib/client-forward.js'
+import { enqueueProtocolHit } from '../lib/protocol-batch.js'
 
 const protocolEventSchema = z.object({
   eventId: z.string().uuid(),
@@ -43,57 +44,48 @@ export async function protocolRoutes(fastify: FastifyInstance) {
     const d = parsed.data
     const sensorId = d.sensorId ?? (typeof d.data?.sensor === 'string' ? d.data.sensor : null)
 
-    try {
-      const rows = await fastify.prisma.$queryRaw<Array<{ id: string }>>`
-        INSERT INTO protocol_hits (
-          event_id, sensor_id, protocol, src_ip, src_port, dst_port,
-          event_type, username, password, data, timestamp
-        ) VALUES (
-          ${d.eventId}, ${sensorId ?? null}, ${d.protocol}, ${d.srcIp},
-          ${d.srcPort ?? null}::int, ${d.dstPort},
-          ${d.eventType}, ${d.username ?? null}, ${d.password ?? null},
-          CAST(${JSON.stringify(d.data)} AS jsonb), ${new Date(d.timestamp)}
-        )
-        ON CONFLICT (event_id) DO NOTHING
-        RETURNING id
-      `
+    const id = enqueueProtocolHit({
+      eventId:   d.eventId,
+      sensorId:  sensorId ?? null,
+      protocol:  d.protocol,
+      srcIp:     d.srcIp,
+      srcPort:   d.srcPort ?? null,
+      dstPort:   d.dstPort,
+      eventType: d.eventType,
+      username:  d.username ?? null,
+      password:  d.password ?? null,
+      data:      d.data as Record<string, unknown>,
+      timestamp: new Date(d.timestamp),
+    })
 
-      if (rows[0]) {
-        const geo = lookupGeo(d.srcIp)
-        if (geo) {
-          eventBus.emit('attack', {
-            type: d.protocol,
-            ip: d.srcIp,
-            ...geo,
-            timestamp: d.timestamp,
-            dstPort: d.dstPort,
-          })
-        }
-        void forwardClientEventBySensorId(fastify.prisma, sensorId, {
-          kind: 'protocol.event',
-          event: {
-            eventId: d.eventId,
-            sensorId,
-            protocol: d.protocol,
-            srcIp: d.srcIp,
-            srcPort: d.srcPort ?? null,
-            dstPort: d.dstPort,
-            eventType: d.eventType,
-            username: d.username ?? null,
-            password: d.password ?? null,
-            data: d.data,
-            timestamp: d.timestamp,
-          },
-        })
-        scheduleThreatAlert(fastify.prisma, d.srcIp)
-        return reply.status(201).send({ id: rows[0].id })
-      }
-
-      return reply.status(200).send({ duplicate: true })
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      return reply.status(500).send({ error: msg })
+    const geo = lookupGeo(d.srcIp)
+    if (geo) {
+      eventBus.emit('attack', {
+        type: d.protocol,
+        ip: d.srcIp,
+        ...geo,
+        timestamp: d.timestamp,
+        dstPort: d.dstPort,
+      })
     }
+    void forwardClientEventBySensorId(fastify.prisma, sensorId, {
+      kind: 'protocol.event',
+      event: {
+        eventId: d.eventId,
+        sensorId,
+        protocol: d.protocol,
+        srcIp: d.srcIp,
+        srcPort: d.srcPort ?? null,
+        dstPort: d.dstPort,
+        eventType: d.eventType,
+        username: d.username ?? null,
+        password: d.password ?? null,
+        data: d.data,
+        timestamp: d.timestamp,
+      },
+    })
+    scheduleThreatAlert(fastify.prisma, d.srcIp)
+    return reply.status(201).send({ id })
   })
 
   fastify.get('/protocol-hits', async (request, reply) => {

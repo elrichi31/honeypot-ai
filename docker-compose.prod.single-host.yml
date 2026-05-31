@@ -16,8 +16,6 @@ services:
   cowrie:
     <<: *service-defaults
     logging: *json-logging
-    # SETUID/SETGID are needed so entrypoint.py (root) can drop to the cowrie
-    # user before starting twistd — cowrie refuses to run as root.
     cap_add:
       - SETUID
       - SETGID
@@ -36,6 +34,10 @@ services:
       deception_net:
         ipv4_address: 10.0.1.100
     pids_limit: 256
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
 
   cowrie-beacon:
     <<: *service-defaults
@@ -66,6 +68,10 @@ services:
     networks:
       - honeypot_ingest
     pids_limit: 16
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
 
   web-honeypot:
     <<: *service-defaults
@@ -98,6 +104,10 @@ services:
     tmpfs:
       - /tmp
     pids_limit: 128
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
 
   postgres:
     logging: *json-logging
@@ -113,6 +123,7 @@ services:
       -c random_page_cost=1.1
       -c checkpoint_completion_target=0.9
       -c wal_buffers=16MB
+      -c max_connections=50
     environment:
       POSTGRES_USER: honeypot
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -126,6 +137,35 @@ services:
       retries: 10
     networks:
       - db_private
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+
+  pgbouncer:
+    image: bitnami/pgbouncer:1
+    container_name: honeypot-pgbouncer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRESQL_HOST: postgres
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_USERNAME: honeypot
+      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRESQL_DATABASE: honeypot_prod
+      PGBOUNCER_DATABASE: honeypot_prod
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: 200
+      PGBOUNCER_DEFAULT_POOL_SIZE: 15
+      PGBOUNCER_IGNORE_STARTUP_PARAMETERS: extra_float_digits
+    networks:
+      - db_private
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
 
   redis:
     logging: *json-logging
@@ -141,6 +181,10 @@ services:
       start_period: 5s
     networks:
       - db_private
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
 
   ingest-api:
     <<: *service-defaults
@@ -152,10 +196,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      pgbouncer:
+        condition: service_started
       redis:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot_prod
+      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@pgbouncer:5432/honeypot_prod?pgbouncer=true
+      DIRECT_DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot_prod
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       REDIS_URL: redis://redis:6379
@@ -190,6 +237,10 @@ services:
     tmpfs:
       - /tmp
     pids_limit: 256
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
 
   suricata:
     logging: *json-logging
@@ -198,13 +249,12 @@ services:
     container_name: suricata
     restart: unless-stopped
     init: true
-    # Needs host network to capture all traffic before it enters Docker networks
     network_mode: host
     cap_add:
       - NET_ADMIN
       - NET_RAW
       - SYS_NICE
-      - SETPCAP   # capng_change_id needs this to drop privileges internally
+      - SETPCAP
       - SETUID
       - SETGID
     environment:
@@ -212,6 +262,10 @@ services:
     volumes:
       - suricata_logs:/tmp/suricata-logs
     pids_limit: 256
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
 
   vector:
     <<: *service-defaults
@@ -239,6 +293,10 @@ services:
     networks:
       - honeypot_ingest
     pids_limit: 128
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
 
   dionaea:
     <<: *service-defaults
@@ -272,6 +330,10 @@ services:
       - edge
       - honeypot_ingest
     pids_limit: 256
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
 
   dionaea-shipper:
     <<: *service-defaults
@@ -309,6 +371,10 @@ services:
     networks:
       - honeypot_ingest
     pids_limit: 64
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
 
   port-honeypot:
     <<: *service-defaults
@@ -342,6 +408,10 @@ services:
       - edge
       - honeypot_ingest
     pids_limit: 256
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
 
   dashboard:
     <<: *service-defaults
@@ -391,6 +461,10 @@ services:
     tmpfs:
       - /tmp
     pids_limit: 256
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
 
   maintenance:
     <<: *service-defaults
@@ -415,6 +489,10 @@ services:
       "
     networks: []
     pids_limit: 32
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
 
 volumes:
   cowrie_var:
