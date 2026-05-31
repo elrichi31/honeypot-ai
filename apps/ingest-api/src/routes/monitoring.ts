@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs'
 import type { FastifyInstance } from 'fastify'
-import { sampleContainerStats } from '../lib/docker-stats.js'
+import { sampleContainerStatsLive } from '../lib/docker-stats.js'
 
 function parseMeminfo() {
   try {
@@ -138,7 +138,7 @@ export async function monitoringRoutes(fastify: FastifyInstance) {
 
   // Current container CPU/RAM (live)
   fastify.get('/monitoring/containers/stats', async () => {
-    return sampleContainerStats()
+    return sampleContainerStatsLive()
   })
 
   // Historical container stats — top 6 containers by avg CPU in range

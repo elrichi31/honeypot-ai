@@ -25,11 +25,10 @@ interface DockerStats {
 interface CachedSnapshot {
   cpuUsage:    number
   sysCpuUsage: number
-  capturedAt:  number   // Date.now() ms
 }
 
-// Module-level cache persists across requests within the same process
-const prevCache = new Map<string, CachedSnapshot>()
+// Separate caches for cron vs live endpoint — prevents interference
+const cronCache = new Map<string, CachedSnapshot>()
 
 function dockerGet(path: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -47,34 +46,18 @@ function dockerGet(path: string): Promise<string> {
   })
 }
 
-function calcCpuPct(id: string, s: DockerStats): number {
-  const curCpu    = s.cpu_stats.cpu_usage.total_usage ?? 0
-  const curSys    = s.cpu_stats.system_cpu_usage ?? 0
-  const capturedAt = Date.now()
-  const cpus = s.cpu_stats.online_cpus
-    ?? s.cpu_stats.cpu_usage.percpu_usage?.length
-    ?? 1
-
-  const prev = prevCache.get(id)
-  prevCache.set(id, { cpuUsage: curCpu, sysCpuUsage: curSys, capturedAt })
-
-  if (!prev || curCpu === 0) return 0
-
-  const cpuDelta = curCpu - prev.cpuUsage
+function calcCpuPct(
+  current:  { cpu: number; sys: number },
+  previous: { cpu: number; sys: number },
+  cpus:     number,
+): number {
+  const cpuDelta = current.cpu - previous.cpu
   if (cpuDelta <= 0) return 0
 
-  const sysDelta = curSys - prev.sysCpuUsage
+  const sysDelta = current.sys - previous.sys
+  if (sysDelta <= 0) return 0
 
-  if (sysDelta > 0) {
-    // Standard Docker formula (cgroups v1)
-    return Math.min(100 * cpus, Math.round((cpuDelta / sysDelta) * cpus * 100 * 10) / 10)
-  }
-
-  // Fallback for cgroups v2 or when system_cpu_usage is unavailable:
-  // divide by elapsed nanoseconds across all CPUs
-  const elapsedNs = (capturedAt - prev.capturedAt) * 1_000_000  // ms → ns
-  if (elapsedNs <= 0) return 0
-  return Math.min(100 * cpus, Math.round((cpuDelta / (elapsedNs * cpus)) * 100 * 10) / 10)
+  return Math.min(100 * cpus, Math.round((cpuDelta / sysDelta) * cpus * 100 * 10) / 10)
 }
 
 function calcMemMb(s: DockerStats): number {
@@ -83,36 +66,101 @@ function calcMemMb(s: DockerStats): number {
   return Math.round(((usage - cache) / 1024 / 1024) * 10) / 10
 }
 
+function getCpus(s: DockerStats): number {
+  return s.cpu_stats.online_cpus
+    ?? s.cpu_stats.cpu_usage.percpu_usage?.length
+    ?? 1
+}
+
+async function getRunningContainers(): Promise<DockerContainer[]> {
+  const listBody = await dockerGet('/containers/json')
+  const containers: DockerContainer[] = JSON.parse(listBody)
+  return containers.filter(c => c.State === 'running')
+}
+
 export type ContainerStat = {
   container: string
   cpuPct:    number
   memMb:     number
 }
 
-export async function sampleContainerStats(): Promise<ContainerStat[]> {
+// Used by cron — fast (one-shot), cache-based delta across consecutive calls
+export async function sampleContainerStatsForCron(): Promise<ContainerStat[]> {
   if (!SOCKET_AVAILABLE) return []
-
   try {
-    const listBody = await dockerGet('/containers/json')
-    const containers: DockerContainer[] = JSON.parse(listBody)
-    const running = containers.filter(c => c.State === 'running')
-
+    const running = await getRunningContainers()
     const results = await Promise.allSettled(
       running.map(async (c) => {
-        const name = c.Names[0]?.replace(/^\//, '') ?? c.Id.slice(0, 12)
+        const name  = c.Names[0]?.replace(/^\//, '') ?? c.Id.slice(0, 12)
         const body  = await dockerGet(`/containers/${c.Id}/stats?stream=false&one-shot=true`)
         const stats: DockerStats = JSON.parse(body)
+        const cpus  = getCpus(stats)
+        const cur   = { cpu: stats.cpu_stats.cpu_usage.total_usage ?? 0, sys: stats.cpu_stats.system_cpu_usage ?? 0 }
+        const prev  = cronCache.get(c.Id)
+        cronCache.set(c.Id, cur)
         return {
           container: name,
-          cpuPct:    calcCpuPct(c.Id, stats),
+          cpuPct:    prev ? calcCpuPct(cur, prev, cpus) : 0,
           memMb:     calcMemMb(stats),
         }
       }),
     )
-
     return results
       .filter((r): r is PromiseFulfilledResult<ContainerStat> => r.status === 'fulfilled')
       .map(r => r.value)
+      .sort((a, b) => b.cpuPct - a.cpuPct)
+  } catch {
+    return []
+  }
+}
+
+// Used by live endpoint — takes two readings 500ms apart for accurate CPU%
+export async function sampleContainerStatsLive(): Promise<ContainerStat[]> {
+  if (!SOCKET_AVAILABLE) return []
+  try {
+    const running = await getRunningContainers()
+
+    // First snapshot
+    const snap1 = await Promise.allSettled(
+      running.map(async (c) => {
+        const body  = await dockerGet(`/containers/${c.Id}/stats?stream=false&one-shot=true`)
+        const stats: DockerStats = JSON.parse(body)
+        return { id: c.Id, name: c.Names[0]?.replace(/^\//, '') ?? c.Id.slice(0, 12), stats }
+      }),
+    )
+
+    await new Promise(r => setTimeout(r, 500))
+
+    // Second snapshot
+    const snap2 = await Promise.allSettled(
+      running.map(async (c) => {
+        const body  = await dockerGet(`/containers/${c.Id}/stats?stream=false&one-shot=true`)
+        const stats: DockerStats = JSON.parse(body)
+        return { id: c.Id, stats }
+      }),
+    )
+
+    const map1 = new Map(
+      snap1
+        .filter((r): r is PromiseFulfilledResult<{ id: string; name: string; stats: DockerStats }> => r.status === 'fulfilled')
+        .map(r => [r.value.id, r.value]),
+    )
+
+    return snap2
+      .filter((r): r is PromiseFulfilledResult<{ id: string; stats: DockerStats }> => r.status === 'fulfilled')
+      .map(r => {
+        const prev = map1.get(r.value.id)
+        if (!prev) return null
+        const cpus = getCpus(r.value.stats)
+        const cur  = { cpu: r.value.stats.cpu_stats.cpu_usage.total_usage ?? 0, sys: r.value.stats.cpu_stats.system_cpu_usage ?? 0 }
+        const pre  = { cpu: prev.stats.cpu_stats.cpu_usage.total_usage ?? 0, sys: prev.stats.cpu_stats.system_cpu_usage ?? 0 }
+        return {
+          container: prev.name,
+          cpuPct:    calcCpuPct(cur, pre, cpus),
+          memMb:     calcMemMb(r.value.stats),
+        }
+      })
+      .filter((r): r is ContainerStat => r !== null)
       .sort((a, b) => b.cpuPct - a.cpuPct)
   } catch {
     return []

@@ -4,7 +4,7 @@ import { checkSensorHealthAlerts } from './threat-alerts.js'
 import { sendPeriodicReport } from './weekly-report.js'
 import { getAlertConfig } from './runtime-config.js'
 import { readSystemMetrics } from '../routes/monitoring.js'
-import { sampleContainerStats } from './docker-stats.js'
+import { sampleContainerStatsForCron } from './docker-stats.js'
 
 const SENSOR_HEALTH_SCHEDULE = '* * * * *'
 
@@ -38,7 +38,7 @@ export function initCron(prisma: PrismaClient): void {
       console.error('[cron] monitoring snapshot error:', err)
     }
     try {
-      const stats = await sampleContainerStats()
+      const stats = await sampleContainerStatsForCron()
       if (stats.length > 0) {
         await prisma.containerSnapshot.createMany({ data: stats })
         await prisma.containerSnapshot.deleteMany({ where: { sampledAt: { lt: cutoff } } })
