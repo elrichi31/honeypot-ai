@@ -3,6 +3,7 @@ Cowrie entrypoint: applies pending config/userdb from the signal volume,
 starts cowrie, then watches for reload signals from the beacon.
 """
 import os
+import pwd
 import shutil
 import subprocess
 import sys
@@ -47,8 +48,22 @@ def apply_pending():
         pass
 
 
+def drop_to_cowrie():
+    """Drop from root to the cowrie user so cowrie won't refuse to start."""
+    try:
+        pw = pwd.getpwnam("cowrie")
+        os.setgid(pw.pw_gid)
+        os.setuid(pw.pw_uid)
+        print(f"[entrypoint] Dropped privileges to uid={pw.pw_uid}", flush=True)
+    except KeyError:
+        print("[entrypoint] cowrie user not found, staying as current user", flush=True)
+    except PermissionError:
+        print("[entrypoint] Already non-root, skipping privilege drop", flush=True)
+
+
 def main():
     apply_pending()
+    drop_to_cowrie()
 
     # Exact same invocation as the base image:
     #   ENTRYPOINT ["/cowrie/cowrie-env/bin/python3"]
