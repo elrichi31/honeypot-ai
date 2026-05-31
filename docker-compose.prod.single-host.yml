@@ -33,11 +33,11 @@ services:
       honeypot_ingest:
       deception_net:
         ipv4_address: 10.0.1.100
-    pids_limit: 256
     deploy:
       resources:
         limits:
           cpus: "0.5"
+          pids: 256
 
   cowrie-beacon:
     <<: *service-defaults
@@ -67,11 +67,11 @@ services:
     command: ["python3", "/heartbeat.py"]
     networks:
       - honeypot_ingest
-    pids_limit: 16
     deploy:
       resources:
         limits:
           cpus: "0.1"
+          pids: 16
 
   web-honeypot:
     <<: *service-defaults
@@ -103,11 +103,11 @@ services:
       - honeypot_ingest
     tmpfs:
       - /tmp
-    pids_limit: 128
     deploy:
       resources:
         limits:
           cpus: "0.3"
+          pids: 128
 
   postgres:
     logging: *json-logging
@@ -166,6 +166,7 @@ services:
       resources:
         limits:
           cpus: "0.2"
+          pids: 64
 
   redis:
     logging: *json-logging
@@ -236,11 +237,11 @@ services:
       - db_private
     tmpfs:
       - /tmp
-    pids_limit: 256
     deploy:
       resources:
         limits:
           cpus: "1.5"
+          pids: 256
 
   suricata:
     logging: *json-logging
@@ -261,11 +262,11 @@ services:
       SURICATA_INTERFACE: ${SURICATA_INTERFACE:-eth0}
     volumes:
       - suricata_logs:/tmp/suricata-logs
-    pids_limit: 256
     deploy:
       resources:
         limits:
           cpus: "1.0"
+          pids: 256
 
   vector:
     <<: *service-defaults
@@ -292,11 +293,11 @@ services:
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
     networks:
       - honeypot_ingest
-    pids_limit: 128
     deploy:
       resources:
         limits:
           cpus: "0.5"
+          pids: 128
 
   dionaea:
     <<: *service-defaults
@@ -329,11 +330,11 @@ services:
     networks:
       - edge
       - honeypot_ingest
-    pids_limit: 256
     deploy:
       resources:
         limits:
           cpus: "1.5"
+          pids: 256
 
   dionaea-shipper:
     <<: *service-defaults
@@ -370,11 +371,11 @@ services:
     command: ["python3", "/shipper.py"]
     networks:
       - honeypot_ingest
-    pids_limit: 64
     deploy:
       resources:
         limits:
           cpus: "0.3"
+          pids: 64
 
   port-honeypot:
     <<: *service-defaults
@@ -407,11 +408,11 @@ services:
     networks:
       - edge
       - honeypot_ingest
-    pids_limit: 256
     deploy:
       resources:
         limits:
           cpus: "0.5"
+          pids: 256
 
   dashboard:
     <<: *service-defaults
@@ -460,11 +461,11 @@ services:
       - db_private
     tmpfs:
       - /tmp
-    pids_limit: 256
     deploy:
       resources:
         limits:
           cpus: "1.0"
+          pids: 256
 
   maintenance:
     <<: *service-defaults
@@ -488,11 +489,11 @@ services:
         done
       "
     networks: []
-    pids_limit: 32
     deploy:
       resources:
         limits:
           cpus: "0.1"
+          pids: 32
 
 volumes:
   cowrie_var:
