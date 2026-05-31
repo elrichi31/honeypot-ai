@@ -34,8 +34,14 @@ def apply_pending():
 def main():
     apply_pending()
 
-    print("[entrypoint] Starting cowrie", flush=True)
-    proc = subprocess.Popen([PYTHON, "-OO", "-m", "cowrie"], cwd=COWRIE_DIR)
+    # cowrie uses twistd internally — same as the base image ENTRYPOINT:
+    # /cowrie/cowrie-env/bin/twistd --umask=0022 --pidfile= -n cowrie
+    TWISTD = "/cowrie/cowrie-env/bin/twistd"
+    print("[entrypoint] Starting cowrie via twistd", flush=True)
+    proc = subprocess.Popen(
+        [TWISTD, "--umask=0022", "--pidfile=", "-n", "cowrie"],
+        cwd=COWRIE_DIR,
+    )
     print(f"[entrypoint] cowrie PID={proc.pid} — watching for reload signal", flush=True)
 
     while True:
