@@ -7,6 +7,7 @@ import { SystemCard } from "@/components/monitoring/system-card"
 import { RedisCard } from "@/components/monitoring/redis-card"
 import { ContainersCard } from "@/components/monitoring/containers-card"
 import { ResourceTimeline } from "@/components/monitoring/resource-timeline"
+import { ContainerStats } from "@/components/monitoring/container-stats"
 
 type SystemData = {
   system: {
@@ -117,6 +118,12 @@ export default function MonitoringPage() {
           {/* Resource timeline */}
           <div>
             <ResourceTimeline />
+          </div>
+
+          {/* Container CPU/RAM table + timeline */}
+          <div>
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-3">Container Processes</p>
+            <ContainerStats />
           </div>
 
           {/* Cache + Containers side by side on wide screens */}

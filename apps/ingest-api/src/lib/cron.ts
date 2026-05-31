@@ -4,6 +4,7 @@ import { checkSensorHealthAlerts } from './threat-alerts.js'
 import { sendPeriodicReport } from './weekly-report.js'
 import { getAlertConfig } from './runtime-config.js'
 import { readSystemMetrics } from '../routes/monitoring.js'
+import { sampleContainerStats } from './docker-stats.js'
 
 const SENSOR_HEALTH_SCHEDULE = '* * * * *'
 
@@ -26,17 +27,24 @@ export function initCron(prisma: PrismaClient): void {
     await checkSensorHealthAlerts(prisma)
   }, { timezone: 'UTC' })
 
-  // Sample CPU/RAM every minute for the monitoring timeline
+  // Sample CPU/RAM + container stats every minute for the monitoring timeline
   cron.schedule(SENSOR_HEALTH_SCHEDULE, async () => {
+    const cutoff = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000)
     try {
       const metrics = readSystemMetrics()
       await prisma.monitoringSnapshot.create({ data: metrics })
-      // Purge samples older than 35 days
-      await prisma.monitoringSnapshot.deleteMany({
-        where: { sampledAt: { lt: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000) } },
-      })
+      await prisma.monitoringSnapshot.deleteMany({ where: { sampledAt: { lt: cutoff } } })
     } catch (err) {
       console.error('[cron] monitoring snapshot error:', err)
+    }
+    try {
+      const stats = await sampleContainerStats()
+      if (stats.length > 0) {
+        await prisma.containerSnapshot.createMany({ data: stats })
+        await prisma.containerSnapshot.deleteMany({ where: { sampledAt: { lt: cutoff } } })
+      }
+    } catch (err) {
+      console.error('[cron] container snapshot error:', err)
     }
   }, { timezone: 'UTC' })
 

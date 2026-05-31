@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs'
 import type { FastifyInstance } from 'fastify'
+import { sampleContainerStats } from '../lib/docker-stats.js'
 
 function parseMeminfo() {
   try {
@@ -133,5 +134,71 @@ export async function monitoringRoutes(fastify: FastifyInstance) {
       ramUsedKb:  r.avg_ram_used_kb,
       ramTotalKb: r.avg_ram_total_kb,
     }))
+  })
+
+  // Current container CPU/RAM (live)
+  fastify.get('/monitoring/containers/stats', async () => {
+    return sampleContainerStats()
+  })
+
+  // Historical container stats — top 6 containers by avg CPU in range
+  fastify.get('/monitoring/containers/history', async (request) => {
+    const { range = '24h' } = request.query as { range?: string }
+    const cfg = RANGE_CONFIG[(range as Range)] ?? RANGE_CONFIG['24h']
+    const since = new Date(Date.now() - cfg.lookbackMs)
+    const intervalSec = cfg.intervalMinutes * 60
+
+    type TopRow    = { container: string }
+    type BucketRow = { container: string; bucket: Date; avg_cpu: number; avg_mem_mb: number }
+
+    // Pick top 6 containers by avg CPU in the selected range
+    const tops = await fastify.prisma.$queryRaw<TopRow[]>`
+      SELECT container
+      FROM container_snapshots
+      WHERE sampled_at >= ${since}
+      GROUP BY container
+      ORDER BY AVG(cpu_pct) DESC
+      LIMIT 6
+    `
+    if (tops.length === 0) return []
+
+    const names = tops.map(t => t.container)
+
+    const rows = await fastify.prisma.$queryRaw<BucketRow[]>`
+      SELECT
+        container,
+        date_bin(
+          (${intervalSec} || ' seconds')::interval,
+          sampled_at,
+          TIMESTAMP '2001-01-01'
+        ) AS bucket,
+        ROUND(AVG(cpu_pct)::numeric, 2)::float  AS avg_cpu,
+        ROUND(AVG(mem_mb)::numeric,  1)::float  AS avg_mem_mb
+      FROM container_snapshots
+      WHERE sampled_at >= ${since}
+        AND container = ANY(${names}::text[])
+      GROUP BY container, bucket
+      ORDER BY bucket ASC
+    `
+
+    // Pivot: { ts -> { container -> { cpu, mem } } }
+    const bucketMap = new Map<string, Record<string, { cpu: number; mem: number }>>()
+    for (const r of rows) {
+      const ts = r.bucket.toISOString()
+      if (!bucketMap.has(ts)) bucketMap.set(ts, {})
+      bucketMap.get(ts)![r.container] = { cpu: r.avg_cpu, mem: r.avg_mem_mb }
+    }
+
+    return {
+      containers: names,
+      points: Array.from(bucketMap.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([ts, values]) => ({ ts, ...Object.fromEntries(
+          names.flatMap(n => [
+            [`${n}__cpu`, values[n]?.cpu ?? null],
+            [`${n}__mem`, values[n]?.mem ?? null],
+          ])
+        )})),
+    }
   })
 }

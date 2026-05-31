@@ -166,6 +166,7 @@ services:
     volumes:
       - dashboard_data:/app/data
       - dionaea_var:/dionaea:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
       test:
         [

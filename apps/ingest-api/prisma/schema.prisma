@@ -195,6 +195,18 @@ model DefenseAllowlist {
   @@map("defense_allowlist")
 }
 
+model ContainerSnapshot {
+  id          Int      @id @default(autoincrement())
+  container   String
+  cpuPct      Float    @map("cpu_pct")
+  memMb       Float    @map("mem_mb")
+  sampledAt   DateTime @default(now()) @map("sampled_at")
+
+  @@index([sampledAt(sort: Desc)])
+  @@index([container, sampledAt(sort: Desc)])
+  @@map("container_snapshots")
+}
+
 model MonitoringSnapshot {
   id            Int      @id @default(autoincrement())
   cpuLoad1m     Float    @map("cpu_load_1m")
