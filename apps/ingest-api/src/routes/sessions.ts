@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
+import { withCache } from '../lib/cache-helper.js';
 import { detectBot } from '../lib/bot-detector.js';
 import { toOffsetISOString } from '../lib/date-utils.js';
 import { basePaginationSchema, getPagination, buildPaginationResponse } from '../lib/pagination.js';
@@ -84,16 +85,20 @@ async function handleListSessions(fastify: FastifyInstance, request: FastifyRequ
   if (!params) return;
 
   const { page, pageSize, offset } = getPagination(params);
-  const baseClauses = buildSessionClauses({ q: params.q, startDate: params.startDate, endDate: params.endDate, outcome: 'all', actor: params.actor ?? 'all' });
-  const listClauses = buildSessionClauses({ q: params.q, startDate: params.startDate, endDate: params.endDate, outcome: params.outcome ?? 'all', actor: params.actor ?? 'all' });
+  const cacheKey = `sessions:list:${page}:${pageSize}:${params.outcome ?? 'all'}:${params.actor ?? 'all'}:${params.q ?? ''}:${params.sortDir}:${params.startDate ?? ''}:${params.endDate ?? ''}`
 
-  const [summaryRows, sessionRows] = await Promise.all([
-    fastify.prisma.$queryRaw<SessionSummaryRow[]>(summaryQuery(buildWhereSql(baseClauses))),
-    fastify.prisma.$queryRaw<SessionListRow[]>(sessionListQuery(buildWhereSql(listClauses), params.sortDir, pageSize, offset)),
-  ]);
+  return withCache(fastify.cache, cacheKey, 30, async () => {
+    const baseClauses = buildSessionClauses({ q: params.q, startDate: params.startDate, endDate: params.endDate, outcome: 'all', actor: params.actor ?? 'all' });
+    const listClauses = buildSessionClauses({ q: params.q, startDate: params.startDate, endDate: params.endDate, outcome: params.outcome ?? 'all', actor: params.actor ?? 'all' });
 
-  const summary = summaryRows[0] ?? { total: 0, compromised: 0, blocked: 0, scanGroups: 0, bots: 0, humans: 0 };
-  return { items: sessionRows.map(formatSession), summary, pagination: buildPaginationResponse(resolveTotal(summary, params.outcome), page, pageSize) };
+    const [summaryRows, sessionRows] = await Promise.all([
+      fastify.prisma.$queryRaw<SessionSummaryRow[]>(summaryQuery(buildWhereSql(baseClauses))),
+      fastify.prisma.$queryRaw<SessionListRow[]>(sessionListQuery(buildWhereSql(listClauses), params.sortDir, pageSize, offset)),
+    ]);
+
+    const summary = summaryRows[0] ?? { total: 0, compromised: 0, blocked: 0, scanGroups: 0, bots: 0, humans: 0 };
+    return { items: sessionRows.map(formatSession), summary, pagination: buildPaginationResponse(resolveTotal(summary, params.outcome), page, pageSize) };
+  })
 }
 
 async function handleScanGroups(fastify: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
@@ -101,18 +106,22 @@ async function handleScanGroups(fastify: FastifyInstance, request: FastifyReques
   if (!params) return;
 
   const { page, pageSize, offset } = getPagination(params);
-  const baseClauses = buildSessionClauses({ q: params.q, startDate: params.startDate, endDate: params.endDate, outcome: 'all' });
-  const blockedClauses = buildSessionClauses({ q: params.q, startDate: params.startDate, endDate: params.endDate, outcome: 'blocked' });
-  const blockedWhere = buildWhereSql(blockedClauses);
+  const cacheKey = `sessions:scans:${page}:${pageSize}:${params.q ?? ''}:${params.startDate ?? ''}:${params.endDate ?? ''}`
 
-  const [summaryRows, totalGroupRows, sessionRows] = await Promise.all([
-    fastify.prisma.$queryRaw<SessionSummaryRow[]>(summaryQuery(buildWhereSql(baseClauses))),
-    fastify.prisma.$queryRaw<Array<{ count: number }>>`SELECT COUNT(DISTINCT s.src_ip)::int AS count FROM sessions s ${blockedWhere}`,
-    fastify.prisma.$queryRaw<SessionListRow[]>(scanGroupListQuery(blockedWhere, pageSize, offset)),
-  ]);
+  return withCache(fastify.cache, cacheKey, 30, async () => {
+    const baseClauses = buildSessionClauses({ q: params.q, startDate: params.startDate, endDate: params.endDate, outcome: 'all' });
+    const blockedClauses = buildSessionClauses({ q: params.q, startDate: params.startDate, endDate: params.endDate, outcome: 'blocked' });
+    const blockedWhere = buildWhereSql(blockedClauses);
 
-  const summary = summaryRows[0] ?? { total: 0, compromised: 0, blocked: 0, scanGroups: 0, bots: 0, humans: 0 };
-  return { items: sessionRows.map(formatSession), summary, pagination: buildPaginationResponse(totalGroupRows[0]?.count ?? 0, page, pageSize) };
+    const [summaryRows, totalGroupRows, sessionRows] = await Promise.all([
+      fastify.prisma.$queryRaw<SessionSummaryRow[]>(summaryQuery(buildWhereSql(baseClauses))),
+      fastify.prisma.$queryRaw<Array<{ count: number }>>`SELECT COUNT(DISTINCT s.src_ip)::int AS count FROM sessions s ${blockedWhere}`,
+      fastify.prisma.$queryRaw<SessionListRow[]>(scanGroupListQuery(blockedWhere, pageSize, offset)),
+    ]);
+
+    const summary = summaryRows[0] ?? { total: 0, compromised: 0, blocked: 0, scanGroups: 0, bots: 0, humans: 0 };
+    return { items: sessionRows.map(formatSession), summary, pagination: buildPaginationResponse(totalGroupRows[0]?.count ?? 0, page, pageSize) };
+  })
 }
 
 async function handleGetSession(fastify: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {

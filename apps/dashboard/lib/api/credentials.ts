@@ -19,5 +19,5 @@ export async function fetchCredentialsAnalytics(params?: {
     search: params?.search, sortBy: params?.sortBy, sortDir: params?.sortDir,
     startDate: params?.startDate, endDate: params?.endDate,
   })
-  return apiFetch(`${getApiUrl()}/stats/credentials?${sp}`)
+  return apiFetch(`${getApiUrl()}/stats/credentials?${sp}`, 60)
 }

@@ -30,7 +30,7 @@ export async function fetchSessionsPage(params?: {
   })
   if (params?.actor && params.actor !== "all") sp.set("actor", params.actor)
   if (params?.sortDir) sp.set("sortDir", params.sortDir)
-  return apiFetch(`${getApiUrl()}/sessions?${sp}`)
+  return apiFetch(`${getApiUrl()}/sessions?${sp}`, 30)
 }
 
 export async function fetchSessions(params?: Parameters<typeof fetchSessionsPage>[0]): Promise<ApiSession[]> {
@@ -46,7 +46,7 @@ export async function fetchSessionScanGroupsPage(params?: {
     offset: params?.offset, q: params?.q,
     startDate: params?.startDate, endDate: params?.endDate,
   })
-  return apiFetch(`${getApiUrl()}/sessions/scan-groups?${sp}`)
+  return apiFetch(`${getApiUrl()}/sessions/scan-groups?${sp}`, 30)
 }
 
 export async function fetchSession(id: string): Promise<ApiSessionDetail> {

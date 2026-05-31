@@ -69,7 +69,8 @@ function buildThreat(ip: string, ssh: SshAggRow | undefined, web: WebAggRow | un
 }
 
 const THREATS_CACHE_KEY = 'threats:list'
-const THREATS_CACHE_TTL = 180 // 3 minutes
+const THREATS_CACHE_TTL = 600 // 10 minutes
+const THREATS_FILTERED_TTL = 60 // 1 minute for filtered/search results
 
 async function fetchThreats(fastify: FastifyInstance, ipFilter?: string) {
   const [sshRows, cmdRows, webRows, protocolRows] = await Promise.all([
@@ -123,9 +124,15 @@ async function handleListThreats(fastify: FastifyInstance, query: unknown, reply
 
   const hasFilters = parsed.data.q || parsed.data.level || parsed.data.crossProtocol !== undefined
 
-  const threats: ThreatItem[] = hasFilters
-    ? filterThreats(await fetchThreats(fastify, parsed.data.q), parsed.data)
-    : await withCache(fastify.cache, THREATS_CACHE_KEY, THREATS_CACHE_TTL, () => fetchThreats(fastify))
+  const threats: ThreatItem[] = await (() => {
+    if (!hasFilters) {
+      return withCache(fastify.cache, THREATS_CACHE_KEY, THREATS_CACHE_TTL, () => fetchThreats(fastify))
+    }
+    const filteredKey = `threats:filtered:${parsed.data.q ?? ''}:${parsed.data.level ?? ''}:${parsed.data.crossProtocol ?? ''}`
+    return withCache(fastify.cache, filteredKey, THREATS_FILTERED_TTL, async () =>
+      filterThreats(await fetchThreats(fastify, parsed.data.q), parsed.data)
+    )
+  })()
 
   sortThreats(threats, parsed.data)
   const items = threats.slice(offset, offset + pageSize)

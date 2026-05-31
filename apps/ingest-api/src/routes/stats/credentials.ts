@@ -113,7 +113,7 @@ export async function credentialsRoute(fastify: FastifyInstance) {
 
     const cacheKey = `credentials:${JSON.stringify({ mainTab: p.mainTab, rankingType: p.rankingType, outcome: p.outcome, frequency: p.frequency, search: search ?? '', sortBy: activeSortBy, sortDir: activeSortDir, page, pageSize, startDate: p.startDate ?? '', endDate: p.endDate ?? '' })}`
 
-    return withCache(fastify.cache, cacheKey, 300, async () => {
+    return withCache(fastify.cache, cacheKey, 600, async () => {
     const authWhere = buildAuthWhereSql({ startDate, endDate })
     const anyCredWhere = buildAuthWhereSql({ startDate, endDate, extra: [Prisma.sql`(username IS NOT NULL OR password IS NOT NULL)`] })
     const userWhere = buildAuthWhereSql({ startDate, endDate, extra: [Prisma.sql`username IS NOT NULL`] })

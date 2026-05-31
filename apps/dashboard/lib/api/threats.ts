@@ -15,7 +15,7 @@ export async function fetchThreatsPage(params?: {
   if (params?.crossProtocol !== undefined) sp.set("crossProtocol", String(params.crossProtocol))
   if (params?.sortBy) sp.set("sortBy", params.sortBy)
   if (params?.sortDir) sp.set("sortDir", params.sortDir)
-  return apiFetch(`${getApiUrl()}/threats?${sp}`)
+  return apiFetch(`${getApiUrl()}/threats?${sp}`, 60)
 }
 
 export async function fetchThreats(params?: Parameters<typeof fetchThreatsPage>[0]): Promise<ThreatSummary[]> {
