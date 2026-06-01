@@ -57,7 +57,7 @@ export async function GET(
   const { sensorId } = await params
   const containerName = await getContainerName(sensorId)
   if (!containerName) {
-    return NextResponse.json({ error: "Sensor not found" }, { status: 404 })
+    return NextResponse.json({ status: "unmanaged" })
   }
 
   try {

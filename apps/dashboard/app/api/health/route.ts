@@ -4,22 +4,10 @@ const INTERNAL_API = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API
 
 export async function GET() {
   try {
-    const [healthRes, sessionsRes] = await Promise.all([
-      fetch(`${INTERNAL_API}/health`, { signal: AbortSignal.timeout(3000) }),
-      fetch(`${INTERNAL_API}/sessions?limit=1`, { signal: AbortSignal.timeout(3000) }),
-    ])
-
-    const apiOnline = healthRes.ok
-
-    let lastEventAt: string | null = null
-    if (sessionsRes.ok) {
-      const sessions = await sessionsRes.json()
-      if (Array.isArray(sessions?.items) && sessions.items.length > 0) {
-        lastEventAt = sessions.items[0].startedAt ?? sessions.items[0].createdAt ?? null
-      }
-    }
-
-    return NextResponse.json({ apiOnline, lastEventAt })
+    const res = await fetch(`${INTERNAL_API}/health`, { signal: AbortSignal.timeout(5000), cache: "no-store" })
+    if (!res.ok) return NextResponse.json({ apiOnline: false, lastEventAt: null })
+    const data = await res.json()
+    return NextResponse.json({ apiOnline: true, lastEventAt: data.lastEventAt ?? null })
   } catch {
     return NextResponse.json({ apiOnline: false, lastEventAt: null })
   }
