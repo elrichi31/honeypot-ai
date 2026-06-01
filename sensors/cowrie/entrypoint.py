@@ -36,10 +36,10 @@ def apply_pending():
             print(f"[entrypoint] Installed default {name}", flush=True)
 
     # Apply any pending dashboard config (overrides defaults).
+    # Signal files are kept (not deleted) so they survive subsequent restarts.
     for src, dst in [(NEW_CFG, ACTIVE_CFG), (NEW_UDB, ACTIVE_UDB)]:
         if os.path.exists(src):
             shutil.copy2(src, dst)
-            os.remove(src)
             print(f"[entrypoint] Applied signal {os.path.basename(src)}", flush=True)
 
     try:
@@ -92,7 +92,7 @@ def main():
             except subprocess.TimeoutExpired:
                 proc.kill()
             break
-        time.sleep(5)
+        time.sleep(2)
 
     print("[entrypoint] exiting — Docker will restart container with new config", flush=True)
     sys.exit(0)
