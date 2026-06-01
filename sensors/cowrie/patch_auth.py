@@ -75,3 +75,27 @@ HoneyPotSSHTransport.dataReceived = _scanner_filtering_dataReceived
     print(f"[patch_auth] Appended scanner-client blocker to {TRANSPORT_PATH} — SSH-2.0-Go and friends will be dropped.")
 else:
     print(f"[patch_auth] Scanner-client blocker already present, skipping.")
+
+# ── 3. Tolerant userdb decoding ─────────────────────────────────────────────
+# UserDB.load() reads etc/userdb.txt with encoding="ascii" (strict). A single
+# non-ASCII byte anywhere in the file (e.g. an em-dash or accented char in a
+# comment) raises UnicodeDecodeError *on every login attempt*, which crashes
+# checkUserPass before it can record the attempt — so auth silently fails for
+# everyone and nothing is logged. Relax the read to UTF-8 with replacement so a
+# stray byte can never take down authentication again.
+
+auth_content = open(AUTH_PATH).read()
+
+_REPLACEMENTS = [
+    ('.read_text(encoding="ascii")', '.read_text(encoding="utf-8", errors="replace")'),
+    ('.decode("ascii")', '.decode("utf-8", "replace")'),
+]
+
+if any(old in auth_content for old, _ in _REPLACEMENTS):
+    for old, new in _REPLACEMENTS:
+        auth_content = auth_content.replace(old, new)
+    with open(AUTH_PATH, "w") as f:
+        f.write(auth_content)
+    print("[patch_auth] Relaxed userdb decoding to UTF-8 (errors=replace) — non-ASCII chars no longer crash auth.")
+else:
+    print("[patch_auth] Tolerant userdb decoding already applied, skipping.")
