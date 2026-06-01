@@ -182,7 +182,7 @@ export function SensorConfigDialog({
           <DialogHeader>
             <DialogTitle>Configure SSH Honeypot</DialogTitle>
             <DialogDescription>
-              Changes are applied on the next Cowrie restart (triggered automatically within ~60s).
+              Changes are applied on the next Cowrie restart (triggered automatically within ~15s).
             </DialogDescription>
           </DialogHeader>
 
@@ -307,7 +307,7 @@ export function SensorConfigDialog({
                 <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-400">
                   <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                   <span>
-                    Config saved. Cowrie will apply it and restart automatically within ~60 seconds.
+                    Config saved. Cowrie will apply it and restart automatically within ~15 seconds.
                   </span>
                 </div>
               )}

@@ -27,7 +27,7 @@ PROBE_PORTS = [int(p) for p in _probe_raw.split() if p.strip().isdigit()]
 HOST        = os.getenv("SENSOR_HOST",           "")
 SIGNAL_DIR  = os.getenv("SIGNAL_DIR",            "/signal")
 
-CONFIG_POLL_INTERVAL = 60  # seconds between config checks
+CONFIG_POLL_INTERVAL = 10  # seconds between config checks
 
 
 def _detect_ip() -> str:
@@ -179,7 +179,7 @@ def _apply_config(config: dict, hash_val: str) -> None:
 
 def _config_loop() -> None:
     # Wait a bit on startup so ingest-api is fully ready
-    time.sleep(15)
+    time.sleep(5)
     while True:
         result = _fetch_config()
         if result is not None:

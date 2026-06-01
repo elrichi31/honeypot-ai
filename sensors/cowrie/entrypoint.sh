@@ -45,7 +45,7 @@ while kill -0 "$COWRIE_PID" 2>/dev/null; do
     kill "$COWRIE_PID" 2>/dev/null || true
     break
   fi
-  sleep 5
+  sleep 2
 done
 
 wait "$COWRIE_PID" 2>/dev/null || true
