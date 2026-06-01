@@ -21,26 +21,52 @@ PYTHON       = "/cowrie/cowrie-env/bin/python3"
 COWRIE_DIR   = "/cowrie/cowrie-git"
 
 
+def safe_copy(src, dst, *, label, skip_if_exists=False):
+    """Copy src -> dst, tolerating read-only destinations.
+
+    Two deployment models share this entrypoint:
+
+      * docker-compose bind-mounts cowrie.cfg / userdb.txt into etc as
+        read-only (``:ro``).  The destination already holds the right content
+        and is NOT writable — overwriting it raises PermissionError/OSError
+        and would crash the entrypoint, leaving cowrie down.  We skip instead.
+      * the dashboard "signal volume" model leaves etc writable so config can
+        be pushed at runtime; here the copy succeeds normally.
+    """
+    if not os.path.exists(src):
+        return
+    if skip_if_exists and os.path.exists(dst):
+        print(f"[entrypoint] {os.path.basename(dst)} already present (bind mount?), keeping it", flush=True)
+        return
+    try:
+        shutil.copy2(src, dst)
+        print(f"[entrypoint] {label}", flush=True)
+    except OSError as e:
+        # Read-only bind mount (EROFS) or no write permission (EACCES):
+        # the mounted file is authoritative, so just use it as-is.
+        print(f"[entrypoint] Could not write {dst} ({e}); using mounted file as-is", flush=True)
+
+
 def apply_pending():
     os.makedirs(SIGNAL_DIR, exist_ok=True)
     os.makedirs(ETC_DIR, exist_ok=True)
 
-    # Always copy baked-in defaults first.  The base image declares a VOLUME on
-    # the etc directory so COPY in the Dockerfile is silently discarded; we
-    # copy at runtime instead so the files land AFTER the volume is mounted.
+    # Install baked-in defaults only when etc doesn't already provide the file.
+    # The base image declares a VOLUME on etc so the Dockerfile COPY is
+    # discarded; we copy at runtime AFTER the volume/bind mount is in place.
+    # If the file is bind-mounted (read-only), it already exists -> keep it.
     for name in ("cowrie.cfg", "userdb.txt"):
-        src = os.path.join(DEFAULTS_DIR, name)
-        dst = os.path.join(ETC_DIR, name)
-        if os.path.exists(src):
-            shutil.copy2(src, dst)
-            print(f"[entrypoint] Installed default {name}", flush=True)
+        safe_copy(
+            os.path.join(DEFAULTS_DIR, name),
+            os.path.join(ETC_DIR, name),
+            label=f"Installed default {name}",
+            skip_if_exists=True,
+        )
 
     # Apply any pending dashboard config (overrides defaults).
     # Signal files are kept (not deleted) so they survive subsequent restarts.
     for src, dst in [(NEW_CFG, ACTIVE_CFG), (NEW_UDB, ACTIVE_UDB)]:
-        if os.path.exists(src):
-            shutil.copy2(src, dst)
-            print(f"[entrypoint] Applied signal {os.path.basename(src)}", flush=True)
+        safe_copy(src, dst, label=f"Applied signal {os.path.basename(src)}")
 
     try:
         os.remove(RELOAD_FLAG)
