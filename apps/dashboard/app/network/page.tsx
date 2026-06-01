@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import { PageShell } from "@/components/page-shell"
 import { NetworkTopology } from "@/components/network/network-topology"
 import { fetchSensors } from "@/lib/api"

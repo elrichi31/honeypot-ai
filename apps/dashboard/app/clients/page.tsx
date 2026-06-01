@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import { PageShell } from "@/components/page-shell"
 import { ClientManager } from "@/components/clients/client-manager"
 import { fetchClients, fetchSensors } from "@/lib/api"

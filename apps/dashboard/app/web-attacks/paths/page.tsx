@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import { WebAttacksNav } from "@/components/web-attacks-nav"
 import { PageShell } from "@/components/page-shell"
 import { fetchWebPaths } from "@/lib/api"

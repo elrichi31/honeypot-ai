@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import { fetchProtocolHits, fetchProtocolInsights } from "@/lib/api"
 import { ProtocolDetailPage } from "../protocol-detail-page"
 

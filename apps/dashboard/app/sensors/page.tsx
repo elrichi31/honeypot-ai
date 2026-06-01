@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import Link from "next/link"
 import { Activity, Server, Wifi, Waypoints } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
