@@ -7,6 +7,7 @@ export type AuditResource =
   | "USER"
   | "CLIENT"
   | "SENSOR"
+  | "SENSOR_CONFIG"
   | "TOKEN"
   | "MALWARE"
   | "SETTINGS"

@@ -16,8 +16,18 @@ export async function GET() {
     return Response.json(systemCache.data, { status: systemCache.status })
   }
 
-  const res = await fetch(`${apiBase()}/monitoring/system`, { cache: "no-store" })
-  const data = await res.json()
+  let res: Response
+  try {
+    res = await fetch(`${apiBase()}/monitoring/system`, { cache: "no-store" })
+  } catch {
+    return Response.json({ error: "Backend unreachable" }, { status: 502 })
+  }
+
+  const data = await res.json().catch(() => null)
+  if (data === null) {
+    return Response.json({ error: "Backend returned a non-JSON response" }, { status: 502 })
+  }
+
   systemCache = { data, status: res.status, expiresAt: now + CACHE_TTL }
   return Response.json(data, { status: res.status })
 }

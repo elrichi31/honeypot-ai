@@ -23,8 +23,8 @@ interface DockerStats {
 }
 
 interface CachedSnapshot {
-  cpuUsage:    number
-  sysCpuUsage: number
+  cpu: number
+  sys: number
 }
 
 // Separate caches for cron vs live endpoint — prevents interference

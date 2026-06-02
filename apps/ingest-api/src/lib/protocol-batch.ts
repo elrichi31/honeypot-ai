@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import type { PrismaClient } from '@prisma/client'
+import { Prisma, type PrismaClient } from '@prisma/client'
 
 const FLUSH_MS   = 1_000   // flush every second
 const MAX_SIZE   = 500     // immediate flush when queue hits this
@@ -26,7 +26,8 @@ async function flush() {
   if (!prisma || queue.length === 0) return
   const batch = queue.splice(0)
   try {
-    await prisma.protocolHit.createMany({ data: batch, skipDuplicates: true })
+    const data = batch.map(row => ({ ...row, data: row.data as Prisma.InputJsonValue }))
+    await prisma.protocolHit.createMany({ data, skipDuplicates: true })
   } catch (err) {
     console.error(`[protocol-batch] flush error (${batch.length} events dropped):`, err)
   }

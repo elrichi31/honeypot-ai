@@ -179,43 +179,48 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
     const offset = (page - 1) * pageSize
     const sids   = Prisma.join(cs.sensorIds)
 
-    const [rows, countRows] = await Promise.all([
-      fastify.prismaRead.$queryRaw<ThreatRow[]>`
-        SELECT src_ip, COUNT(*) AS total_events, STRING_AGG(DISTINCT source, ',') AS sources,
-               MAX(ts) AS last_seen, COUNT(*) FILTER (WHERE login_success) AS login_successes,
-               STRING_AGG(DISTINCT protocol, ',') AS protocols
-        FROM (
-          SELECT s.src_ip, 'ssh' AS source, 'ssh' AS protocol,
-                 COALESCE(s.ended_at, s.started_at) AS ts, COALESCE(s.login_success, false) AS login_success
-          FROM sessions s WHERE s.sensor_id IN (${sids})
-          UNION ALL
-          SELECT ph.src_ip, 'protocol', ph.protocol, ph.timestamp, false
-          FROM protocol_hits ph WHERE ph.sensor_id IN (${sids})
-          UNION ALL
-          SELECT wh.src_ip, 'web', 'http', wh.timestamp, false
-          FROM web_hits wh WHERE wh.sensor_id IN (${sids})
-        ) AS combined
-        GROUP BY src_ip ORDER BY login_successes DESC, last_seen DESC, total_events DESC
-        LIMIT ${pageSize} OFFSET ${offset}
-      `,
-      fastify.prismaRead.$queryRaw<[{ total: bigint }]>`
-        SELECT COUNT(DISTINCT src_ip) AS total FROM (
-          SELECT src_ip FROM sessions WHERE sensor_id IN (${sids})
-          UNION ALL SELECT src_ip FROM protocol_hits WHERE sensor_id IN (${sids})
-          UNION ALL SELECT src_ip FROM web_hits WHERE sensor_id IN (${sids})
-        ) AS ips
-      `,
-    ])
+    const cacheKey = `client:threats:${cs.clientId}:${page}:${pageSize}`
+    const result = await withCache(fastify.cache, cacheKey, 60, async () => {
+      const [rows, countRows] = await Promise.all([
+        fastify.prismaRead.$queryRaw<ThreatRow[]>`
+          SELECT src_ip, COUNT(*) AS total_events, STRING_AGG(DISTINCT source, ',') AS sources,
+                 MAX(ts) AS last_seen, COUNT(*) FILTER (WHERE login_success) AS login_successes,
+                 STRING_AGG(DISTINCT protocol, ',') AS protocols
+          FROM (
+            SELECT s.src_ip, 'ssh' AS source, 'ssh' AS protocol,
+                   COALESCE(s.ended_at, s.started_at) AS ts, COALESCE(s.login_success, false) AS login_success
+            FROM sessions s WHERE s.sensor_id IN (${sids})
+            UNION ALL
+            SELECT ph.src_ip, 'protocol', ph.protocol, ph.timestamp, false
+            FROM protocol_hits ph WHERE ph.sensor_id IN (${sids})
+            UNION ALL
+            SELECT wh.src_ip, 'web', 'http', wh.timestamp, false
+            FROM web_hits wh WHERE wh.sensor_id IN (${sids})
+          ) AS combined
+          GROUP BY src_ip ORDER BY login_successes DESC, last_seen DESC, total_events DESC
+          LIMIT ${pageSize} OFFSET ${offset}
+        `,
+        fastify.prismaRead.$queryRaw<[{ total: bigint }]>`
+          SELECT COUNT(DISTINCT src_ip) AS total FROM (
+            SELECT src_ip FROM sessions WHERE sensor_id IN (${sids})
+            UNION ALL SELECT src_ip FROM protocol_hits WHERE sensor_id IN (${sids})
+            UNION ALL SELECT src_ip FROM web_hits WHERE sensor_id IN (${sids})
+          ) AS ips
+        `,
+      ])
 
-    return reply.send({
-      items: rows.map(r => ({
-        srcIp: r.src_ip, totalEvents: Number(r.total_events),
-        sources: r.sources ? r.sources.split(',') : [],
-        protocols: r.protocols ? r.protocols.split(',') : [],
-        lastSeen: r.last_seen, loginSuccesses: Number(r.login_successes),
-      })),
-      pagination: buildPagination(page, pageSize, Number(countRows[0]?.total ?? 0)),
+      return {
+        items: rows.map(r => ({
+          srcIp: r.src_ip, totalEvents: Number(r.total_events),
+          sources: r.sources ? r.sources.split(',') : [],
+          protocols: r.protocols ? r.protocols.split(',') : [],
+          lastSeen: r.last_seen, loginSuccesses: Number(r.login_successes),
+        })),
+        pagination: buildPagination(page, pageSize, Number(countRows[0]?.total ?? 0)),
+      }
     })
+
+    return reply.send(result)
   })
 
   fastify.get('/clients/:clientSlug/today', async (request, reply) => {
@@ -229,31 +234,36 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
     const sids = Prisma.join(cs.sensorIds)
 
-    const [metricsRows, protoRows] = await Promise.all([
-      fastify.prismaRead.$queryRaw<MetricsRow[]>`
-        SELECT COUNT(*)::int AS total_events, COUNT(DISTINCT src_ip)::int AS unique_ips,
-               COUNT(*) FILTER (WHERE login_success)::int AS login_successes
-        FROM (
-          SELECT s.src_ip, COALESCE(s.login_success, false) AS login_success
-          FROM sessions s WHERE s.sensor_id IN (${sids}) AND s.started_at >= ${todayStart}
-          UNION ALL
-          SELECT ph.src_ip, false FROM protocol_hits ph
-          WHERE ph.sensor_id IN (${sids}) AND ph.timestamp >= ${todayStart}
-          UNION ALL
-          SELECT wh.src_ip, false FROM web_hits wh
-          WHERE wh.sensor_id IN (${sids}) AND wh.timestamp >= ${todayStart}
-        ) AS t
-      `,
-      fastify.prisma.$queryRaw<[{ protocol: string }]>`
-        SELECT protocol FROM (
-          SELECT 'ssh' AS protocol FROM sessions WHERE sensor_id IN (${sids}) AND started_at >= ${todayStart}
-          UNION ALL SELECT protocol FROM protocol_hits WHERE sensor_id IN (${sids}) AND timestamp >= ${todayStart}
-          UNION ALL SELECT 'http' AS protocol FROM web_hits WHERE sensor_id IN (${sids}) AND timestamp >= ${todayStart}
-        ) AS p GROUP BY protocol ORDER BY COUNT(*) DESC LIMIT 1
-      `,
-    ])
+    const cacheKey = `client:today:${cs.clientId}`
+    const result = await withCache(fastify.cache, cacheKey, 60, async () => {
+      const [metricsRows, protoRows] = await Promise.all([
+        fastify.prismaRead.$queryRaw<MetricsRow[]>`
+          SELECT COUNT(*)::int AS total_events, COUNT(DISTINCT src_ip)::int AS unique_ips,
+                 COUNT(*) FILTER (WHERE login_success)::int AS login_successes
+          FROM (
+            SELECT s.src_ip, COALESCE(s.login_success, false) AS login_success
+            FROM sessions s WHERE s.sensor_id IN (${sids}) AND s.started_at >= ${todayStart}
+            UNION ALL
+            SELECT ph.src_ip, false FROM protocol_hits ph
+            WHERE ph.sensor_id IN (${sids}) AND ph.timestamp >= ${todayStart}
+            UNION ALL
+            SELECT wh.src_ip, false FROM web_hits wh
+            WHERE wh.sensor_id IN (${sids}) AND wh.timestamp >= ${todayStart}
+          ) AS t
+        `,
+        fastify.prismaRead.$queryRaw<[{ protocol: string }]>`
+          SELECT protocol FROM (
+            SELECT 'ssh' AS protocol FROM sessions WHERE sensor_id IN (${sids}) AND started_at >= ${todayStart}
+            UNION ALL SELECT protocol FROM protocol_hits WHERE sensor_id IN (${sids}) AND timestamp >= ${todayStart}
+            UNION ALL SELECT 'http' AS protocol FROM web_hits WHERE sensor_id IN (${sids}) AND timestamp >= ${todayStart}
+          ) AS p GROUP BY protocol ORDER BY COUNT(*) DESC LIMIT 1
+        `,
+      ])
 
-    const m = metricsRows[0] ?? { total_events: 0, unique_ips: 0, login_successes: 0 }
-    return reply.send({ totalEvents: m.total_events, uniqueIps: m.unique_ips, loginSuccesses: m.login_successes, topProtocol: protoRows[0]?.protocol ?? null })
+      const m = metricsRows[0] ?? { total_events: 0, unique_ips: 0, login_successes: 0 }
+      return { totalEvents: m.total_events, uniqueIps: m.unique_ips, loginSuccesses: m.login_successes, topProtocol: protoRows[0]?.protocol ?? null }
+    })
+
+    return reply.send(result)
   })
 }
