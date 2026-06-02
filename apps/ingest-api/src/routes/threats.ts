@@ -22,15 +22,45 @@ import {
   queryThreatWebRows,
 } from '../lib/threat-route-queries.js'
 
+const RISK_LEVELS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'] as const
+const COMMAND_CATEGORIES = [
+  'malware_drop', 'persistence', 'lateral_movement', 'crypto_mining', 'data_exfil', 'recon', 'other',
+] as const
+
+type RiskLevel = (typeof RISK_LEVELS)[number]
+
+/** Parse a comma-separated query value into a deduped list filtered to `allowed`. */
+function csvEnum<T extends string>(allowed: readonly T[]) {
+  const allowedSet = new Set<string>(allowed)
+  return z
+    .string()
+    .optional()
+    .transform((value) => {
+      if (!value) return [] as T[]
+      const parts = value.split(',').map((part) => part.trim()).filter(Boolean)
+      return [...new Set(parts)].filter((part): part is T => allowedSet.has(part))
+    })
+}
+
 const threatListQuerySchema = basePaginationSchema.extend({
   q: z.string().trim().min(1).optional(),
-  level: z.enum(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO']).optional(),
+  // `level` (single) kept for backward compatibility; `levels` (CSV) is the multi-select form.
+  level: z.enum(RISK_LEVELS).optional(),
+  levels: csvEnum(RISK_LEVELS),
+  commands: csvEnum(COMMAND_CATEGORIES),
   crossProtocol: z.coerce.boolean().optional(),
   sortBy: z.enum(['score', 'sessions', 'webHits', 'protocols']).default('score'),
   sortDir: z.enum(['asc', 'desc']).default('desc'),
 })
 
 type ThreatListQuery = z.infer<typeof threatListQuerySchema>
+
+/** Effective set of levels to filter by, merging the legacy single `level`. */
+function effectiveLevels(query: ThreatListQuery): RiskLevel[] {
+  const set = new Set<RiskLevel>(query.levels)
+  if (query.level) set.add(query.level)
+  return [...set]
+}
 
 function groupCommands(rows: Array<{ src_ip: string; command: string }>) {
   const groups = new Map<string, string[]>()
@@ -89,9 +119,16 @@ async function fetchThreats(fastify: FastifyInstance, ipFilter?: string) {
 
 function filterThreats(threats: ThreatItem[], query: ThreatListQuery) {
   const search = query.q?.toLowerCase()
+  const levels = effectiveLevels(query)
+  const levelSet = levels.length ? new Set(levels) : null
+  const commands = query.commands
   return threats.filter((threat) => {
     if (search && !threat.ip.toLowerCase().includes(search)) return false
-    if (query.level && threat.level !== query.level) return false
+    if (levelSet && !levelSet.has(threat.level)) return false
+    // Detected-commands filter: OR — keep IPs that have at least one selected category.
+    if (commands.length && !commands.some((category) => (threat.commandCategories[category] ?? 0) > 0)) {
+      return false
+    }
     return query.crossProtocol === undefined || threat.crossProtocol === query.crossProtocol
   })
 }
@@ -122,13 +159,15 @@ async function handleListThreats(fastify: FastifyInstance, query: unknown, reply
   if (!parsed.success) return sendInvalidQuery(reply, parsed.error)
   const { page, pageSize, offset } = getPagination(parsed.data)
 
-  const hasFilters = parsed.data.q || parsed.data.level || parsed.data.crossProtocol !== undefined
+  const levels = effectiveLevels(parsed.data)
+  const commands = parsed.data.commands
+  const hasFilters = Boolean(parsed.data.q) || levels.length > 0 || commands.length > 0 || parsed.data.crossProtocol !== undefined
 
   const threats: ThreatItem[] = await (() => {
     if (!hasFilters) {
       return withCache(fastify.cache, THREATS_CACHE_KEY, THREATS_CACHE_TTL, () => fetchThreats(fastify))
     }
-    const filteredKey = `threats:filtered:${parsed.data.q ?? ''}:${parsed.data.level ?? ''}:${parsed.data.crossProtocol ?? ''}`
+    const filteredKey = `threats:filtered:${parsed.data.q ?? ''}:${levels.sort().join('+')}:${[...commands].sort().join('+')}:${parsed.data.crossProtocol ?? ''}`
     return withCache(fastify.cache, filteredKey, THREATS_FILTERED_TTL, async () =>
       filterThreats(await fetchThreats(fastify, parsed.data.q), parsed.data)
     )

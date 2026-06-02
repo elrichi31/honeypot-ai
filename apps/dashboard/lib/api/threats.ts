@@ -3,7 +3,8 @@ import type { ThreatSummary, ThreatDetail, PaginatedThreatsResponse, RiskLevel }
 
 export async function fetchThreatsPage(params?: {
   page?: number; pageSize?: number; limit?: number; offset?: number
-  q?: string; level?: RiskLevel; crossProtocol?: boolean
+  q?: string; level?: RiskLevel; levels?: RiskLevel[]; commands?: string[]
+  crossProtocol?: boolean
   sortBy?: 'score' | 'sessions' | 'webHits' | 'protocols'
   sortDir?: 'asc' | 'desc'
 }): Promise<PaginatedThreatsResponse> {
@@ -12,6 +13,8 @@ export async function fetchThreatsPage(params?: {
     limit: params?.limit, offset: params?.offset,
     q: params?.q, level: params?.level,
   })
+  if (params?.levels?.length) sp.set("levels", params.levels.join(","))
+  if (params?.commands?.length) sp.set("commands", params.commands.join(","))
   if (params?.crossProtocol !== undefined) sp.set("crossProtocol", String(params.crossProtocol))
   if (params?.sortBy) sp.set("sortBy", params.sortBy)
   if (params?.sortDir) sp.set("sortDir", params.sortDir)

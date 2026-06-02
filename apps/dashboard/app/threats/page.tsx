@@ -1,6 +1,5 @@
 import { ShieldAlert } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
-import { SearchInput } from "@/components/ui/search-input"
 import { fetchThreatsPage } from "@/lib/api"
 import { ThreatsTable } from "./threats-table"
 
@@ -8,7 +7,19 @@ const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
 
 const VALID_THREAT_SORT_BY = new Set(["score", "sessions", "webHits", "protocols"])
 const VALID_SORT_DIR = new Set(["asc", "desc"])
-const VALID_LEVELS = new Set(["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"])
+const VALID_LEVELS = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"] as const
+const VALID_COMMANDS = [
+  "malware_drop", "persistence", "lateral_movement", "crypto_mining", "data_exfil", "recon", "other",
+] as const
+
+type RiskLevel = (typeof VALID_LEVELS)[number]
+
+function parseCsv<T extends string>(raw: string | undefined, allowed: readonly T[]): T[] {
+  if (!raw) return []
+  const allowedSet = new Set<string>(allowed)
+  const parts = raw.split(",").map((p) => p.trim()).filter(Boolean)
+  return [...new Set(parts)].filter((p): p is T => allowedSet.has(p))
+}
 
 export default async function ThreatsPage({
   searchParams,
@@ -19,7 +30,8 @@ export default async function ThreatsPage({
     q?: string
     sortBy?: string
     sortDir?: string
-    level?: string
+    levels?: string
+    commands?: string
     crossProtocol?: string
   }>
 }) {
@@ -29,12 +41,13 @@ export default async function ThreatsPage({
   const q = params.q?.trim() || undefined
   const sortBy = VALID_THREAT_SORT_BY.has(params.sortBy ?? "") ? (params.sortBy as "score" | "sessions" | "webHits" | "protocols") : "score"
   const sortDir = VALID_SORT_DIR.has(params.sortDir ?? "") ? (params.sortDir as "asc" | "desc") : "desc"
-  const level = VALID_LEVELS.has(params.level ?? "") ? (params.level as "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO") : undefined
+  const levels = parseCsv<RiskLevel>(params.levels, VALID_LEVELS)
+  const commands = parseCsv(params.commands, VALID_COMMANDS)
   const crossProtocol = params.crossProtocol === "true" ? true : undefined
 
   let pageData
   try {
-    pageData = await fetchThreatsPage({ page, pageSize, q, sortBy, sortDir, level, crossProtocol })
+    pageData = await fetchThreatsPage({ page, pageSize, q, sortBy, sortDir, levels, commands, crossProtocol })
   } catch {
     pageData = {
       items: [],
@@ -62,15 +75,6 @@ export default async function ThreatsPage({
         </p>
       </div>
 
-      <div className="mb-6 rounded-xl border border-border bg-card p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <SearchInput defaultValue={q ?? ""} placeholder="Search IP..." />
-          <span className="inline-flex items-center rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
-            {pageData.items.length} rows on this page
-          </span>
-        </div>
-      </div>
-
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Total IPs</p>
@@ -95,7 +99,9 @@ export default async function ThreatsPage({
         pagination={pageData.pagination}
         sortBy={sortBy}
         sortDir={sortDir}
-        level={level}
+        searchQuery={q ?? ""}
+        levels={levels}
+        commands={commands}
         crossProtocol={crossProtocol === true}
       />
     </PageShell>
