@@ -16,7 +16,7 @@ export async function miscRoutes(fastify: FastifyInstance) {
     withCache(fastify.cache, 'stats:honeypot-overview', OVERVIEW_TTL, async () => {
       const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
       const [sshRows, webRows, webTopAttackRows, protocolRows] = await Promise.all([
-        fastify.prisma.$queryRaw<SshOverviewRow[]>(Prisma.sql`
+        fastify.prismaRead.$queryRaw<SshOverviewRow[]>(Prisma.sql`
           SELECT COUNT(*)::bigint AS sessions,
                  COUNT(DISTINCT src_ip)::bigint AS "uniqueIps",
                  COUNT(*) FILTER (WHERE login_success IS TRUE)::bigint AS "successfulLogins",
@@ -24,14 +24,14 @@ export async function miscRoutes(fastify: FastifyInstance) {
           FROM sessions
           WHERE started_at >= ${cutoff}
         `),
-        fastify.prisma.$queryRaw<WebOverviewRow[]>(Prisma.sql`
+        fastify.prismaRead.$queryRaw<WebOverviewRow[]>(Prisma.sql`
           SELECT COUNT(*)::bigint AS hits,
                  COUNT(DISTINCT src_ip)::bigint AS "uniqueIps",
                  MAX(timestamp) AS "lastSeen"
           FROM web_hits
           WHERE timestamp >= ${cutoff}
         `),
-        fastify.prisma.$queryRaw<WebTopAttackRow[]>(Prisma.sql`
+        fastify.prismaRead.$queryRaw<WebTopAttackRow[]>(Prisma.sql`
           SELECT attack_type AS "attackType"
           FROM web_hits
           WHERE timestamp >= ${cutoff}
@@ -39,7 +39,7 @@ export async function miscRoutes(fastify: FastifyInstance) {
           ORDER BY COUNT(*) DESC
           LIMIT 1
         `),
-        fastify.prisma.$queryRaw<ProtocolOverviewRow[]>(Prisma.sql`
+        fastify.prismaRead.$queryRaw<ProtocolOverviewRow[]>(Prisma.sql`
           SELECT protocol,
                  COUNT(*)::bigint AS count,
                  COUNT(DISTINCT src_ip)::bigint AS "uniqueIps",
@@ -94,7 +94,7 @@ export async function miscRoutes(fastify: FastifyInstance) {
       interface ProtoBucket { protocol: string; bucketStart: string; label: string; count: number }
 
       const [sshRows, webRows, protoRows] = await Promise.all([
-        fastify.prisma.$queryRaw<BaseBucket[]>(Prisma.sql`
+        fastify.prismaRead.$queryRaw<BaseBucket[]>(Prisma.sql`
           WITH bounds AS (
             SELECT date_trunc(${truncUnit}, timezone(${timezone}, ${startDate}::timestamptz)) AS s,
                    date_trunc(${truncUnit}, timezone(${timezone}, ${endDate}::timestamptz))   AS e
@@ -108,7 +108,7 @@ export async function miscRoutes(fastify: FastifyInstance) {
                  COALESCE(counts.count, 0)::int AS count
           FROM series LEFT JOIN counts USING (b) ORDER BY series.b
         `),
-        fastify.prisma.$queryRaw<BaseBucket[]>(Prisma.sql`
+        fastify.prismaRead.$queryRaw<BaseBucket[]>(Prisma.sql`
           WITH bounds AS (
             SELECT date_trunc(${truncUnit}, timezone(${timezone}, ${startDate}::timestamptz)) AS s,
                    date_trunc(${truncUnit}, timezone(${timezone}, ${endDate}::timestamptz))   AS e
@@ -122,7 +122,7 @@ export async function miscRoutes(fastify: FastifyInstance) {
                  COALESCE(counts.count, 0)::int AS count
           FROM series LEFT JOIN counts USING (b) ORDER BY series.b
         `),
-        fastify.prisma.$queryRaw<ProtoBucket[]>(Prisma.sql`
+        fastify.prismaRead.$queryRaw<ProtoBucket[]>(Prisma.sql`
           SELECT protocol,
                  to_char(date_trunc(${truncUnit}, timezone(${timezone}, timestamp::timestamptz)), ${fmt}) AS "bucketStart",
                  to_char(date_trunc(${truncUnit}, timezone(${timezone}, timestamp::timestamptz)), ${lbl}) AS label,
@@ -156,7 +156,7 @@ export async function miscRoutes(fastify: FastifyInstance) {
 
   fastify.get('/stats/geo', () =>
     withCache(fastify.cache, 'stats:geo', GEO_TTL, () =>
-      fastify.prisma.$queryRaw<{ srcIp: string; loginSuccess: boolean | null }[]>(Prisma.sql`
+      fastify.prismaRead.$queryRaw<{ srcIp: string; loginSuccess: boolean | null }[]>(Prisma.sql`
         SELECT src_ip AS "srcIp", BOOL_OR(login_success IS TRUE) AS "loginSuccess"
         FROM sessions GROUP BY src_ip
       `)
@@ -165,7 +165,7 @@ export async function miscRoutes(fastify: FastifyInstance) {
 
   fastify.get('/stats/session-commands', async (request) => {
     const { limit = '500' } = request.query as Record<string, string>
-    const events = await fastify.prisma.event.findMany({
+    const events = await fastify.prismaRead.event.findMany({
       where: { eventType: 'command.input', command: { not: null } },
       select: { sessionId: true, command: true },
       take: Math.min(Number(limit), 5000),
@@ -188,7 +188,7 @@ export async function miscRoutes(fastify: FastifyInstance) {
 
     return withCache(fastify.cache, cacheKey, 1200, async () => {
       interface HeatmapRow { dow: number; hour: number; count: bigint }
-      const rows = await fastify.prisma.$queryRaw<HeatmapRow[]>(Prisma.sql`
+      const rows = await fastify.prismaRead.$queryRaw<HeatmapRow[]>(Prisma.sql`
         SELECT EXTRACT(DOW  FROM started_at AT TIME ZONE ${timezone})::int AS dow,
                EXTRACT(HOUR FROM started_at AT TIME ZONE ${timezone})::int AS hour,
                COUNT(*)::bigint AS count

@@ -45,7 +45,7 @@ export async function dashboardRoute(fastify: FastifyInstance) {
 }
 
 function queryWindow(fastify: FastifyInstance) {
-  return fastify.prisma.$queryRaw<InsightWindowRow[]>(Prisma.sql`
+  return fastify.prismaRead.$queryRaw<InsightWindowRow[]>(Prisma.sql`
     SELECT MIN(started_at) AS "firstSeen", MAX(COALESCE(ended_at, started_at)) AS "lastSeen",
            COUNT(*)::int AS "totalSessions", COUNT(DISTINCT src_ip)::int AS "uniqueIps"
     FROM sessions
@@ -53,7 +53,7 @@ function queryWindow(fastify: FastifyInstance) {
 }
 
 function queryFunnel(fastify: FastifyInstance) {
-  return fastify.prisma.$queryRaw<FunnelRow[]>(Prisma.sql`
+  return fastify.prismaRead.$queryRaw<FunnelRow[]>(Prisma.sql`
     WITH event_flags AS (
       SELECT session_id,
         bool_or(event_type = 'session.connect') AS has_connect,
@@ -80,7 +80,7 @@ function queryFunnel(fastify: FastifyInstance) {
 
 function queryCountrySuccessCandidates(fastify: FastifyInstance) {
   const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-  return fastify.prisma.$queryRaw<CountrySuccessCandidateRow[]>(Prisma.sql`
+  return fastify.prismaRead.$queryRaw<CountrySuccessCandidateRow[]>(Prisma.sql`
     SELECT src_ip AS "srcIp", COUNT(*)::int AS sessions,
            COUNT(*) FILTER (WHERE login_success IS TRUE)::int AS successes
     FROM sessions WHERE started_at >= ${cutoff} GROUP BY src_ip
@@ -88,7 +88,7 @@ function queryCountrySuccessCandidates(fastify: FastifyInstance) {
 }
 
 function queryCredentialCampaigns(fastify: FastifyInstance) {
-  return fastify.prisma.$queryRaw<CredentialCampaignRow[]>(Prisma.sql`
+  return fastify.prismaRead.$queryRaw<CredentialCampaignRow[]>(Prisma.sql`
     WITH auth_events AS (
       SELECT date_bin('6 hours', event_ts, TIMESTAMP '2001-01-01') AS bucket_start,
              username, password, src_ip, success
@@ -105,7 +105,7 @@ function queryCredentialCampaigns(fastify: FastifyInstance) {
 
 function queryRecurringIps(fastify: FastifyInstance) {
   const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-  return fastify.prisma.$queryRaw<RecurringIpRow[]>(Prisma.sql`
+  return fastify.prismaRead.$queryRaw<RecurringIpRow[]>(Prisma.sql`
     WITH per_ip AS (
       SELECT src_ip, COUNT(*)::int AS total_sessions,
              COUNT(*) FILTER (WHERE login_success IS FALSE)::int AS failed_sessions,
@@ -136,7 +136,7 @@ function queryRecurringIps(fastify: FastifyInstance) {
 
 function queryCommandPatterns(fastify: FastifyInstance) {
   const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-  return fastify.prisma.$queryRaw<CommandPatternRow[]>(Prisma.sql`
+  return fastify.prismaRead.$queryRaw<CommandPatternRow[]>(Prisma.sql`
     WITH successful_sessions AS (SELECT id, src_ip FROM sessions WHERE login_success IS TRUE AND started_at >= ${cutoff}),
     ranked_commands AS (
       SELECT s.id AS session_id, s.src_ip, e.command, ROW_NUMBER() OVER (PARTITION BY s.id ORDER BY e.event_ts ASC) AS rn
@@ -156,7 +156,7 @@ function queryCommandPatterns(fastify: FastifyInstance) {
 
 function queryDepthBuckets(fastify: FastifyInstance) {
   const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-  return fastify.prisma.$queryRaw<DepthBucketRow[]>(Prisma.sql`
+  return fastify.prismaRead.$queryRaw<DepthBucketRow[]>(Prisma.sql`
     WITH successful_command_counts AS (
       SELECT s.id, COUNT(*) FILTER (WHERE e.event_type = 'command.input')::int AS command_count
       FROM sessions s LEFT JOIN events e ON e.session_id = s.id WHERE s.login_success IS TRUE AND s.started_at >= ${cutoff} GROUP BY s.id
@@ -171,7 +171,7 @@ function queryDepthBuckets(fastify: FastifyInstance) {
 
 function queryDepthStats(fastify: FastifyInstance) {
   const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-  return fastify.prisma.$queryRaw<DepthStatsRow[]>(Prisma.sql`
+  return fastify.prismaRead.$queryRaw<DepthStatsRow[]>(Prisma.sql`
     WITH successful_command_counts AS (
       SELECT s.id, COUNT(*) FILTER (WHERE e.event_type = 'command.input')::int AS command_count
       FROM sessions s LEFT JOIN events e ON e.session_id = s.id WHERE s.login_success IS TRUE AND s.started_at >= ${cutoff} GROUP BY s.id

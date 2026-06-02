@@ -12,7 +12,7 @@ async function getTimeline(
   const format = bucket === 'hour' ? 'YYYY-MM-DD HH24:MI' : 'YYYY-MM-DD'
   const label = bucket === 'hour' ? 'HH24:MI' : 'DD/MM'
 
-  return fastify.prisma.$queryRaw<TimelineRow[]>(Prisma.sql`
+  return fastify.prismaRead.$queryRaw<TimelineRow[]>(Prisma.sql`
     WITH bounds AS (
       SELECT date_trunc(${truncUnit}, timezone(${timezone}, ${startDate}::timestamptz)) AS start_local,
              date_trunc(${truncUnit}, timezone(${timezone}, ${endDate}::timestamptz))   AS end_local
@@ -42,7 +42,7 @@ async function getSessionTimeline(
   const format = bucket === 'hour' ? 'YYYY-MM-DD HH24:MI' : 'YYYY-MM-DD'
   const label = bucket === 'hour' ? 'HH24:MI' : 'DD/MM'
 
-  return fastify.prisma.$queryRaw<SessionTimelineRow[]>(Prisma.sql`
+  return fastify.prismaRead.$queryRaw<SessionTimelineRow[]>(Prisma.sql`
     WITH bounds AS (
       SELECT date_trunc(${truncUnit}, timezone(${timezone}, ${startDate}::timestamptz)) AS start_local,
              date_trunc(${truncUnit}, timezone(${timezone}, ${endDate}::timestamptz))   AS end_local
@@ -85,15 +85,15 @@ export async function overviewRoute(fastify: FastifyInstance) {
 
     const [totalSessions, totalCommands, successfulLogins, failedLogins, uniqueIpRows, topCommandsRows, topUsernames, topPasswords, timeline] =
       await Promise.all([
-        fastify.prisma.session.count({ where: sessionWhere }),
-        fastify.prisma.event.count({ where: { ...eventWhere, eventType: 'command.input', command: { not: null } } }),
-        fastify.prisma.event.count({ where: { ...eventWhere, eventType: 'auth.success' } }),
-        fastify.prisma.event.count({ where: { ...eventWhere, eventType: 'auth.failed' } }),
-        fastify.prisma.$queryRaw<CountRow[]>(Prisma.sql`
+        fastify.prismaRead.session.count({ where: sessionWhere }),
+        fastify.prismaRead.event.count({ where: { ...eventWhere, eventType: 'command.input', command: { not: null } } }),
+        fastify.prismaRead.event.count({ where: { ...eventWhere, eventType: 'auth.success' } }),
+        fastify.prismaRead.event.count({ where: { ...eventWhere, eventType: 'auth.failed' } }),
+        fastify.prismaRead.$queryRaw<CountRow[]>(Prisma.sql`
           SELECT COUNT(DISTINCT src_ip)::int AS count FROM sessions
           WHERE started_at >= ${startDate} AND started_at <= ${endDate}
         `),
-        fastify.prisma.$queryRaw<CommandRow[]>(Prisma.sql`
+        fastify.prismaRead.$queryRaw<CommandRow[]>(Prisma.sql`
           SELECT NULLIF(split_part(btrim(command), ' ', 1), '') AS command, COUNT(*)::int AS count
           FROM events
           WHERE event_type = 'command.input' AND command IS NOT NULL
@@ -101,8 +101,8 @@ export async function overviewRoute(fastify: FastifyInstance) {
           GROUP BY 1 HAVING NULLIF(split_part(btrim(command), ' ', 1), '') IS NOT NULL
           ORDER BY count DESC, command ASC LIMIT 10
         `),
-        fastify.prisma.event.groupBy({ by: ['username'], where: { ...authWhere, username: { not: null } }, _count: { username: true }, orderBy: { _count: { username: 'desc' } }, take: 10 }),
-        fastify.prisma.event.groupBy({ by: ['password'], where: { ...authWhere, password: { not: null } }, _count: { password: true }, orderBy: { _count: { password: 'desc' } }, take: 10 }),
+        fastify.prismaRead.event.groupBy({ by: ['username'], where: { ...authWhere, username: { not: null } }, _count: { username: true }, orderBy: { _count: { username: 'desc' } }, take: 10 }),
+        fastify.prismaRead.event.groupBy({ by: ['password'], where: { ...authWhere, password: { not: null } }, _count: { password: true }, orderBy: { _count: { password: 'desc' } }, take: 10 }),
         getSessionTimeline(fastify, timezone, startDate, endDate, range === 'day' ? 'hour' : 'day'),
       ])
 

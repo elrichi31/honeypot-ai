@@ -103,11 +103,12 @@ const THREATS_CACHE_TTL = 1800 // 30 minutes
 const THREATS_FILTERED_TTL = 300 // 5 minutes for filtered/search results
 
 async function fetchThreats(fastify: FastifyInstance, ipFilter?: string) {
+  const db = fastify.prismaRead
   const [sshRows, cmdRows, webRows, protocolRows] = await Promise.all([
-    queryThreatSshRows(fastify.prisma, ipFilter),
-    queryThreatCommandRows(fastify.prisma, ipFilter),
-    queryThreatWebRows(fastify.prisma, ipFilter),
-    queryThreatProtocolRows(fastify.prisma, ipFilter),
+    queryThreatSshRows(db, ipFilter),
+    queryThreatCommandRows(db, ipFilter),
+    queryThreatWebRows(db, ipFilter),
+    queryThreatProtocolRows(db, ipFilter),
   ])
   const sshMap = new Map(sshRows.map((row) => [row.src_ip, row]))
   const webMap = new Map(webRows.map((row) => [row.src_ip, row]))
@@ -197,11 +198,12 @@ function commandCategory(command: string | null) {
 }
 
 async function fetchThreatByIp(fastify: FastifyInstance, ip: string) {
+  const db = fastify.prismaRead
   const [sshRows, cmdRows, webRows, protocolRows] = await Promise.all([
-    queryThreatSshRow(fastify.prisma, ip),
-    queryThreatCommandsByIp(fastify.prisma, ip),
-    queryThreatWebRow(fastify.prisma, ip),
-    queryThreatProtocolRowsByIp(fastify.prisma, ip),
+    queryThreatSshRow(db, ip),
+    queryThreatCommandsByIp(db, ip),
+    queryThreatWebRow(db, ip),
+    queryThreatProtocolRowsByIp(db, ip),
   ])
   const cmds = cmdRows.flatMap((row) => row.command ? [row.command] : [])
   return { threat: buildThreat(ip, sshRows[0], webRows[0], cmds, protocolRows), cmdRows, cmds }

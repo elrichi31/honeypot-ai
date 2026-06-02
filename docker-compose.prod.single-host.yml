@@ -125,12 +125,19 @@ services:
       -c wal_buffers=16MB
       -c max_connections=50
       -c password_encryption=md5
+      -c wal_level=replica
+      -c max_wal_senders=10
+      -c max_replication_slots=10
+      -c hot_standby=on
     environment:
       POSTGRES_USER: honeypot
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: honeypot_prod
+      REPLICATION_USER: ${REPLICATION_USER:-replicator}
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
     volumes:
       - pg_data:/var/lib/postgresql/data
+      - ./deploy/postgres/primary-init-replication.sh:/docker-entrypoint-initdb.d/10-replication.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U honeypot"]
       interval: 3s
@@ -142,6 +149,46 @@ services:
       resources:
         limits:
           cpus: "2.0"
+
+  postgres-replica:
+    logging: *json-logging
+    image: postgres:16-alpine
+    container_name: honeypot-postgres-replica
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    user: postgres
+    entrypoint: ["/usr/local/bin/replica-entrypoint.sh"]
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c work_mem=32MB
+      -c effective_cache_size=1GB
+      -c random_page_cost=1.1
+      -c max_connections=50
+      -c hot_standby=on
+    environment:
+      PRIMARY_HOST: postgres
+      PRIMARY_PORT: "5432"
+      REPLICATION_USER: ${REPLICATION_USER:-replicator}
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - pg_replica_data:/var/lib/postgresql/data
+      - ./deploy/postgres/replica-entrypoint.sh:/usr/local/bin/replica-entrypoint.sh:ro
+    healthcheck:
+      # On a standby pg_isready succeeds once it accepts read queries.
+      test: ["CMD-SHELL", "pg_isready -U honeypot -d honeypot_prod"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - db_private
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
 
   pgbouncer:
     image: edoburu/pgbouncer:latest
@@ -194,6 +241,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      postgres-replica:
+        condition: service_healthy
       pgbouncer:
         condition: service_started
       redis:
@@ -201,6 +250,8 @@ services:
     environment:
       DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@pgbouncer:5432/honeypot_prod?pgbouncer=true
       DIRECT_DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot_prod
+      # Dashboard read queries are routed here by the read-replicas Prisma extension.
+      REPLICA_DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres-replica:5432/honeypot_prod
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       REDIS_URL: redis://redis:6379
@@ -498,6 +549,7 @@ volumes:
   dionaea_var:
   dionaea_shipper_state:
   pg_data:
+  pg_replica_data:
   dashboard_data:
   vector_data:
   suricata_logs:

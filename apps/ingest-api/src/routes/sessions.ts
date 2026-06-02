@@ -92,8 +92,8 @@ async function handleListSessions(fastify: FastifyInstance, request: FastifyRequ
     const listClauses = buildSessionClauses({ q: params.q, startDate: params.startDate, endDate: params.endDate, outcome: params.outcome ?? 'all', actor: params.actor ?? 'all' });
 
     const [summaryRows, sessionRows] = await Promise.all([
-      fastify.prisma.$queryRaw<SessionSummaryRow[]>(summaryQuery(buildWhereSql(baseClauses))),
-      fastify.prisma.$queryRaw<SessionListRow[]>(sessionListQuery(buildWhereSql(listClauses), params.sortDir, pageSize, offset)),
+      fastify.prismaRead.$queryRaw<SessionSummaryRow[]>(summaryQuery(buildWhereSql(baseClauses))),
+      fastify.prismaRead.$queryRaw<SessionListRow[]>(sessionListQuery(buildWhereSql(listClauses), params.sortDir, pageSize, offset)),
     ]);
 
     const summary = summaryRows[0] ?? { total: 0, compromised: 0, blocked: 0, scanGroups: 0, bots: 0, humans: 0 };
@@ -114,9 +114,9 @@ async function handleScanGroups(fastify: FastifyInstance, request: FastifyReques
     const blockedWhere = buildWhereSql(blockedClauses);
 
     const [summaryRows, totalGroupRows, sessionRows] = await Promise.all([
-      fastify.prisma.$queryRaw<SessionSummaryRow[]>(summaryQuery(buildWhereSql(baseClauses))),
-      fastify.prisma.$queryRaw<Array<{ count: number }>>`SELECT COUNT(DISTINCT s.src_ip)::int AS count FROM sessions s ${blockedWhere}`,
-      fastify.prisma.$queryRaw<SessionListRow[]>(scanGroupListQuery(blockedWhere, pageSize, offset)),
+      fastify.prismaRead.$queryRaw<SessionSummaryRow[]>(summaryQuery(buildWhereSql(baseClauses))),
+      fastify.prismaRead.$queryRaw<Array<{ count: number }>>`SELECT COUNT(DISTINCT s.src_ip)::int AS count FROM sessions s ${blockedWhere}`,
+      fastify.prismaRead.$queryRaw<SessionListRow[]>(scanGroupListQuery(blockedWhere, pageSize, offset)),
     ]);
 
     const summary = summaryRows[0] ?? { total: 0, compromised: 0, blocked: 0, scanGroups: 0, bots: 0, humans: 0 };
@@ -126,7 +126,7 @@ async function handleScanGroups(fastify: FastifyInstance, request: FastifyReques
 
 async function handleGetSession(fastify: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
   const { id } = request.params as { id: string };
-  const session = await fastify.prisma.session.findUnique({ where: { id }, include: { events: { orderBy: { eventTs: 'asc' } } } });
+  const session = await fastify.prismaRead.session.findUnique({ where: { id }, include: { events: { orderBy: { eventTs: 'asc' } } } });
 
   if (!session) return reply.status(404).send({ error: 'Session not found' });
 
