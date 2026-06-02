@@ -145,9 +145,12 @@ async function handleDeleteSensor(fastify: FastifyInstance, request: FastifyRequ
   const [deleted] = await fastify.prisma.$queryRaw<Array<{ sensor_id: string }>>`
     DELETE FROM sensors WHERE sensor_id = ${params.data.sensorId} RETURNING sensor_id
   `
-  if (!deleted) return reply.status(404).send({ error: 'Sensor not found' })
 
-  return reply.send({ deleted: true, sensorId: deleted.sensor_id })
+  // Idempotent: deleting a sensor that no longer exists still satisfies the
+  // caller's intent (it's gone). The list often shows a stale row after the
+  // heartbeat lapses and the row is pruned, so report success either way and
+  // let the client refresh to drop the phantom card.
+  return reply.send({ deleted: !!deleted, alreadyGone: !deleted, sensorId: params.data.sensorId })
 }
 
 async function handleGetConfig(fastify: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
