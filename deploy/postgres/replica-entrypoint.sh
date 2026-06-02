@@ -1,11 +1,12 @@
-#!/bin/bash
+#!/bin/sh
 # Entrypoint for the read-replica (hot standby) postgres container.
+# POSIX sh (postgres:16-alpine has no bash).
 #
 # On first start the data dir is empty, so we clone the primary with
 # pg_basebackup (which also writes standby.signal + primary_conninfo via -R).
 # On subsequent starts the data dir already exists, so we just boot postgres
 # and it resumes streaming replication from where it left off.
-set -euo pipefail
+set -eu
 
 PGDATA="${PGDATA:-/var/lib/postgresql/data}"
 : "${PRIMARY_HOST:=postgres}"

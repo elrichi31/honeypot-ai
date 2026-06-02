@@ -1,10 +1,11 @@
-#!/bin/bash
+#!/bin/sh
 # Runs once, on first init of the PRIMARY postgres data dir
 # (via /docker-entrypoint-initdb.d). Creates the replication role and allows
 # the replica container to connect for streaming replication.
+# POSIX sh (postgres:16-alpine has no bash).
 #
 # REPLICATION_PASSWORD is required; the replica uses it to authenticate.
-set -euo pipefail
+set -eu
 
 : "${REPLICATION_USER:=replicator}"
 : "${REPLICATION_PASSWORD:?REPLICATION_PASSWORD must be set on the primary}"
