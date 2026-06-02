@@ -4,7 +4,7 @@ import { SearchInput } from "@/components/ui/search-input"
 import { fetchThreatsPage } from "@/lib/api"
 import { ThreatsTable } from "./threats-table"
 
-const PAGE_SIZE_OPTIONS = new Set(["50", "100", "200"])
+const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
 
 const VALID_THREAT_SORT_BY = new Set(["score", "sessions", "webHits", "protocols"])
 const VALID_SORT_DIR = new Set(["asc", "desc"])
@@ -22,7 +22,7 @@ export default async function ThreatsPage({
 }) {
   const params = await searchParams
   const page = Number(params.page ?? "1")
-  const pageSize = PAGE_SIZE_OPTIONS.has(params.pageSize ?? "") ? Number(params.pageSize) : 50
+  const pageSize = PAGE_SIZE_OPTIONS.has(params.pageSize ?? "") ? Number(params.pageSize) : 20
   const q = params.q?.trim() || undefined
   const sortBy = VALID_THREAT_SORT_BY.has(params.sortBy ?? "") ? (params.sortBy as "score" | "sessions" | "webHits" | "protocols") : "score"
   const sortDir = VALID_SORT_DIR.has(params.sortDir ?? "") ? (params.sortDir as "asc" | "desc") : "desc"

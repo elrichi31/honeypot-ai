@@ -1,10 +1,10 @@
 "use client"
 
-import { useRouter, useSearchParams } from "next/navigation"
-import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { TableShell } from "@/components/table-shell"
 import { EmptyState } from "@/components/ui/data-states"
+import { NavTransitionProvider, useNavTransition } from "@/lib/use-nav-transition"
 import type { PaginationMeta, ThreatSummary } from "@/lib/api"
 import { LEVEL_STYLES, CMD_COLORS, CMD_LABELS_SHORT as CMD_LABELS } from "@/lib/attack-types"
 
@@ -36,8 +36,9 @@ const PROTOCOL_STYLES: Record<string, string> = {
   mqtt: "border-teal-500/20 bg-teal-500/10 text-teal-400",
 }
 
-function SortableTh({ label, column, sortBy, sortDir, searchParams }: {
-  label: string; column: string; sortBy: string; sortDir: string; searchParams: URLSearchParams
+function SortableTh({ label, column, sortBy, sortDir, searchParams, push }: {
+  label: string; column: string; sortBy: string; sortDir: string
+  searchParams: URLSearchParams; push: (href: string) => void
 }) {
   const isActive = sortBy === column
   const nextDir = isActive && sortDir === "desc" ? "asc" : "desc"
@@ -47,27 +48,41 @@ function SortableTh({ label, column, sortBy, sortDir, searchParams }: {
   params.delete("page")
   return (
     <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">
-      <Link href={`/threats?${params}`} className="inline-flex items-center gap-1 hover:text-foreground transition-colors">
+      <button
+        type="button"
+        onClick={() => push(`/threats?${params}`)}
+        className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+      >
         {label}
         {isActive ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-40" />}
-      </Link>
+      </button>
     </th>
   )
 }
 
-export function ThreatsTable({
-  threats,
-  pagination,
-  sortBy = "score",
-  sortDir = "desc",
-}: {
+interface ThreatsTableProps {
   threats: ThreatSummary[]
   pagination?: PaginationMeta
   sortBy?: string
   sortDir?: string
-}) {
-  const router = useRouter()
+}
+
+export function ThreatsTable(props: ThreatsTableProps) {
+  return (
+    <NavTransitionProvider>
+      <ThreatsTableInner {...props} />
+    </NavTransitionProvider>
+  )
+}
+
+function ThreatsTableInner({
+  threats,
+  pagination,
+  sortBy = "score",
+  sortDir = "desc",
+}: ThreatsTableProps) {
   const searchParams = useSearchParams()
+  const { push } = useNavTransition()
 
   return (
     <TableShell
@@ -88,8 +103,8 @@ export function ThreatsTable({
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">#</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">IP</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Level</th>
-                <SortableTh label="Score" column="score" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} />
-                <SortableTh label="Protocols" column="protocols" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} />
+                <SortableTh label="Score" column="score" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} />
+                <SortableTh label="Protocols" column="protocols" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} />
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Detected commands</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Top factors</th>
               </tr>
@@ -113,7 +128,7 @@ export function ThreatsTable({
                 return (
                   <tr
                     key={threat.ip}
-                    onClick={() => router.push(`/threats/${encodeURIComponent(threat.ip)}`)}
+                    onClick={() => push(`/threats/${encodeURIComponent(threat.ip)}`)}
                     className="cursor-pointer transition-colors hover:bg-muted/10"
                   >
                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{index + 1}</td>

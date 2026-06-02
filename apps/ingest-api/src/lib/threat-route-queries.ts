@@ -13,13 +13,17 @@ export type CommandDetailRow = {
 }
 
 // When ipFilter is provided the query returns only matching IPs (for search pushdown).
-// Without filter the query returns the top 2000 IPs by activity so we never load 50k+
-// IPs into memory.
+// Without filter the query returns the top 500 IPs by activity. The threats page
+// ranks by risk score, which tracks activity (sessions/hits) closely, and the rows
+// are already ordered by activity DESC — so the highest-risk IPs are always within
+// the top 500. This keeps us from loading + risk-scoring tens of thousands of IPs in
+// memory just to render one page.
+const UNFILTERED_IP_LIMIT = 500
 
 function buildIpFilter(ipFilter: string | undefined, col: Prisma.Sql = Prisma.raw('src_ip')) {
   return {
     where: ipFilter ? Prisma.sql`WHERE ${col} ILIKE ${`%${ipFilter}%`}` : Prisma.empty,
-    limit: ipFilter ? Prisma.sql`LIMIT 200` : Prisma.sql`LIMIT 2000`,
+    limit: ipFilter ? Prisma.sql`LIMIT 200` : Prisma.sql`LIMIT ${UNFILTERED_IP_LIMIT}`,
   }
 }
 
@@ -45,7 +49,7 @@ export async function queryThreatSshRows(prisma: PrismaClient, ipFilter?: string
 export async function queryThreatCommandRows(prisma: PrismaClient, ipFilter?: string) {
   const ipClause = ipFilter ? Prisma.sql`AND e.src_ip ILIKE ${`%${ipFilter}%`}` : Prisma.empty
   const where = Prisma.sql`WHERE e.event_type = 'command.input' AND e.command IS NOT NULL ${ipClause}`
-  const limit = ipFilter ? Prisma.sql`LIMIT 2000` : Prisma.sql`LIMIT 20000`
+  const limit = ipFilter ? Prisma.sql`LIMIT 2000` : Prisma.sql`LIMIT 10000`
   return prisma.$queryRaw<Array<CommandAggRow>>`
     SELECT DISTINCT e.src_ip, e.command
     FROM events e

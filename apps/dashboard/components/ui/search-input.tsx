@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter, useSearchParams, usePathname } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { Search, X } from "lucide-react"
 import { useDebounce } from "@/hooks/use-debounce"
+import { useNavTransitionOptional } from "@/lib/use-nav-transition"
 
 interface SearchInputProps {
   defaultValue?: string
@@ -12,21 +13,19 @@ interface SearchInputProps {
 }
 
 export function SearchInput({ defaultValue = "", placeholder = "Search...", className }: SearchInputProps) {
-  const router = useRouter()
-  const pathname = usePathname()
   const searchParams = useSearchParams()
+  const { pushParams } = useNavTransitionOptional()
   const [value, setValue] = useState(defaultValue)
   const debounced = useDebounce(value, 350)
 
   useEffect(() => {
-    const params = new URLSearchParams(searchParams.toString())
+    const current = searchParams.get("q") ?? ""
+    if (debounced === current) return
     if (debounced) {
-      params.set("q", debounced)
+      pushParams({ q: debounced }, ["page"])
     } else {
-      params.delete("q")
+      pushParams({}, ["q", "page"])
     }
-    params.delete("page")
-    router.push(`${pathname}?${params.toString()}`)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debounced])
 

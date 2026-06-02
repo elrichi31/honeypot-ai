@@ -69,8 +69,8 @@ function buildThreat(ip: string, ssh: SshAggRow | undefined, web: WebAggRow | un
 }
 
 const THREATS_CACHE_KEY = 'threats:list'
-const THREATS_CACHE_TTL = 600 // 10 minutes
-const THREATS_FILTERED_TTL = 60 // 1 minute for filtered/search results
+const THREATS_CACHE_TTL = 1800 // 30 minutes
+const THREATS_FILTERED_TTL = 300 // 5 minutes for filtered/search results
 
 async function fetchThreats(fastify: FastifyInstance, ipFilter?: string) {
   const [sshRows, cmdRows, webRows, protocolRows] = await Promise.all([
