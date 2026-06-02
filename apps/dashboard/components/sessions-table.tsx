@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { Filter, Search, ShieldX, ScanLine, X, Bot, User } from "lucide-react"
 import type { PaginationMeta, SessionsSummary } from "@/lib/api"
 import { TableShell } from "@/components/table-shell"
+import { NavTransitionProvider, useNavTransitionOptional } from "@/lib/use-nav-transition"
 import { cn } from "@/lib/utils"
 import { countryFlag } from "@/lib/formatting"
 import { classify, groupScans, type SessionItem } from "@/lib/session-classify-v2"
@@ -30,7 +31,20 @@ interface Filters {
   classification: string
 }
 
-export function SessionsTable({
+export function SessionsTable(props: SessionsTableProps) {
+  // The preview variant (showAll=false) has no tabs/filters/pagination, so it
+  // doesn't need the navigation transition machinery.
+  if (!props.showAll) {
+    return <SessionsTableInner {...props} />
+  }
+  return (
+    <NavTransitionProvider>
+      <SessionsTableInner {...props} />
+    </NavTransitionProvider>
+  )
+}
+
+function SessionsTableInner({
   sessions,
   showAll = false,
   tab = "sessions",
@@ -40,8 +54,7 @@ export function SessionsTable({
   pagination,
 }: SessionsTableProps) {
   const pathname = usePathname()
-  const router = useRouter()
-  const searchParams = useSearchParams()
+  const { pushParams } = useNavTransitionOptional()
   const [filters, setFilters] = useState<Filters>({ search: "", country: "", classification: "" })
   const [serverQuery, setServerQuery] = useState(searchQuery)
 
@@ -98,21 +111,15 @@ export function SessionsTable({
   }
 
   function setTab(nextTab: "sessions" | "scans") {
-    const next = new URLSearchParams(searchParams.toString())
-    next.set("tab", nextTab)
-    next.set("page", "1")
-    router.push(`${pathname}?${next.toString()}`)
+    pushParams({ tab: nextTab, page: "1" })
   }
 
   function setActorFilter(nextActor: "all" | "bot" | "human") {
-    const next = new URLSearchParams(searchParams.toString())
     if (nextActor === "all") {
-      next.delete("actor")
-    } else {
-      next.set("actor", nextActor)
+      pushParams({ page: "1" }, ["actor"])
+      return
     }
-    next.set("page", "1")
-    router.push(`${pathname}?${next.toString()}`)
+    pushParams({ actor: nextActor, page: "1" })
   }
 
   const activeFilters = [filters.search, filters.country, filters.classification].filter(Boolean)
@@ -223,7 +230,7 @@ export function SessionsTable({
         <div className="flex flex-wrap items-center gap-3">
           <form className="flex min-w-[320px] flex-1 items-center gap-2" action={pathname}>
             <input type="hidden" name="tab" value={tab} />
-            <input type="hidden" name="pageSize" value={String(pagination?.pageSize ?? 50)} />
+            <input type="hidden" name="pageSize" value={String(pagination?.pageSize ?? 20)} />
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <input
@@ -243,7 +250,7 @@ export function SessionsTable({
             </button>
             {searchQuery && (
               <Link
-                href={`${pathname}?tab=${tab}&pageSize=${pagination?.pageSize ?? 50}`}
+                href={`${pathname}?tab=${tab}&pageSize=${pagination?.pageSize ?? 20}`}
                 className="inline-flex h-10 items-center rounded-lg border border-border px-4 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
               >
                 Clear

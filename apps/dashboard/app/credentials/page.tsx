@@ -2,7 +2,7 @@ import { PageShell } from "@/components/page-shell"
 import { CredentialsView } from "@/components/credentials-view"
 import { fetchCredentialsAnalytics } from "@/lib/api"
 
-const PAGE_SIZE_OPTIONS = new Set(["50", "100", "200"])
+const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
 
 export default async function CredentialsPage({
   searchParams,
@@ -21,7 +21,7 @@ export default async function CredentialsPage({
 }) {
   const params = await searchParams
   const page = Number(params.page ?? "1")
-  const pageSize = PAGE_SIZE_OPTIONS.has(params.pageSize ?? "") ? Number(params.pageSize) : 50
+  const pageSize = PAGE_SIZE_OPTIONS.has(params.pageSize ?? "") ? Number(params.pageSize) : 20
   const mainTab =
     params.mainTab === "patterns" || params.mainTab === "recent" ? params.mainTab : "rankings"
   const rankingType =

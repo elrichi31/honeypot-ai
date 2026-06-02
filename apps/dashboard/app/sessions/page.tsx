@@ -4,7 +4,7 @@ import { ErrorState } from "@/components/ui/data-states"
 import { fetchSessionScanGroupsPage, fetchSessionsPage } from "@/lib/api"
 import { lookupIp } from "@/lib/geo"
 
-const PAGE_SIZE_OPTIONS = new Set(["50", "100", "200"])
+const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
 
 const VALID_ACTORS = new Set(["all", "bot", "human", "unknown"])
 
@@ -24,7 +24,7 @@ export default async function SessionsPage({
 }) {
   const params = await searchParams
   const page = Number(params.page ?? "1")
-  const pageSize = PAGE_SIZE_OPTIONS.has(params.pageSize ?? "") ? Number(params.pageSize) : 50
+  const pageSize = PAGE_SIZE_OPTIONS.has(params.pageSize ?? "") ? Number(params.pageSize) : 20
   const tab = params.tab === "scans" ? "scans" : "sessions"
   const q = params.q?.trim() || undefined
   const actor = VALID_ACTORS.has(params.actor ?? "") ? params.actor as "all" | "bot" | "human" | "unknown" : undefined

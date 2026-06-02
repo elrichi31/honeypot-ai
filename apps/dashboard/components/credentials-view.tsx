@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { NavTransitionProvider, useNavTransition } from "@/lib/use-nav-transition"
+import { TableLoadingOverlay } from "@/components/table-loading-overlay"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { filterPatternRows } from "@/lib/credentials"
 import { SummaryStats } from "@/components/credentials/summary-stats"
@@ -19,9 +20,15 @@ const DEFAULT_SORT_BY: Record<CredentialsRankingType, string> = {
 }
 
 export function CredentialsView({ analytics }: { analytics: CredentialsAnalytics }) {
-  const pathname = usePathname()
-  const router = useRouter()
-  const searchParams = useSearchParams()
+  return (
+    <NavTransitionProvider>
+      <CredentialsViewInner analytics={analytics} />
+    </NavTransitionProvider>
+  )
+}
+
+function CredentialsViewInner({ analytics }: { analytics: CredentialsAnalytics }) {
+  const { pushParams, isPending } = useNavTransition()
   const [search, setSearch] = useState(analytics.current.search)
 
   useEffect(() => { setSearch(analytics.current.search) }, [analytics.current.search])
@@ -38,12 +45,6 @@ export function CredentialsView({ analytics }: { analytics: CredentialsAnalytics
     () => buildExportRows(mainTab, rankingType, analytics, patterns),
     [mainTab, rankingType, analytics, patterns],
   )
-
-  function pushParams(updates: Record<string, string>) {
-    const next = new URLSearchParams(searchParams.toString())
-    for (const [key, value] of Object.entries(updates)) next.set(key, value)
-    router.push(`${pathname}?${next.toString()}`)
-  }
 
   function handleSearchSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -99,17 +100,21 @@ export function CredentialsView({ analytics }: { analytics: CredentialsAnalytics
           <TabsTrigger value="recent">Recent Attempts</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="rankings">
-          <RankingsTab analytics={analytics} rankingType={rankingType} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
-        </TabsContent>
+        <div className="relative">
+          <TableLoadingOverlay show={isPending} />
 
-        <TabsContent value="patterns">
-          <PatternsTab patterns={patterns} />
-        </TabsContent>
+          <TabsContent value="rankings">
+            <RankingsTab analytics={analytics} rankingType={rankingType} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+          </TabsContent>
 
-        <TabsContent value="recent">
-          <RecentTab analytics={analytics} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
-        </TabsContent>
+          <TabsContent value="patterns">
+            <PatternsTab patterns={patterns} />
+          </TabsContent>
+
+          <TabsContent value="recent">
+            <RecentTab analytics={analytics} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+          </TabsContent>
+        </div>
       </Tabs>
     </div>
   )
