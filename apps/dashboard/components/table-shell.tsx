@@ -1,9 +1,6 @@
-"use client"
-
 import type { ReactNode } from "react"
 import { TablePagination } from "@/components/table-pagination"
-import { TableLoadingOverlay } from "@/components/table-loading-overlay"
-import { useNavTransitionOptional } from "@/lib/use-nav-transition"
+import { NavLoadingOverlay } from "@/components/table-loading-overlay"
 import type { PaginationMeta } from "@/lib/api"
 
 export function TableShell({
@@ -24,7 +21,6 @@ export function TableShell({
   children: ReactNode
 }) {
   const hasExtras = titleEnd || toolbar
-  const { isPending } = useNavTransitionOptional()
 
   return (
     <div className="relative flex min-h-[620px] max-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-xl border border-border bg-card">
@@ -40,7 +36,7 @@ export function TableShell({
       </div>
 
       <div className="relative min-h-0 flex-1 overflow-y-auto">
-        <TableLoadingOverlay show={isPending} />
+        <NavLoadingOverlay />
         {children}
       </div>
 

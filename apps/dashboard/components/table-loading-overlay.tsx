@@ -1,10 +1,13 @@
 "use client"
 
 import { Spinner } from "@/components/ui/spinner"
+import { useNavTransitionOptional } from "@/lib/use-nav-transition"
 
 /**
  * Semi-transparent overlay shown over a table/panel while a navigation
  * (tab switch, filter, pagination) is loading new server data.
+ *
+ * Controlled directly via the `show` prop.
  */
 export function TableLoadingOverlay({ show, label = "Loading…" }: { show: boolean; label?: string }) {
   if (!show) return null
@@ -17,4 +20,14 @@ export function TableLoadingOverlay({ show, label = "Loading…" }: { show: bool
       </div>
     </div>
   )
+}
+
+/**
+ * Overlay wired to the nav-transition context. Renders nothing on the server
+ * and until a navigation is pending, so it can sit inside a Server Component
+ * (e.g. TableShell) without affecting SSR/hydration of the table markup.
+ */
+export function NavLoadingOverlay({ label }: { label?: string }) {
+  const { isPending } = useNavTransitionOptional()
+  return <TableLoadingOverlay show={isPending} label={label} />
 }

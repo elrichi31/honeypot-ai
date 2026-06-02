@@ -24,8 +24,21 @@ const NavTransitionContext = createContext<NavTransitionContextValue | null>(nul
  * Without this, `router.push()` from a client component blocks silently: Next's
  * route-level `loading.tsx` only shows on initial segment navigation, not on
  * same-page query-param changes (tabs, filters, pagination).
+ *
+ * The consuming pages (/threats, /sessions, /credentials) are dynamic (`ƒ`), so
+ * reading `useSearchParams()` here does not require a Suspense boundary.
  */
 export function NavTransitionProvider({ children }: { children: ReactNode }) {
+  const value = useNavTransitionValue()
+  return (
+    <NavTransitionContext.Provider value={value}>
+      {children}
+    </NavTransitionContext.Provider>
+  )
+}
+
+/** Shared implementation reading the current location + driving a transition. */
+function useNavTransitionValue(): NavTransitionContextValue {
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -49,11 +62,7 @@ export function NavTransitionProvider({ children }: { children: ReactNode }) {
     [router],
   )
 
-  return (
-    <NavTransitionContext.Provider value={{ isPending, pushParams, push }}>
-      {children}
-    </NavTransitionContext.Provider>
-  )
+  return { isPending, pushParams, push }
 }
 
 export function useNavTransition(): NavTransitionContextValue {
@@ -68,31 +77,12 @@ export function useNavTransition(): NavTransitionContextValue {
  * Like {@link useNavTransition} but falls back to a plain router-based
  * implementation when no provider is present, so shared components
  * (TablePagination, TableShell) work on pages that haven't opted in.
+ *
+ * Hooks are always called unconditionally to satisfy the Rules of Hooks; the
+ * context value, when present, takes precedence over the local fallback.
  */
 export function useNavTransitionOptional(): NavTransitionContextValue {
   const ctx = useContext(NavTransitionContext)
-  const pathname = usePathname()
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [isPending, startTransition] = useTransition()
-
-  const pushParams = useCallback(
-    (updates: Record<string, string>, remove?: string[]) => {
-      const next = new URLSearchParams(searchParams.toString())
-      for (const [key, value] of Object.entries(updates)) next.set(key, value)
-      for (const key of remove ?? []) next.delete(key)
-      const url = `${pathname}?${next.toString()}`
-      startTransition(() => router.push(url))
-    },
-    [pathname, router, searchParams],
-  )
-
-  const push = useCallback(
-    (href: string) => {
-      startTransition(() => router.push(href))
-    },
-    [router],
-  )
-
-  return ctx ?? { isPending, pushParams, push }
+  const fallback = useNavTransitionValue()
+  return ctx ?? fallback
 }
