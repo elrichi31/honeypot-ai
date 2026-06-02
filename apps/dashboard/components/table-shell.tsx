@@ -24,6 +24,10 @@ export function TableShell({
 
   return (
     <div className="relative flex min-h-[620px] max-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-xl border border-border bg-card">
+      {/* Overlay lives at the panel root (fixed within it) so it covers the whole
+          card and stays put even if the table body is scrolled. */}
+      <NavLoadingOverlay />
+
       <div className={hasExtras ? "space-y-4 border-b border-border p-4" : "border-b border-border p-4"}>
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
@@ -36,7 +40,6 @@ export function TableShell({
       </div>
 
       <div className="relative min-h-0 flex-1 overflow-y-auto">
-        <NavLoadingOverlay />
         {children}
       </div>
 

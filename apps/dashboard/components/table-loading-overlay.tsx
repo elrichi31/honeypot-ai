@@ -13,7 +13,16 @@ export function TableLoadingOverlay({ show, label = "Loading…" }: { show: bool
   if (!show) return null
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-[1px] transition-opacity">
+    <div
+      // pointer-events-auto + onWheel/onTouchMove blocking makes the overlay
+      // swallow scroll and clicks over the panel while data is loading, so the
+      // table underneath can't be scrolled out from under the spinner.
+      className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-[1px] transition-opacity"
+      onWheel={(e) => e.preventDefault()}
+      onTouchMove={(e) => e.preventDefault()}
+      aria-busy="true"
+      role="status"
+    >
       <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm">
         <Spinner className="size-4 text-primary" />
         {label}
