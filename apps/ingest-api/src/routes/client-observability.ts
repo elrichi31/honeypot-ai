@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { resolveClientSensors, buildPagination } from '../lib/client-helpers.js'
+import { withCache } from '../lib/cache-helper.js'
 
 const slugParam   = z.object({ clientSlug: z.string().trim().min(1) })
 const pageQuery   = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(50) })
@@ -53,7 +54,7 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
 
     const { page, pageSize, source } = query.data
     const offset = (page - 1) * pageSize
-    const cs = await resolveClientSensors(fastify.prisma, params.data.clientSlug)
+    const cs = await resolveClientSensors(fastify.prismaRead, params.data.clientSlug)
     if (!cs) return reply.status(404).send({ error: 'Client not found' })
     if (cs.sensorIds.length === 0) return reply.send({ items: [], pagination: buildPagination(page, pageSize, 0) })
 
@@ -68,8 +69,13 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
     const wantWeb      = source === 'all' || source === 'web'
     const sids         = Prisma.join(cs.sensorIds)
 
-    const [rows, countRows] = await Promise.all([
-      fastify.prisma.$queryRaw<LogRow[]>`
+    // The COUNT over the 3-table UNION is the expensive part and does not change
+    // between pages, so cache it per (client, source, filters) and only run the
+    // page-row query on each pagination click.
+    const countKey = `client:events:count:${cs.clientId}:${source}:${rawIp ?? ''}:${textQ ?? ''}`
+
+    const [rows, total] = await Promise.all([
+      fastify.prismaRead.$queryRaw<LogRow[]>`
         SELECT id, source, protocol, src_ip, event_type, ts, message, command, username, password, session_id, extra
         FROM (
           SELECT e.id::text, 'ssh'::text AS source, 'ssh'::text AS protocol, e.src_ip, e.event_type,
@@ -91,22 +97,25 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
         WHERE 1=1 ${ipCond} ${qCond}
         ORDER BY ts DESC LIMIT ${pageSize} OFFSET ${offset}
       `,
-      fastify.prisma.$queryRaw<[{ total: bigint }]>`
-        SELECT COUNT(*) AS total FROM (
-          SELECT e.src_ip, e.event_type, e.username, e.command FROM events e
-          JOIN sessions s ON s.id = e.session_id
-          WHERE s.sensor_id IN (${sids}) AND ${wantSsh}
-          UNION ALL
-          SELECT ph.src_ip, ph.event_type, ph.username, (ph.data->>'command') FROM protocol_hits ph
-          WHERE ph.sensor_id IN (${sids}) AND ${wantProtocol}
-          UNION ALL
-          SELECT wh.src_ip, wh.attack_type, NULL, wh.path FROM web_hits wh
-          WHERE wh.sensor_id IN (${sids}) AND ${wantWeb}
-        ) AS t WHERE 1=1 ${ipCond} ${qCond}
-      `,
+      withCache(fastify.cache, countKey, 60, async () => {
+        const countRows = await fastify.prismaRead.$queryRaw<[{ total: bigint }]>`
+          SELECT COUNT(*) AS total FROM (
+            SELECT e.src_ip, e.event_type, e.username, e.command FROM events e
+            JOIN sessions s ON s.id = e.session_id
+            WHERE s.sensor_id IN (${sids}) AND ${wantSsh}
+            UNION ALL
+            SELECT ph.src_ip, ph.event_type, ph.username, (ph.data->>'command') FROM protocol_hits ph
+            WHERE ph.sensor_id IN (${sids}) AND ${wantProtocol}
+            UNION ALL
+            SELECT wh.src_ip, wh.attack_type, NULL, wh.path FROM web_hits wh
+            WHERE wh.sensor_id IN (${sids}) AND ${wantWeb}
+          ) AS t WHERE 1=1 ${ipCond} ${qCond}
+        `
+        return Number(countRows[0]?.total ?? 0)
+      }),
     ])
 
-    return reply.send({ items: rows.map(mapLogRow), pagination: buildPagination(page, pageSize, Number(countRows[0]?.total ?? 0)) })
+    return reply.send({ items: rows.map(mapLogRow), pagination: buildPagination(page, pageSize, total) })
   })
 
   fastify.get('/clients/:clientSlug/timeline', async (request, reply) => {
@@ -116,7 +125,7 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
     const query = z.object({ range: z.enum(['day', 'week', 'month']).default('week') }).safeParse(request.query)
     if (!query.success) return reply.status(400).send({ error: 'Invalid query params' })
 
-    const cs = await resolveClientSensors(fastify.prisma, params.data.clientSlug)
+    const cs = await resolveClientSensors(fastify.prismaRead, params.data.clientSlug)
     if (!cs) return reply.status(404).send({ error: 'Client not found' })
     if (cs.sensorIds.length === 0) return reply.send([])
 
@@ -125,30 +134,34 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
     const intervalSql = range === 'day' ? '1 day' : range === 'week' ? '7 days' : '30 days'
     const sids        = Prisma.join(cs.sensorIds)
 
-    const rows = await fastify.prisma.$queryRaw<BucketRow[]>`
-      SELECT date_trunc(${bucketUnit}, ts) AS bucket,
-             COUNT(*) FILTER (WHERE source = 'ssh')      AS ssh,
-             COUNT(*) FILTER (WHERE source = 'protocol') AS protocol,
-             COUNT(*) FILTER (WHERE source = 'web')      AS web
-      FROM (
-        SELECT e.event_ts AS ts, 'ssh' AS source FROM events e
-        JOIN sessions s ON s.id = e.session_id
-        WHERE s.sensor_id IN (${sids}) AND e.event_ts >= NOW() - ${intervalSql}::interval
-        UNION ALL
-        SELECT ph.timestamp, 'protocol' FROM protocol_hits ph
-        WHERE ph.sensor_id IN (${sids}) AND ph.timestamp >= NOW() - ${intervalSql}::interval
-        UNION ALL
-        SELECT wh.timestamp, 'web' FROM web_hits wh
-        WHERE wh.sensor_id IN (${sids}) AND wh.timestamp >= NOW() - ${intervalSql}::interval
-      ) AS combined
-      GROUP BY bucket ORDER BY bucket ASC
-    `
+    const cacheKey = `client:timeline:${cs.clientId}:${range}`
+    const result = await withCache(fastify.cache, cacheKey, 120, async () => {
+      const rows = await fastify.prismaRead.$queryRaw<BucketRow[]>`
+        SELECT date_trunc(${bucketUnit}, ts) AS bucket,
+               COUNT(*) FILTER (WHERE source = 'ssh')      AS ssh,
+               COUNT(*) FILTER (WHERE source = 'protocol') AS protocol,
+               COUNT(*) FILTER (WHERE source = 'web')      AS web
+        FROM (
+          SELECT e.event_ts AS ts, 'ssh' AS source FROM events e
+          JOIN sessions s ON s.id = e.session_id
+          WHERE s.sensor_id IN (${sids}) AND e.event_ts >= NOW() - ${intervalSql}::interval
+          UNION ALL
+          SELECT ph.timestamp, 'protocol' FROM protocol_hits ph
+          WHERE ph.sensor_id IN (${sids}) AND ph.timestamp >= NOW() - ${intervalSql}::interval
+          UNION ALL
+          SELECT wh.timestamp, 'web' FROM web_hits wh
+          WHERE wh.sensor_id IN (${sids}) AND wh.timestamp >= NOW() - ${intervalSql}::interval
+        ) AS combined
+        GROUP BY bucket ORDER BY bucket ASC
+      `
+      return rows.map(r => ({
+        bucket: r.bucket,
+        ssh: Number(r.ssh), protocol: Number(r.protocol), web: Number(r.web),
+        total: Number(r.ssh) + Number(r.protocol) + Number(r.web),
+      }))
+    })
 
-    return reply.send(rows.map(r => ({
-      bucket: r.bucket,
-      ssh: Number(r.ssh), protocol: Number(r.protocol), web: Number(r.web),
-      total: Number(r.ssh) + Number(r.protocol) + Number(r.web),
-    })))
+    return reply.send(result)
   })
 
   fastify.get('/clients/:clientSlug/threats', async (request, reply) => {
@@ -159,7 +172,7 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
     if (!query.success) return reply.status(400).send({ error: 'Invalid query params' })
 
     const { page, pageSize } = query.data
-    const cs = await resolveClientSensors(fastify.prisma, params.data.clientSlug)
+    const cs = await resolveClientSensors(fastify.prismaRead, params.data.clientSlug)
     if (!cs) return reply.status(404).send({ error: 'Client not found' })
     if (cs.sensorIds.length === 0) return reply.send({ items: [], pagination: buildPagination(page, pageSize, 0) })
 
@@ -167,7 +180,7 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
     const sids   = Prisma.join(cs.sensorIds)
 
     const [rows, countRows] = await Promise.all([
-      fastify.prisma.$queryRaw<ThreatRow[]>`
+      fastify.prismaRead.$queryRaw<ThreatRow[]>`
         SELECT src_ip, COUNT(*) AS total_events, STRING_AGG(DISTINCT source, ',') AS sources,
                MAX(ts) AS last_seen, COUNT(*) FILTER (WHERE login_success) AS login_successes,
                STRING_AGG(DISTINCT protocol, ',') AS protocols
@@ -185,7 +198,7 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
         GROUP BY src_ip ORDER BY login_successes DESC, last_seen DESC, total_events DESC
         LIMIT ${pageSize} OFFSET ${offset}
       `,
-      fastify.prisma.$queryRaw<[{ total: bigint }]>`
+      fastify.prismaRead.$queryRaw<[{ total: bigint }]>`
         SELECT COUNT(DISTINCT src_ip) AS total FROM (
           SELECT src_ip FROM sessions WHERE sensor_id IN (${sids})
           UNION ALL SELECT src_ip FROM protocol_hits WHERE sensor_id IN (${sids})
@@ -209,7 +222,7 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
     const params = slugParam.safeParse(request.params)
     if (!params.success) return reply.status(400).send({ error: 'Invalid client slug' })
 
-    const cs = await resolveClientSensors(fastify.prisma, params.data.clientSlug)
+    const cs = await resolveClientSensors(fastify.prismaRead, params.data.clientSlug)
     if (!cs) return reply.status(404).send({ error: 'Client not found' })
     if (cs.sensorIds.length === 0) return reply.send({ totalEvents: 0, uniqueIps: 0, loginSuccesses: 0, topProtocol: null })
 
@@ -217,7 +230,7 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
     const sids = Prisma.join(cs.sensorIds)
 
     const [metricsRows, protoRows] = await Promise.all([
-      fastify.prisma.$queryRaw<MetricsRow[]>`
+      fastify.prismaRead.$queryRaw<MetricsRow[]>`
         SELECT COUNT(*)::int AS total_events, COUNT(DISTINCT src_ip)::int AS unique_ips,
                COUNT(*) FILTER (WHERE login_success)::int AS login_successes
         FROM (
