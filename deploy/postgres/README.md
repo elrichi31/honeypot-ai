@@ -43,6 +43,16 @@ The compose file passes `REPLICA_DATABASE_URL` to `ingest-api` automatically.
 
 ## First-time setup / gotchas
 
+**Easiest path (already-running stack):** run the helper from the repo root on
+the server. It's idempotent and does everything below for you:
+
+```bash
+./deploy/postgres/setup-replica.sh          # DB + ingest-api only
+./deploy/postgres/setup-replica.sh --all    # also `up -d` the whole stack
+```
+
+Manual steps (what the script does):
+
 - The `replicator` role is created **only on the primary's first init**. If you
   add replication to an already-initialised primary, create the role manually:
 
