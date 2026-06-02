@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { ensureIngestToken } from '../lib/ingest-auth.js'
 import { lookupGeo } from '../lib/geo.js'
 import { eventBus } from '../lib/event-bus.js'
+import { withCache } from '../lib/cache-helper.js'
 
 // IPs to exclude from stats/alerts (own server IPs)
 const OWN_IPS = new Set(
@@ -145,7 +146,7 @@ export async function suricataRoutes(fastify: FastifyInstance) {
     ].join(' ')
 
     const [alerts, countRows] = await Promise.all([
-      fastify.prisma.$queryRawUnsafe<Array<{
+      fastify.prismaRead.$queryRawUnsafe<Array<{
         id: string; sensor_id: string; timestamp: Date
         src_ip: string; src_port: number | null; dest_ip: string; dest_port: number | null
         proto: string; action: string; signature_id: number; signature: string
@@ -158,7 +159,7 @@ export async function suricataRoutes(fastify: FastifyInstance) {
         ORDER BY timestamp DESC
         LIMIT ${pageSize} OFFSET ${offset}
       `),
-      fastify.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(`
+      fastify.prismaRead.$queryRawUnsafe<Array<{ count: bigint }>>(`
         SELECT COUNT(*) AS count FROM suricata_alerts WHERE 1=1 ${filters}
       `),
     ])
@@ -190,8 +191,9 @@ export async function suricataRoutes(fastify: FastifyInstance) {
     const ownIpList = [...OWN_IPS].map(ip => `'${ip}'`).join(',')
     const ownIpFilter = ownIpList ? `AND src_ip NOT IN (${ownIpList})` : ''
 
+    const payload = await withCache(fastify.cache, `suricata:stats:${rangeParam}`, 60, async () => {
     const [totals, threatTotals, topSigs, topThreatSigs, topSources, timeline] = await Promise.all([
-      fastify.prisma.$queryRawUnsafe<Array<{ total: bigint; critical: bigint; high: bigint; medium: bigint; low: bigint }>>(`
+      fastify.prismaRead.$queryRawUnsafe<Array<{ total: bigint; critical: bigint; high: bigint; medium: bigint; low: bigint }>>(`
         SELECT COUNT(*) AS total,
           COUNT(*) FILTER (WHERE severity = 1) AS critical,
           COUNT(*) FILTER (WHERE severity = 2) AS high,
@@ -200,7 +202,7 @@ export async function suricataRoutes(fastify: FastifyInstance) {
         FROM suricata_alerts
         WHERE timestamp > NOW() - INTERVAL '${interval}'
       `),
-      fastify.prisma.$queryRawUnsafe<Array<{ total: bigint; critical: bigint; high: bigint; medium: bigint; low: bigint }>>(`
+      fastify.prismaRead.$queryRawUnsafe<Array<{ total: bigint; critical: bigint; high: bigint; medium: bigint; low: bigint }>>(`
         SELECT COUNT(*) AS total,
           COUNT(*) FILTER (WHERE severity = 1) AS critical,
           COUNT(*) FILTER (WHERE severity = 2) AS high,
@@ -210,27 +212,27 @@ export async function suricataRoutes(fastify: FastifyInstance) {
         WHERE timestamp > NOW() - INTERVAL '${interval}'
           AND ${NOISE_PATTERN} ${ownIpFilter}
       `),
-      fastify.prisma.$queryRawUnsafe<Array<{ signature: string; count: bigint; severity: number }>>(`
+      fastify.prismaRead.$queryRawUnsafe<Array<{ signature: string; count: bigint; severity: number }>>(`
         SELECT signature, severity, COUNT(*) AS count
         FROM suricata_alerts
         WHERE timestamp > NOW() - INTERVAL '${interval}'
         GROUP BY signature, severity ORDER BY count DESC LIMIT 10
       `),
-      fastify.prisma.$queryRawUnsafe<Array<{ signature: string; count: bigint; severity: number; category: string }>>(`
+      fastify.prismaRead.$queryRawUnsafe<Array<{ signature: string; count: bigint; severity: number; category: string }>>(`
         SELECT signature, severity, category, COUNT(*) AS count
         FROM suricata_alerts
         WHERE timestamp > NOW() - INTERVAL '${interval}'
           AND ${NOISE_PATTERN} ${ownIpFilter}
         GROUP BY signature, severity, category ORDER BY count DESC LIMIT 10
       `),
-      fastify.prisma.$queryRawUnsafe<Array<{ src_ip: string; count: bigint }>>(`
+      fastify.prismaRead.$queryRawUnsafe<Array<{ src_ip: string; count: bigint }>>(`
         SELECT src_ip, COUNT(*) AS count
         FROM suricata_alerts
         WHERE timestamp > NOW() - INTERVAL '${interval}'
           ${ownIpFilter} AND ${NOISE_PATTERN}
         GROUP BY src_ip ORDER BY count DESC LIMIT 10
       `),
-      fastify.prisma.$queryRawUnsafe<Array<{ bucket: Date; total: bigint; threats: bigint }>>(`
+      fastify.prismaRead.$queryRawUnsafe<Array<{ bucket: Date; total: bigint; threats: bigint }>>(`
         SELECT
           DATE_TRUNC('${trunc}', timestamp) AS bucket,
           COUNT(*) AS total,
@@ -245,7 +247,7 @@ export async function suricataRoutes(fastify: FastifyInstance) {
     const t = totals[0]
     const th = threatTotals[0]
 
-    return reply.send({
+    return {
       last24h: {
         total: Number(t?.total ?? 0),
         critical: Number(t?.critical ?? 0),
@@ -277,6 +279,9 @@ export async function suricataRoutes(fastify: FastifyInstance) {
         total: Number(r.total),
         threats: Number(r.threats),
       })),
+    }
     })
+
+    return reply.send(payload)
   })
 }
