@@ -39,6 +39,7 @@ export function SensorCard({
 }) {
   const router = useRouter()
   const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState("")
   const [controlState, setControlState] = useState<ControlState>("idle")
   const [controlMsg, setControlMsg] = useState("")
   const [dockerStatus, setDockerStatus] = useState<string | null>(null)
@@ -72,10 +73,19 @@ export function SensorCard({
 
   async function handleDelete() {
     setDeleting(true)
+    setDeleteError("")
     try {
-      await fetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}`, { method: "DELETE" })
+      const res = await fetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}`, { method: "DELETE" })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setDeleteError(data.error ?? `Error ${res.status}`)
+        setDeleting(false)
+        return
+      }
+      // Success: refresh the list. The card disappears, so no success message needed.
       router.refresh()
-    } finally {
+    } catch {
+      setDeleteError("No se pudo conectar")
       setDeleting(false)
     }
   }
@@ -111,6 +121,11 @@ export function SensorCard({
   return (
     <div className={`rounded-xl border bg-card p-4 flex flex-col gap-3 transition-colors ${sensor.online ? "border-border" : "border-border/40 opacity-70"}`}>
       <SensorHeader sensor={sensor} dockerStatus={dockerStatus} deleting={deleting} onDelete={handleDelete} />
+      {deleteError && (
+        <p className="rounded-md bg-destructive/10 px-2.5 py-1.5 text-[11px] font-medium text-destructive">
+          No se pudo eliminar: {deleteError}
+        </p>
+      )}
       <SensorStats sensor={sensor} isInternal={isInternal} honeypotPublicIp={honeypotPublicIp} clientCode={clientCode} />
       <SensorPorts sensor={sensor} isInternal={isInternal} />
       {sensor.version && (

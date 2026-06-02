@@ -5,6 +5,7 @@ import { ensureIngestToken } from '../lib/ingest-auth.js'
 import { clearSensorOfflineAlert } from '../lib/threat-alerts.js'
 import { normalizeIp, normalizeSlug } from '../lib/sensor-utils.js'
 import { resolveClientId, querySensors, probeSensorPorts, formatSensor } from '../lib/sensor-queries.js'
+import { withCache } from '../lib/cache-helper.js'
 
 const cowrieConfigSchema = z.object({
   hostname:               z.string().min(1).max(64).default('web-prod-01'),
@@ -73,7 +74,15 @@ async function handleListSensors(fastify: FastifyInstance, _request: FastifyRequ
   const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000)
   const sensors = await querySensors(fastify)
 
-  const portStatuses = await Promise.all(sensors.map(probeSensorPorts))
+  // Port probes are TCP connects with a 2s timeout each; unreachable sensors make
+  // GET /sensors hang for seconds. Cache the per-sensor probe result for a short
+  // window so the list stays responsive (e.g. after a delete triggers a refresh).
+  const portStatuses = await Promise.all(
+    sensors.map(sensor => {
+      const probeKey = `sensor:ports:${sensor.sensor_id}:${sensor.probe_host}:${JSON.stringify(sensor.ports)}`
+      return withCache(fastify.cache, probeKey, 20, () => probeSensorPorts(sensor))
+    }),
+  )
   const result = sensors.map((sensor, i) =>
     formatSensor(sensor, portStatuses[i], sensor.last_seen > twoMinutesAgo)
   )

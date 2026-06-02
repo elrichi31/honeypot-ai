@@ -74,16 +74,16 @@ function DeleteSensorDialog({ sensor, deleting, onDelete }: { sensor: Sensor; de
             This will remove <span className="font-medium text-foreground">{sensor.name}</span>{" "}
             (<code className="font-mono text-xs">{sensor.sensorId}</code>) from the dashboard.
             <br /><br />
-            <span className="text-amber-400 font-medium">
-              All events associated with this sensor ID will also be permanently deleted.
+            <span className="text-muted-foreground">
+              Events already collected from this sensor are kept and stay searchable.
             </span>{" "}
-            This cannot be undone. If the sensor is still running it will re-register on the next heartbeat.
+            If the sensor is still running it will re-register on the next heartbeat.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction onClick={onDelete} className="bg-destructive text-white hover:bg-destructive/90">
-            Delete sensor &amp; events
+            Delete sensor
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
