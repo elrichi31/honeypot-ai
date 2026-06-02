@@ -25,13 +25,29 @@ declare module 'fastify' {
   }
 }
 
+/**
+ * The replica client connects directly to the standby (no pgbouncer), so its
+ * Prisma pool counts against the replica's max_connections. Cap it so a burst
+ * of dashboard queries can't exhaust connections and wedge the API. Honors an
+ * explicit connection_limit in the URL if the operator set one.
+ */
+const REPLICA_CONNECTION_LIMIT = Number(process.env.REPLICA_CONNECTION_LIMIT ?? '10');
+
+function withConnectionLimit(url: string, limit: number): string {
+  if (/[?&]connection_limit=/.test(url)) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}connection_limit=${limit}`;
+}
+
 export default fp(async (fastify: FastifyInstance) => {
   const prisma = new PrismaClient();
   await prisma.$connect();
 
   const replicaUrl = process.env.REPLICA_DATABASE_URL?.trim();
   const prismaRead = replicaUrl
-    ? new PrismaClient({ datasources: { db: { url: replicaUrl } } })
+    ? new PrismaClient({
+        datasources: { db: { url: withConnectionLimit(replicaUrl, REPLICA_CONNECTION_LIMIT) } },
+      })
     : prisma;
 
   if (prismaRead !== prisma) {

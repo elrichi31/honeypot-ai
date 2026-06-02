@@ -18,9 +18,16 @@ export async function GET() {
 
   let res: Response
   try {
-    res = await fetch(`${apiBase()}/monitoring/containers/stats`, { cache: "no-store" })
-  } catch {
-    return Response.json({ error: "Backend unreachable" }, { status: 502 })
+    res = await fetch(`${apiBase()}/monitoring/containers/stats`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(8000),
+    })
+  } catch (err) {
+    const isTimeout = err instanceof DOMException && err.name === "TimeoutError"
+    return Response.json(
+      { error: isTimeout ? "Backend timed out" : "Backend unreachable" },
+      { status: isTimeout ? 503 : 502 },
+    )
   }
 
   const data = await res.json().catch(() => null)
