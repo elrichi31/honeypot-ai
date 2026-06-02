@@ -1,6 +1,7 @@
 import fp from 'fastify-plugin';
 import { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
+import { setThreatAlertReadClient } from '../lib/threat-alerts.js';
 
 /**
  * Two Prisma clients: the primary (read+write) and an optional read replica.
@@ -40,6 +41,9 @@ export default fp(async (fastify: FastifyInstance) => {
 
   fastify.decorate('prisma', prisma);
   fastify.decorate('prismaRead', prismaRead);
+
+  // Route the heavy threat-alert aggregate reads to the replica too.
+  setThreatAlertReadClient(prismaRead);
 
   fastify.addHook('onClose', async () => {
     await prisma.$disconnect();

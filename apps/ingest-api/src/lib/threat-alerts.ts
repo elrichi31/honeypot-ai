@@ -43,10 +43,29 @@ export type ProtocolSummary = {
 }
 
 const SENSOR_OFFLINE_COOLDOWN_MS = 2 * 60 * 60 * 1000
-const THREAT_ALERT_DEBOUNCE_MS = 1500
+// Debounce per IP: collapse bursts of events from the same attacker into one
+// evaluation. Raised from 1.5s to 5s to cut evaluation volume under heavy ingest.
+const THREAT_ALERT_DEBOUNCE_MS = 5000
+// Global cap on concurrent evaluations. Each evaluation fires ~11 heavy
+// aggregate queries; without a cap, many distinct attacking IPs trigger dozens
+// of concurrent evaluations and saturate the ingest-api CPU + DB I/O.
+const MAX_CONCURRENT_EVALUATIONS = 3
 
 const pendingThreatAlertTimers = new Map<string, NodeJS.Timeout>()
 const runningThreatAlerts = new Set<string>()
+
+/**
+ * Read client for the heavy threat-alert aggregate queries. Set once at startup
+ * to the read replica so these reads don't compete with collector ingest on the
+ * primary. Falls back to whatever client is passed in if never set.
+ */
+let threatAlertReadClient: PrismaClient | null = null
+export function setThreatAlertReadClient(client: PrismaClient): void {
+  threatAlertReadClient = client
+}
+function readClient(fallback: PrismaClient): PrismaClient {
+  return threatAlertReadClient ?? fallback
+}
 
 function uniqStrings(values: Array<string | null | undefined>): string[] {
   return [...new Set(values.filter((v): v is string => Boolean(v && v.trim())))]
@@ -146,6 +165,9 @@ export function scheduleThreatAlert(prisma: PrismaClient, ip: string, debounceMs
   const timer = setTimeout(() => {
     pendingThreatAlertTimers.delete(ip)
     if (runningThreatAlerts.has(ip)) return
+    // Global concurrency cap: under heavy attack, drop this evaluation rather
+    // than pile on. The next event from this IP re-schedules it anyway.
+    if (runningThreatAlerts.size >= MAX_CONCURRENT_EVALUATIONS) return
     runningThreatAlerts.add(ip)
     void evaluateThreatAlert(prisma, ip)
       .catch((error) => {
@@ -183,6 +205,11 @@ export async function checkSensorHealthAlerts(prisma: PrismaClient): Promise<voi
 export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Promise<void> {
   if (!ip || typeof (prisma as Partial<PrismaClient>).$queryRaw !== 'function') return
 
+  // Heavy aggregate reads run against the replica (if configured) so they don't
+  // compete with collector ingest on the primary. Cooldown writes still use the
+  // passed-in primary client below.
+  const db = readClient(prisma)
+
   const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000)
   const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000)
   const twentyMinAgo = new Date(Date.now() - 20 * 60 * 1000)
@@ -190,17 +217,17 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
   const [sshRows, cmdRows, webRows, protocolRows, recentSshRows, recentIdentityRows,
     recentWebRows, recentProtocolRows, recentProtocolRowsFiveMin, recentCmdRows,
     recentSshFiveMinRows] = await Promise.all([
-    querySshAggregate(prisma, ip),
-    querySshCommands(prisma, ip),
-    queryWebAggregate(prisma, ip),
-    queryProtocolAggregate(prisma, ip),
-    queryRecentSshAggregate(prisma, ip, tenMinAgo),
-    queryRecentAuthIdentity(prisma, ip, fiveMinAgo),
-    queryRecentWebAggregate(prisma, ip, tenMinAgo),
-    queryRecentProtocolAggregate(prisma, ip, tenMinAgo),
-    queryRecentProtocolAggregate(prisma, ip, fiveMinAgo),
-    queryRecentCommands(prisma, ip, twentyMinAgo),
-    queryRecentSshAggregate(prisma, ip, fiveMinAgo),
+    querySshAggregate(db, ip),
+    querySshCommands(db, ip),
+    queryWebAggregate(db, ip),
+    queryProtocolAggregate(db, ip),
+    queryRecentSshAggregate(db, ip, tenMinAgo),
+    queryRecentAuthIdentity(db, ip, fiveMinAgo),
+    queryRecentWebAggregate(db, ip, tenMinAgo),
+    queryRecentProtocolAggregate(db, ip, tenMinAgo),
+    queryRecentProtocolAggregate(db, ip, fiveMinAgo),
+    queryRecentCommands(db, ip, twentyMinAgo),
+    queryRecentSshAggregate(db, ip, fiveMinAgo),
   ])
 
   const ssh = sshRows[0]
