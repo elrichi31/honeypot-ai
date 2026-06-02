@@ -1,12 +1,15 @@
 "use client"
 
 import { useSearchParams } from "next/navigation"
-import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
+import { ArrowUp, ArrowDown, ArrowUpDown, Network, X } from "lucide-react"
 import { TableShell } from "@/components/table-shell"
 import { EmptyState } from "@/components/ui/data-states"
 import { NavTransitionProvider, useNavTransition } from "@/lib/use-nav-transition"
-import type { PaginationMeta, ThreatSummary } from "@/lib/api"
+import { cn } from "@/lib/utils"
+import type { PaginationMeta, RiskLevel, ThreatSummary } from "@/lib/api"
 import { LEVEL_STYLES, CMD_COLORS, CMD_LABELS_SHORT as CMD_LABELS } from "@/lib/attack-types"
+
+const RISK_LEVELS: RiskLevel[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
 
 const PROTOCOL_LABELS: Record<string, string> = {
   ssh: "SSH",
@@ -65,6 +68,8 @@ interface ThreatsTableProps {
   pagination?: PaginationMeta
   sortBy?: string
   sortDir?: string
+  level?: RiskLevel
+  crossProtocol?: boolean
 }
 
 export function ThreatsTable(props: ThreatsTableProps) {
@@ -80,30 +85,112 @@ function ThreatsTableInner({
   pagination,
   sortBy = "score",
   sortDir = "desc",
+  level,
+  crossProtocol = false,
 }: ThreatsTableProps) {
   const searchParams = useSearchParams()
-  const { push } = useNavTransition()
+  const { push, pushParams } = useNavTransition()
+
+  function setLevel(next: RiskLevel | null) {
+    if (next === null || next === level) {
+      pushParams({ page: "1" }, ["level"])
+    } else {
+      pushParams({ level: next, page: "1" })
+    }
+  }
+
+  function toggleCrossProtocol() {
+    if (crossProtocol) {
+      pushParams({ page: "1" }, ["crossProtocol"])
+    } else {
+      pushParams({ crossProtocol: "true", page: "1" })
+    }
+  }
+
+  const hasActiveFilters = Boolean(level) || crossProtocol
+
+  const toolbar = (
+    <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-1">
+        <span className="mr-1 text-xs font-medium text-muted-foreground">Level</span>
+        {RISK_LEVELS.map((lvl) => {
+          const isActive = level === lvl
+          return (
+            <button
+              key={lvl}
+              type="button"
+              onClick={() => setLevel(lvl)}
+              className={cn(
+                "rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                isActive
+                  ? LEVEL_STYLES[lvl].badge
+                  : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/30",
+              )}
+            >
+              {lvl}
+            </button>
+          )
+        })}
+      </div>
+
+      <button
+        type="button"
+        onClick={toggleCrossProtocol}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors",
+          crossProtocol
+            ? "border-purple-500/40 bg-purple-500/15 text-purple-400"
+            : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/30",
+        )}
+      >
+        <Network className="h-3 w-3" />
+        Cross-protocol
+      </button>
+
+      {hasActiveFilters && (
+        <button
+          type="button"
+          onClick={() => pushParams({ page: "1" }, ["level", "crossProtocol"])}
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <X className="h-3 w-3" />
+          Clear
+        </button>
+      )}
+    </div>
+  )
 
   return (
     <TableShell
       title="Threat ranking"
       description="Sorted by risk score · click to view detail"
+      toolbar={toolbar}
       pagination={pagination}
     >
       {threats.length === 0 ? (
-        <EmptyState
-          icon="shield"
-          title="No threats detected"
-          description="Threat intelligence will appear here once attackers are detected across SSH, HTTP or network protocols."
-        />
+        hasActiveFilters ? (
+          <EmptyState
+            icon="shield"
+            title="No threats match these filters"
+            description="Try a different risk level or clear the active filters to see all attackers."
+          />
+        ) : (
+          <EmptyState
+            icon="shield"
+            title="No threats detected"
+            description="Threat intelligence will appear here once attackers are detected across SSH, HTTP or network protocols."
+          />
+        )
       ) : (
-        <table className="min-w-[1180px] w-full text-sm">
+        <table className="min-w-[1340px] w-full text-sm">
           <thead>
               <tr className="border-b border-border bg-muted/20">
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">#</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">IP</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Level</th>
                 <SortableTh label="Score" column="score" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} />
+                <SortableTh label="Sessions" column="sessions" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} />
+                <SortableTh label="Web hits" column="webHits" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} />
                 <SortableTh label="Protocols" column="protocols" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} />
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Detected commands</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Top factors</th>
@@ -158,6 +245,14 @@ function ThreatsTableInner({
                         </div>
                         <span className="w-8 text-right font-mono text-xs font-semibold text-foreground">{threat.score}</span>
                       </div>
+                    </td>
+
+                    <td className="px-4 py-3 font-mono text-xs text-foreground">
+                      {threat.ssh?.sessions ?? 0}
+                    </td>
+
+                    <td className="px-4 py-3 font-mono text-xs text-foreground">
+                      {threat.web?.hits ?? 0}
                     </td>
 
                     <td className="px-4 py-3">

@@ -8,6 +8,7 @@ const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
 
 const VALID_THREAT_SORT_BY = new Set(["score", "sessions", "webHits", "protocols"])
 const VALID_SORT_DIR = new Set(["asc", "desc"])
+const VALID_LEVELS = new Set(["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"])
 
 export default async function ThreatsPage({
   searchParams,
@@ -18,6 +19,8 @@ export default async function ThreatsPage({
     q?: string
     sortBy?: string
     sortDir?: string
+    level?: string
+    crossProtocol?: string
   }>
 }) {
   const params = await searchParams
@@ -26,10 +29,12 @@ export default async function ThreatsPage({
   const q = params.q?.trim() || undefined
   const sortBy = VALID_THREAT_SORT_BY.has(params.sortBy ?? "") ? (params.sortBy as "score" | "sessions" | "webHits" | "protocols") : "score"
   const sortDir = VALID_SORT_DIR.has(params.sortDir ?? "") ? (params.sortDir as "asc" | "desc") : "desc"
+  const level = VALID_LEVELS.has(params.level ?? "") ? (params.level as "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO") : undefined
+  const crossProtocol = params.crossProtocol === "true" ? true : undefined
 
   let pageData
   try {
-    pageData = await fetchThreatsPage({ page, pageSize, q, sortBy, sortDir })
+    pageData = await fetchThreatsPage({ page, pageSize, q, sortBy, sortDir, level, crossProtocol })
   } catch {
     pageData = {
       items: [],
@@ -85,7 +90,14 @@ export default async function ThreatsPage({
         </div>
       </div>
 
-      <ThreatsTable threats={pageData.items} pagination={pageData.pagination} sortBy={sortBy} sortDir={sortDir} />
+      <ThreatsTable
+        threats={pageData.items}
+        pagination={pageData.pagination}
+        sortBy={sortBy}
+        sortDir={sortDir}
+        level={level}
+        crossProtocol={crossProtocol === true}
+      />
     </PageShell>
   )
 }
