@@ -65,6 +65,28 @@ services:
     networks:
       - db_private
 
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: honeypot-pgbouncer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot_prod
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 200
+      DEFAULT_POOL_SIZE: 15
+      SERVER_RESET_QUERY: ""
+      IGNORE_STARTUP_PARAMETERS: extra_float_digits
+    networks:
+      - db_private
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          pids: 64
+
   ingest-api:
     <<: *service-defaults
     logging: *json-logging
@@ -75,11 +97,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      pgbouncer:
+        condition: service_started
       redis:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot_prod
-      # No pgbouncer/replica in the platform stack, so the direct URL is the same postgres.
+      # Pooled connection through pgbouncer (transaction mode) for runtime queries.
+      DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@pgbouncer:5432/honeypot_prod?pgbouncer=true
+      # Migrations need a direct connection — they can't run through the pooler.
       DIRECT_DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot_prod
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
