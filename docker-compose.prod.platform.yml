@@ -79,6 +79,8 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot_prod
+      # No pgbouncer/replica in the platform stack, so the direct URL is the same postgres.
+      DIRECT_DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot_prod
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       CORS_ALLOWED_ORIGINS: ${BETTER_AUTH_URL:-http://localhost:4000}
