@@ -26,7 +26,10 @@ import { suricataRoutes } from './routes/suricata.js';
 import { monitoringRoutes } from './routes/monitoring.js';
 
 export async function buildApp() {
-  const app = Fastify({ logger: true });
+  // cloudflared runs on the same host and connects from loopback, forwarding the
+  // visitor IP in X-Forwarded-For. Trusting only loopback lets us read the real
+  // client IP (for defense/rate-limiting) without allowing external XFF spoofing.
+  const app = Fastify({ logger: true, trustProxy: 'loopback' });
 
   const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || process.env.DASHBOARD_URL || '')
     .split(',')
