@@ -77,25 +77,54 @@ function LastRunBadge({ run }: { run: RetentionRun | null }) {
   )
 }
 
-function NextRunBanner({ nextRunAt, totalPending }: { nextRunAt: string | null; totalPending: number }) {
-  // The job runs hourly; if the computed next time is already past, it's due on
-  // the next tick — show "pronto" rather than a negative time.
+const INTERVAL_OPTIONS = [
+  { value: 15,   label: "cada 15 min" },
+  { value: 30,   label: "cada 30 min" },
+  { value: 60,   label: "cada hora" },
+  { value: 360,  label: "cada 6 horas" },
+  { value: 720,  label: "cada 12 horas" },
+  { value: 1440, label: "cada 24 horas" },
+]
+
+function NextRunBanner({
+  nextRunAt, totalPending, intervalMinutes, onChangeInterval, savingInterval,
+}: {
+  nextRunAt: string | null
+  totalPending: number
+  intervalMinutes: number
+  onChangeInterval: (minutes: number) => void
+  savingInterval: boolean
+}) {
   const next = nextRunAt ? new Date(nextRunAt) : null
   const when = next
     ? (next.getTime() > Date.now() ? formatDistanceToNow(next, { addSuffix: true }) : "pronto")
-    : "en la próxima hora"
+    : "en la próxima ejecución"
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-border/40 bg-muted/20 px-4 py-2">
-      <span className="text-[11px] text-muted-foreground">
-        Próxima purga <span className="text-foreground">{when}</span>
-      </span>
-      <span className="text-[11px] tabular-nums">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/40 bg-muted/20 px-4 py-2">
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] text-muted-foreground">Frecuencia:</span>
+        <select
+          value={intervalMinutes}
+          disabled={savingInterval}
+          onChange={(e) => onChangeInterval(Number(e.target.value))}
+          className="rounded-md border border-border bg-background px-2 py-1 text-[11px] text-foreground outline-none focus:border-white/20 disabled:opacity-50"
+        >
+          {INTERVAL_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        {savingInterval && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+      </div>
+      <div className="flex items-center gap-3 text-[11px] tabular-nums">
+        <span className="text-muted-foreground">
+          Próxima purga <span className="text-foreground">{when}</span>
+        </span>
         {totalPending > 0 ? (
           <span className="text-amber-400">se borrarán ~{totalPending.toLocaleString()} filas</span>
         ) : (
           <span className="text-muted-foreground/60">nada por purgar</span>
         )}
-      </span>
+      </div>
     </div>
   )
 }
@@ -113,21 +142,42 @@ export function RetentionSettings() {
   const [rows, setRows]       = useState<RowState[]>([])
   const [lastRun, setLastRun] = useState<RetentionRun | null>(null)
   const [nextRunAt, setNextRunAt] = useState<string | null>(null)
+  const [intervalMinutes, setIntervalMinutes] = useState(60)
+  const [savingInterval, setSavingInterval] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetch("/api/storage/retention")
       .then(r => r.json())
-      .then((d: { settings?: RetentionRow[]; lastRun?: RetentionRun | null; nextRunAt?: string | null }) => {
+      .then((d: { settings?: RetentionRow[]; lastRun?: RetentionRun | null; nextRunAt?: string | null; intervalMinutes?: number }) => {
         if (Array.isArray(d.settings)) {
           setRows(d.settings.map((r) => ({ ...r, draft: String(r.retentionDays), saving: false, saved: false })))
         }
         setLastRun(d.lastRun ?? null)
         setNextRunAt(d.nextRunAt ?? null)
+        if (d.intervalMinutes) setIntervalMinutes(d.intervalMinutes)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
+
+  async function handleChangeInterval(minutes: number) {
+    const prev = intervalMinutes
+    setIntervalMinutes(minutes)
+    setSavingInterval(true)
+    try {
+      const res = await fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ retentionIntervalMinutes: minutes }),
+      })
+      if (!res.ok) throw new Error()
+    } catch {
+      setIntervalMinutes(prev) // revert on failure
+    } finally {
+      setSavingInterval(false)
+    }
+  }
 
   // Total rows the next purge will delete across all enabled tables.
   const totalPending = rows.reduce((sum, r) => sum + (r.enabled ? (r.pendingRows ?? 0) : 0), 0)
@@ -176,7 +226,13 @@ export function RetentionSettings() {
       </div>
 
       {!loading && (
-        <NextRunBanner nextRunAt={nextRunAt} totalPending={totalPending} />
+        <NextRunBanner
+          nextRunAt={nextRunAt}
+          totalPending={totalPending}
+          intervalMinutes={intervalMinutes}
+          onChangeInterval={handleChangeInterval}
+          savingInterval={savingInterval}
+        />
       )}
 
       <div className="divide-y divide-border/40">

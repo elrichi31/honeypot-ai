@@ -16,6 +16,7 @@ interface RuntimeConfig {
   alertCooldownMinutes?: number
   alertEnabledTypes?: AlertEnabledTypes
   reportIntervalHours?: number
+  retentionIntervalMinutes?: number
   timezone?: string
 }
 
@@ -45,6 +46,13 @@ export function getDiscordWebhookUrl(): string | undefined {
 export function getTimezone(): string {
   const config = readConfig()
   return config.timezone || process.env.TZ || 'UTC'
+}
+
+/** Minutes between retention purges. Clamped to [15, 1440] (15 min … 24 h). */
+export function getRetentionIntervalMinutes(): number {
+  const config = readConfig()
+  const raw = config.retentionIntervalMinutes ?? 60
+  return Math.max(15, Math.min(1440, Math.round(raw)))
 }
 
 export function getAlertConfig(): ResolvedAlertConfig {

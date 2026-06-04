@@ -2,6 +2,7 @@ import { statfs } from 'fs/promises'
 import { Prisma } from '@prisma/client'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
+import { getRetentionIntervalMinutes } from '../lib/runtime-config.js'
 
 type TableSize  = { table_name: string; total_bytes: bigint }
 type PeriodCount = { period: Date; count: bigint }
@@ -166,16 +167,17 @@ export async function storageRoutes(fastify: FastifyInstance) {
       pendingRows: byId[r.id]?.pendingRows ?? null,
     }))
 
-    // Last retention job run + the next scheduled run (job runs hourly, so the
-    // next one is ~1h after the last). Lets the UI show when and what will purge.
+    // Last retention job run + the next scheduled run (last run + configured
+    // interval). Lets the UI show when and what will purge.
     const lastRun = await fastify.prisma.retentionRun.findFirst({
       orderBy: { startedAt: 'desc' },
     })
+    const intervalMinutes = getRetentionIntervalMinutes()
     const nextRunAt = lastRun
-      ? new Date(new Date(lastRun.startedAt).getTime() + 60 * 60 * 1000).toISOString()
+      ? new Date(new Date(lastRun.startedAt).getTime() + intervalMinutes * 60 * 1000).toISOString()
       : null
 
-    return reply.send({ settings: enriched, lastRun, nextRunAt })
+    return reply.send({ settings: enriched, lastRun, nextRunAt, intervalMinutes })
   })
 
   fastify.put('/storage/retention/:id', async (request, reply) => {

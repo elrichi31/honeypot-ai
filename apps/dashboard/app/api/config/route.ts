@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
   if ("alertCooldownMinutes" in body) config.alertCooldownMinutes = Math.max(1, Number(body.alertCooldownMinutes) || 60)
   if ("alertEnabledTypes" in body && typeof body.alertEnabledTypes === 'object') config.alertEnabledTypes = body.alertEnabledTypes
   if ("reportIntervalHours" in body) config.reportIntervalHours = Number(body.reportIntervalHours) || 0
+  if ("retentionIntervalMinutes" in body) config.retentionIntervalMinutes = Math.max(15, Math.min(1440, Number(body.retentionIntervalMinutes) || 60))
 
   writeConfig(config)
 

@@ -1,6 +1,7 @@
 import fp from 'fastify-plugin'
 import { Prisma } from '@prisma/client'
 import type { FastifyInstance } from 'fastify'
+import { getRetentionIntervalMinutes } from '../lib/runtime-config.js'
 
 // Map each tracked table to its timestamp column
 const TIMESTAMP_COL: Record<string, string> = {
@@ -76,8 +77,20 @@ export const retentionPlugin = fp(async function (fastify: FastifyInstance) {
   // Run once at startup (catches anything accumulated while the service was down)
   runRetention(fastify).catch(err => fastify.log.error('[retention] startup run failed:', err))
 
-  // Then every hour
-  setInterval(() => {
-    runRetention(fastify).catch(err => fastify.log.error('[retention] scheduled run failed:', err))
-  }, 60 * 60 * 1000).unref()
+  // Self-schedule the next run with setTimeout so the interval is re-read from
+  // config each time — changing it in the dashboard takes effect without a
+  // restart (at most one cycle late).
+  function scheduleNext() {
+    const minutes = getRetentionIntervalMinutes()
+    const timer = setTimeout(async () => {
+      try {
+        await runRetention(fastify)
+      } catch (err) {
+        fastify.log.error(`[retention] scheduled run failed: ${err}`)
+      }
+      scheduleNext()
+    }, minutes * 60 * 1000)
+    timer.unref()
+  }
+  scheduleNext()
 })

@@ -27,6 +27,8 @@ export interface AppConfig {
   alertCooldownMinutes?: number
   alertEnabledTypes?: AlertEnabledTypes
   reportIntervalHours?: number
+  // Data retention
+  retentionIntervalMinutes?: number
 }
 
 const CONFIG_PATH = path.join(process.cwd(), "data", "config.json")
