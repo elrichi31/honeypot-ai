@@ -2,6 +2,7 @@ import { fetchProtocolStats, fetchProtocolHits, fetchTargetPortStats } from "@/l
 import { PageShell } from "@/components/page-shell"
 import { Network, Clock, Key } from "lucide-react"
 import { ProtocolHitsTable } from "./protocol-hits-table"
+import { SectionError } from "@/components/section-error"
 import { readConfig } from "@/lib/server-config"
 import { formatInTimezone } from "@/lib/timezone"
 
@@ -35,11 +36,23 @@ export default async function ServicesPage({
   const formatDate = (d: string) =>
     formatInTimezone(d, tz, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
 
-  const [stats, portStats, hitsPage] = await Promise.all([
-    fetchProtocolStats(),
-    fetchTargetPortStats(),
-    fetchProtocolHits({ page, limit: 50, protocol }),
-  ])
+  let stats, portStats, hitsPage
+  try {
+    [stats, portStats, hitsPage] = await Promise.all([
+      fetchProtocolStats(),
+      fetchTargetPortStats(),
+      fetchProtocolHits({ page, limit: 50, protocol }),
+    ])
+  } catch {
+    return (
+      <PageShell>
+        <div className="mb-6">
+          <h1 className="text-2xl font-semibold text-foreground">Network Honeypots</h1>
+        </div>
+        <SectionError />
+      </PageShell>
+    )
+  }
 
   const totalHits = stats.reduce((sum, s) => sum + s.count, 0)
 

@@ -6,7 +6,7 @@ import { readConfig } from "@/lib/server-config"
 import { formatInTimezone } from "@/lib/timezone"
 import type { ProtocolHit, ProtocolInsights } from "@/lib/api"
 
-type ProtocolKind = "ftp" | "mysql" | "port-scan" | "smb" | "mssql" | "mqtt" | "tftp" | "rpc"
+export type ProtocolKind = "ftp" | "mysql" | "port-scan" | "smb" | "mssql" | "mqtt" | "tftp" | "rpc"
 
 const BADGES: Record<string, string> = {
   ftp:        "bg-yellow-400/20 text-yellow-400",

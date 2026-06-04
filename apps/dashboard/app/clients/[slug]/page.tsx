@@ -10,12 +10,28 @@ import { ClientActivityChart } from "@/components/clients/client-activity-chart"
 import { ClientLogsViewer } from "@/components/clients/client-logs-viewer"
 import { ClientAlerts } from "@/components/clients/client-alerts"
 import { ClientStatsBar } from "@/components/clients/client-stats-bar"
+import { SectionError } from "@/components/section-error"
 import { fetchClients, fetchSensors } from "@/lib/api"
 
 export default async function ClientDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
 
-  const [clients, sensors] = await Promise.all([fetchClients(), fetchSensors()])
+  let clients, sensors
+  try {
+    [clients, sensors] = await Promise.all([fetchClients(), fetchSensors()])
+  } catch {
+    return (
+      <PageShell>
+        <div className="mb-6">
+          <Link href="/clients" className="inline-flex items-center gap-2 text-sm text-cyan-400 hover:text-cyan-300">
+            <ArrowLeft className="h-4 w-4" />
+            Back to clients
+          </Link>
+        </div>
+        <SectionError />
+      </PageShell>
+    )
+  }
   const client = clients.find((item) => item.slug === slug)
 
   if (!client) notFound()

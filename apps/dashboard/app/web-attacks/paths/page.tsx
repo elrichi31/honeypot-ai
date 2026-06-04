@@ -2,11 +2,25 @@ export const dynamic = "force-dynamic"
 
 import { WebAttacksNav } from "@/components/web-attacks-nav"
 import { PageShell } from "@/components/page-shell"
+import { SectionError } from "@/components/section-error"
 import { fetchWebPaths } from "@/lib/api"
 import { ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
 
 export default async function WebPathsPage() {
-  const { paths } = await fetchWebPaths()
+  let paths
+  try {
+    ({ paths } = await fetchWebPaths())
+  } catch {
+    return (
+      <PageShell>
+        <div className="mb-6">
+          <h1 className="text-2xl font-semibold text-foreground">Web Attacks · Paths</h1>
+        </div>
+        <WebAttacksNav active="paths" />
+        <SectionError />
+      </PageShell>
+    )
+  }
 
   const maxTotal = paths[0]?.total ?? 1
 

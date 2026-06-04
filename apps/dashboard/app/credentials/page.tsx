@@ -1,5 +1,6 @@
 import { PageShell } from "@/components/page-shell"
 import { CredentialsView } from "@/components/credentials-view"
+import { SectionError } from "@/components/section-error"
 import { fetchCredentialsAnalytics } from "@/lib/api"
 
 const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
@@ -34,19 +35,31 @@ export default async function CredentialsPage({
     params.frequency === "all" || params.frequency === "single" ? params.frequency : "reused"
   const sortDir = params.sortDir === "asc" ? "asc" : "desc"
 
-  const analytics = await fetchCredentialsAnalytics({
-    limit: 20,
-    recentLimit: 20,
-    page,
-    pageSize,
-    mainTab,
-    rankingType,
-    outcome,
-    frequency,
-    search: params.search?.trim() || undefined,
-    sortBy: params.sortBy || undefined,
-    sortDir,
-  })
+  let analytics
+  try {
+    analytics = await fetchCredentialsAnalytics({
+      limit: 20,
+      recentLimit: 20,
+      page,
+      pageSize,
+      mainTab,
+      rankingType,
+      outcome,
+      frequency,
+      search: params.search?.trim() || undefined,
+      sortBy: params.sortBy || undefined,
+      sortDir,
+    })
+  } catch {
+    return (
+      <PageShell>
+        <div className="mb-6">
+          <h1 className="text-2xl font-semibold text-foreground">Credentials</h1>
+        </div>
+        <SectionError />
+      </PageShell>
+    )
+  }
 
   return (
     <PageShell>
