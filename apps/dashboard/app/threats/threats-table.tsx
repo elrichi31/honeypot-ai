@@ -256,7 +256,7 @@ function ThreatsTableInner({
           />
         )
       ) : (
-        <Table className="min-w-[1340px]">
+        <Table className="min-w-[1024px]">
           <TableHeader>
             <TableRow className="bg-muted/20">
               <TableHead className="px-4 text-muted-foreground">#</TableHead>

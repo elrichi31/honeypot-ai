@@ -39,7 +39,9 @@ export function TableShell({
         {toolbar}
       </div>
 
-      <div className="relative min-h-0 flex-1 overflow-y-auto">
+      {/* overflow-x-auto so a table wider than the viewport scrolls horizontally
+          instead of being clipped at the right edge. */}
+      <div className="relative min-h-0 flex-1 overflow-auto">
         {children}
       </div>
 
