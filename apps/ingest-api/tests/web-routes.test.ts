@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeHeaders } from '../src/routes/web.js'
+import { normalizeHeaders } from '../src/lib/web-normalize.js'
 
 describe('normalizeHeaders', () => {
   it('converts array-based headers from Galah into plain strings', () => {
