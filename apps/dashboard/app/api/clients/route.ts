@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
 import { logAudit } from "@/lib/audit"
 import { requireRole } from "@/lib/roles"
 
 const INTERNAL_API = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
+
+/** Invalidate the cached lists that show clients or sensor↔client grouping. */
+function revalidateClientViews() {
+  revalidatePath("/clients")
+  revalidatePath("/sensors")
+}
 
 function ingestHeaders(contentType = true) {
   return {
@@ -39,6 +46,7 @@ export async function POST(req: NextRequest) {
   const responseBody = await res.text()
 
   if (res.ok) {
+    revalidateClientViews()
     try {
       const parsed = JSON.parse(body)
       const created = JSON.parse(responseBody)

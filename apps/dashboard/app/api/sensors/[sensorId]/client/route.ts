@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
 import { logAudit } from "@/lib/audit"
 import { requireRole } from "@/lib/roles"
 
@@ -30,6 +31,10 @@ export async function PUT(
   const responseBody = await res.text()
 
   if (res.ok) {
+    // Re-grouping a sensor changes both the sensors list and per-client views.
+    revalidatePath("/sensors")
+    revalidatePath("/clients")
+    revalidatePath("/clients/[slug]", "page")
     try {
       const parsed = JSON.parse(body)
       const isAssign = parsed?.clientId !== null && parsed?.clientId !== undefined
