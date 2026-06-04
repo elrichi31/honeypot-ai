@@ -1,7 +1,11 @@
+# syntax=docker/dockerfile:1.7
 FROM node:22-alpine AS deps
 WORKDIR /app
-COPY package*.json ./
-RUN npm install --legacy-peer-deps
+COPY package*.json .npmrc ./
+# npm ci is faster + deterministic (uses the lockfile). The cache mount keeps the
+# npm download cache across builds so unchanged deps aren't re-fetched.
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
 
 FROM node:22-alpine AS builder
 WORKDIR /app
@@ -15,7 +19,9 @@ ARG BETTER_AUTH_SECRET=build-time-placeholder
 ENV BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET
 ARG BETTER_AUTH_URL=http://localhost:4000
 ENV BETTER_AUTH_URL=$BETTER_AUTH_URL
-RUN npm run build
+# Persist Next's compiler cache across builds for faster incremental rebuilds.
+RUN --mount=type=cache,target=/app/.next/cache \
+    npm run build
 
 FROM node:22-alpine AS runner
 WORKDIR /app
