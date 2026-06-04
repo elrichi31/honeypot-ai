@@ -5,6 +5,7 @@ import { sendPeriodicReport } from './weekly-report.js'
 import { getAlertConfig } from './runtime-config.js'
 import { readSystemMetrics } from '../routes/monitoring.js'
 import { sampleContainerStatsForCron } from './docker-stats.js'
+import { buildRecentRollups } from './rollups.js'
 
 const SENSOR_HEALTH_SCHEDULE = '* * * * *'
 
@@ -48,7 +49,20 @@ export function initCron(prisma: PrismaClient): void {
     }
   }, { timezone: 'UTC' })
 
+  // Roll up yesterday + today into the permanent daily_* tables. Runs hourly so
+  // historical stats are captured well before the 7-day retention prunes raw
+  // rows; idempotent UPSERTs make re-runs harmless. Also runs once at startup.
+  buildRecentRollups(prisma).catch((err) => console.error('[cron] rollup startup error:', err))
+  cron.schedule('15 * * * *', async () => {
+    try {
+      await buildRecentRollups(prisma)
+    } catch (err) {
+      console.error('[cron] rollup error:', err)
+    }
+  }, { timezone: 'UTC' })
+
   console.log('[cron] Periodic report scheduled (interval read from config, checked hourly)')
   console.log('[cron] Sensor health checks scheduled (every minute)')
   console.log('[cron] Monitoring snapshots scheduled (every minute)')
+  console.log('[cron] Daily rollups scheduled (hourly at :15)')
 }

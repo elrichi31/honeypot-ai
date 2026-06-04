@@ -228,6 +228,65 @@ model ThreatAlertCooldown {
   @@map("threat_alert_cooldown")
 }
 
+// Permanent daily rollups — small summaries that survive raw-data retention.
+model DailyAttackerStat {
+  day             DateTime @db.Date
+  srcIp           String   @map("src_ip")
+  events          BigInt   @default(0)
+  authAttempts    BigInt   @default(0) @map("auth_attempts")
+  loginSuccesses  BigInt   @default(0) @map("login_successes")
+  protocolHits    BigInt   @default(0) @map("protocol_hits")
+  webHits         BigInt   @default(0) @map("web_hits")
+  sessions        BigInt   @default(0)
+  updatedAt       DateTime @default(now()) @map("updated_at")
+
+  @@id([day, srcIp])
+  @@index([day(sort: Desc)])
+  @@index([srcIp])
+  @@map("daily_attacker_stats")
+}
+
+model DailySummary {
+  day             DateTime @id @db.Date
+  sshEvents       BigInt   @default(0) @map("ssh_events")
+  webHits         BigInt   @default(0) @map("web_hits")
+  protocolHits    BigInt   @default(0) @map("protocol_hits")
+  sessions        BigInt   @default(0)
+  uniqueIps       BigInt   @default(0) @map("unique_ips")
+  loginSuccesses  BigInt   @default(0) @map("login_successes")
+  suricataAlerts  BigInt   @default(0) @map("suricata_alerts")
+  updatedAt       DateTime @default(now()) @map("updated_at")
+
+  @@index([day(sort: Desc)])
+  @@map("daily_summary")
+}
+
+model DailyCredentialStat {
+  day        DateTime @db.Date
+  username   String   @default("")
+  password   String   @default("")
+  attempts   BigInt   @default(0)
+  successes  BigInt   @default(0)
+  uniqueIps  BigInt   @default(0) @map("unique_ips")
+  updatedAt  DateTime @default(now()) @map("updated_at")
+
+  @@id([day, username, password])
+  @@index([day(sort: Desc)])
+  @@map("daily_credential_stats")
+}
+
+model DailyCommandStat {
+  day        DateTime @db.Date
+  command    String
+  count      BigInt   @default(0)
+  uniqueIps  BigInt   @default(0) @map("unique_ips")
+  updatedAt  DateTime @default(now()) @map("updated_at")
+
+  @@id([day, command])
+  @@index([day(sort: Desc)])
+  @@map("daily_command_stats")
+}
+
 // Persisted threat alerts (the ones also pushed to Discord), so the dashboard
 // can list them and show an unread count. Spans all clients/sensors.
 model Alert {
