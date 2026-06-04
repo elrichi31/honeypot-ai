@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { ensureIngestToken } from '../lib/ingest-auth.js'
 import { lookupGeo } from '../lib/geo.js'
@@ -47,47 +48,51 @@ function severityLabel(s: number) {
   return 'low'
 }
 
-async function persistAlert(fastify: FastifyInstance, alert: EveAlert) {
-  const ts = new Date(alert.timestamp)
-  if (isNaN(ts.getTime())) return
+// Suricata-internal TCP/IP anomaly signatures ("SURICATA STREAM ...", etc.) are
+// not real attacks and the dashboard already hides them. Dropping them at ingest
+// keeps the table from filling with noise (it was the bulk of the volume).
+function isNoise(signature: string): boolean {
+  return signature.startsWith('SURICATA ')
+}
 
-  await fastify.prisma.$executeRaw`
+// Persist a batch of alerts in a single multi-row INSERT. We no longer store the
+// full `raw` EVE JSON — every field the dashboard uses already lives in its own
+// column, and the JSON was what bloated the table.
+async function persistAlerts(fastify: FastifyInstance, alerts: EveAlert[]): Promise<number> {
+  const rows = alerts
+    .map((alert) => ({ alert, ts: new Date(alert.timestamp) }))
+    .filter(({ alert, ts }) => !isNaN(ts.getTime()) && !isNoise(alert.alert.signature))
+
+  if (rows.length === 0) return 0
+
+  const values = rows.map(({ alert, ts }) =>
+    Prisma.sql`(
+      gen_random_uuid()::text, ${alert.sensor_id}, ${ts}, ${alert.src_ip},
+      ${alert.src_port ?? null}, ${alert.dest_ip}, ${alert.dest_port ?? null},
+      ${alert.proto}, ${alert.alert.action}, ${alert.alert.signature_id},
+      ${alert.alert.signature}, ${alert.alert.category}, ${alert.alert.severity},
+      ${alert.flow_id ?? null}, ${alert.in_iface ?? null}
+    )`
+  )
+
+  await fastify.prisma.$executeRaw(Prisma.sql`
     INSERT INTO suricata_alerts (
       id, sensor_id, timestamp, src_ip, src_port, dest_ip, dest_port,
-      proto, action, signature_id, signature, category, severity,
-      flow_id, in_iface, raw
-    ) VALUES (
-      gen_random_uuid()::text,
-      ${alert.sensor_id},
-      ${ts},
-      ${alert.src_ip},
-      ${alert.src_port ?? null},
-      ${alert.dest_ip},
-      ${alert.dest_port ?? null},
-      ${alert.proto},
-      ${alert.alert.action},
-      ${alert.alert.signature_id},
-      ${alert.alert.signature},
-      ${alert.alert.category},
-      ${alert.alert.severity},
-      ${alert.flow_id ?? null},
-      ${alert.in_iface ?? null},
-      CAST(${JSON.stringify(alert)} AS jsonb)
-    )
+      proto, action, signature_id, signature, category, severity, flow_id, in_iface
+    ) VALUES ${Prisma.join(values)}
     ON CONFLICT DO NOTHING
-  `
+  `)
 
-  if (OWN_IPS.has(alert.src_ip)) return
-
-  const geo = lookupGeo(alert.src_ip)
-  if (geo) {
-    eventBus.emit('attack', {
-      type: 'ids',
-      ip: alert.src_ip,
-      ...geo,
-      timestamp: ts.toISOString(),
-    })
+  // Emit live-map events for non-own-IP alerts.
+  for (const { alert, ts } of rows) {
+    if (OWN_IPS.has(alert.src_ip)) continue
+    const geo = lookupGeo(alert.src_ip)
+    if (geo) {
+      eventBus.emit('attack', { type: 'ids', ip: alert.src_ip, ...geo, timestamp: ts.toISOString() })
+    }
   }
+
+  return rows.length
 }
 
 export async function suricataRoutes(fastify: FastifyInstance) {
@@ -97,22 +102,24 @@ export async function suricataRoutes(fastify: FastifyInstance) {
     const body = request.body
     const events: unknown[] = Array.isArray(body) ? body : [body]
 
-    let accepted = 0
+    const valid: EveAlert[] = []
     let rejected = 0
-
     for (const event of events) {
       const parsed = eveAlertSchema.safeParse(event)
-      if (!parsed.success) { rejected++; continue }
-      try {
-        await persistAlert(fastify, parsed.data)
-        accepted++
-      } catch (err) {
-        fastify.log.error({ err }, 'suricata alert persist failed')
-        rejected++
-      }
+      if (parsed.success) valid.push(parsed.data)
+      else rejected++
     }
 
-    return reply.status(200).send({ accepted, rejected })
+    let stored = 0
+    try {
+      stored = await persistAlerts(fastify, valid)
+    } catch (err) {
+      fastify.log.error({ err }, 'suricata alert batch persist failed')
+      return reply.status(500).send({ error: 'persist failed' })
+    }
+
+    // accepted = parsed ok; stored may be lower (noise dropped at ingest).
+    return reply.status(200).send({ accepted: valid.length, stored, rejected })
   })
 
   fastify.get('/suricata/alerts', async (request, reply) => {

@@ -323,7 +323,6 @@ model SuricataAlert {
   severity    Int      @default(3)
   flowId      BigInt?  @map("flow_id")
   inIface     String?  @map("in_iface")
-  raw         Json     @default("{}")
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([srcIp])
