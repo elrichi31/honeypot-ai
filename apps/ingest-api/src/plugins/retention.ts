@@ -73,9 +73,35 @@ async function runRetention(fastify: FastifyInstance) {
   }
 }
 
+// Skip the startup purge if a successful run already happened within the current
+// interval. Otherwise a container that restarts often (OOM, redeploys, crash
+// loop) re-runs retention on every boot, making "last purge" jump to "just now"
+// far more often than the configured frequency.
+async function startupShouldRun(fastify: FastifyInstance, intervalMinutes: number): Promise<boolean> {
+  try {
+    const last = await fastify.prisma.retentionRun.findFirst({
+      where: { ok: true },
+      orderBy: { startedAt: 'desc' },
+    })
+    if (!last) return true
+    const ageMs = Date.now() - new Date(last.startedAt).getTime()
+    return ageMs >= intervalMinutes * 60 * 1000
+  } catch {
+    return true // if we can't tell, run (safe default)
+  }
+}
+
 export const retentionPlugin = fp(async function (fastify: FastifyInstance) {
-  // Run once at startup (catches anything accumulated while the service was down)
-  runRetention(fastify).catch(err => fastify.log.error('[retention] startup run failed:', err))
+  // Run at startup only if the last successful run is older than the interval —
+  // catches a backlog from downtime without re-purging on every restart.
+  void (async () => {
+    const minutes = getRetentionIntervalMinutes()
+    if (await startupShouldRun(fastify, minutes)) {
+      await runRetention(fastify)
+    } else {
+      fastify.log.info('[retention] startup purge skipped (ran recently)')
+    }
+  })().catch(err => fastify.log.error(`[retention] startup run failed: ${err}`))
 
   // Self-schedule the next run with setTimeout so the interval is re-read from
   // config each time — changing it in the dashboard takes effect without a
