@@ -41,7 +41,7 @@ export default function RootLayout({
   const config = readConfig()
   const timezone = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
   return (
-    <html lang="en" className="bg-background">
+    <html lang="en" className="bg-background" suppressHydrationWarning>
       <body className="font-sans antialiased">
         <TimezoneProvider timezone={timezone}>
           <SidebarLayout>{children}</SidebarLayout>

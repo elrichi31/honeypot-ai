@@ -1,14 +1,15 @@
 'use client'
 
-import { useTheme } from 'next-themes'
 import { Toaster as Sonner, ToasterProps } from 'sonner'
 
+// The dashboard renders in a single fixed dark theme (see globals.css) and has
+// no next-themes ThemeProvider mounted. Reading useTheme() here resolved the
+// theme on the client only, producing a server/client HTML mismatch (React
+// hydration error #418). Pin the theme to "dark" to keep render deterministic.
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = 'system' } = useTheme()
-
   return (
     <Sonner
-      theme={theme as ToasterProps['theme']}
+      theme="dark"
       className="toaster group"
       style={
         {
