@@ -4,13 +4,15 @@ export function getApiUrl() {
 
 const DEFAULT_FETCH_TIMEOUT_MS = 10000
 
-export async function apiFetch<T>(url: string, revalidate?: number): Promise<T> {
+export async function apiFetch<T>(url: string, revalidate?: number, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS): Promise<T> {
   const init: RequestInit = revalidate != null
     ? { next: { revalidate } }
     : { cache: "no-store" }
   // Bound every server-side fetch so a saturated backend can't hang the whole
   // page render indefinitely; the caller's try/catch then degrades gracefully.
-  init.signal = AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS)
+  // Heavy aggregate endpoints (e.g. /threats) pass a larger timeout so a slow
+  // query isn't misread as "no data".
+  init.signal = AbortSignal.timeout(timeoutMs)
   const res = await fetch(url, init)
   if (!res.ok) throw new Error(`API error ${res.status}: ${url}`)
   return res.json()

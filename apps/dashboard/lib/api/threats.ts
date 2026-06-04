@@ -18,7 +18,9 @@ export async function fetchThreatsPage(params?: {
   if (params?.crossProtocol !== undefined) sp.set("crossProtocol", String(params.crossProtocol))
   if (params?.sortBy) sp.set("sortBy", params.sortBy)
   if (params?.sortDir) sp.set("sortDir", params.sortDir)
-  return apiFetch(`${getApiUrl()}/threats?${sp}`, 60)
+  // Cross-protocol correlation is a heavy aggregate; give it 30s before aborting
+  // so a slow query doesn't surface as an empty threats page.
+  return apiFetch(`${getApiUrl()}/threats?${sp}`, 60, 30000)
 }
 
 export async function fetchThreats(params?: Parameters<typeof fetchThreatsPage>[0]): Promise<ThreatSummary[]> {

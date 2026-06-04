@@ -2,6 +2,7 @@ import { ShieldAlert } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { fetchThreatsPage } from "@/lib/api"
 import { ThreatsTable } from "./threats-table"
+import { SectionError } from "@/components/section-error"
 
 const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
 
@@ -45,35 +46,43 @@ export default async function ThreatsPage({
   const commands = parseCsv(params.commands, VALID_COMMANDS)
   const crossProtocol = params.crossProtocol === "true" ? true : undefined
 
-  let pageData
+  let pageData: Awaited<ReturnType<typeof fetchThreatsPage>> | null = null
   try {
     pageData = await fetchThreatsPage({ page, pageSize, q, sortBy, sortDir, levels, commands, crossProtocol })
   } catch {
-    pageData = {
-      items: [],
-      summary: { total: 0, critical: 0, high: 0, crossProtocol: 0 },
-      pagination: {
-        page: 1,
-        pageSize,
-        total: 0,
-        totalPages: 1,
-        hasNextPage: false,
-        hasPreviousPage: false,
-      },
-    }
+    pageData = null
+  }
+
+  const header = (
+    <div className="mb-6">
+      <div className="mb-1 flex items-center gap-2">
+        <ShieldAlert className="h-5 w-5 text-destructive" />
+        <h1 className="text-2xl font-semibold text-foreground">Threat Intelligence</h1>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Cross-protocol correlation · risk scoring by IP
+        {pageData ? ` · ${pageData.summary.total.toLocaleString('en-US')} attackers visible` : ""}
+      </p>
+    </div>
+  )
+
+  // A failed fetch must not look like "no threats" — show a clear, retryable
+  // error instead of an empty table.
+  if (!pageData) {
+    return (
+      <PageShell>
+        {header}
+        <SectionError
+          title="No se pudieron cargar los threats"
+          message="La correlación cross-protocol tardó demasiado o el backend no respondió. Suele ser temporal — reintenta en unos segundos."
+        />
+      </PageShell>
+    )
   }
 
   return (
     <PageShell>
-      <div className="mb-6">
-        <div className="mb-1 flex items-center gap-2">
-          <ShieldAlert className="h-5 w-5 text-destructive" />
-          <h1 className="text-2xl font-semibold text-foreground">Threat Intelligence</h1>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Cross-protocol correlation · risk scoring by IP · {pageData.summary.total.toLocaleString('en-US')} attackers visible
-        </p>
-      </div>
+      {header}
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-xl border border-border bg-card p-4">

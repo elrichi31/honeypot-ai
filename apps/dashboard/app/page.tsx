@@ -10,6 +10,7 @@ import { ProtocolDistributionChart } from "@/components/protocol-distribution-ch
 import { GlobeMap } from "@/components/globe-map"
 import { AttackHeatmap } from "@/components/attack-heatmap"
 import { SensorActivityGrid } from "@/components/sensor-activity-grid"
+import { SectionError } from "@/components/section-error"
 import {
   fetchDashboardInsights,
   fetchGeoSummary,
@@ -135,33 +136,111 @@ function buildCampaignGeo(
     .slice(0, 12)
 }
 
-export default async function DashboardPage() {
-  const config = readConfig()
-  const timezone = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
+const SECTION_PLACEHOLDER = "h-[500px] rounded-xl border border-border bg-card animate-pulse"
 
-  const [insights, geoData, overview, crossTimeline] = await Promise.all([
-    fetchDashboardInsights(),
-    fetchGeoSummary(),
-    fetchHoneypotOverview(),
-    fetchCrossSensorTimeline({ range: "day", timezone }),
-  ])
+// Each section below fetches its own slice and catches its own errors, so a slow
+// or failing endpoint degrades only that card — the rest of the dashboard still
+// renders. Wrapped in <Suspense> at the page level, they also stream in
+// independently instead of blocking the whole page on the slowest fetch.
 
-  const countryAttacks = geolocateIps(geoData)
-  const countrySuccess = buildCountrySuccess(insights.countrySuccessCandidates)
-  const campaignGeo = buildCampaignGeo(insights.credentialCampaigns)
+async function OverviewSection() {
+  let overview
+  try {
+    overview = await fetchHoneypotOverview()
+  } catch {
+    return <SectionError title="No se pudieron cargar las métricas" />
+  }
 
   const activeSources = overview.totals.activeSources
   const totalEvents = overview.totals.events
+
+  return (
+    <>
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Total events</p>
+          <p className="mt-2 text-3xl font-semibold text-foreground">{totalEvents.toLocaleString("en-US")}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {activeSources} sensor{activeSources !== 1 ? "s" : ""} reporting
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">SSH sessions</p>
+          <p className="mt-2 text-3xl font-semibold text-foreground">{overview.ssh.sessions.toLocaleString("en-US")}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {overview.ssh.uniqueIps.toLocaleString("en-US")} IPs · {overview.ssh.successfulLogins.toLocaleString("en-US")} compromised
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Web attacks</p>
+          <p className="mt-2 text-3xl font-semibold text-foreground">{overview.web.hits.toLocaleString("en-US")}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {overview.web.uniqueIps.toLocaleString("en-US")} IPs
+            {overview.web.topAttackType ? ` · top: ${overview.web.topAttackType}` : ""}
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Active sources</p>
+          <p className="mt-2 text-3xl font-semibold text-foreground">{activeSources.toLocaleString("en-US")}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Sensors reporting in the window</p>
+        </div>
+      </div>
+
+      <SensorActivityGrid overview={overview} />
+
+      <div className="mb-6">
+        <ProtocolDistributionChart overview={overview} />
+      </div>
+    </>
+  )
+}
+
+async function CrossTimelineSection({ timezone }: { timezone: string }) {
+  let crossTimeline
+  try {
+    crossTimeline = await fetchCrossSensorTimeline({ range: "day", timezone })
+  } catch {
+    return <SectionError title="No se pudo cargar la actividad cross-sensor" />
+  }
+  return <CrossSensorActivityChart timeline={crossTimeline} range="day" />
+}
+
+async function GlobeSection() {
+  let geoData
+  try {
+    geoData = await fetchGeoSummary()
+  } catch {
+    return <SectionError title="No se pudo cargar el mapa de ataques" />
+  }
+  return <GlobeMap countryAttacks={geolocateIps(geoData)} />
+}
+
+async function InsightsSection() {
+  let insights
+  try {
+    insights = await fetchDashboardInsights()
+  } catch {
+    return <SectionError title="No se pudo cargar el análisis SSH" />
+  }
+  return (
+    <DashboardInsightsView
+      insights={insights}
+      countrySuccess={buildCountrySuccess(insights.countrySuccessCandidates)}
+      campaignGeo={buildCampaignGeo(insights.credentialCampaigns)}
+    />
+  )
+}
+
+export default function DashboardPage() {
+  const config = readConfig()
+  const timezone = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
 
   return (
     <PageShell>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            {activeSources} active source{activeSources !== 1 ? "s" : ""} ·{" "}
-            {totalEvents.toLocaleString("en-US")} total events captured
-          </p>
+          <p className="text-sm text-muted-foreground">Honeypot activity across all sensors</p>
         </div>
         <Link
           href="/live"
@@ -172,61 +251,23 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      {/* Cross-sensor KPI strip */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Total events</p>
-          <p className="mt-2 text-3xl font-semibold text-foreground">
-            {totalEvents.toLocaleString("en-US")}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {activeSources} sensor{activeSources !== 1 ? "s" : ""} reporting
-          </p>
-        </div>
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">SSH sessions</p>
-          <p className="mt-2 text-3xl font-semibold text-foreground">
-            {overview.ssh.sessions.toLocaleString("en-US")}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {overview.ssh.uniqueIps.toLocaleString("en-US")} IPs · {overview.ssh.successfulLogins.toLocaleString("en-US")} compromised
-          </p>
-        </div>
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Web attacks</p>
-          <p className="mt-2 text-3xl font-semibold text-foreground">
-            {overview.web.hits.toLocaleString("en-US")}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {overview.web.uniqueIps.toLocaleString("en-US")} IPs
-            {overview.web.topAttackType ? ` · top: ${overview.web.topAttackType}` : ""}
-          </p>
-        </div>
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">High threat</p>
-          <p className="mt-2 text-3xl font-semibold text-foreground">
-            {insights.funnel.highSignalCompromise.toLocaleString("en-US")}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Confirmed backdoor, miner or malware drop
-          </p>
-        </div>
-      </div>
+      {/* KPIs + per-sensor grid + protocol distribution */}
+      <Suspense fallback={<div className={SECTION_PLACEHOLDER} />}>
+        <OverviewSection />
+      </Suspense>
 
-      {/* Per-sensor activity cards */}
-      <SensorActivityGrid overview={overview} />
-
-      {/* Cross-sensor activity timeline + distribution */}
-      <div className="mb-6 grid gap-4 xl:grid-cols-[2fr_1fr]">
-        <Suspense fallback={<div className="h-[500px] rounded-xl border border-border bg-card" />}>
-          <CrossSensorActivityChart timeline={crossTimeline} range="day" />
+      {/* Cross-sensor activity timeline */}
+      <div className="mb-6">
+        <Suspense fallback={<div className="h-[500px] rounded-xl border border-border bg-card animate-pulse" />}>
+          <CrossTimelineSection timezone={timezone} />
         </Suspense>
-        <ProtocolDistributionChart overview={overview} />
       </div>
 
       {/* Globe map */}
       <div className="mb-6">
-        <GlobeMap countryAttacks={countryAttacks} />
+        <Suspense fallback={<div className="h-[400px] rounded-xl border border-border bg-card animate-pulse" />}>
+          <GlobeSection />
+        </Suspense>
       </div>
 
       {/* SSH deep analysis */}
@@ -237,14 +278,12 @@ export default async function DashboardPage() {
             SSH Analysis
           </h2>
         </div>
-        <DashboardInsightsView
-          insights={insights}
-          countrySuccess={countrySuccess}
-          campaignGeo={campaignGeo}
-        />
+        <Suspense fallback={<div className={SECTION_PLACEHOLDER} />}>
+          <InsightsSection />
+        </Suspense>
       </div>
 
-      {/* Attack heatmap */}
+      {/* Attack heatmap (self-contained, client-fetched) */}
       <div className="relative mt-6">
         <AttackHeatmap days={90} />
       </div>
