@@ -137,32 +137,45 @@ export async function storageRoutes(fastify: FastifyInstance) {
 
     const rows = await fastify.prisma.retentionSettings.findMany({ orderBy: { tableName: 'asc' } })
 
-    const oldestResults = await Promise.all(
+    // Per table: how old the oldest row is, and how many rows are already past
+    // the retention window (i.e. what the next purge will delete from it).
+    const perTableResults = await Promise.all(
       rows.map(async row => {
         const col = TIMESTAMP_COL[row.tableName]
-        if (!col) return { id: row.id, oldestDaysAgo: null }
+        if (!col) return { id: row.id, oldestDaysAgo: null, pendingRows: null }
         try {
-          const res = await fastify.prisma.$queryRawUnsafe<[{ days: number | null }]>(
-            `SELECT EXTRACT(EPOCH FROM (NOW() - MIN("${col}"))) / 86400 AS days FROM "${row.tableName}"`
+          const res = await fastify.prisma.$queryRawUnsafe<[{ days: number | null; pending: bigint }]>(
+            `SELECT
+               EXTRACT(EPOCH FROM (NOW() - MIN("${col}"))) / 86400 AS days,
+               COUNT(*) FILTER (WHERE "${col}" < NOW() - (${row.retentionDays} * INTERVAL '1 day')) AS pending
+             FROM "${row.tableName}"`
           )
           const days = res[0]?.days != null ? Math.floor(Number(res[0].days)) : null
-          return { id: row.id, oldestDaysAgo: days }
+          const pending = res[0]?.pending != null ? Number(res[0].pending) : 0
+          return { id: row.id, oldestDaysAgo: days, pendingRows: pending }
         } catch {
-          return { id: row.id, oldestDaysAgo: null }
+          return { id: row.id, oldestDaysAgo: null, pendingRows: null }
         }
       })
     )
 
-    const oldestMap = Object.fromEntries(oldestResults.map(r => [r.id, r.oldestDaysAgo]))
-    const enriched = rows.map(r => ({ ...r, oldestDaysAgo: oldestMap[r.id] ?? null }))
+    const byId = Object.fromEntries(perTableResults.map(r => [r.id, r]))
+    const enriched = rows.map(r => ({
+      ...r,
+      oldestDaysAgo: byId[r.id]?.oldestDaysAgo ?? null,
+      pendingRows: byId[r.id]?.pendingRows ?? null,
+    }))
 
-    // Last retention job run, so the UI can show when the purge actually ran and
-    // whether it succeeded (not only the "purging now" estimate).
+    // Last retention job run + the next scheduled run (job runs hourly, so the
+    // next one is ~1h after the last). Lets the UI show when and what will purge.
     const lastRun = await fastify.prisma.retentionRun.findFirst({
       orderBy: { startedAt: 'desc' },
     })
+    const nextRunAt = lastRun
+      ? new Date(new Date(lastRun.startedAt).getTime() + 60 * 60 * 1000).toISOString()
+      : null
 
-    return reply.send({ settings: enriched, lastRun })
+    return reply.send({ settings: enriched, lastRun, nextRunAt })
   })
 
   fastify.put('/storage/retention/:id', async (request, reply) => {

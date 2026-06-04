@@ -10,6 +10,7 @@ type RetentionRow = {
   id: string; tableName: string; label: string
   retentionDays: number; enabled: boolean; updatedAt: string
   oldestDaysAgo: number | null
+  pendingRows: number | null
 }
 type RetentionRun = {
   id: string; startedAt: string; finishedAt: string | null
@@ -17,23 +18,29 @@ type RetentionRun = {
 }
 type RowState = RetentionRow & { draft: string; saving: boolean; saved: boolean }
 
-function OldestBadge({ oldestDaysAgo, retentionDays, enabled }: {
+function OldestBadge({ oldestDaysAgo, retentionDays, enabled, pendingRows }: {
   oldestDaysAgo: number | null
   retentionDays: number
   enabled: boolean
+  pendingRows: number | null
 }) {
   if (!enabled) return null
   if (oldestDaysAgo === null) return (
-    <span className="text-[11px] text-muted-foreground/40 w-44 text-right">no data</span>
+    <span className="text-[11px] text-muted-foreground/40 w-48 text-right">no data</span>
   )
   const daysLeft = retentionDays - oldestDaysAgo
   const urgent = daysLeft <= 7
+  const pending = pendingRows ?? 0
   return (
-    <span className="text-[11px] text-right w-44 tabular-nums">
+    <span className="text-[11px] text-right w-48 tabular-nums">
       <span className="text-muted-foreground">oldest {oldestDaysAgo}d ago · </span>
-      <span className={urgent ? "text-red-400 font-medium" : "text-muted-foreground"}>
-        {daysLeft <= 0 ? "purging now" : `${daysLeft}d left`}
-      </span>
+      {pending > 0 ? (
+        <span className="text-amber-400 font-medium">borrará {pending.toLocaleString()} fila{pending === 1 ? "" : "s"}</span>
+      ) : (
+        <span className={urgent ? "text-red-400 font-medium" : "text-muted-foreground"}>
+          {daysLeft <= 0 ? "al día" : `${daysLeft}d left`}
+        </span>
+      )}
     </span>
   )
 }
@@ -70,6 +77,29 @@ function LastRunBadge({ run }: { run: RetentionRun | null }) {
   )
 }
 
+function NextRunBanner({ nextRunAt, totalPending }: { nextRunAt: string | null; totalPending: number }) {
+  // The job runs hourly; if the computed next time is already past, it's due on
+  // the next tick — show "pronto" rather than a negative time.
+  const next = nextRunAt ? new Date(nextRunAt) : null
+  const when = next
+    ? (next.getTime() > Date.now() ? formatDistanceToNow(next, { addSuffix: true }) : "pronto")
+    : "en la próxima hora"
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-border/40 bg-muted/20 px-4 py-2">
+      <span className="text-[11px] text-muted-foreground">
+        Próxima purga <span className="text-foreground">{when}</span>
+      </span>
+      <span className="text-[11px] tabular-nums">
+        {totalPending > 0 ? (
+          <span className="text-amber-400">se borrarán ~{totalPending.toLocaleString()} filas</span>
+        ) : (
+          <span className="text-muted-foreground/60">nada por purgar</span>
+        )}
+      </span>
+    </div>
+  )
+}
+
 async function callApi(id: string, patch: { retentionDays?: number; enabled?: boolean }) {
   const res = await fetch(`/api/storage/retention/${id}`, {
     method: "PUT",
@@ -82,20 +112,25 @@ async function callApi(id: string, patch: { retentionDays?: number; enabled?: bo
 export function RetentionSettings() {
   const [rows, setRows]       = useState<RowState[]>([])
   const [lastRun, setLastRun] = useState<RetentionRun | null>(null)
+  const [nextRunAt, setNextRunAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetch("/api/storage/retention")
       .then(r => r.json())
-      .then((d: { settings?: RetentionRow[]; lastRun?: RetentionRun | null }) => {
+      .then((d: { settings?: RetentionRow[]; lastRun?: RetentionRun | null; nextRunAt?: string | null }) => {
         if (Array.isArray(d.settings)) {
           setRows(d.settings.map((r) => ({ ...r, draft: String(r.retentionDays), saving: false, saved: false })))
         }
         setLastRun(d.lastRun ?? null)
+        setNextRunAt(d.nextRunAt ?? null)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
+
+  // Total rows the next purge will delete across all enabled tables.
+  const totalPending = rows.reduce((sum, r) => sum + (r.enabled ? (r.pendingRows ?? 0) : 0), 0)
 
   function patch(id: string, changes: Partial<RowState>) {
     setRows(prev => prev.map(r => r.id === id ? { ...r, ...changes } : r))
@@ -140,6 +175,10 @@ export function RetentionSettings() {
         <LastRunBadge run={lastRun} />
       </div>
 
+      {!loading && (
+        <NextRunBanner nextRunAt={nextRunAt} totalPending={totalPending} />
+      )}
+
       <div className="divide-y divide-border/40">
         {loading ? (
           <div className="flex justify-center py-8">
@@ -155,7 +194,7 @@ export function RetentionSettings() {
             <span className={`flex-1 text-sm ${row.enabled ? "text-foreground" : "text-muted-foreground/50"}`}>
               {row.label}
             </span>
-            <OldestBadge oldestDaysAgo={row.oldestDaysAgo} retentionDays={row.retentionDays} enabled={row.enabled} />
+            <OldestBadge oldestDaysAgo={row.oldestDaysAgo} retentionDays={row.retentionDays} enabled={row.enabled} pendingRows={row.pendingRows} />
             <div className="flex items-center gap-2">
               <input
                 type="number"
