@@ -256,7 +256,7 @@ function ThreatsTableInner({
           />
         )
       ) : (
-        <Table className="min-w-[1024px]">
+        <Table className="w-full min-w-[760px]">
           <TableHeader>
             <TableRow className="bg-muted/20">
               <TableHead className="px-4 text-muted-foreground">#</TableHead>
@@ -264,10 +264,10 @@ function ThreatsTableInner({
               <TableHead className="px-4 text-muted-foreground">Level</TableHead>
               <SortableHead label="Score" column="score" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} className="px-4" />
               <SortableHead label="Sessions" column="sessions" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} className="px-4" />
-              <SortableHead label="Web hits" column="webHits" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} className="px-4" />
+              <SortableHead label="Web hits" column="webHits" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} className="hidden px-4 lg:table-cell" />
               <SortableHead label="Protocols" column="protocols" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} className="px-4" />
               <TableHead className="px-4 text-muted-foreground">Detected commands</TableHead>
-              <TableHead className="px-4 text-muted-foreground">Top factors</TableHead>
+              <TableHead className="hidden px-4 text-muted-foreground xl:table-cell">Top factors</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -331,7 +331,7 @@ function ThreatsTableInner({
                     {threat.ssh?.sessions ?? 0}
                   </TableCell>
 
-                  <TableCell className="px-4 py-3 font-mono text-xs text-foreground">
+                  <TableCell className="hidden px-4 py-3 font-mono text-xs text-foreground lg:table-cell">
                     {threat.web?.hits ?? 0}
                   </TableCell>
 
@@ -343,7 +343,7 @@ function ThreatsTableInner({
                     <OverflowBadges items={commandBadges} max={3} />
                   </TableCell>
 
-                  <TableCell className="max-w-xs px-4 py-3 whitespace-normal">
+                  <TableCell className="hidden max-w-xs px-4 py-3 whitespace-normal xl:table-cell">
                     <ul className="space-y-0.5">
                       {threat.topFactors.map((factor, factorIndex) => (
                         <li key={factorIndex} className="truncate text-xs text-muted-foreground">

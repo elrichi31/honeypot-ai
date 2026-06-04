@@ -56,7 +56,10 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
       <AppSidebar />
-      <main className="ml-72 flex-1 p-6">{children}</main>
+      {/* min-w-0 lets this flex child shrink below its content width; without it
+          wide children (tables, KPI rows) overflow past the viewport and get
+          clipped on the right. */}
+      <main className="ml-72 min-w-0 flex-1 p-6">{children}</main>
     </div>
   )
 }
