@@ -39,17 +39,36 @@ async function purgeTable(fastify: FastifyInstance, tableName: string, col: stri
 async function runRetention(fastify: FastifyInstance) {
   const settings = await fastify.prisma.retentionSettings.findMany({ where: { enabled: true } })
 
+  const perTable: Record<string, number> = {}
+  let total = 0
+  let ok = true
+  let errorMsg: string | null = null
+
   for (const { tableName, retentionDays } of settings) {
     const col = TIMESTAMP_COL[tableName]
     if (!col) continue
     try {
       const deleted = await purgeTable(fastify, tableName, col, retentionDays)
+      perTable[tableName] = deleted
+      total += deleted
       if (deleted > 0) {
         fastify.log.info(`[retention] Purged ${deleted} rows from ${tableName} (>${retentionDays}d)`)
       }
     } catch (err) {
+      ok = false
+      errorMsg = `${tableName}: ${err instanceof Error ? err.message : String(err)}`
       fastify.log.error(`[retention] Failed to purge ${tableName}: ${err}`)
     }
+  }
+
+  // Record the run so the dashboard can show when retention last ran and whether
+  // it succeeded. Best-effort: never let logging the run break retention itself.
+  try {
+    await fastify.prisma.retentionRun.create({
+      data: { finishedAt: new Date(), rowsDeleted: total, perTable, ok, error: errorMsg },
+    })
+  } catch (err) {
+    fastify.log.error(`[retention] Failed to record run: ${err}`)
   }
 }
 

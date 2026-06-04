@@ -155,7 +155,14 @@ export async function storageRoutes(fastify: FastifyInstance) {
 
     const oldestMap = Object.fromEntries(oldestResults.map(r => [r.id, r.oldestDaysAgo]))
     const enriched = rows.map(r => ({ ...r, oldestDaysAgo: oldestMap[r.id] ?? null }))
-    return reply.send(enriched)
+
+    // Last retention job run, so the UI can show when the purge actually ran and
+    // whether it succeeded (not only the "purging now" estimate).
+    const lastRun = await fastify.prisma.retentionRun.findFirst({
+      orderBy: { startedAt: 'desc' },
+    })
+
+    return reply.send({ settings: enriched, lastRun })
   })
 
   fastify.put('/storage/retention/:id', async (request, reply) => {

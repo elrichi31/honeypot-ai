@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/multi-select-combobox"
+import { OverflowBadges, type BadgeItem } from "@/components/ui/overflow-badges"
 import { NavTransitionProvider, useNavTransition } from "@/lib/use-nav-transition"
 import { cn } from "@/lib/utils"
 import type { PaginationMeta, RiskLevel, ThreatSummary } from "@/lib/api"
@@ -273,7 +274,7 @@ function ThreatsTableInner({
             {threats.map((threat, index) => {
               const style = LEVEL_STYLES[threat.level]
               const activeCommands = Object.entries(threat.commandCategories).filter(([, value]) => value > 0)
-              const protocolBadges = threat.protocolsSeen.map((protocol) => {
+              const protocolBadges: BadgeItem[] = threat.protocolsSeen.map((protocol) => {
                 const label = PROTOCOL_LABELS[protocol] ?? protocol.toUpperCase()
                 const badgeStyle = PROTOCOL_STYLES[protocol] ?? "border-border bg-muted/10 text-muted-foreground"
                 const protocolStats = threat.protocols?.byService?.[protocol]
@@ -282,8 +283,14 @@ function ThreatsTableInner({
                   : protocol === "http" ? `${threat.web?.hits ?? 0}h`
                   : `${protocolStats?.hits ?? 0}e`
 
-                return { protocol, label, badgeStyle, value }
+                return { key: protocol, label: `${label} ${value}`, className: badgeStyle }
               })
+
+              const commandBadges: BadgeItem[] = activeCommands.map(([category, count]) => ({
+                key: category,
+                label: `${CMD_LABELS_SHORT[category] ?? category} x${count}`,
+                className: CMD_COLORS[category] ?? CMD_COLORS.recon,
+              }))
 
               return (
                 <TableRow
@@ -329,33 +336,11 @@ function ThreatsTableInner({
                   </TableCell>
 
                   <TableCell className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {protocolBadges.map(({ protocol, label, badgeStyle, value }) => (
-                        <span
-                          key={protocol}
-                          className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium ${badgeStyle}`}
-                        >
-                          {label} {value}
-                        </span>
-                      ))}
-                    </div>
+                    <OverflowBadges items={protocolBadges} max={3} />
                   </TableCell>
 
                   <TableCell className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {activeCommands.length === 0 ? (
-                        <span className="text-xs text-muted-foreground/50">-</span>
-                      ) : (
-                        activeCommands.map(([category, count]) => (
-                          <span
-                            key={category}
-                            className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${CMD_COLORS[category] ?? CMD_COLORS.recon}`}
-                          >
-                            {CMD_LABELS_SHORT[category] ?? category} x{count}
-                          </span>
-                        ))
-                      )}
-                    </div>
+                    <OverflowBadges items={commandBadges} max={3} />
                   </TableCell>
 
                   <TableCell className="max-w-xs px-4 py-3 whitespace-normal">

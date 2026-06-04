@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Clock, Save, Loader2, Check } from "lucide-react"
+import { Clock, Save, Loader2, Check, CheckCircle2, AlertTriangle } from "lucide-react"
+import { formatDistanceToNow } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 
@@ -9,6 +10,10 @@ type RetentionRow = {
   id: string; tableName: string; label: string
   retentionDays: number; enabled: boolean; updatedAt: string
   oldestDaysAgo: number | null
+}
+type RetentionRun = {
+  id: string; startedAt: string; finishedAt: string | null
+  rowsDeleted: number; perTable: Record<string, number>; ok: boolean; error: string | null
 }
 type RowState = RetentionRow & { draft: string; saving: boolean; saved: boolean }
 
@@ -33,6 +38,38 @@ function OldestBadge({ oldestDaysAgo, retentionDays, enabled }: {
   )
 }
 
+function LastRunBadge({ run }: { run: RetentionRun | null }) {
+  if (!run) {
+    return <span className="text-[11px] text-muted-foreground/50">Aún no se ha ejecutado</span>
+  }
+  const when = formatDistanceToNow(new Date(run.startedAt), { addSuffix: true })
+  const tablesPurged = Object.entries(run.perTable ?? {})
+    .filter(([, n]) => n > 0)
+    .map(([t, n]) => `${t}: ${n.toLocaleString()}`)
+    .join(" · ")
+  return (
+    <div className="flex flex-col items-end gap-0.5 text-right">
+      <span className="inline-flex items-center gap-1.5 text-[11px]">
+        {run.ok ? (
+          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+        ) : (
+          <AlertTriangle className="h-3.5 w-3.5 text-red-400" />
+        )}
+        <span className="text-muted-foreground">Última purga {when}</span>
+        <span className={run.ok ? "text-emerald-400" : "text-red-400"}>
+          · {run.rowsDeleted.toLocaleString()} filas
+        </span>
+      </span>
+      {!run.ok && run.error && (
+        <span className="text-[10px] text-red-400/80 max-w-xs truncate" title={run.error}>{run.error}</span>
+      )}
+      {run.ok && tablesPurged && (
+        <span className="text-[10px] text-muted-foreground/60 max-w-md truncate" title={tablesPurged}>{tablesPurged}</span>
+      )}
+    </div>
+  )
+}
+
 async function callApi(id: string, patch: { retentionDays?: number; enabled?: boolean }) {
   const res = await fetch(`/api/storage/retention/${id}`, {
     method: "PUT",
@@ -44,15 +81,17 @@ async function callApi(id: string, patch: { retentionDays?: number; enabled?: bo
 
 export function RetentionSettings() {
   const [rows, setRows]       = useState<RowState[]>([])
+  const [lastRun, setLastRun] = useState<RetentionRun | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetch("/api/storage/retention")
       .then(r => r.json())
-      .then((d: unknown) => {
-        if (Array.isArray(d)) {
-          setRows(d.map((r: RetentionRow) => ({ ...r, draft: String(r.retentionDays), saving: false, saved: false })))
+      .then((d: { settings?: RetentionRow[]; lastRun?: RetentionRun | null }) => {
+        if (Array.isArray(d.settings)) {
+          setRows(d.settings.map((r) => ({ ...r, draft: String(r.retentionDays), saving: false, saved: false })))
         }
+        setLastRun(d.lastRun ?? null)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -92,12 +131,13 @@ export function RetentionSettings() {
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-yellow-400/10">
           <Clock className="h-4 w-4 text-yellow-400" />
         </div>
-        <div>
+        <div className="flex-1">
           <h2 className="text-sm font-semibold text-foreground">Data Retention</h2>
           <p className="text-[11px] text-muted-foreground">
             Records older than the configured days are purged automatically every hour
           </p>
         </div>
+        <LastRunBadge run={lastRun} />
       </div>
 
       <div className="divide-y divide-border/40">

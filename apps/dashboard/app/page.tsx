@@ -11,6 +11,7 @@ import { GlobeMap } from "@/components/globe-map"
 import { AttackHeatmap } from "@/components/attack-heatmap"
 import { SensorActivityGrid } from "@/components/sensor-activity-grid"
 import { SectionError } from "@/components/section-error"
+import { SectionLoading } from "@/components/section-loading"
 import {
   fetchDashboardInsights,
   fetchGeoSummary,
@@ -136,8 +137,6 @@ function buildCampaignGeo(
     .slice(0, 12)
 }
 
-const SECTION_PLACEHOLDER = "h-[500px] rounded-xl border border-border bg-card animate-pulse"
-
 // Each section below fetches its own slice and catches its own errors, so a slow
 // or failing endpoint degrades only that card — the rest of the dashboard still
 // renders. Wrapped in <Suspense> at the page level, they also stream in
@@ -252,20 +251,20 @@ export default function DashboardPage() {
       </div>
 
       {/* KPIs + per-sensor grid + protocol distribution */}
-      <Suspense fallback={<div className={SECTION_PLACEHOLDER} />}>
+      <Suspense fallback={<SectionLoading label="Cargando métricas…" />}>
         <OverviewSection />
       </Suspense>
 
       {/* Cross-sensor activity timeline */}
       <div className="mb-6">
-        <Suspense fallback={<div className="h-[500px] rounded-xl border border-border bg-card animate-pulse" />}>
+        <Suspense fallback={<SectionLoading label="Cargando actividad…" />}>
           <CrossTimelineSection timezone={timezone} />
         </Suspense>
       </div>
 
       {/* Globe map */}
       <div className="mb-6">
-        <Suspense fallback={<div className="h-[400px] rounded-xl border border-border bg-card animate-pulse" />}>
+        <Suspense fallback={<SectionLoading height="h-[400px]" label="Cargando mapa…" />}>
           <GlobeSection />
         </Suspense>
       </div>
@@ -278,7 +277,7 @@ export default function DashboardPage() {
             SSH Analysis
           </h2>
         </div>
-        <Suspense fallback={<div className={SECTION_PLACEHOLDER} />}>
+        <Suspense fallback={<SectionLoading label="Cargando análisis SSH…" />}>
           <InsightsSection />
         </Suspense>
       </div>

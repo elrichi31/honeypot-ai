@@ -187,6 +187,19 @@ model RetentionSettings {
   @@map("retention_settings")
 }
 
+model RetentionRun {
+  id          String    @id @default(uuid())
+  startedAt   DateTime  @default(now()) @map("started_at")
+  finishedAt  DateTime? @map("finished_at")
+  rowsDeleted Int       @default(0) @map("rows_deleted")
+  perTable    Json      @default("{}") @map("per_table")
+  ok          Boolean   @default(true)
+  error       String?
+
+  @@index([startedAt(sort: Desc)])
+  @@map("retention_runs")
+}
+
 model DefenseAllowlist {
   id        String   @id @default(uuid())
   entry     String   @unique  // IP or CIDR, e.g. "1.2.3.4" or "10.0.0.0/8"
