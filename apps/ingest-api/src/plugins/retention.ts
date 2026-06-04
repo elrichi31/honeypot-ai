@@ -9,6 +9,31 @@ const TIMESTAMP_COL: Record<string, string> = {
   web_hits:           'timestamp',
   protocol_hits:      'timestamp',
   api_defense_events: 'timestamp',
+  suricata_alerts:    'timestamp',
+}
+
+// Delete in bounded batches so a large backlog (millions of old rows) doesn't
+// lock a table for a long single statement and starve live ingest.
+const BATCH_SIZE = 20000
+const MAX_BATCHES_PER_RUN = 200
+
+async function purgeTable(fastify: FastifyInstance, tableName: string, col: string, retentionDays: number) {
+  let totalDeleted = 0
+  for (let i = 0; i < MAX_BATCHES_PER_RUN; i++) {
+    const deleted = await fastify.prisma.$executeRaw(
+      Prisma.sql`
+        DELETE FROM ${Prisma.raw(`"${tableName}"`)}
+        WHERE ctid IN (
+          SELECT ctid FROM ${Prisma.raw(`"${tableName}"`)}
+          WHERE ${Prisma.raw(`"${col}"`)} < NOW() - (${retentionDays} * INTERVAL '1 day')
+          LIMIT ${BATCH_SIZE}
+        )
+      `
+    )
+    totalDeleted += deleted
+    if (deleted < BATCH_SIZE) break // caught up
+  }
+  return totalDeleted
 }
 
 async function runRetention(fastify: FastifyInstance) {
@@ -18,12 +43,7 @@ async function runRetention(fastify: FastifyInstance) {
     const col = TIMESTAMP_COL[tableName]
     if (!col) continue
     try {
-      const deleted = await fastify.prisma.$executeRaw(
-        Prisma.sql`
-          DELETE FROM ${Prisma.raw(`"${tableName}"`)}
-          WHERE ${Prisma.raw(`"${col}"`)} < NOW() - (${retentionDays} * INTERVAL '1 day')
-        `
-      )
+      const deleted = await purgeTable(fastify, tableName, col, retentionDays)
       if (deleted > 0) {
         fastify.log.info(`[retention] Purged ${deleted} rows from ${tableName} (>${retentionDays}d)`)
       }
