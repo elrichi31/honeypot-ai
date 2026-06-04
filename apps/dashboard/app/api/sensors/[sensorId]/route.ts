@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { revalidatePath } from "next/cache"
 import { logAudit } from "@/lib/audit"
 import { requireRole } from "@/lib/roles"
 
@@ -25,6 +26,9 @@ export async function DELETE(
   const data = await res.json().catch(() => ({}))
 
   if (res.ok) {
+    // Drop the cached /sensors list (revalidate: 30) so the page re-render
+    // triggered by router.refresh() shows fresh data instead of the stale row.
+    revalidatePath("/sensors")
     await logAudit({
       action: "DELETE",
       resource: "SENSOR",
