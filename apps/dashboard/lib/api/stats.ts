@@ -15,12 +15,16 @@ export async function fetchGeoSummary(): Promise<{ srcIp: string; loginSuccess: 
   return res.json()
 }
 
+// /stats/dashboards runs 8 heavy aggregate queries and /stats/honeypot-overview
+// runs 4; on a cold cache the first request can exceed the default 10s timeout,
+// which aborts before the result is cached, so it never warms up. Give them 30s
+// so the first load completes and populates the 30-min server cache.
 export async function fetchDashboardInsights(): Promise<DashboardInsights> {
-  return apiFetch(`${getApiUrl()}/stats/dashboards`, 300)
+  return apiFetch(`${getApiUrl()}/stats/dashboards`, 300, 30000)
 }
 
 export async function fetchHoneypotOverview(): Promise<HoneypotOverview> {
-  return apiFetch(`${getApiUrl()}/stats/honeypot-overview`, 300)
+  return apiFetch(`${getApiUrl()}/stats/honeypot-overview`, 300, 30000)
 }
 
 export async function fetchCrossSensorTimeline(params: {
