@@ -143,8 +143,34 @@ async function shouldSendAlert(prisma: PrismaClient, key: string, cooldownMs: nu
   return rows.length > 0
 }
 
+const IPV4_RE = /(\d{1,3}\.){3}\d{1,3}/
+
+async function persistAlert(prisma: PrismaClient, payload: AlertPayload): Promise<void> {
+  // Best-effort context from the cooldown key: "threat_score:<ip>",
+  // "sensor-offline:<sensorId>", etc. Persistence must never block the alert.
+  const keyValue = payload.key.split(':').slice(1).join(':') || null
+  const srcIp = keyValue && IPV4_RE.test(keyValue) ? keyValue : null
+  const sensorId = payload.key.startsWith('sensor-offline:') ? keyValue : null
+  try {
+    await prisma.alert.create({
+      data: {
+        alertKey: payload.key,
+        level: payload.level,
+        title: payload.title,
+        description: payload.description,
+        fields: payload.fields,
+        srcIp,
+        sensorId,
+      },
+    })
+  } catch (error) {
+    console.warn(`[alerts] failed to persist alert ${payload.key}: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
 async function sendAlertOnce(prisma: PrismaClient, payload: AlertPayload): Promise<void> {
   if (!await shouldSendAlert(prisma, payload.key, payload.cooldownMs)) return
+  await persistAlert(prisma, payload)
   await sendDiscordAlert({
     level: payload.level,
     title: payload.title,

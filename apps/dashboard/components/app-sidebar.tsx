@@ -29,9 +29,11 @@ import {
   HardDrive,
   Users,
   ClipboardList,
+  Bell,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { signOut, useSession } from "@/lib/auth-client"
+import { AlertsBell } from "@/components/alerts/alerts-bell"
 
 const navSections = [
   {
@@ -72,6 +74,7 @@ const navSections = [
     title: "Intelligence",
     icon: Layers3,
     items: [
+      { title: "Alerts",      href: "/alerts",       icon: Bell        },
       { title: "Threats",     href: "/threats",      icon: ShieldAlert },
       { title: "Malware",     href: "/malware",      icon: Biohazard   },
       { title: "Network IDS",    href: "/suricata", icon: FileCode },
@@ -196,10 +199,11 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent">
           <Bug className="h-4 w-4 text-accent-foreground" />
         </div>
-        <div>
+        <div className="flex-1">
           <p className="font-semibold text-sidebar-foreground">HoneyTrap</p>
           <p className="text-[11px] text-muted-foreground">SOC view for the honeypot</p>
         </div>
+        <AlertsBell />
       </div>
 
       <nav className="flex-1 space-y-4 overflow-y-auto p-3">

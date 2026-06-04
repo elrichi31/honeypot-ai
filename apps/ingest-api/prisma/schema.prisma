@@ -228,6 +228,26 @@ model ThreatAlertCooldown {
   @@map("threat_alert_cooldown")
 }
 
+// Persisted threat alerts (the ones also pushed to Discord), so the dashboard
+// can list them and show an unread count. Spans all clients/sensors.
+model Alert {
+  id          String   @id @default(uuid())
+  alertKey    String   @map("alert_key")
+  level       String   @default("high") // critical | high | info
+  title       String
+  description String   @default("")
+  fields      Json     @default("[]")
+  srcIp       String?  @map("src_ip")
+  sensorId    String?  @map("sensor_id")
+  readAt      DateTime? @map("read_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt(sort: Desc)])
+  @@index([readAt])
+  @@index([level])
+  @@map("alerts")
+}
+
 model SuricataAlert {
   id          String   @id @default(uuid())
   sensorId    String   @default("") @map("sensor_id")
