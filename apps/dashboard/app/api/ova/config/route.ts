@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { requireRole } from "@/lib/roles"
+import { resolveIngestUrl } from "@/lib/server-config"
 
 async function getVmdkInfo(): Promise<{ releasedAt: string | null }> {
   let releasedAt: string | null = null
@@ -38,30 +39,12 @@ export async function GET() {
   const auth_check = await requireRole("analyst")
   if (!auth_check.ok) return auth_check.response
 
-  let ingestUrl: string
-  let source: "SENSOR_INGEST_URL" | "NEXT_PUBLIC_API_URL" | "auto-detected"
-
-  if (process.env.SENSOR_INGEST_URL) {
-    ingestUrl = process.env.SENSOR_INGEST_URL
-    source = "SENSOR_INGEST_URL"
-  } else {
-    const configured = process.env.NEXT_PUBLIC_API_URL ?? ""
-    if (configured && !configured.includes("localhost") && !configured.includes("127.0.0.1")) {
-      ingestUrl = configured
-      source = "NEXT_PUBLIC_API_URL"
-    } else {
-      try {
-        const res = await fetch("https://api.ipify.org?format=text", {
-          signal: AbortSignal.timeout(5000),
-        })
-        if (!res.ok) throw new Error("ipify error")
-        const ip = (await res.text()).trim()
-        ingestUrl = `http://${ip}:3000`
-        source = "auto-detected"
-      } catch {
-        return NextResponse.json({ error: "Could not resolve public IP. Set SENSOR_INGEST_URL in your .env" }, { status: 500 })
-      }
-    }
+  const { url: ingestUrl, source } = await resolveIngestUrl()
+  if (!ingestUrl) {
+    return NextResponse.json(
+      { error: "Could not resolve ingest URL. Set it in Settings → Infrastructure (Manual) or define SENSOR_INGEST_URL in your .env" },
+      { status: 500 },
+    )
   }
 
   let ip = ""

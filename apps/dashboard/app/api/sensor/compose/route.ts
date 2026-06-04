@@ -3,21 +3,9 @@ import type { NextRequest } from "next/server"
 import { logAudit } from "@/lib/audit"
 import { requireRole } from "@/lib/roles"
 import { buildCompose, genDeployId } from "@/lib/sensor-compose-builder"
+import { resolveIngestUrl } from "@/lib/server-config"
 
 const RAW_BASE = process.env.SENSOR_RAW_BASE ?? "https://raw.githubusercontent.com/elrichi31/honeypot-ai/master"
-
-async function resolveIngestUrl(): Promise<string | null> {
-  if (process.env.SENSOR_INGEST_URL) return process.env.SENSOR_INGEST_URL
-  const configured = process.env.NEXT_PUBLIC_API_URL ?? ""
-  if (configured && !configured.includes("localhost") && !configured.includes("127.0.0.1")) return configured
-  try {
-    const res = await fetch("https://api.ipify.org?format=text", { signal: AbortSignal.timeout(5000) })
-    if (!res.ok) throw new Error("ipify error")
-    return `http://${(await res.text()).trim()}:3000`
-  } catch {
-    return null
-  }
-}
 
 function missingConfigResponse(ingestUrl: string | null, secret: string) {
   if (!ingestUrl) {
@@ -59,7 +47,7 @@ export async function GET(req: NextRequest) {
   const authCheck = await requireRole("analyst")
   if (!authCheck.ok) return authCheck.response
 
-  const ingestUrl = await resolveIngestUrl()
+  const { url: ingestUrl } = await resolveIngestUrl()
   const secret = process.env.INGEST_SHARED_SECRET ?? ""
   const configError = missingConfigResponse(ingestUrl, secret)
   if (configError) return configError

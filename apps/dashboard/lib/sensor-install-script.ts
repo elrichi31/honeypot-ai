@@ -70,6 +70,9 @@ const SCRIPT_TEMPLATE = `#!/usr/bin/env bash
 # Run as root or with sudo: bash install-sensor.sh
 set -euo pipefail
 
+# Report exactly which step failed instead of dying silently
+trap 'rc=$?; echo ""; echo "ERROR: install failed at line $LINENO (exit $rc): $BASH_COMMAND" >&2; echo "Sensor was NOT deployed. Fix the error above and re-run." >&2; exit $rc' ERR
+
 DIR="/opt/honeypot-sensor"
 RAW="{{rawBase}}"
 
@@ -109,7 +112,34 @@ docker compose pull
 echo "==> Starting services..."
 SURICATA_INTERFACE="$SURICATA_INTERFACE" docker compose up -d
 
+# Verify containers actually stayed up (up -d returns 0 even if a container crashes on boot)
+echo "==> Verifying containers..."
+sleep 5
+EXITED=$(docker compose ps --status=exited --format '{{.Service}}' 2>/dev/null || true)
+RUNNING=$(docker compose ps --status=running --format '{{.Service}}' 2>/dev/null | grep -c . || true)
+
+if [ -n "$EXITED" ]; then
+  echo "" >&2
+  echo "ERROR: the following containers crashed on startup:" >&2
+  echo "$EXITED" | sed 's/^/  - /' >&2
+  echo "" >&2
+  echo "Logs from the failed containers:" >&2
+  for svc in $EXITED; do
+    echo "----- $svc -----" >&2
+    docker compose logs --no-color --tail 30 "$svc" >&2 || true
+  done
+  echo "" >&2
+  echo "Sensor deploy INCOMPLETE. Fix the errors above, then run: docker compose up -d" >&2
+  exit 1
+fi
+
+if [ "$RUNNING" -eq 0 ]; then
+  echo "ERROR: no containers are running after startup. Check 'docker compose ps' and 'docker compose logs'." >&2
+  exit 1
+fi
+
 echo ""
-echo "Sensor deployed. It will appear in /sensors within 60 seconds."
+echo "Sensor deployed: $RUNNING container(s) running."
+echo "It will appear in /sensors within 60 seconds."
 echo "Suricata IDS is running on interface: $SURICATA_INTERFACE"
 `

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { logAudit } from "@/lib/audit"
 import { requireRole } from "@/lib/roles"
+import { resolveIngestUrl } from "@/lib/server-config"
 
 const INTERNAL_API = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
 
@@ -69,6 +70,10 @@ export async function GET(req: NextRequest) {
   const code = client.code || clientSlug.replace(/[^a-z0-9]/gi, "").toUpperCase().slice(0, 8)
   const sensorId = `${config.sensorPrefix}-01-${code}`
   const secret = process.env.INGEST_SHARED_SECRET ?? ""
+  const { url: ingestUrl, source } = await resolveIngestUrl()
+  const ingestLine = ingestUrl
+    ? `INGEST_API_URL=${ingestUrl}`
+    : `# Could not resolve ingest URL — set it manually below\nINGEST_API_URL=http://YOUR_SERVER_IP:3000`
 
   const lines = [
     `# ─────────────────────────────────────────────────`,
@@ -77,8 +82,8 @@ export async function GET(req: NextRequest) {
     `# Generated: ${new Date().toISOString()}`,
     `# ─────────────────────────────────────────────────`,
     ``,
-    `# Replace with the public IP/hostname of your honeypot server`,
-    `INGEST_API_URL=http://YOUR_SERVER_IP:3000`,
+    `# Ingest API URL (source: ${source})`,
+    ingestLine,
     `INGEST_SHARED_SECRET=${secret}`,
     ``,
     `SENSOR_ID=${sensorId}`,

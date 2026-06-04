@@ -25,6 +25,7 @@ type FormState = {
 type OvaConfig = { ingestUrl: string; ip: string; port: string; source: string }
 
 const SOURCE_LABEL: Record<string, string> = {
+  "settings":            "URL configurada en Settings",
   "SENSOR_INGEST_URL":   "Variable SENSOR_INGEST_URL",
   "NEXT_PUBLIC_API_URL": "Variable NEXT_PUBLIC_API_URL",
   "auto-detected":       "IP pública auto-detectada",

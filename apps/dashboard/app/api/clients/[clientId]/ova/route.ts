@@ -7,34 +7,19 @@ import { pipeline } from "stream/promises"
 import { createReadStream } from "fs"
 import path from "path"
 import { requireRole } from "@/lib/roles"
+import { resolveIngestUrl as resolveIngestUrlOrNull } from "@/lib/server-config"
 
 const exec = promisify(execCb)
 
 const INTERNAL_API = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
 
 // Resolve the URL the sensor VM will use to reach the ingest-api from outside.
-// Priority: explicit SENSOR_INGEST_URL → NEXT_PUBLIC_API_URL (if not localhost) → auto-detect public IP
+// Priority: Settings UI → SENSOR_INGEST_URL → NEXT_PUBLIC_API_URL → auto-detect public IP.
 async function resolveIngestUrl(): Promise<string> {
-  if (process.env.SENSOR_INGEST_URL) return process.env.SENSOR_INGEST_URL
-
-  const configured = process.env.NEXT_PUBLIC_API_URL ?? ""
-  if (configured && !configured.includes("localhost") && !configured.includes("127.0.0.1")) {
-    return configured
-  }
-
-  // Auto-detect: ask ipify what IP this server is coming from
-  try {
-    const res = await fetch("https://api.ipify.org?format=text", { signal: AbortSignal.timeout(5000) })
-    if (res.ok) {
-      const ip = (await res.text()).trim()
-      return `http://${ip}:3000`
-    }
-  } catch {
-    // fall through
-  }
-
+  const { url } = await resolveIngestUrlOrNull()
+  if (url) return url
   throw new Error(
-    "Could not determine public ingest URL. Set SENSOR_INGEST_URL=http://<your-public-ip>:3000 in your .env",
+    "Could not determine public ingest URL. Set it in Settings → Infrastructure (Manual) or SENSOR_INGEST_URL=http://<your-public-ip>:3000 in your .env",
   )
 }
 const DISK_SIZE_GB = 20
