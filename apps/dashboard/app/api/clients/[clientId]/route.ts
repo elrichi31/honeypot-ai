@@ -2,23 +2,16 @@ import { NextRequest, NextResponse } from "next/server"
 import { revalidatePath } from "next/cache"
 import { logAudit } from "@/lib/audit"
 import { requireRole } from "@/lib/roles"
+import { getApiUrl, ingestHeaders } from "@/lib/api/server"
 
-const INTERNAL_API = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
+const INTERNAL_API = getApiUrl()
+const UPSTREAM_TIMEOUT_MS = 10000
 
 /** Invalidate the cached lists that show clients or sensor↔client grouping. */
 function revalidateClientViews() {
   revalidatePath("/clients")
   revalidatePath("/clients/[slug]", "page")
   revalidatePath("/sensors")
-}
-
-function ingestHeaders(withBody = true) {
-  return {
-    ...(withBody ? { "Content-Type": "application/json" } : {}),
-    ...(process.env.INGEST_SHARED_SECRET
-      ? { "X-Ingest-Token": process.env.INGEST_SHARED_SECRET }
-      : {}),
-  }
 }
 
 export async function PATCH(
@@ -35,6 +28,7 @@ export async function PATCH(
     method: "PATCH",
     headers: ingestHeaders(),
     body,
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   })
 
   const responseBody = await res.text()
@@ -73,6 +67,7 @@ export async function DELETE(
   const res = await fetch(`${INTERNAL_API}/clients/${encodeURIComponent(clientId)}`, {
     method: "DELETE",
     headers: ingestHeaders(false),
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   })
 
   if (res.ok || res.status === 204) {

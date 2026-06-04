@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server"
 import { requireRole } from "@/lib/roles"
-
-const INTERNAL_API =
-  process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
+import { proxyJson } from "@/lib/api/server"
 
 export async function GET(
   _request: Request,
@@ -13,15 +11,7 @@ export async function GET(
 
   const { id } = await params
 
-  try {
-    const res = await fetch(`${INTERNAL_API}/sessions/${encodeURIComponent(id)}`, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(3000),
-    })
-
-    const data = await res.json()
-    return NextResponse.json(data, { status: res.status })
-  } catch {
-    return NextResponse.json({ error: "Upstream API unavailable" }, { status: 502 })
-  }
+  const result = await proxyJson(`/sessions/${encodeURIComponent(id)}`, { timeoutMs: 3000 })
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
+  return NextResponse.json(result.data, { status: result.status })
 }

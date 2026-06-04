@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { revalidatePath } from "next/cache"
 import { logAudit } from "@/lib/audit"
 import { requireRole } from "@/lib/roles"
+import { getApiUrl, ingestHeaders } from "@/lib/api/server"
 
-const INTERNAL_API = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
+const INTERNAL_API = getApiUrl()
+const UPSTREAM_TIMEOUT_MS = 10000
 
 /** Invalidate the cached lists that show clients or sensor↔client grouping. */
 function revalidateClientViews() {
@@ -11,20 +13,14 @@ function revalidateClientViews() {
   revalidatePath("/sensors")
 }
 
-function ingestHeaders(contentType = true) {
-  return {
-    ...(contentType ? { "Content-Type": "application/json" } : {}),
-    ...(process.env.INGEST_SHARED_SECRET
-      ? { "X-Ingest-Token": process.env.INGEST_SHARED_SECRET }
-      : {}),
-  }
-}
-
 export async function GET() {
   const auth_check = await requireRole("viewer")
   if (!auth_check.ok) return auth_check.response
 
-  const res = await fetch(`${INTERNAL_API}/clients`, { cache: "no-store" })
+  const res = await fetch(`${INTERNAL_API}/clients`, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+  })
   const body = await res.text()
 
   return new NextResponse(body, {
@@ -42,6 +38,7 @@ export async function POST(req: NextRequest) {
     method: "POST",
     headers: ingestHeaders(),
     body,
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   })
   const responseBody = await res.text()
 

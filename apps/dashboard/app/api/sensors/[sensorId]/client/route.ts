@@ -2,17 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { revalidatePath } from "next/cache"
 import { logAudit } from "@/lib/audit"
 import { requireRole } from "@/lib/roles"
+import { getApiUrl, ingestHeaders } from "@/lib/api/server"
 
-const INTERNAL_API = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
-
-function ingestHeaders() {
-  return {
-    "Content-Type": "application/json",
-    ...(process.env.INGEST_SHARED_SECRET
-      ? { "X-Ingest-Token": process.env.INGEST_SHARED_SECRET }
-      : {}),
-  }
-}
+const INTERNAL_API = getApiUrl()
+const UPSTREAM_TIMEOUT_MS = 10000
 
 export async function PUT(
   req: NextRequest,
@@ -27,6 +20,7 @@ export async function PUT(
     method: "PUT",
     headers: ingestHeaders(),
     body,
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   })
   const responseBody = await res.text()
 

@@ -3,9 +3,10 @@ import type { NextRequest } from "next/server"
 import { revalidatePath } from "next/cache"
 import { logAudit } from "@/lib/audit"
 import { requireRole } from "@/lib/roles"
+import { getApiUrl } from "@/lib/api/server"
 
-const internalApiUrl =
-  process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
+const internalApiUrl = getApiUrl()
+const UPSTREAM_TIMEOUT_MS = 10000
 
 export async function DELETE(
   req: NextRequest,
@@ -21,6 +22,7 @@ export async function DELETE(
     headers: {
       "X-Ingest-Token": process.env.INGEST_SHARED_SECRET ?? "",
     },
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   })
 
   const data = await res.json().catch(() => ({}))

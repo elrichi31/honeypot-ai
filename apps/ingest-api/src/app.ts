@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import type { FastifyError } from 'fastify';
 import cors from '@fastify/cors';
 import { checkIngestRateLimit } from './lib/ingest-rate-limiter.js';
 import prismaPlugin from './plugins/prisma.js';
@@ -30,6 +31,19 @@ export async function buildApp() {
   // visitor IP in X-Forwarded-For. Trusting only loopback lets us read the real
   // client IP (for defense/rate-limiting) without allowing external XFF spoofing.
   const app = Fastify({ logger: true, trustProxy: 'loopback' });
+
+  // Consistent error shape: log the full error server-side, but only surface the
+  // message for client errors (4xx). 5xx responses stay generic so internal
+  // details (stack traces, SQL) never leak to callers.
+  app.setErrorHandler((error: FastifyError, request, reply) => {
+    const statusCode = error.statusCode ?? 500
+    if (statusCode >= 500) {
+      request.log.error({ err: error, url: request.url }, 'Unhandled route error')
+      return reply.status(statusCode).send({ error: 'Internal server error' })
+    }
+    request.log.warn({ err: error, url: request.url }, 'Client error')
+    return reply.status(statusCode).send({ error: error.message })
+  });
 
   const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || process.env.DASHBOARD_URL || '')
     .split(',')
