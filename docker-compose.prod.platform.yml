@@ -114,6 +114,11 @@ services:
       REDIS_URL: redis://redis:6379
       PORT: "3000"
       HOST: "0.0.0.0"
+    # ingest-api runs as non-root (USER node), so it must join the host's docker
+    # group to READ the socket. DOCKER_GID defaults to 110; auto-detect per host
+    # with:  echo "DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)" >> .env
+    group_add:
+      - "${DOCKER_GID:-110}"
     volumes:
       - dashboard_data:/app/data
       # Read-only Docker socket so the per-minute cron can sample container
