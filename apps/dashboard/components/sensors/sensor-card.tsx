@@ -50,6 +50,15 @@ export function SensorCard({
   const hasContainer = !!sensor.probeHost
   const isInternal = isPrivateIp(sensor.ip)
 
+  // A sensor is "remote" when it reports heartbeats (online) but the dashboard
+  // host can't manage its container locally — the Docker probe comes back as
+  // not-found/socket-unavailable/unmanaged/unknown. For these, container
+  // controls and port probes don't apply (it lives on another host/network),
+  // so we show it as a healthy remote sensor instead of an alarming error.
+  // dockerStatus === null means "still loading", which is NOT treated as remote.
+  const NON_LOCAL_DOCKER = new Set(["socket_unavailable", "unmanaged", "not_found", "unknown"])
+  const isRemote = sensor.online && dockerStatus !== null && NON_LOCAL_DOCKER.has(dockerStatus)
+
   const fetchDockerStatus = useCallback(async (signal?: AbortSignal) => {
     if (!hasContainer) return
     try {
@@ -120,14 +129,14 @@ export function SensorCard({
 
   return (
     <div className={`rounded-xl border bg-card p-4 flex flex-col gap-3 transition-colors ${sensor.online ? "border-border" : "border-border/40 opacity-70"}`}>
-      <SensorHeader sensor={sensor} dockerStatus={dockerStatus} deleting={deleting} onDelete={handleDelete} />
+      <SensorHeader sensor={sensor} dockerStatus={dockerStatus} isRemote={isRemote} deleting={deleting} onDelete={handleDelete} />
       {deleteError && (
         <p className="rounded-md bg-destructive/10 px-2.5 py-1.5 text-[11px] font-medium text-destructive">
           No se pudo eliminar: {deleteError}
         </p>
       )}
       <SensorStats sensor={sensor} isInternal={isInternal} honeypotPublicIp={honeypotPublicIp} clientCode={clientCode} />
-      <SensorPorts sensor={sensor} isInternal={isInternal} />
+      <SensorPorts sensor={sensor} isInternal={isInternal} isRemote={isRemote} />
       {sensor.version && (
         <div className="rounded-md bg-muted/40 px-2.5 py-1">
           <p className="text-[10px] font-mono text-muted-foreground">v{sensor.version}</p>
@@ -142,7 +151,7 @@ export function SensorCard({
           Configure
         </button>
       )}
-      {hasContainer && (
+      {hasContainer && !isRemote && (
         <SensorActions controlState={controlState} controlMsg={controlMsg} onControl={handleControl} />
       )}
       {isConfigurable && (

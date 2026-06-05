@@ -52,11 +52,24 @@ function InternalPortBadge({ port }: { port: number }) {
   )
 }
 
-export function SensorPorts({ sensor, isInternal }: { sensor: Sensor; isInternal: boolean }) {
+function RemotePortBadge({ port }: { port: number }) {
+  return (
+    <span
+      title={`Puerto ${port} — sensor remoto, no se sondea desde este servidor`}
+      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono font-medium cursor-default bg-muted/60 text-muted-foreground"
+    >
+      :{port}
+    </span>
+  )
+}
+
+export function SensorPorts({ sensor, isInternal, isRemote = false }: { sensor: Sensor; isInternal: boolean; isRemote?: boolean }) {
   if (sensor.ports.length === 0) return null
   return (
     <div className="flex flex-wrap gap-1">
-      {isInternal
+      {isRemote
+        ? sensor.ports.map((port) => <RemotePortBadge key={port} port={port} />)
+        : isInternal
         ? sensor.ports.map((port) => <InternalPortBadge key={port} port={port} />)
         : sensor.ports.map((port) => <ExternalPortBadge key={port} port={port} sensor={sensor} />)}
     </div>

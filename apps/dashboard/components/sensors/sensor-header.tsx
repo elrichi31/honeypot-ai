@@ -91,14 +91,28 @@ function DeleteSensorDialog({ sensor, deleting, onDelete }: { sensor: Sensor; de
   )
 }
 
+function RemoteBadge() {
+  return (
+    <div className="flex items-center gap-1.5" title="Sensor en otro host — reportando heartbeats. Su contenedor no se gestiona desde aquí.">
+      <span className="relative flex h-2 w-2">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+      </span>
+      <span className="text-xs font-medium text-emerald-400">Remoto · activo</span>
+    </div>
+  )
+}
+
 export function SensorHeader({
   sensor,
   dockerStatus,
+  isRemote,
   deleting,
   onDelete,
 }: {
   sensor: Sensor
   dockerStatus: string | null
+  isRemote: boolean
   deleting: boolean
   onDelete: () => void
 }) {
@@ -117,7 +131,7 @@ export function SensorHeader({
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        {hasContainer && dockerStatus ? <DockerStatusBadge status={dockerStatus} /> : sensor.online ? <OnlineBadge /> : <OfflineBadge />}
+        {isRemote ? <RemoteBadge /> : hasContainer && dockerStatus ? <DockerStatusBadge status={dockerStatus} /> : sensor.online ? <OnlineBadge /> : <OfflineBadge />}
         <DeleteSensorDialog sensor={sensor} deleting={deleting} onDelete={onDelete} />
       </div>
     </div>
