@@ -19,5 +19,8 @@ USER app
 
 EXPOSE 8080
 
-# gunicorn for production-grade concurrency; 4 workers handles burst scans fine
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "4", "--timeout", "30", "--worker-tmp-dir", "/tmp", "app:app"]
+# gunicorn for production-grade concurrency. Honeypot traffic is bursty and highly
+# concurrent (scanners like gobuster open many simultaneous keep-alive connections),
+# so use threaded workers + a deep listen backlog to avoid the kernel RST-ing
+# connections when all sync workers are busy.
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "4", "--worker-class", "gthread", "--threads", "32", "--backlog", "2048", "--timeout", "30", "--worker-tmp-dir", "/tmp", "app:app"]
