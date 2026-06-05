@@ -15,6 +15,12 @@ RUN --mount=type=cache,target=/root/.npm \
 FROM node:22-slim AS runner
 WORKDIR /app
 
+# gosu: the entrypoint starts as root to detect the docker.sock group, then
+# drops to the `node` user. Tiny, purpose-built for safe privilege drop.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gosu \
+    && rm -rf /var/lib/apt/lists/*
+
 # Set ownership at copy time (--chown). A post-copy `chown -R /app` would walk
 # all of node_modules (tens of thousands of files) and take many minutes on
 # overlayfs; --chown is applied by BuildKit during the copy, so it's free.
@@ -28,6 +34,5 @@ COPY --chown=node:node src ./src
 COPY --chown=node:node entrypoint.compose.sh ./entrypoint.sh
 RUN chmod +x entrypoint.sh
 
-USER node
-
+# Start as root: the entrypoint joins the host's docker group, then `gosu node`.
 CMD ["./entrypoint.sh"]
