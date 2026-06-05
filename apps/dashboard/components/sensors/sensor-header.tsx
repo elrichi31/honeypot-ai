@@ -91,14 +91,22 @@ function DeleteSensorDialog({ sensor, deleting, onDelete }: { sensor: Sensor; de
   )
 }
 
-function RemoteBadge() {
+function RemoteBadge({ online }: { online: boolean }) {
+  if (online) {
+    return (
+      <div className="flex items-center gap-1.5" title="Sensor en otro host — reportando heartbeats. Su contenedor no se gestiona desde aquí.">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+        </span>
+        <span className="text-xs font-medium text-emerald-400">Remoto · activo</span>
+      </div>
+    )
+  }
   return (
-    <div className="flex items-center gap-1.5" title="Sensor en otro host — reportando heartbeats. Su contenedor no se gestiona desde aquí.">
-      <span className="relative flex h-2 w-2">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-      </span>
-      <span className="text-xs font-medium text-emerald-400">Remoto · activo</span>
+    <div className="flex items-center gap-1.5" title="Sensor en otro host — sin heartbeats recientes.">
+      <span className="relative inline-flex h-2 w-2 rounded-full bg-muted-foreground/50" />
+      <span className="text-xs font-medium text-muted-foreground">Remoto · sin señal</span>
     </div>
   )
 }
@@ -131,7 +139,7 @@ export function SensorHeader({
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        {isRemote ? <RemoteBadge /> : hasContainer && dockerStatus ? <DockerStatusBadge status={dockerStatus} /> : sensor.online ? <OnlineBadge /> : <OfflineBadge />}
+        {isRemote ? <RemoteBadge online={sensor.online} /> : hasContainer && dockerStatus ? <DockerStatusBadge status={dockerStatus} /> : sensor.online ? <OnlineBadge /> : <OfflineBadge />}
         <DeleteSensorDialog sensor={sensor} deleting={deleting} onDelete={onDelete} />
       </div>
     </div>
