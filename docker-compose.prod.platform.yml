@@ -116,6 +116,9 @@ services:
       HOST: "0.0.0.0"
     volumes:
       - dashboard_data:/app/data
+      # Read-only Docker socket so the per-minute cron can sample container
+      # CPU/RAM for the "Top Containers — CPU History" chart.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
       test:
         [
@@ -162,6 +165,11 @@ services:
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
     volumes:
       - dashboard_data:/app/data
+      # Read-only Docker socket for the container monitoring view (CPU/RAM,
+      # service list). Safe here: the dashboard is not internet-exposed — it's
+      # only reachable over the corporate VPN + SSH tunnel to 127.0.0.1:4000
+      # (the Cloudflare tunnel exposes only the API, not this container).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
       - "127.0.0.1:4000:4000"   # internal only — SSH tunnel to access
     healthcheck:
