@@ -76,6 +76,11 @@ def apply_pending():
 
 def drop_to_cowrie():
     """Drop from root to the cowrie user so cowrie won't refuse to start."""
+    # Already non-root (the container was started with `user:` or USER): nothing
+    # to drop, and cowrie is happy.
+    if os.geteuid() != 0:
+        print("[entrypoint] Already non-root, skipping privilege drop", flush=True)
+        return
     try:
         pw = pwd.getpwnam("cowrie")
         os.setgid(pw.pw_gid)
@@ -84,7 +89,17 @@ def drop_to_cowrie():
     except KeyError:
         print("[entrypoint] cowrie user not found, staying as current user", flush=True)
     except PermissionError:
-        print("[entrypoint] Already non-root, skipping privilege drop", flush=True)
+        # We ARE root but setuid was denied — almost always because the
+        # container dropped CAP_SETUID/CAP_SETGID. Cowrie refuses to run as
+        # root, so fail loudly instead of looping forever with a misleading
+        # "already non-root" message.
+        print(
+            "[entrypoint] FATAL: running as root but cannot drop privileges "
+            "(missing CAP_SETUID/CAP_SETGID). Add `cap_add: [SETUID, SETGID]` "
+            "to the cowrie service, or run it with `user: cowrie`.",
+            flush=True,
+        )
+        sys.exit(1)
 
 
 def main():

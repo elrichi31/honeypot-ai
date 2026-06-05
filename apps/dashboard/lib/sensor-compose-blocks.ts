@@ -72,6 +72,13 @@ const SSH_TEMPLATE = `  cowrie:
     logging: *json-logging
     image: {{registry}}/cowrie:latest
     container_name: cowrie
+    # cowrie starts as root to apply config, then drops to the cowrie user
+    # (it refuses to run as root). cap_drop:ALL from the defaults removes
+    # CAP_SETUID/SETGID, so re-add them or the privilege drop fails and the
+    # container crash-loops.
+    cap_add:
+      - SETUID
+      - SETGID
     ports:
       - "22:2222"
       - "2222:2222"

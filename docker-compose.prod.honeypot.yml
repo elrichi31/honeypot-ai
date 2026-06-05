@@ -19,6 +19,12 @@ services:
     build:
       context: ./sensors/cowrie
     container_name: cowrie
+    # cowrie starts as root to apply config, then drops to the `cowrie` user
+    # (it refuses to run as root). cap_drop:ALL from the defaults removes
+    # CAP_SETUID/SETGID, so re-add them or the privilege drop fails.
+    cap_add:
+      - SETUID
+      - SETGID
     ports:
       - "22:2222"     # SSH honeypot — visible en port scan publico
       - "2222:2222"   # Alternate testing port for networks that block outbound 22
