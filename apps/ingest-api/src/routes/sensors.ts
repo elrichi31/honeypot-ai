@@ -76,11 +76,14 @@ async function handleListSensors(fastify: FastifyInstance, _request: FastifyRequ
 
   // Port probes are TCP connects with a 2s timeout each; unreachable sensors make
   // GET /sensors hang for seconds. Cache the per-sensor probe result for a short
-  // window so the list stays responsive (e.g. after a delete triggers a refresh).
+  // window, and on a cold miss return {} immediately while probing in the
+  // background — so the list (and the refresh after a delete) never blocks on
+  // probes. The next load, ~instantly, has the warmed status.
+  const COLD: Record<number, boolean> = {}
   const portStatuses = await Promise.all(
     sensors.map(sensor => {
       const probeKey = `sensor:ports:${sensor.sensor_id}:${sensor.probe_host}:${JSON.stringify(sensor.ports)}`
-      return withCache(fastify.cache, probeKey, 20, () => probeSensorPorts(sensor))
+      return withCache(fastify.cache, probeKey, 20, () => probeSensorPorts(sensor), COLD)
     }),
   )
   const result = sensors.map((sensor, i) =>

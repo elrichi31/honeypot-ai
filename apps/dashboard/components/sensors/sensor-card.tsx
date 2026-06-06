@@ -40,6 +40,7 @@ export function SensorCard({
   const router = useRouter()
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState("")
+  const [removed, setRemoved] = useState(false)
   const [controlState, setControlState] = useState<ControlState>("idle")
   const [controlMsg, setControlMsg] = useState("")
   const [dockerStatus, setDockerStatus] = useState<string | null>(null)
@@ -84,20 +85,28 @@ export function SensorCard({
   }, [fetchDockerStatus])
 
   async function handleDelete() {
+    // Optimistic: hide the card immediately so deletion feels instant. The DELETE
+    // itself is fast; what made this feel slow was waiting for router.refresh(),
+    // which re-fetches GET /sensors and its per-sensor TCP port probes. We fire
+    // the request in the background and only re-show the card if it fails.
     setDeleting(true)
     setDeleteError("")
+    setRemoved(true)
     try {
       const res = await fetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}`, { method: "DELETE" })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         setDeleteError(data.error ?? `Error ${res.status}`)
+        setRemoved(false)
         setDeleting(false)
         return
       }
-      // Success: refresh the list. The card disappears, so no success message needed.
+      // Confirmed gone. Refresh in the background to reconcile the server-rendered
+      // list; the card is already hidden, so the user doesn't wait on it.
       router.refresh()
     } catch {
       setDeleteError("No se pudo conectar")
+      setRemoved(false)
       setDeleting(false)
     }
   }
@@ -129,6 +138,8 @@ export function SensorCard({
       setTimeout(() => setControlState("idle"), CONTROL_ERROR_DELAY)
     }
   }
+
+  if (removed) return null
 
   return (
     <div className={`rounded-xl border bg-card p-4 flex flex-col gap-3 transition-colors ${sensor.online ? "border-border" : "border-border/40 opacity-70"}`}>
