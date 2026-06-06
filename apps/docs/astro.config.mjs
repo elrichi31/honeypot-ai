@@ -25,6 +25,7 @@ export default defineConfig({
 					label: 'Getting Started',
 					items: [
 						{ label: 'Local Development', slug: 'getting-started/local-dev' },
+						{ label: 'Installing a Sensor', slug: 'getting-started/installing-a-sensor' },
 						{ label: 'Environment Variables', slug: 'getting-started/env-vars' },
 					],
 				},

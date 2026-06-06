@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Download, Globe, Network, Server, CheckCircle2, Terminal, ChevronRight } from "lucide-react"
+import { Download, Globe, Network, Server, CheckCircle2, Terminal, ChevronRight, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -95,51 +95,78 @@ const CATALOG: CatalogEntry[] = [
   },
 ]
 
+// Entries with a serviceKey can be bundled into a single installer script; the
+// rest (dionaea) only ship as a standalone .env and are downloaded one at a time.
+const SCRIPT_ENTRIES = CATALOG.filter((e) => e.serviceKey)
+const STANDALONE_ENTRIES = CATALOG.filter((e) => !e.serviceKey)
+
 type Props = {
   client: Client
   assignedSensors: Sensor[]
 }
 
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export function ClientSensorCatalog({ client, assignedSensors }: Props) {
-  const [downloading, setDownloading] = useState<string | null>(null)
+  // Bundled .sh download: which script services are selected.
+  const [selected, setSelected] = useState<ServiceKey[]>([])
+  const [downloadingBundle, setDownloadingBundle] = useState(false)
+  // Standalone .env download (dionaea): which protocol is currently downloading.
+  const [downloadingEnv, setDownloadingEnv] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const assignedProtocols = new Set(assignedSensors.map((s) => s.protocol))
 
-  async function downloadInstaller(entry: CatalogEntry) {
-    setDownloading(entry.protocol)
+  function toggle(key: ServiceKey) {
+    setError(null)
+    setSelected((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
+  }
+
+  async function downloadBundle() {
+    if (selected.length === 0) return
+    setDownloadingBundle(true)
+    setError(null)
     try {
-      let res: Response
-      if (entry.serviceKey) {
-        const params = new URLSearchParams({
-          services: entry.serviceKey,
-          clientSlug: client.slug,
-          clientName: client.name,
-        })
-        res = await fetch(`/api/sensor/install?${params}`)
-      } else {
-        // Fallback to .env bundle for dionaea
-        res = await fetch(
-          `/api/sensor-bundle?clientSlug=${encodeURIComponent(client.slug)}&sensorType=${encodeURIComponent(entry.protocol)}`,
-        )
+      const params = new URLSearchParams({
+        services: selected.join(","),
+        clientSlug: client.slug,
+        clientName: client.name,
+      })
+      const res = await fetch(`/api/sensor/install?${params}`)
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error((data as { error?: string }).error ?? "Download failed")
       }
-      if (!res.ok) throw new Error("Download failed")
-
-      const blob = await res.blob()
-      const code = client.code || client.slug.toUpperCase().slice(0, 8)
-      const filename = entry.serviceKey
-        ? `install-sensor-${client.slug}-${entry.serviceKey}.sh`
-        : `${entry.sensorPrefix}-01-${code}.env`
-
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = filename
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch {
-      // silent — button just stops spinning
+      const filename = `install-sensor-${client.slug}-${selected.join("-")}.sh`
+      triggerDownload(await res.blob(), filename)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Download failed")
     } finally {
-      setDownloading(null)
+      setDownloadingBundle(false)
+    }
+  }
+
+  async function downloadEnv(entry: CatalogEntry) {
+    setDownloadingEnv(entry.protocol)
+    setError(null)
+    try {
+      const res = await fetch(
+        `/api/sensor-bundle?clientSlug=${encodeURIComponent(client.slug)}&sensorType=${encodeURIComponent(entry.protocol)}`,
+      )
+      if (!res.ok) throw new Error("Download failed")
+      const code = client.code || client.slug.toUpperCase().slice(0, 8)
+      triggerDownload(await res.blob(), `${entry.sensorPrefix}-01-${code}.env`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Download failed")
+    } finally {
+      setDownloadingEnv(null)
     }
   }
 
@@ -181,68 +208,137 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
             <div>
               <DialogTitle>Sensor Installers</DialogTitle>
               <DialogDescription className="mt-0.5">
-                Run <span className="font-mono">bash install-sensor-*.sh</span> on any Linux VPS.
+                Select one or more sensors to bundle into a single{" "}
+                <span className="font-mono">install-sensor-*.sh</span>, then run it on any Linux VPS.
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          {CATALOG.map((entry) => {
-            const Icon = entry.icon
-            const installed = assignedProtocols.has(entry.protocol)
-            const isDownloading = downloading === entry.protocol
-
-            return (
-              <div
-                key={entry.protocol}
-                className="flex flex-col gap-3 rounded-xl border border-border/70 bg-background/50 p-4"
-              >
-                <div className="flex items-start gap-3">
-                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${entry.iconBg}`}>
-                    <Icon className={`h-4 w-4 ${entry.iconColor}`} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-medium text-foreground text-sm">{entry.name}</p>
-                      {installed && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Installed
-                        </span>
+        {/* Bundleable sensors — multi-select into one installer */}
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {SCRIPT_ENTRIES.map((entry) => {
+              const Icon = entry.icon
+              const installed = assignedProtocols.has(entry.protocol)
+              const active = selected.includes(entry.serviceKey!)
+              return (
+                <button
+                  key={entry.protocol}
+                  type="button"
+                  onClick={() => toggle(entry.serviceKey!)}
+                  className={[
+                    "flex flex-col gap-3 rounded-xl border p-4 text-left transition-colors",
+                    active
+                      ? "border-cyan-400/50 bg-cyan-400/10"
+                      : "border-border/70 bg-background/50 hover:bg-accent",
+                  ].join(" ")}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={[
+                        "mt-0.5 h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors",
+                        active ? "border-cyan-400 bg-cyan-400" : "border-muted-foreground/40",
+                      ].join(" ")}
+                    >
+                      {active && (
+                        <svg className="h-2.5 w-2.5 text-black" viewBox="0 0 10 10" fill="none">
+                          <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">{entry.description}</p>
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${entry.iconBg}`}>
+                      <Icon className={`h-4 w-4 ${entry.iconColor}`} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-foreground text-sm">{entry.name}</p>
+                        {installed && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Installed
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">{entry.description}</p>
+                    </div>
                   </div>
-                </div>
-
-                <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-1.5">
-                  <p className="font-mono text-xs text-muted-foreground">{entry.ports}</p>
-                  {entry.serviceKey ? (
+                  <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-1.5">
+                    <p className="font-mono text-xs text-muted-foreground">{entry.ports}</p>
                     <span className="text-[10px] text-cyan-400/70 font-mono">.sh</span>
-                  ) : (
-                    <span className="text-[10px] text-muted-foreground/60 font-mono">.env</span>
-                  )}
-                </div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
 
-                <Button
-                  size="sm"
-                  variant={installed ? "outline" : "default"}
-                  onClick={() => downloadInstaller(entry)}
-                  disabled={isDownloading}
-                  className="w-full gap-2"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  {isDownloading
-                    ? "Generating…"
-                    : installed
-                      ? "Re-download installer"
-                      : "Download installer"}
-                </Button>
-              </div>
-            )
-          })}
+          {error && <p className="text-xs text-destructive">{error}</p>}
+
+          <Button
+            onClick={downloadBundle}
+            disabled={downloadingBundle || selected.length === 0}
+            className="w-full gap-2"
+          >
+            {downloadingBundle ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {selected.length === 0
+              ? "Select sensors to bundle"
+              : `Download installer (${selected.length} sensor${selected.length === 1 ? "" : "s"})`}
+          </Button>
         </div>
+
+        {/* Standalone sensors (dionaea) — downloaded individually as .env */}
+        {STANDALONE_ENTRIES.length > 0 && (
+          <div className="space-y-3 border-t border-border/60 pt-4">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Standalone sensors
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {STANDALONE_ENTRIES.map((entry) => {
+                const Icon = entry.icon
+                const installed = assignedProtocols.has(entry.protocol)
+                const isDownloading = downloadingEnv === entry.protocol
+                return (
+                  <div
+                    key={entry.protocol}
+                    className="flex flex-col gap-3 rounded-xl border border-border/70 bg-background/50 p-4"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${entry.iconBg}`}>
+                        <Icon className={`h-4 w-4 ${entry.iconColor}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-foreground text-sm">{entry.name}</p>
+                          {installed && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Installed
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{entry.description}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-1.5">
+                      <p className="font-mono text-xs text-muted-foreground">{entry.ports}</p>
+                      <span className="text-[10px] text-muted-foreground/60 font-mono">.env</span>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={installed ? "outline" : "default"}
+                      onClick={() => downloadEnv(entry)}
+                      disabled={isDownloading}
+                      className="w-full gap-2"
+                    >
+                      {isDownloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                      {isDownloading ? "Generating…" : installed ? "Re-download" : "Download .env"}
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )
