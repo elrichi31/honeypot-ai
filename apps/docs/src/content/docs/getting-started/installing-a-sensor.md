@@ -100,3 +100,48 @@ Normalmente es un puerto ya en uso. Identifica que lo ocupa con `sudo ss -tlnp` 
 ### El sensor nunca aparece en /sensors
 
 Confirma que el VPS puede alcanzar la URL de ingest embebida en el script, y que el contenedor de heartbeat esta arriba (`sudo docker compose logs cowrie-beacon` para SSH, o el contenedor del propio sensor en los demas casos).
+
+### Los sensores capturan pero el dashboard no muestra nada — `Ingest returned 403`
+
+Si en los logs del sensor ves algo como:
+
+```
+[WARNING] Ingest returned 403: <!DOCTYPE html>...<title>Just a moment...</title>
+```
+
+eso es el **challenge anti-bot de Cloudflare**: tu `INGEST_API_URL` esta detras de Cloudflare y este bloquea los POST de los sensores (clientes automatizados) antes de que lleguen al ingest-api. Los eventos se capturan pero se pierden en Cloudflare.
+
+**Fix:** crea una WAF Custom Rule en Cloudflare que salte el challenge para las rutas de ingest. En el panel del dominio → **Security → WAF → Custom rules → Create rule**:
+
+- Expresion (exige ademas el token compartido para no abrir las rutas a cualquiera):
+
+  ```
+  (starts_with(http.request.uri.path, "/ingest/") or starts_with(http.request.uri.path, "/sensors/"))
+  and any(http.request.headers["x-ingest-token"][*] eq "<INGEST_SHARED_SECRET>")
+  ```
+
+- Action: **Skip** → marca *All managed rules*, *Super Bot Fight Mode*, y en "Also skip" *Security Level* y *Browser Integrity Check*. Deploy.
+
+Verifica desde el VPS:
+
+```bash
+curl -sS -o /dev/null -w "HTTP %{http_code}\n" \
+  -X POST <INGEST_API_URL>/ingest/cowrie/event \
+  -H "X-Ingest-Token: <INGEST_SHARED_SECRET>" \
+  -H "Content-Type: application/json" \
+  -d '{"eventid":"cowrie.login.failed","src_ip":"1.2.3.4","username":"t","password":"t","timestamp":"2026-01-01T00:00:00Z","session":"abcd"}'
+```
+
+`200`/`201` = pasa; `403` con HTML = la regla aun no aplica; `401` = llego al ingest pero el token no coincide.
+
+> Alternativa para labs locales: apunta `INGEST_API_URL` directo a la IP:puerto del ingest-api en la red local, evitando Cloudflare por completo.
+
+### Suricata en bucle de reinicio (`Restarting`)
+
+Suricata necesita la imagen custom del proyecto (`ghcr.io/<owner>/honeypot-ai/suricata`), cuyo entrypoint lee `SURICATA_INTERFACE` y trae las reglas ET Open pre-descargadas. Si el contenedor imprime el mensaje de ayuda de Suricata y sale, esta corriendo la imagen oficial sin el argumento `-i`. Actualiza el instalador (regenera el script desde el dashboard) y vuelve a desplegar:
+
+```bash
+sudo docker compose pull suricata
+sudo docker compose up -d suricata
+sudo docker compose logs --tail 20 suricata   # debe decir "Starting on interface: <iface>"
+```

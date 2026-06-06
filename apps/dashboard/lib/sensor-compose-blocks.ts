@@ -42,8 +42,8 @@ export function vectorOnlyBlock(deployId: string) {
   return fill(VECTOR_ONLY_TEMPLATE, { deployId })
 }
 
-export function suricataBlock() {
-  return SURICATA_TEMPLATE
+export function suricataBlock(registry: string) {
+  return fill(SURICATA_TEMPLATE, { registry })
 }
 
 const HEADER_TEMPLATE = `x-service-defaults: &service-defaults
@@ -223,7 +223,10 @@ const PORT_TEMPLATE = `  port-honeypot:
 
 const SURICATA_TEMPLATE = `  suricata:
     logging: *json-logging
-    image: jasonish/suricata:latest
+    # Custom image: its entrypoint reads SURICATA_INTERFACE and ships ET Open
+    # rules pre-fetched. The stock jasonish/suricata image ignores the env var
+    # and needs -i <iface> as an arg, so it crash-loops here without it.
+    image: {{registry}}/suricata:latest
     container_name: suricata
     restart: unless-stopped
     init: true

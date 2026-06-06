@@ -33,7 +33,7 @@ export function buildCompose(
   return [
     headerBlock(ingestUrl, secret, clientSlug, clientName),
     ...blocks,
-    suricataBlock(),
+    suricataBlock(registry),
     ...standaloneVectorBlock(services, deployId),
     volumeLines,
     NETWORKS,
