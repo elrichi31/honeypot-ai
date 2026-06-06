@@ -76,6 +76,18 @@ trap 'rc=$?; echo ""; echo "ERROR: install failed at line $LINENO (exit $rc): $B
 DIR="/opt/honeypot-sensor"
 RAW="{{rawBase}}"
 
+# Re-exec under sudo if not root: the install writes to /opt and manages
+# Docker + sshd, all of which need root. Running as a normal user otherwise
+# fails later with a cryptic "curl: (23) ... write" when it can't write $DIR.
+if [ "$(id -u)" -ne 0 ]; then
+  if command -v sudo &>/dev/null; then
+    echo "==> Re-running with sudo (root required to write $DIR and manage Docker)..."
+    exec sudo -E bash "$0" "$@"
+  fi
+  echo "ERROR: this installer must run as root. Re-run with: sudo bash $0" >&2
+  exit 1
+fi
+
 echo "==> Honeypot sensor installer ({{services}} + Suricata IDS)"
 {{sshPortStep}}
 # Detect the default public-facing network interface for Suricata
@@ -97,6 +109,19 @@ fi
 
 mkdir -p "$DIR"
 cd "$DIR"
+
+# Fail early with a clear message if $DIR isn't writable or the disk is full,
+# rather than letting the first curl die with an opaque "(23) write" error.
+if ! touch "$DIR/.write-test" 2>/dev/null; then
+  echo "ERROR: cannot write to $DIR. Check ownership/permissions or that the filesystem is not read-only." >&2
+  exit 1
+fi
+rm -f "$DIR/.write-test"
+AVAIL_KB=$(df -Pk "$DIR" | awk 'NR==2 {print $4}')
+if [ -n "$AVAIL_KB" ] && [ "$AVAIL_KB" -lt 524288 ]; then
+  echo "ERROR: less than 512 MB free on the filesystem holding $DIR (only $((AVAIL_KB/1024)) MB). Free up space and re-run." >&2
+  exit 1
+fi
 
 echo "==> Downloading config files..."
 {{configDownloads}}
