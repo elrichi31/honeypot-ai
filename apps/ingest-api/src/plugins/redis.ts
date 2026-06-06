@@ -5,6 +5,7 @@ import type { FastifyInstance } from 'fastify'
 interface AppCache {
   get(key: string): Promise<string | null>
   set(key: string, ttlSeconds: number, value: string): Promise<void>
+  del(key: string): Promise<void>
   info(): Promise<string | null>
 }
 
@@ -48,6 +49,11 @@ export default fp(async (fastify: FastifyInstance) => {
     async set(key: string, ttlSeconds: number, value: string): Promise<void> {
       try {
         await redis.setex(key, ttlSeconds, value)
+      } catch {}
+    },
+    async del(key: string): Promise<void> {
+      try {
+        await redis.del(key)
       } catch {}
     },
     async info(): Promise<string | null> {

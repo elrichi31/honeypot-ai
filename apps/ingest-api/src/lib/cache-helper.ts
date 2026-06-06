@@ -37,6 +37,14 @@ export async function withCache<T>(
   key: string,
   ttl: number,
   compute: () => Promise<T>,
+  /**
+   * Optional value to return immediately on a cold miss instead of blocking on
+   * `compute`. When provided, the first request never waits: it returns this
+   * fallback and kicks off the compute in the background to warm the cache for
+   * the next request. Use for compute that is acceptable to skip once (e.g. TCP
+   * port probes), not for data the caller strictly needs.
+   */
+  coldFallback?: T,
 ): Promise<T> {
   if (!cache) return compute()
 
@@ -71,6 +79,27 @@ export async function withCache<T>(
     }
   }
 
-  // No usable cached value — first load must wait for the compute.
+  // No usable cached value. With a cold fallback, return it now and warm the
+  // cache in the background; otherwise the first load must wait for the compute.
+  if (coldFallback !== undefined) {
+    void store().catch(() => {})
+    return coldFallback
+  }
   return store()
+}
+
+/**
+ * Drop one or more cache keys. Call after a mutation so the next read recomputes
+ * instead of serving a stale (or stale-while-revalidate) value. Also clears any
+ * in-flight compute for the key so a refresh started just before the mutation
+ * can't repopulate it with pre-mutation data.
+ */
+export async function invalidate(cache: Cache, ...keys: string[]): Promise<void> {
+  if (!cache) return
+  await Promise.all(
+    keys.map((key) => {
+      inFlight.delete(key)
+      return cache.del(key)
+    }),
+  )
 }
