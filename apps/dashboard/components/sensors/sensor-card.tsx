@@ -50,17 +50,20 @@ export function SensorCard({
   const hasContainer = !!sensor.probeHost
   const isInternal = isPrivateIp(sensor.ip)
 
-  // A sensor is "remote"/not-locally-managed when the dashboard host can't talk
-  // to a Docker daemon for it: the probe comes back socket_unavailable (no
-  // docker.sock mounted at all), unmanaged (no probeHost), or unknown. For these
-  // the container controls and TCP port probes don't apply, so we present it as
-  // a healthy remote sensor instead of an alarming raw status. We deliberately do
-  // NOT gate this on sensor.online — a remote sensor whose heartbeat lapsed is
-  // still remote, not "broken locally". `not_found` is excluded: that means a
-  // reachable Docker daemon that simply has no such container (a deleted local
-  // one), which should keep showing its real status.
+  // A sensor is "remote"/not-locally-managed when the dashboard host can't manage
+  // its container. Two cases map to remote:
+  //   - socket_unavailable / unmanaged / unknown: the dashboard can't talk to a
+  //     Docker daemon for it at all -> definitely not local.
+  //   - not_found WHILE online: a reachable Docker daemon has no such container,
+  //     but the sensor is heartbeating -> its container lives on another host.
+  //     (not_found while OFFLINE is a deleted/dead LOCAL container, so keep its
+  //     real status and don't relabel it as remote.)
+  // We don't gate the first group on online — a remote sensor whose heartbeat
+  // lapsed is still remote, not "broken locally".
   const NON_LOCAL_DOCKER = new Set(["socket_unavailable", "unmanaged", "unknown"])
-  const isRemote = dockerStatus !== null && NON_LOCAL_DOCKER.has(dockerStatus)
+  const isRemote =
+    dockerStatus !== null &&
+    (NON_LOCAL_DOCKER.has(dockerStatus) || (dockerStatus === "not_found" && sensor.online))
 
   const fetchDockerStatus = useCallback(async (signal?: AbortSignal) => {
     if (!hasContainer) return
