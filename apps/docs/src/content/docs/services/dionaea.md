@@ -86,6 +86,22 @@ El MVP actual captura solo eventos de tipo `connect`. Los eventos mas ricos de D
 
 Configura el ihandler `log_json` de Dionaea para escribir eventos en formato JSON. Montar como volumen en el contenedor.
 
+### `sensors/dionaea/emu_scripts.yaml`
+
+Configura el ihandler `emu_scripts`, que atiende los incidentes `dionaea.download.offer` generados por el processor `emu` tras emular shellcode. Habilita los handlers `powershell`, `vbscript` y `raw_url` para descargar binarios encontrados en el shellcode.
+
+<Aside type="caution">
+Este archivo **debe** montarse como volumen. `dionaea.cfg` lo referencia en `ihandler_configs`, y sin el mount **el pipeline de captura de malware no funciona** (las conexiones siguen llegando, pero no se descarga ningun binario).
+</Aside>
+
+### `sensors/dionaea/util.py`
+
+Version parcheada del `util.py` de Dionaea. La imagen upstream pasa `bytes` a `detect_shellshock()` (que espera `str`), lo que rompe el handler HTTP en cada peticion. Se monta sobre `/opt/dionaea/lib/dionaea/python/dionaea/util.py` para que el fix sobreviva a recreaciones del contenedor.
+
+<Aside type="note">
+Junto con `emu_scripts.yaml`, los **5 mounts** que cada `docker-compose` debe declarar para el servicio `dionaea` son: `dionaea.cfg`, `log_json.yaml`, `emu_scripts.yaml`, `services-enabled/` y `util.py`. Ademas, el contenedor `dionaea-shipper` debe montar el volumen `dionaea_var` **con escritura** (sin `:ro`) para poder unificar los uploads FTP/TFTP en `binaries/`.
+</Aside>
+
 ### `sensors/dionaea/services-enabled/`
 
 Contiene los servicios activos de Dionaea. Cada archivo `.yaml` habilita un protocolo:

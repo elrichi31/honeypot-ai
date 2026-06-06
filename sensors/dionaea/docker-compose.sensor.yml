@@ -26,7 +26,9 @@ services:
       - dionaea_var:/opt/dionaea/var/lib/dionaea
       - ./dionaea.cfg:/opt/dionaea/etc/dionaea/dionaea.cfg:ro
       - ./log_json.yaml:/opt/dionaea/etc/dionaea/ihandlers/log_json.yaml:ro
+      - ./emu_scripts.yaml:/opt/dionaea/etc/dionaea/ihandlers/emu_scripts.yaml:ro
       - ./services-enabled:/opt/dionaea/etc/dionaea/services-enabled:ro
+      - ./util.py:/opt/dionaea/lib/dionaea/python/dionaea/util.py:ro
     pids_limit: 256
 
   dionaea-shipper:
@@ -52,7 +54,7 @@ services:
       DIONAEA_OFFSET_FILE: /state/dionaea.offset
       READ_FROM_END: "1"
     volumes:
-      - dionaea_var:/opt/dionaea/var/lib/dionaea:ro
+      - dionaea_var:/opt/dionaea/var/lib/dionaea
       - dionaea_shipper_state:/state
       - ./shipper.py:/shipper.py:ro
     command: ["python3", "/shipper.py"]
