@@ -1,7 +1,9 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { ensureIngestToken } from '../lib/ingest-auth.js'
-import { withCache } from '../lib/cache-helper.js'
+import { withCache, invalidate } from '../lib/cache-helper.js'
+
+const CLIENTS_CACHE_KEY = 'clients:list'
 
 const clientSchema = z.object({
   name: z.string().trim().min(1),
@@ -36,7 +38,7 @@ function deriveClientCode(value: string): string {
 
 export async function clientRoutes(fastify: FastifyInstance) {
   fastify.get('/clients', async (_request, reply) => {
-    const clients = await withCache(fastify.cache, 'clients:list', 120, async () => {
+    const clients = await withCache(fastify.cache, CLIENTS_CACHE_KEY, 120, async () => {
       const rows = await fastify.prisma.$queryRaw<Array<{
         id: string; name: string; slug: string; code: string; description: string; forward_url: string; created_at: Date
       }>>`
@@ -80,6 +82,9 @@ export async function clientRoutes(fastify: FastifyInstance) {
       RETURNING id, name, slug, code, description, forward_url, created_at
     `
     const c = rows[0]
+    // Drop the cached list so the next GET /clients reflects the new client
+    // immediately, instead of serving the pre-insert list for up to its TTL.
+    await invalidate(fastify.cache, CLIENTS_CACHE_KEY)
     return reply.send({ id: c.id, name: c.name, slug: c.slug, code: c.code || code, description: c.description, forwardUrl: c.forward_url, createdAt: c.created_at })
   })
 
@@ -126,6 +131,7 @@ export async function clientRoutes(fastify: FastifyInstance) {
       RETURNING id, name, slug, code, description, forward_url, created_at
     `
     const c = rows[0]
+    await invalidate(fastify.cache, CLIENTS_CACHE_KEY)
     return reply.send({ id: c.id, name: c.name, slug: c.slug, code: c.code || nextCode, description: c.description, forwardUrl: c.forward_url, createdAt: c.created_at })
   })
 
@@ -142,6 +148,7 @@ export async function clientRoutes(fastify: FastifyInstance) {
 
     await fastify.prisma.$executeRaw`UPDATE sensors SET client_id = NULL WHERE client_id = ${params.data.clientId}`
     await fastify.prisma.$executeRaw`DELETE FROM clients WHERE id = ${params.data.clientId}`
+    await invalidate(fastify.cache, CLIENTS_CACHE_KEY)
     return reply.status(204).send()
   })
 }

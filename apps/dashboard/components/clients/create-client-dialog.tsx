@@ -31,6 +31,7 @@ export function CreateClientDialog({ trigger, onCreated }: Props) {
   const [description, setDescription] = useState("")
   const [forwardUrl, setForwardUrl] = useState("")
   const [creating, setCreating] = useState(false)
+  const [error, setError] = useState("")
 
   function reset() {
     setName("")
@@ -38,11 +39,13 @@ export function CreateClientDialog({ trigger, onCreated }: Props) {
     setCode("")
     setDescription("")
     setForwardUrl("")
+    setError("")
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setCreating(true)
+    setError("")
     try {
       const res = await fetch("/api/clients", {
         method: "POST",
@@ -55,13 +58,19 @@ export function CreateClientDialog({ trigger, onCreated }: Props) {
           forwardUrl,
         }),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        // Surface the server's validation message (e.g. invalid slug/code/URL)
+        // instead of silently leaving the dialog open with no feedback.
+        const data = await res.json().catch(() => ({}))
+        setError(data?.error ?? `No se pudo crear el cliente (error ${res.status})`)
+        return
+      }
       const client = (await res.json()) as Client
       onCreated(client)
       reset()
       setOpen(false)
     } catch {
-      // keep dialog open on error
+      setError("No se pudo conectar con el servidor")
     } finally {
       setCreating(false)
     }
@@ -131,6 +140,12 @@ export function CreateClientDialog({ trigger, onCreated }: Props) {
               className="font-mono text-sm"
             />
           </div>
+
+          {error ? (
+            <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
+              {error}
+            </p>
+          ) : null}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => { reset(); setOpen(false) }}>
