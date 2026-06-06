@@ -1,6 +1,6 @@
 import cron from 'node-cron'
 import type { PrismaClient } from '@prisma/client'
-import { checkSensorHealthAlerts } from './threat-alerts.js'
+import { checkSensorHealthAlerts, drainThreatQueue } from './threat-alerts.js'
 import { sendPeriodicReport } from './weekly-report.js'
 import { getAlertConfig } from './runtime-config.js'
 import { readSystemMetrics } from '../routes/monitoring.js'
@@ -8,8 +8,13 @@ import { sampleContainerStatsForCron } from './docker-stats.js'
 import { buildRecentRollups } from './rollups.js'
 
 const SENSOR_HEALTH_SCHEDULE = '* * * * *'
+// Every 30s (6-field cron with seconds). Drains the threat-evaluation queue off
+// the ingest hot path, so each tick runs a bounded number of heavy aggregate
+// evaluations instead of firing them per-event under load.
+const THREAT_DRAIN_SCHEDULE = '*/30 * * * * *'
 
 let lastReportSent = 0
+let threatDrainRunning = false
 
 export function initCron(prisma: PrismaClient): void {
   cron.schedule('0 * * * *', async () => {
@@ -26,6 +31,20 @@ export function initCron(prisma: PrismaClient): void {
 
   cron.schedule(SENSOR_HEALTH_SCHEDULE, async () => {
     await checkSensorHealthAlerts(prisma)
+  }, { timezone: 'UTC' })
+
+  // Drain queued threat evaluations. Guarded against overlap: if a tick is still
+  // working through a backlog when the next fires, skip rather than pile on.
+  cron.schedule(THREAT_DRAIN_SCHEDULE, async () => {
+    if (threatDrainRunning) return
+    threatDrainRunning = true
+    try {
+      await drainThreatQueue(prisma)
+    } catch (err) {
+      console.error('[cron] threat drain error:', err)
+    } finally {
+      threatDrainRunning = false
+    }
   }, { timezone: 'UTC' })
 
   // Sample CPU/RAM + container stats every minute for the monitoring timeline
@@ -63,6 +82,7 @@ export function initCron(prisma: PrismaClient): void {
 
   console.log('[cron] Periodic report scheduled (interval read from config, checked hourly)')
   console.log('[cron] Sensor health checks scheduled (every minute)')
+  console.log('[cron] Threat evaluation drain scheduled (every 30s)')
   console.log('[cron] Monitoring snapshots scheduled (every minute)')
   console.log('[cron] Daily rollups scheduled (hourly at :15)')
 }

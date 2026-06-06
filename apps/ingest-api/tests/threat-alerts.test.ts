@@ -1,10 +1,48 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi, afterEach } from 'vitest'
 import {
   deriveAuthBurstLevel,
   deriveMultiServiceLevel,
+  drainThreatQueue,
   hasExploitAuthSequence,
   hasSuspiciousPostAuthActivity,
+  pendingThreatCount,
+  scheduleThreatAlert,
 } from '../src/lib/threat-alerts.js'
+import type { PrismaClient } from '@prisma/client'
+
+describe('threat evaluation queue', () => {
+  // A prisma stub without $queryRaw: evaluateThreatAlert returns early, so these
+  // tests exercise only the enqueue/drain mechanics, not the heavy queries.
+  const fakePrisma = {} as PrismaClient
+
+  afterEach(async () => {
+    // Flush any leftover queued IPs so tests don't bleed into each other.
+    await drainThreatQueue(fakePrisma)
+  })
+
+  it('dedupes repeated IPs into a single queued entry', () => {
+    scheduleThreatAlert(fakePrisma, '1.2.3.4')
+    scheduleThreatAlert(fakePrisma, '1.2.3.4')
+    scheduleThreatAlert(fakePrisma, '5.6.7.8')
+    expect(pendingThreatCount()).toBe(2)
+  })
+
+  it('ignores empty IPs', () => {
+    scheduleThreatAlert(fakePrisma, '')
+    expect(pendingThreatCount()).toBe(0)
+  })
+
+  it('clears the queue after draining', async () => {
+    scheduleThreatAlert(fakePrisma, '9.9.9.9')
+    expect(pendingThreatCount()).toBe(1)
+    await drainThreatQueue(fakePrisma)
+    expect(pendingThreatCount()).toBe(0)
+  })
+
+  it('is a no-op when the queue is empty', async () => {
+    await expect(drainThreatQueue(fakePrisma)).resolves.toBeUndefined()
+  })
+})
 
 describe('threat alert heuristics', () => {
   it('grades multi-service activity by breadth', () => {

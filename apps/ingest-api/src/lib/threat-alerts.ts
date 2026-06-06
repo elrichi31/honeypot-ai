@@ -43,15 +43,19 @@ export type ProtocolSummary = {
 }
 
 const SENSOR_OFFLINE_COOLDOWN_MS = 2 * 60 * 60 * 1000
-// Debounce per IP: collapse bursts of events from the same attacker into one
-// evaluation. Raised from 1.5s to 5s to cut evaluation volume under heavy ingest.
-const THREAT_ALERT_DEBOUNCE_MS = 5000
-// Global cap on concurrent evaluations. Each evaluation fires ~11 heavy
-// aggregate queries; without a cap, many distinct attacking IPs trigger dozens
-// of concurrent evaluations and saturate the ingest-api CPU + DB I/O.
+// Global cap on concurrent evaluations within a single drain tick. Each
+// evaluation fires ~11 heavy aggregate queries; without a cap, draining a large
+// backlog at once would saturate the ingest-api CPU + DB I/O.
 const MAX_CONCURRENT_EVALUATIONS = 3
+// Max IPs evaluated per drain tick. The rest stay queued for the next tick, so
+// the per-minute evaluation cost is bounded regardless of attack volume.
+const MAX_DRAIN_BATCH = 60
 
-const pendingThreatAlertTimers = new Map<string, NodeJS.Timeout>()
+// IPs with new activity since the last drain. The ingest hot path only adds to
+// this set (O(1), no queries); a cron worker drains it on an interval. This
+// replaces the old per-event setTimeout debounce, which under heavy attack
+// either piled dozens of concurrent evaluations onto the DB or dropped them.
+const pendingThreatIps = new Set<string>()
 const runningThreatAlerts = new Set<string>()
 
 /**
@@ -184,26 +188,60 @@ export async function clearSensorOfflineAlert(prisma: PrismaClient, sensorId: st
   await prisma.$queryRaw`DELETE FROM threat_alert_cooldown WHERE key = ${key}`
 }
 
-export function scheduleThreatAlert(prisma: PrismaClient, ip: string, debounceMs = THREAT_ALERT_DEBOUNCE_MS): void {
+/**
+ * Mark an IP as having new activity worth re-evaluating. Called from the ingest
+ * hot path for every relevant event — so it must stay O(1) and do no I/O. The
+ * actual (expensive) evaluation happens later in {@link drainThreatQueue}, run
+ * by a cron worker. Dedup is automatic: a burst of events from one IP collapses
+ * into a single queued entry.
+ */
+export function scheduleThreatAlert(_prisma: PrismaClient, ip: string): void {
   if (!ip) return
-  const existing = pendingThreatAlertTimers.get(ip)
-  if (existing) clearTimeout(existing)
-  const timer = setTimeout(() => {
-    pendingThreatAlertTimers.delete(ip)
-    if (runningThreatAlerts.has(ip)) return
-    // Global concurrency cap: under heavy attack, drop this evaluation rather
-    // than pile on. The next event from this IP re-schedules it anyway.
-    if (runningThreatAlerts.size >= MAX_CONCURRENT_EVALUATIONS) return
-    runningThreatAlerts.add(ip)
-    void evaluateThreatAlert(prisma, ip)
-      .catch((error) => {
-        console.warn(
-          `[threat-alerts] evaluation failed for ${ip}: ${error instanceof Error ? error.message : String(error)}`,
-        )
-      })
-      .finally(() => { runningThreatAlerts.delete(ip) })
-  }, debounceMs)
-  pendingThreatAlertTimers.set(ip, timer)
+  pendingThreatIps.add(ip)
+}
+
+/** Number of IPs currently waiting to be evaluated. Exposed for tests/metrics. */
+export function pendingThreatCount(): number {
+  return pendingThreatIps.size
+}
+
+async function runEvaluation(prisma: PrismaClient, ip: string): Promise<void> {
+  runningThreatAlerts.add(ip)
+  try {
+    await evaluateThreatAlert(prisma, ip)
+  } catch (error) {
+    console.warn(
+      `[threat-alerts] evaluation failed for ${ip}: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  } finally {
+    runningThreatAlerts.delete(ip)
+  }
+}
+
+/**
+ * Evaluate the queued IPs, up to {@link MAX_DRAIN_BATCH} per call, with at most
+ * {@link MAX_CONCURRENT_EVALUATIONS} running at once. IPs not reached this tick
+ * stay queued for the next one. Meant to be invoked on a short cron interval so
+ * evaluation cost is bounded and predictable regardless of attack volume.
+ */
+export async function drainThreatQueue(prisma: PrismaClient): Promise<void> {
+  if (pendingThreatIps.size === 0) return
+  const batch: string[] = []
+  for (const ip of pendingThreatIps) {
+    if (batch.length >= MAX_DRAIN_BATCH) break
+    pendingThreatIps.delete(ip)
+    if (!runningThreatAlerts.has(ip)) batch.push(ip)
+  }
+
+  let cursor = 0
+  const worker = async (): Promise<void> => {
+    while (cursor < batch.length) {
+      const ip = batch[cursor++]
+      await runEvaluation(prisma, ip)
+    }
+  }
+  const workerCount = Math.min(MAX_CONCURRENT_EVALUATIONS, batch.length)
+  await Promise.all(Array.from({ length: workerCount }, () => worker()))
 }
 
 export async function checkSensorHealthAlerts(prisma: PrismaClient): Promise<void> {
