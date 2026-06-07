@@ -20,6 +20,9 @@ export interface AppConfig {
   sshPort?: number
   ingestPort?: number
   ingestApiUrl?: string
+  // Shared secret sensors use to authenticate to ingest. Configurable so the
+  // installer embeds a real secret instead of the .env placeholder.
+  ingestSecret?: string
   // Display
   timezone?: string
   // Alert configuration
@@ -57,6 +60,12 @@ export function writeConfig(config: AppConfig): void {
 export function getOpenAiKey(): string | undefined {
   const config = readConfig()
   return config.openaiApiKey || process.env.OPENAI_API_KEY || undefined
+}
+
+/** Returns the ingest shared secret: config file takes priority, then env var. */
+export function getIngestSecret(): string {
+  const config = readConfig()
+  return config.ingestSecret || process.env.INGEST_SHARED_SECRET || ""
 }
 
 function isUsableUrl(url: string | undefined | null): url is string {

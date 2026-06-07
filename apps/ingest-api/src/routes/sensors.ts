@@ -133,6 +133,19 @@ async function handleAssignClient(fastify: FastifyInstance, request: FastifyRequ
     if (!client.id) return reply.status(404).send({ error: 'Client not found' })
   }
 
+  // Block moving a sensor from one client to another: the only supported way to
+  // re-home a sensor is to delete and recreate it. Assigning from unassigned
+  // (null) and unassigning back to null are still allowed.
+  const [current] = await fastify.prisma.$queryRaw<Array<{ client_id: string | null }>>`
+    SELECT client_id FROM sensors WHERE sensor_id = ${params.data.sensorId}
+  `
+  if (!current) return reply.status(404).send({ error: 'Sensor not found' })
+  if (current.client_id && client.id && current.client_id !== client.id) {
+    return reply.status(409).send({
+      error: 'Sensor already belongs to another client. Delete and recreate it to move it.',
+    })
+  }
+
   const [updated] = await fastify.prisma.$queryRaw<Array<{ sensor_id: string }>>`
     UPDATE sensors SET client_id = ${client.id} WHERE sensor_id = ${params.data.sensorId} RETURNING sensor_id
   `

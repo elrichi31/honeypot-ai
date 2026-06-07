@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { readConfig, writeConfig, getOpenAiKey, getDiscordWebhookUrl } from "@/lib/server-config"
+import { readConfig, writeConfig, getOpenAiKey, getDiscordWebhookUrl, getIngestSecret } from "@/lib/server-config"
 import { logAudit } from "@/lib/audit"
 import { requireRole } from "@/lib/roles"
 
@@ -26,6 +26,8 @@ export async function GET() {
     sshPort: config.sshPort ?? (Number(process.env.HONEYPOT_SSH_PORT) || 22),
     ingestPort: config.ingestPort ?? (Number(process.env.HONEYPOT_INGEST_PORT) || 8022),
     ingestApiUrl: config.ingestApiUrl ?? process.env.INTERNAL_API_URL ?? "http://localhost:3000",
+    ingestSecret: getIngestSecret() ? maskKey(getIngestSecret()) : "",
+    hasIngestSecret: !!getIngestSecret(),
     timezone: config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC",
     alertMinLevel: config.alertMinLevel ?? "critical",
     alertCooldownMinutes: config.alertCooldownMinutes ?? 60,
@@ -60,6 +62,13 @@ export async function POST(req: NextRequest) {
   if ("sshPort" in body) config.sshPort = Math.max(1, Math.min(65535, Number(body.sshPort) || 22))
   if ("ingestPort" in body) config.ingestPort = Math.max(1, Math.min(65535, Number(body.ingestPort) || 8022))
   if ("ingestApiUrl" in body) config.ingestApiUrl = body.ingestApiUrl?.trim() || undefined
+  if ("ingestSecret" in body) {
+    if (typeof body.ingestSecret !== "string")
+      return NextResponse.json({ error: "Invalid secret" }, { status: 400 })
+    const trimmed = body.ingestSecret.trim()
+    // Guard against accidentally saving the masked display value back.
+    if (!trimmed.includes("•")) config.ingestSecret = trimmed || undefined
+  }
   if ("timezone" in body) config.timezone = body.timezone?.trim() || undefined
   if ("alertMinLevel" in body) config.alertMinLevel = body.alertMinLevel === 'high' ? 'high' : 'critical'
   if ("alertCooldownMinutes" in body) config.alertCooldownMinutes = Math.max(1, Number(body.alertCooldownMinutes) || 60)
@@ -70,7 +79,7 @@ export async function POST(req: NextRequest) {
   writeConfig(config)
 
   const changedKeys = Object.keys(body).filter((k) =>
-    !["openaiApiKey", "abuseipdbApiKey", "ipinfoApiKey", "discordWebhookUrl"].includes(k)
+    !["openaiApiKey", "abuseipdbApiKey", "ipinfoApiKey", "discordWebhookUrl", "ingestSecret"].includes(k)
       ? true
       : !!body[k],
   )

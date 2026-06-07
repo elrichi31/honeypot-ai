@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Link2, Server, Unlink2 } from "lucide-react"
+import { Link2, Server, Unlink2, Ghost, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SensorCard } from "@/components/sensors/sensor-card"
 import type { Client, Sensor } from "@/lib/api"
@@ -20,6 +20,7 @@ export function ClientSensorAssignment({
   const [assignedSensors, setAssignedSensors] = useState(initialAssignedSensors)
   const [unassignedSensors, setUnassignedSensors] = useState(initialUnassignedSensors)
   const [pendingSensorId, setPendingSensorId] = useState<string | null>(null)
+  const [assigningDeception, setAssigningDeception] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
   const sortedAssigned = useMemo(
@@ -35,35 +36,73 @@ export function ClientSensorAssignment({
     [unassignedSensors],
   )
 
-  async function assignSensor(sensor: Sensor) {
-    setPendingSensorId(sensor.sensorId)
-    setMessage(null)
+  // The 5 deception trap nodes always deploy together as a unit, so offer a
+  // single action to attach the whole group at once.
+  const unassignedDeception = useMemo(
+    () => unassignedSensors.filter((s) => s.protocol === "deception"),
+    [unassignedSensors],
+  )
 
+  // Assign one sensor. Returns the error message on failure, or null on success.
+  // Caller owns the optimistic list updates so batch callers can update once.
+  async function doAssign(sensor: Sensor): Promise<string | null> {
     try {
       const res = await fetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/client`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clientId: client.id }),
       })
-
-      if (!res.ok) throw new Error("Could not assign sensor")
-
-      setUnassignedSensors((current) => current.filter((item) => item.sensorId !== sensor.sensorId))
-      setAssignedSensors((current) => [
-        ...current,
-        {
-          ...sensor,
-          clientId: client.id,
-          clientName: client.name,
-          clientSlug: client.slug,
-        },
-      ])
-      setMessage(`Sensor ${sensor.name} assigned to ${client.name}.`)
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        return (data as { error?: string }).error ?? "Could not assign sensor"
+      }
+      return null
     } catch {
-      setMessage("Could not assign the sensor.")
-    } finally {
-      setPendingSensorId(null)
+      return "Could not connect"
     }
+  }
+
+  function markAssigned(sensor: Sensor) {
+    setUnassignedSensors((current) => current.filter((item) => item.sensorId !== sensor.sensorId))
+    setAssignedSensors((current) => [
+      ...current,
+      { ...sensor, clientId: client.id, clientName: client.name, clientSlug: client.slug },
+    ])
+  }
+
+  async function assignSensor(sensor: Sensor) {
+    setPendingSensorId(sensor.sensorId)
+    setMessage(null)
+    const error = await doAssign(sensor)
+    if (error) {
+      setMessage(error)
+    } else {
+      markAssigned(sensor)
+      setMessage(`Sensor ${sensor.name} assigned to ${client.name}.`)
+    }
+    setPendingSensorId(null)
+  }
+
+  async function assignAllDeception() {
+    setAssigningDeception(true)
+    setMessage(null)
+    let ok = 0
+    let firstError: string | null = null
+    for (const sensor of unassignedDeception) {
+      const error = await doAssign(sensor)
+      if (error) {
+        if (!firstError) firstError = error
+      } else {
+        markAssigned(sensor)
+        ok++
+      }
+    }
+    setMessage(
+      firstError
+        ? `Assigned ${ok}/${unassignedDeception.length} deception nodes. ${firstError}`
+        : `Assigned all ${ok} deception nodes to ${client.name}.`,
+    )
+    setAssigningDeception(false)
   }
 
   async function unassignSensor(sensor: Sensor) {
@@ -142,16 +181,30 @@ export function ClientSensorAssignment({
       </section>
 
       <section className="space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-400/10">
-            <Link2 className="h-5 w-5 text-amber-300" />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-400/10">
+              <Link2 className="h-5 w-5 text-amber-300" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Unassigned Sensors</h2>
+              <p className="text-sm text-muted-foreground">
+                Click assign to attach available sensors to this client.
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">Unassigned Sensors</h2>
-            <p className="text-sm text-muted-foreground">
-              Click assign to attach available sensors to this client.
-            </p>
-          </div>
+          {unassignedDeception.length > 0 && (
+            <Button
+              onClick={assignAllDeception}
+              disabled={assigningDeception}
+              className="gap-2 bg-purple-500 text-white hover:bg-purple-500/90"
+            >
+              {assigningDeception ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ghost className="h-4 w-4" />}
+              {assigningDeception
+                ? "Assigning…"
+                : `Assign deception network (${unassignedDeception.length})`}
+            </Button>
+          )}
         </div>
 
         {sortedUnassigned.length === 0 ? (

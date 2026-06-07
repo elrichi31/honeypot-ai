@@ -4,7 +4,7 @@ import { logAudit } from "@/lib/audit"
 import { requireRole } from "@/lib/roles"
 import { ALL_SERVICES, genDeployId, type ServiceKey } from "@/lib/sensor-compose-builder"
 import { buildScript } from "@/lib/sensor-install-script"
-import { resolveIngestUrl } from "@/lib/server-config"
+import { resolveIngestUrl, getIngestSecret } from "@/lib/server-config"
 
 const REGISTRY = process.env.SENSOR_REGISTRY ?? "ghcr.io/elrichi31/honeypot-ai"
 const RAW_BASE = process.env.SENSOR_RAW_BASE ?? "https://raw.githubusercontent.com/elrichi31/honeypot-ai/master"
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
   const clientSlug = params.get("clientSlug")?.trim() ?? ""
   const clientName = params.get("clientName")?.trim() ?? ""
   const { url: ingestUrl } = await resolveIngestUrl()
-  const secret = process.env.INGEST_SHARED_SECRET ?? ""
+  const secret = getIngestSecret()
   const configError = missingConfigResponse(ingestUrl, secret)
   if (configError) return configError
   if (!ingestUrl) return NextResponse.json({ error: "Could not resolve ingest URL" }, { status: 500 })
