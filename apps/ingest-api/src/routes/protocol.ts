@@ -4,7 +4,7 @@ import { withCache } from '../lib/cache-helper.js'
 import { ensureIngestToken } from '../lib/ingest-auth.js'
 import { eventBus } from '../lib/event-bus.js'
 import { lookupGeo } from '../lib/geo.js'
-import { scheduleThreatAlert } from '../lib/threat-alerts.js'
+import { scheduleThreatAlert, evaluateDeceptionAlert } from '../lib/threat-alerts.js'
 import { forwardClientEventBySensorId } from '../lib/client-forward.js'
 import { enqueueProtocolHit } from '../lib/protocol-batch.js'
 
@@ -85,6 +85,22 @@ export async function protocolRoutes(fastify: FastifyInstance) {
       },
     })
     scheduleThreatAlert(fastify.prisma, d.srcIp)
+
+    // Deception (OpenCanary) nodes: any interaction means lateral movement past
+    // cowrie — fire a critical alert immediately (best-effort, non-blocking).
+    if (d.data?.source === 'opencanary') {
+      const nodeId = typeof d.data.node_id === 'string' ? d.data.node_id : (sensorId ?? 'unknown')
+      void evaluateDeceptionAlert(fastify.prisma, {
+        internalIp: d.srcIp,
+        nodeId,
+        protocol: d.protocol,
+        eventType: d.eventType,
+        timestamp: new Date(d.timestamp),
+        username: d.username ?? null,
+        password: d.password ?? null,
+      })
+    }
+
     return reply.status(201).send({ id })
   })
 

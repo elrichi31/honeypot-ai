@@ -26,6 +26,7 @@ import { retentionPlugin } from './plugins/retention.js';
 import { suricataRoutes } from './routes/suricata.js';
 import { monitoringRoutes } from './routes/monitoring.js';
 import { alertRoutes } from './routes/alerts.js';
+import { deceptionRoutes } from './routes/deception.js';
 
 export async function buildApp() {
   // cloudflared runs on the same host and connects from loopback, forwarding the
@@ -92,6 +93,7 @@ export async function buildApp() {
   await app.register(suricataRoutes);
   await app.register(monitoringRoutes);
   await app.register(alertRoutes);
+  await app.register(deceptionRoutes);
   await app.register(retentionPlugin);
 
   return app;

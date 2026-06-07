@@ -1,0 +1,80 @@
+import { apiFetch, getApiUrl, buildSearchParams } from "./client"
+
+export type DeceptionOverview = {
+  nodesTotal: number
+  nodesOnline: number
+  hits24h: number
+  hits7d: number
+  authAttempts24h: number
+  uniqueInternalIps: number
+  lastEvent: string | null
+}
+
+export type DeceptionNode = {
+  sensorId: string
+  name: string
+  ip: string
+  ports: number[]
+  online: boolean
+  lastSeen: string
+  hits: number
+  authAttempts: number
+  lastHit: string | null
+}
+
+export type KillChainStep = {
+  nodeId: string | null
+  protocol: string
+  dstPort: number
+  eventType: string
+  username: string | null
+  password: string | null
+  timestamp: string
+}
+
+export type KillChain = {
+  key: string
+  publicIp: string | null
+  sessionId: string | null
+  correlation: "probable" | "none"
+  firstSeen: string
+  lastSeen: string
+  steps: KillChainStep[]
+  nodesTouched: number
+  durationSec: number
+}
+
+export type DeceptionEvent = {
+  id: string
+  node_id: string | null
+  protocol: string
+  src_ip: string
+  src_port: number | null
+  dst_port: number
+  event_type: string
+  username: string | null
+  password: string | null
+  timestamp: string
+}
+
+export type DeceptionEventsResponse = {
+  data: DeceptionEvent[]
+  meta: { page: number; limit: number; total: number }
+}
+
+export function fetchDeceptionOverview(): Promise<DeceptionOverview> {
+  return apiFetch(`${getApiUrl()}/deception/overview`, 30)
+}
+
+export function fetchDeceptionNodes(): Promise<DeceptionNode[]> {
+  return apiFetch(`${getApiUrl()}/deception/nodes`, 30)
+}
+
+export function fetchDeceptionKillchain(limit = 200): Promise<KillChain[]> {
+  return apiFetch(`${getApiUrl()}/deception/killchain?limit=${limit}`, 30)
+}
+
+export function fetchDeceptionEvents(params: { page?: number; limit?: number; nodeId?: string } = {}): Promise<DeceptionEventsResponse> {
+  const sp = buildSearchParams(params)
+  return apiFetch(`${getApiUrl()}/deception/events?${sp}`, 30)
+}

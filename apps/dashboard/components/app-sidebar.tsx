@@ -31,6 +31,7 @@ import {
   ClipboardList,
   Bell,
   BookOpen,
+  Ghost,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { signOut, useSession } from "@/lib/auth-client"
@@ -66,6 +67,7 @@ const navSections = [
     icon: Network,
     items: [
       { title: "Overview", href: "/services", icon: Network },
+      { title: "Deception", href: "/deception", icon: Ghost },
       { title: "FTP", href: "/services/ftp", icon: HardDrive },
       { title: "MySQL", href: "/services/mysql", icon: Database },
       { title: "Port Scan", href: "/services/ports", icon: Radar },

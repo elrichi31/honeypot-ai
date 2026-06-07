@@ -9,6 +9,7 @@ import {
   checkAuthBurst,
   checkPostAuthSuccess,
   checkAttackChain,
+  checkDeceptionInteraction,
   type AlertPayload,
 } from './threat-checks.js'
 export {
@@ -203,6 +204,55 @@ export function scheduleThreatAlert(_prisma: PrismaClient, ip: string): void {
 /** Number of IPs currently waiting to be evaluated. Exposed for tests/metrics. */
 export function pendingThreatCount(): number {
   return pendingThreatIps.size
+}
+
+const DECEPTION_ALERT_COOLDOWN_MS = 15 * 60 * 1000
+
+/**
+ * Fire a critical alert for an interaction with a deception (OpenCanary) node.
+ * The protocol_hit's src_ip is cowrie's internal address, so we attribute the
+ * real attacker best-effort by finding the cowrie session whose window contains
+ * the event time; if none matches we fall back to the internal IP. Cooldown is
+ * keyed by (node, ip) so a node sweep doesn't flood Discord. Best-effort: never
+ * let alerting block or throw into the ingest hot path.
+ */
+export async function evaluateDeceptionAlert(
+  prisma: PrismaClient,
+  input: {
+    internalIp: string
+    nodeId: string
+    protocol: string
+    eventType: string
+    timestamp: Date
+    username?: string | null
+    password?: string | null
+  },
+): Promise<void> {
+  try {
+    const db = readClient(prisma)
+    const rows = await db.$queryRaw<Array<{ src_ip: string }>>`
+      SELECT s.src_ip
+      FROM sessions s
+      WHERE ${input.timestamp} >= s.started_at
+        AND ${input.timestamp} <= COALESCE(s.ended_at, s.started_at + interval '2 hours')
+      ORDER BY s.started_at DESC
+      LIMIT 1
+    `
+    const publicIp = rows[0]?.src_ip ?? input.internalIp
+    const payload = checkDeceptionInteraction(
+      publicIp,
+      input.nodeId,
+      input.protocol,
+      input.eventType,
+      DECEPTION_ALERT_COOLDOWN_MS,
+      { username: input.username, password: input.password },
+    )
+    await sendAlertOnce(prisma, payload)
+  } catch (error) {
+    console.warn(
+      `[deception-alert] failed for node=${input.nodeId}: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
 }
 
 async function runEvaluation(prisma: PrismaClient, ip: string): Promise<void> {

@@ -147,6 +147,39 @@ export function hasSuspiciousPostAuthActivity(commandCategories: Record<CommandC
   return SUSPICIOUS_COMMAND_CATEGORIES.some((cat) => commandCategories[cat].length > 0)
 }
 
+/**
+ * Any interaction with a deception (OpenCanary) node is critical: an attacker
+ * touching an internal trap node has already gotten past cowrie and is moving
+ * laterally. `ip` is the best-effort public IP (correlated from the active cowrie
+ * session) or the internal cowrie IP if no session could be matched. The cooldown
+ * is keyed by (node, ip) so a sweep of one node doesn't flood Discord.
+ */
+export function checkDeceptionInteraction(
+  ip: string,
+  nodeId: string,
+  protocol: string,
+  eventType: string,
+  cooldownMs: number,
+  credential?: { username?: string | null; password?: string | null },
+): AlertPayload {
+  const cred = credential?.username
+    ? `${credential.username}${credential.password ? ` / ${credential.password}` : ''}`
+    : null
+  return {
+    key: `deception:${nodeId}:${ip}`,
+    cooldownMs,
+    level: 'critical',
+    title: 'Lateral movement: deception node touched',
+    description: `Attacker \`${ip}\` interacted with the internal trap node \`${nodeId}\` over ${protocol.toUpperCase()} — confirmed movement past the SSH honeypot.`,
+    fields: [
+      { name: 'Attacker IP', value: ip, inline: true },
+      { name: 'Trap node', value: nodeId, inline: true },
+      { name: 'Service', value: `${protocol.toUpperCase()} (${eventType})`, inline: true },
+      ...(cred ? [{ name: 'Credential used', value: cred, inline: false }] : []),
+    ],
+  }
+}
+
 export function checkAttackChain(
   ip: string,
   hasPortScan: boolean,
