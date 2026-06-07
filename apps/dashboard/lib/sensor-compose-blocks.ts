@@ -1,6 +1,6 @@
-export type ServiceKey = "ssh" | "http" | "ftp" | "mysql" | "port"
+export type ServiceKey = "ssh" | "http" | "ftp" | "mysql" | "port" | "deception"
 
-export const ALL_SERVICES: ServiceKey[] = ["ssh", "http", "ftp", "mysql", "port"]
+export const ALL_SERVICES: ServiceKey[] = ["ssh", "http", "ftp", "mysql", "port", "deception"]
 
 type Vars = Record<string, string>
 
@@ -44,6 +44,10 @@ export function vectorOnlyBlock(deployId: string) {
 
 export function suricataBlock(registry: string) {
   return fill(SURICATA_TEMPLATE, { registry })
+}
+
+export function deceptionBlock(deployId: string, registry: string) {
+  return fill(DECEPTION_TEMPLATE, { deployId, registry })
 }
 
 const HEADER_TEMPLATE = `x-service-defaults: &service-defaults
@@ -243,6 +247,108 @@ const SURICATA_TEMPLATE = `  suricata:
     volumes:
       - suricata_logs:/tmp/suricata-logs
     pids_limit: 256`
+
+// Deception network: 5 OpenCanary trap nodes on the internal deception_net
+// (10.0.1.0/24) plus a single shipper that tails all their logs and forwards
+// them to ingest as protocol_hits (data.source='opencanary'). The fixed IPs match
+// cowrie's /etc/hosts so that an attacker who runs `ssh 10.0.1.10` from inside
+// cowrie actually reaches the fake-db node. Requires the ssh (cowrie) service —
+// cowrie is the entry point and is attached to deception_net at 10.0.1.100.
+const DECEPTION_TEMPLATE = `  fake-dc:
+    <<: *service-defaults
+    logging: *json-logging
+    image: {{registry}}/opencanary:latest
+    container_name: fake-dc
+    volumes:
+      - ./opencanary/fake-dc.json:/etc/opencanary/opencanary.conf:ro
+      - opencanary_logs:/var/log/opencanary
+    networks:
+      deception_net:
+        ipv4_address: 10.0.1.2
+    mem_limit: 128m
+    pids_limit: 64
+
+  fake-intranet:
+    <<: *service-defaults
+    logging: *json-logging
+    image: {{registry}}/opencanary:latest
+    container_name: fake-intranet
+    volumes:
+      - ./opencanary/fake-intranet.json:/etc/opencanary/opencanary.conf:ro
+      - opencanary_logs:/var/log/opencanary
+    networks:
+      deception_net:
+        ipv4_address: 10.0.1.5
+    mem_limit: 128m
+    pids_limit: 64
+
+  fake-db:
+    <<: *service-defaults
+    logging: *json-logging
+    image: {{registry}}/opencanary:latest
+    container_name: fake-db
+    volumes:
+      - ./opencanary/fake-db.json:/etc/opencanary/opencanary.conf:ro
+      - opencanary_logs:/var/log/opencanary
+    networks:
+      deception_net:
+        ipv4_address: 10.0.1.10
+    mem_limit: 128m
+    pids_limit: 64
+
+  fake-db-replica:
+    <<: *service-defaults
+    logging: *json-logging
+    image: {{registry}}/opencanary:latest
+    container_name: fake-db-replica
+    volumes:
+      - ./opencanary/fake-db-replica.json:/etc/opencanary/opencanary.conf:ro
+      - opencanary_logs:/var/log/opencanary
+    networks:
+      deception_net:
+        ipv4_address: 10.0.1.11
+    mem_limit: 128m
+    pids_limit: 64
+
+  fake-cache:
+    <<: *service-defaults
+    logging: *json-logging
+    image: {{registry}}/opencanary:latest
+    container_name: fake-cache
+    volumes:
+      - ./opencanary/fake-cache.json:/etc/opencanary/opencanary.conf:ro
+      - opencanary_logs:/var/log/opencanary
+    networks:
+      deception_net:
+        ipv4_address: 10.0.1.20
+    mem_limit: 128m
+    pids_limit: 64
+
+  opencanary-shipper:
+    <<: *service-defaults
+    logging: *json-logging
+    image: python:3.12-alpine
+    container_name: opencanary-shipper
+    depends_on:
+      - fake-db
+      - fake-dc
+      - fake-intranet
+      - fake-cache
+      - fake-db-replica
+    environment:
+      <<: *ingest
+      OPENCANARY_LOG_DIR: /var/log/opencanary
+      STATE_DIR: /state
+      READ_FROM_END: "1"
+    volumes:
+      - opencanary_logs:/var/log/opencanary:ro
+      - opencanary_shipper_state:/state
+      - ./opencanary/shipper.py:/shipper.py:ro
+    command: ["python3", "/shipper.py"]
+    networks:
+      - edge
+      - deception_net
+    pids_limit: 32`
 
 const VECTOR_ONLY_TEMPLATE = `  vector:
     image: timberio/vector:0.40.0-alpine

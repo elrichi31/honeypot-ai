@@ -10,6 +10,7 @@ on:
       - "sensors/mysql-honeypot/**"
       - "sensors/port-honeypot/**"
       - "sensors/suricata/**"
+      - "sensors/opencanary/**"
   workflow_dispatch:
 
 env:
@@ -39,6 +40,8 @@ jobs:
             context: sensors/port-honeypot
           - service: suricata
             context: sensors/suricata
+          - service: opencanary
+            context: sensors/opencanary
 
     steps:
       - name: Checkout

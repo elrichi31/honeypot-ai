@@ -28,7 +28,18 @@ function configDownloadLines(services: ServiceKey[]) {
   return [
     ...cowrieDownloadLines(services),
     `curl -fsSL "$RAW/vector/suricata.toml"            -o suricata.toml`,
+    ...deceptionDownloadLines(services),
   ].join("\n")
+}
+
+function deceptionDownloadLines(services: ServiceKey[]) {
+  if (!services.includes("deception")) return []
+  const nodes = ["fake-dc", "fake-intranet", "fake-db", "fake-db-replica", "fake-cache"]
+  return [
+    `mkdir -p opencanary`,
+    ...nodes.map(n => `curl -fsSL "$RAW/sensors/opencanary/configs/${n}.json" -o opencanary/${n}.json`),
+    `curl -fsSL "$RAW/sensors/opencanary/shipper.py" -o opencanary/shipper.py`,
+  ]
 }
 
 function cowrieDownloadLines(services: ServiceKey[]) {

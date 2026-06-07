@@ -1,5 +1,6 @@
 import {
   ALL_SERVICES,
+  deceptionBlock,
   ftpBlock,
   headerBlock,
   httpBlock,
@@ -36,18 +37,39 @@ export function buildCompose(
     suricataBlock(registry),
     ...standaloneVectorBlock(services, deployId),
     volumeLines,
-    NETWORKS,
+    buildNetworks(services),
   ].join("\n\n")
 }
 
 function selectedServiceBlocks(services: ServiceKey[], deployId: string, registry: string) {
+  const withDeception = services.includes("deception")
   const blocks: string[] = []
-  if (services.includes("ssh")) blocks.push(sshBlock(deployId, registry))
+  // When deception is on, cowrie must also join deception_net at 10.0.1.100 so
+  // attackers can pivot from the SSH honeypot into the internal trap nodes.
+  if (services.includes("ssh")) blocks.push(attachCowrieToDeception(sshBlock(deployId, registry), withDeception))
   if (services.includes("http")) blocks.push(httpBlock(deployId, registry))
   if (services.includes("ftp")) blocks.push(ftpBlock(deployId, registry))
   if (services.includes("mysql")) blocks.push(mysqlBlock(deployId, registry))
   if (services.includes("port")) blocks.push(portBlock(deployId, registry))
+  if (withDeception) blocks.push(deceptionBlock(deployId, registry))
   return blocks
+}
+
+// Rewrite cowrie's `networks: - edge` to also attach deception_net with a fixed
+// IP. Only the cowrie service block uses that exact `- edge` line followed by
+// `pids_limit: 256`, so the replace is unambiguous within the ssh block.
+function attachCowrieToDeception(sshBlockText: string, withDeception: boolean): string {
+  if (!withDeception) return sshBlockText
+  return sshBlockText.replace(
+    `    networks:
+      - edge
+    pids_limit: 256`,
+    `    networks:
+      edge:
+      deception_net:
+        ipv4_address: 10.0.1.100
+    pids_limit: 256`,
+  )
 }
 
 function standaloneVectorBlock(services: ServiceKey[], deployId: string) {
@@ -58,9 +80,21 @@ function buildVolumeLines(services: ServiceKey[]) {
   const volumes = ["volumes:"]
   if (services.includes("ssh")) volumes.push("  cowrie_var:")
   volumes.push("  vector_data:", "  suricata_logs:")
+  if (services.includes("deception")) volumes.push("  opencanary_logs:", "  opencanary_shipper_state:")
   return volumes.join("\n")
 }
 
-const NETWORKS = `networks:
+function buildNetworks(services: ServiceKey[]) {
+  const base = `networks:
   edge:
     driver: bridge`
+  if (!services.includes("deception")) return base
+  // Internal deception subnet — fixed IPs (10.0.1.x) match cowrie's /etc/hosts.
+  return `${base}
+  deception_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.1.0/24
+          gateway: 10.0.1.1`
+}

@@ -20,6 +20,7 @@ const SENSOR_OPTIONS: { key: ServiceKey; label: string; ports: string }[] = [
   { key: "ftp",   label: "FTP",           ports: ":21"             },
   { key: "mysql", label: "MySQL",         ports: ":3306"           },
   { key: "port",  label: "Port scanner",  ports: ":1433 :6379 …"  },
+  { key: "deception", label: "Deception (OpenCanary)", ports: "interna 10.0.1.0/24" },
 ]
 
 export function AddSensorButton() {
@@ -48,9 +49,14 @@ export function AddSensorButton() {
   }
 
   function toggleService(key: ServiceKey) {
-    setSelected((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-    )
+    setSelected((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+      // Deception needs cowrie as its entry point: turning it on forces ssh on.
+      if (key === "deception" && next.includes("deception") && !next.includes("ssh")) {
+        next.push("ssh")
+      }
+      return next
+    })
   }
 
   async function downloadInstaller() {
@@ -150,6 +156,12 @@ export function AddSensorButton() {
                   )
                 })}
               </div>
+              {selected.includes("deception") && (
+                <p className="rounded-lg bg-amber-400/10 px-3 py-2 text-xs text-amber-300">
+                  La red de deception requiere SSH (Cowrie) como entrada y despliega 5 nodos trampa
+                  internos en 10.0.1.0/24. Se incluye SSH automáticamente.
+                </p>
+              )}
             </div>
 
             {/* Deploy options */}

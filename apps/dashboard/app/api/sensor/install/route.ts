@@ -16,7 +16,13 @@ function parseServices(value: string | null): ServiceKey[] {
     .split(",")
     .map((service) => service.trim())
     .filter((service): service is ServiceKey => (ALL_SERVICES as string[]).includes(service))
-  return requested.length > 0 ? requested : [...ALL_SERVICES]
+  const services = requested.length > 0 ? requested : [...ALL_SERVICES]
+  // Deception (OpenCanary) is an internal trap network reached via cowrie. Force
+  // ssh in so the network has an entry point even if the caller omitted it.
+  if (services.includes("deception") && !services.includes("ssh")) {
+    services.unshift("ssh")
+  }
+  return services
 }
 
 function filenameSuffix(services: ServiceKey[], clientSlug: string) {
