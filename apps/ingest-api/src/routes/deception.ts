@@ -58,14 +58,14 @@ async function queryOverview(fastify: FastifyInstance, scope: Scope) {
   const hitScope = sensorScopeClause(scope, 1)
 
   const [nodes, activity] = await Promise.all([
-    fastify.prisma.$queryRawUnsafe<Array<{ total: bigint; online: bigint }>>(`
+    fastify.prismaRead.$queryRawUnsafe<Array<{ total: bigint; online: bigint }>>(`
       SELECT
         COUNT(*)::bigint AS total,
         COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '2 minutes')::bigint AS online
       FROM sensors
       WHERE ${nodeWhere}
     `, ...nodeParams),
-    fastify.prisma.$queryRawUnsafe<Array<{
+    fastify.prismaRead.$queryRawUnsafe<Array<{
       hits_24h: bigint; hits_7d: bigint; auth_24h: bigint;
       unique_internal_ips: bigint; last_event: Date | null;
     }>>(`
@@ -99,7 +99,7 @@ async function queryNodes(fastify: FastifyInstance, scope: Scope) {
   const hitScope = sensorScopeClause(scope, 1)
 
   // Registered deception sensors (source of truth for node identity + online).
-  const sensors = await fastify.prisma.$queryRawUnsafe<Array<{
+  const sensors = await fastify.prismaRead.$queryRawUnsafe<Array<{
     sensor_id: string; name: string; ip: string; ports: unknown; last_seen: Date;
   }>>(`
     SELECT sensor_id, name, ip, ports, last_seen
@@ -109,7 +109,7 @@ async function queryNodes(fastify: FastifyInstance, scope: Scope) {
   `, ...sensorParams)
 
   // Activity grouped by node_id (== sensor_id) from the protocol_hits feed.
-  const activity = await fastify.prisma.$queryRawUnsafe<Array<{
+  const activity = await fastify.prismaRead.$queryRawUnsafe<Array<{
     node_id: string; hits: bigint; auth_attempts: bigint; last_hit: Date | null;
   }>>(`
     SELECT
@@ -144,7 +144,7 @@ async function queryNodes(fastify: FastifyInstance, scope: Scope) {
 async function queryKillchain(fastify: FastifyInstance, scope: Scope, limit: number) {
   // limit is a validated integer; sensor params follow it.
   const hitScope = sensorScopeClause(scope, 2, 'ph.sensor_id')
-  const steps = await fastify.prisma.$queryRawUnsafe<KillChainStepRow[]>(`
+  const steps = await fastify.prismaRead.$queryRawUnsafe<KillChainStepRow[]>(`
     SELECT
       ph.data->>'node_id' AS node_id,
       sn.name             AS node_name,
@@ -240,7 +240,7 @@ async function queryEvents(
   const countScope = sensorScopeClause(scope, 2, 'sensor_id')
 
   const [rows, countRows] = await Promise.all([
-    fastify.prisma.$queryRawUnsafe<Array<{
+    fastify.prismaRead.$queryRawUnsafe<Array<{
       id: string; node_id: string | null; node_name: string | null; protocol: string;
       src_ip: string; src_port: number | null; dst_port: number; event_type: string;
       username: string | null; password: string | null; timestamp: Date;
@@ -258,7 +258,7 @@ async function queryEvents(
       ORDER BY ph.timestamp DESC
       LIMIT $2 OFFSET $3
     `, nodeId, limit, offset, ...rowsScope.params),
-    fastify.prisma.$queryRawUnsafe<[{ count: bigint }]>(`
+    fastify.prismaRead.$queryRawUnsafe<[{ count: bigint }]>(`
       SELECT COUNT(*) FROM protocol_hits
       WHERE ${DECEPTION_FILTER} AND ($1::text IS NULL OR data->>'node_id' = $1)${countScope.clause}
     `, nodeId, ...countScope.params),
@@ -276,7 +276,7 @@ export async function deceptionRoutes(fastify: FastifyInstance) {
   // Resolve the :clientSlug param to a scope, or send 404. Used by all the
   // per-client routes below.
   async function resolveScope(clientSlug: string, reply: import('fastify').FastifyReply): Promise<Scope | undefined> {
-    const cs = await resolveClientSensors(fastify.prisma, clientSlug)
+    const cs = await resolveClientSensors(fastify.prismaRead, clientSlug)
     if (!cs) { reply.status(404).send({ error: 'client not found' }); return undefined }
     return cs
   }
