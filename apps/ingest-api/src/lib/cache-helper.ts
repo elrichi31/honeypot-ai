@@ -45,6 +45,14 @@ export async function withCache<T>(
    * port probes), not for data the caller strictly needs.
    */
   coldFallback?: T,
+  /**
+   * On a cold miss, wait up to this many ms for `compute` before giving up and
+   * returning `coldFallback` (the compute keeps running in the background to
+   * warm the cache). Lets the first load surface real data when the compute is
+   * usually fast — e.g. local TCP probes — while still capping latency for the
+   * slow/unreachable case. Only used together with `coldFallback`.
+   */
+  coldWaitMs?: number,
 ): Promise<T> {
   if (!cache) return compute()
 
@@ -82,7 +90,19 @@ export async function withCache<T>(
   // No usable cached value. With a cold fallback, return it now and warm the
   // cache in the background; otherwise the first load must wait for the compute.
   if (coldFallback !== undefined) {
-    void store().catch(() => {})
+    const pending = store()
+    pending.catch(() => {})
+    // Give a fast compute a brief chance to finish so the first load gets real
+    // data instead of the placeholder; fall back if it doesn't make the cap.
+    if (coldWaitMs && coldWaitMs > 0) {
+      const raced = await Promise.race([
+        pending.then((value) => ({ value }), () => ({ value: coldFallback })),
+        new Promise<{ value: T }>((resolve) =>
+          setTimeout(() => resolve({ value: coldFallback }), coldWaitMs),
+        ),
+      ])
+      return raced.value
+    }
     return coldFallback
   }
   return store()

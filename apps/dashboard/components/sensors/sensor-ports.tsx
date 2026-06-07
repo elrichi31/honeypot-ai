@@ -7,7 +7,7 @@ function portTitle(port: number, up: boolean | undefined, probeFailedWhileOnline
   if (up === true) return `Puerto ${port} accesible`
   if (probeFailedWhileOnline) return `Puerto ${port} no alcanzable desde el servidor (firewall o NAT)`
   if (up === false) return `Puerto ${port} offline`
-  return `Puerto ${port} — sin datos de probe`
+  return `Puerto ${port} — comprobando accesibilidad…`
 }
 
 function portClassName(up: boolean | undefined, probeFailedWhileOnline: boolean): string {

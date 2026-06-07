@@ -71,10 +71,14 @@ export async function probeSensorPorts(sensor: SensorRow): Promise<Record<number
 
   if (!sensor.probe_host || displayPorts.length === 0) return {}
 
+  // Probes run in parallel, so the slowest port bounds the total time. Use a
+  // timeout below the list's cold-wait cap (1800ms) so one filtered/closed port
+  // can't push an otherwise-healthy sensor past the cap and lose its result.
+  const PROBE_TIMEOUT_MS = 1500
   const pairs = await Promise.all(
     displayPorts.map(async (displayPort, i) => {
       const probePort = probePorts[i] ?? displayPort
-      return [displayPort, await tcpProbe(sensor.probe_host, probePort)] as const
+      return [displayPort, await tcpProbe(sensor.probe_host, probePort, PROBE_TIMEOUT_MS)] as const
     }),
   )
   return Object.fromEntries(pairs)
