@@ -26,6 +26,7 @@ type KillChainStepRow = {
   timestamp: Date
   public_ip: string | null
   session_id: string | null
+  logdata: unknown
 }
 
 export async function deceptionRoutes(fastify: FastifyInstance) {
@@ -136,6 +137,7 @@ export async function deceptionRoutes(fastify: FastifyInstance) {
           ph.username,
           ph.password,
           ph.timestamp,
+          ph.data->'logdata' AS logdata,
           s.src_ip AS public_ip,
           s.id     AS session_id
         FROM protocol_hits ph
@@ -163,7 +165,8 @@ export async function deceptionRoutes(fastify: FastifyInstance) {
         lastSeen: Date
         steps: Array<{
           nodeId: string | null; protocol: string; dstPort: number;
-          eventType: string; username: string | null; password: string | null; timestamp: Date;
+          eventType: string; username: string | null; password: string | null;
+          timestamp: Date; logdata: unknown;
         }>
       }
       const chains = new Map<string, Chain>()
@@ -193,6 +196,7 @@ export async function deceptionRoutes(fastify: FastifyInstance) {
           username: row.username,
           password: row.password,
           timestamp: row.timestamp,
+          logdata: row.logdata,
         })
       }
 

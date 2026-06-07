@@ -1,9 +1,33 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
-import { Terminal, ChevronRight, Database, Server, Globe, HardDrive, KeyRound, ExternalLink, Ghost } from "lucide-react"
-import { formatDistanceToNow } from "date-fns"
+import { Terminal, ChevronRight, ChevronDown, Database, Server, Globe, HardDrive, KeyRound, ExternalLink, Ghost } from "lucide-react"
+import { formatDistanceToNow, format } from "date-fns"
 import type { KillChain, KillChainStep } from "@/lib/api/deception"
+
+// OpenCanary logdata keys worth surfacing per step, in display order.
+const STEP_FIELD_LABELS: Record<string, string> = {
+  USERNAME: "Usuario",
+  PASSWORD: "Contraseña",
+  PATH: "Ruta",
+  HOSTNAME: "Host",
+  USERAGENT: "User-Agent",
+  USER_AGENT: "User-Agent",
+  REMOTEVERSION: "Cliente",
+  CLIENTVERSION: "Cliente",
+  COMMAND: "Comando",
+}
+
+function stepLogFields(logdata: Record<string, unknown> | null): Array<[string, string]> {
+  if (!logdata) return []
+  const out: Array<[string, string]> = []
+  for (const key of Object.keys(STEP_FIELD_LABELS)) {
+    const v = logdata[key]
+    if (v !== undefined && v !== null && v !== "") out.push([STEP_FIELD_LABELS[key], String(v)])
+  }
+  return out
+}
 
 function serviceIcon(protocol: string) {
   switch (protocol) {
@@ -42,7 +66,64 @@ function StepNode({ step }: { step: KillChainStep }) {
   )
 }
 
+function StepTimeline({ chain }: { chain: KillChain }) {
+  return (
+    <div className="mt-3 border-t border-border/40 pt-3">
+      <p className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/60">
+        Recorrido paso a paso ({chain.steps.length})
+      </p>
+      <ol className="space-y-2">
+        {/* Entry point */}
+        <li className="flex items-start gap-2.5">
+          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-400/15 text-[10px] font-medium text-emerald-300">0</span>
+          <div className="min-w-0">
+            <p className="text-xs text-emerald-300 font-mono">cowrie SSH · entrada</p>
+            <p className="text-[10px] text-muted-foreground/60">El atacante superó el honeypot SSH y entró a la red interna.</p>
+          </div>
+        </li>
+        {chain.steps.map((step, i) => {
+          const fields = stepLogFields(step.logdata)
+          const isAuth = step.eventType === "auth"
+          return (
+            <li key={i} className="flex items-start gap-2.5">
+              <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-medium ${
+                isAuth ? "bg-red-400/15 text-red-300" : "bg-muted text-muted-foreground"
+              }`}>{i + 1}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span className="text-xs font-mono text-foreground">{step.nodeId ?? "?"}</span>
+                  <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                    {serviceIcon(step.protocol)}
+                    {step.protocol.toUpperCase()} :{step.dstPort}
+                  </span>
+                  <span className={`rounded px-1 py-0.5 text-[10px] ${isAuth ? "bg-red-400/15 text-red-300" : "bg-muted/60 text-muted-foreground"}`}>
+                    {isAuth ? "intento de login" : "conexión"}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground/50 font-mono">
+                    {format(new Date(step.timestamp), "HH:mm:ss")}
+                  </span>
+                </div>
+                {fields.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
+                    {fields.map(([label, value]) => (
+                      <span key={label} className="text-[11px] text-muted-foreground">
+                        <span className="text-muted-foreground/50">{label}:</span>{" "}
+                        <span className={`font-mono ${label === "Contraseña" || label === "Usuario" ? "text-red-300" : "text-foreground"}`}>{value}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </li>
+          )
+        })}
+      </ol>
+    </div>
+  )
+}
+
 function ChainRow({ chain }: { chain: KillChain }) {
+  const [expanded, setExpanded] = useState(false)
   return (
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -88,6 +169,16 @@ function ChainRow({ chain }: { chain: KillChain }) {
           </div>
         ))}
       </div>
+
+      {/* Expand to see the step-by-step detail of what each hop captured */}
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="mt-2 inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
+      >
+        {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        {expanded ? "Ocultar recorrido" : "Ver recorrido detallado"}
+      </button>
+      {expanded && <StepTimeline chain={chain} />}
     </div>
   )
 }

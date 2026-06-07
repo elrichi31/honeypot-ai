@@ -30,6 +30,7 @@ export type KillChainStep = {
   username: string | null
   password: string | null
   timestamp: string
+  logdata: Record<string, unknown> | null
 }
 
 export type KillChain = {
