@@ -136,20 +136,32 @@ export async function storageRoutes(fastify: FastifyInstance) {
       suricata_alerts:    'timestamp',
     }
 
+    // Logical config keys that map back to a real table with an extra predicate.
+    // `sessions` (failed: login_success not true) and `sessions_compromised`
+    // (login_success = true) both target the real "sessions" table.
+    const LOGICAL_TABLE: Record<string, { realTable: string; col: string; extra: string }> = {
+      sessions:              { realTable: 'sessions', col: 'started_at', extra: 'login_success IS DISTINCT FROM true' },
+      sessions_compromised:  { realTable: 'sessions', col: 'started_at', extra: 'login_success = true' },
+    }
+
     const rows = await fastify.prisma.retentionSettings.findMany({ orderBy: { tableName: 'asc' } })
 
     // Per table: how old the oldest row is, and how many rows are already past
     // the retention window (i.e. what the next purge will delete from it).
     const perTableResults = await Promise.all(
       rows.map(async row => {
-        const col = TIMESTAMP_COL[row.tableName]
+        const logical = LOGICAL_TABLE[row.tableName]
+        const realTable = logical?.realTable ?? row.tableName
+        const col = logical?.col ?? TIMESTAMP_COL[row.tableName]
         if (!col) return { id: row.id, oldestDaysAgo: null, pendingRows: null }
+        const extraWhere = logical ? `WHERE ${logical.extra}` : ''
+        const pendingExtra = logical ? `AND ${logical.extra}` : ''
         try {
           const res = await fastify.prisma.$queryRawUnsafe<[{ days: number | null; pending: bigint }]>(
             `SELECT
                EXTRACT(EPOCH FROM (NOW() - MIN("${col}"))) / 86400 AS days,
-               COUNT(*) FILTER (WHERE "${col}" < NOW() - (${row.retentionDays} * INTERVAL '1 day')) AS pending
-             FROM "${row.tableName}"`
+               COUNT(*) FILTER (WHERE "${col}" < NOW() - (${row.retentionDays} * INTERVAL '1 day') ${pendingExtra}) AS pending
+             FROM "${realTable}" ${extraWhere}`
           )
           const days = res[0]?.days != null ? Math.floor(Number(res[0].days)) : null
           const pending = res[0]?.pending != null ? Number(res[0].pending) : 0
