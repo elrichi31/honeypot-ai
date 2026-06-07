@@ -66,7 +66,7 @@ async function createConfigVmdk(tmpDir: string, token: string, apiUrl: string): 
   return vmdkPath
 }
 
-function buildOvf(provisionToken: string, apiUrl: string): string {
+function buildOvf(): string {
   // Config disk is always a 1.44 MB FAT floppy (2880 sectors × 512 bytes = 1,474,560 bytes)
   const CONFIG_DISK_BYTES = 1474560
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -202,7 +202,7 @@ export async function POST(
 
       // 6. Write OVF referencing both disks
       const ovfPath = path.join(tmpDir, "honeypot-sensor.ovf")
-      await writeFile(ovfPath, buildOvf(token, ingestUrl), "utf8")
+      await writeFile(ovfPath, buildOvf(), "utf8")
 
       // 7. Package OVA — OVF must be first per spec
       const ovaPath = path.join(tmpDir, "honeypot-sensor.ova")

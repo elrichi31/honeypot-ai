@@ -28,7 +28,6 @@ export function DefenseStats() {
 
   const topType  = data?.byType[0]
   const topIp    = data?.topIps[0]
-  const uniqueIps = data ? new Set(data.topIps.map(i => i.ip)).size : null
 
   const metrics = [
     { icon: ShieldAlert, label: "Attacks today",  value: data ? data.totalToday.toLocaleString() : "—", color: data?.totalToday ? "text-red-400" : "text-emerald-400", bg: data?.totalToday ? "bg-red-400/10" : "bg-emerald-400/10" },

@@ -1,6 +1,6 @@
 import type { Sensor } from "@/lib/api"
 import type { Group, Layout, SensorNode, Cluster } from "./types"
-import { CANVAS_W, STEP, CLIENT_GAP, EXT_Y, INT_Y, INET_Y, NODE_H, INT_LABEL_Y } from "./constants"
+import { CANVAS_W, STEP, CLIENT_GAP, EXT_Y, INT_Y, INET_Y } from "./constants"
 import { isPrivateIp } from "@/lib/ip"
 
 export { isPrivateIp }

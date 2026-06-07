@@ -3,7 +3,6 @@ import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { logAudit } from "@/lib/audit"
 import { requireRole } from "@/lib/roles"
-import { headers } from "next/headers"
 
 export async function GET() {
   const auth_check = await requireRole("admin")

@@ -10,7 +10,6 @@ import {
 import { Plus, Minus, Maximize2, Globe } from "lucide-react"
 import { ISO_A2_TO_NUM } from "@/lib/iso-codes"
 import type { WebCountryAttack } from "@/lib/geo"
-import Link from "next/link"
 import { ATTACK_COLORS as ATTACK_BADGE, ATTACK_COLORS_HEX, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack-types"
 
 const GEO_URL = "/world-110m.json"

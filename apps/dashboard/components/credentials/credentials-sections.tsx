@@ -57,10 +57,6 @@ function SortableHeader({
   )
 }
 
-function StaticHeader({ label }: { label: string }) {
-  return <TableHead className="px-4 py-3 text-xs uppercase text-muted-foreground">{label}</TableHead>
-}
-
 function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
   return (
     <TableRow>

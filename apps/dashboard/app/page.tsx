@@ -20,7 +20,6 @@ import {
 } from "@/lib/api"
 import { lookupIp, geolocateIps } from "@/lib/geo"
 import { readConfig } from "@/lib/server-config"
-import type { TimeRange } from "@/lib/types"
 
 interface CountrySuccessRow {
   country: string
@@ -42,22 +41,6 @@ interface CampaignGeoRow {
   countries: string[]
   countryCount: number
   successRate: number
-}
-
-function getDateRange(range: TimeRange): { startDate: string; endDate: string } {
-  const now = new Date()
-  const end = now.toISOString()
-  const start = new Date(now)
-
-  if (range === "week") {
-    start.setDate(start.getDate() - 6)
-  } else if (range === "month") {
-    start.setDate(start.getDate() - 29)
-  } else {
-    start.setHours(start.getHours() - 23)
-  }
-
-  return { startDate: start.toISOString(), endDate: end }
 }
 
 function buildCountrySuccess(

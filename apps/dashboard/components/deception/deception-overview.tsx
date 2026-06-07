@@ -1,6 +1,6 @@
 "use client"
 
-import { Ghost, Activity, KeyRound, Crosshair, Server } from "lucide-react"
+import { Activity, KeyRound, Crosshair, Server } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import type { DeceptionOverview as Overview } from "@/lib/api/deception"
 

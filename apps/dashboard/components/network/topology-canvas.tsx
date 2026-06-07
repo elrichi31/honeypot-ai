@@ -26,7 +26,7 @@ export function TopologyCanvas({ sensors }: TopologyCanvasProps) {
   const [vpW, setVpW] = useState(0)
   const [vpH, setVpH] = useState(600)
 
-  const { xform, fitTransform, fit, zoom, panHandlers, getDidPan } = useCanvasTransform(viewportRef)
+  const { xform, fit, zoom, panHandlers, getDidPan } = useCanvasTransform(viewportRef)
 
   // Measure viewport and set initial fit transform
   useEffect(() => {

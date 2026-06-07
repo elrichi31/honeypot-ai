@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation"
 import { PageShell } from "@/components/page-shell"
 import Link from "next/link"
-import { format, formatDistanceToNow } from "date-fns"
+import { format } from "date-fns"
 import { ArrowLeft, ShieldAlert, Terminal, Globe, Activity } from "lucide-react"
 import { fetchThreat } from "@/lib/api"
 import { LEVEL_STYLES, CMD_COLORS, CMD_LABELS } from "@/lib/attack-types"

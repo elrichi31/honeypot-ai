@@ -103,10 +103,6 @@ function fmt(n: number) {
   return n.toLocaleString('en-US')
 }
 
-function shortDate(d: Date) {
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
 export async function sendPeriodicReport(prisma: PrismaClient): Promise<void> {
   const { reportIntervalHours } = getAlertConfig()
   const timezone = getTimezone()

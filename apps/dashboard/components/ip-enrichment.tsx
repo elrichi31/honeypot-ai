@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ShieldCheck, AlertTriangle, Building2, MapPin, Loader2, Server, VenetianMask, Clock, Hash, Globe, Flag, MessageSquare, ChevronDown, ChevronUp } from "lucide-react"
+import { ShieldCheck, AlertTriangle, Building2, MapPin, Loader2, Server, Clock, Hash, Globe, Flag, MessageSquare, ChevronDown, ChevronUp } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import type { IpEnrichment, AbuseReport } from "@/app/api/enrich/[ip]/route"
 

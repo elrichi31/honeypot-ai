@@ -1,37 +1,7 @@
 import { Prisma } from '@prisma/client'
 import type { FastifyInstance } from 'fastify'
-import type { TimelineBucket, TimelineRow, SessionTimelineRow, CommandRow, GroupedUsernameRow, GroupedPasswordRow, CountRow } from './types.js'
+import type { TimelineBucket, SessionTimelineRow, CommandRow, GroupedUsernameRow, GroupedPasswordRow, CountRow } from './types.js'
 import { parseDate, toNumber } from './utils.js'
-
-async function getTimeline(
-  fastify: FastifyInstance, timezone: string,
-  startDate: Date, endDate: Date, bucket: TimelineBucket,
-): Promise<TimelineRow[]> {
-  const interval = bucket === 'hour' ? "interval '1 hour'" : "interval '1 day'"
-  const truncUnit = bucket === 'hour' ? 'hour' : 'day'
-  const format = bucket === 'hour' ? 'YYYY-MM-DD HH24:MI' : 'YYYY-MM-DD'
-  const label = bucket === 'hour' ? 'HH24:MI' : 'DD/MM'
-
-  return fastify.prismaRead.$queryRaw<TimelineRow[]>(Prisma.sql`
-    WITH bounds AS (
-      SELECT date_trunc(${truncUnit}, timezone(${timezone}, ${startDate}::timestamptz)) AS start_local,
-             date_trunc(${truncUnit}, timezone(${timezone}, ${endDate}::timestamptz))   AS end_local
-    ),
-    series AS (SELECT generate_series(start_local, end_local, ${Prisma.raw(interval)}) AS bucket_local FROM bounds),
-    counts AS (
-      SELECT date_trunc(${truncUnit}, timezone(${timezone}, event_ts::timestamptz)) AS bucket_local,
-             COUNT(*)::int AS count
-      FROM events
-      WHERE event_ts::timestamptz >= ${startDate}::timestamptz AND event_ts::timestamptz <= ${endDate}::timestamptz
-      GROUP BY 1
-    )
-    SELECT to_char(series.bucket_local, ${format}) AS "bucketStart",
-           to_char(series.bucket_local, ${label})  AS label,
-           COALESCE(counts.count, 0)::int           AS count
-    FROM series LEFT JOIN counts USING (bucket_local)
-    ORDER BY series.bucket_local ASC
-  `)
-}
 
 async function getSessionTimeline(
   fastify: FastifyInstance, timezone: string,

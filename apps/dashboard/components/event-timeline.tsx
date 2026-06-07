@@ -4,7 +4,6 @@ import { useTimezone } from "@/components/timezone-provider"
 import { formatTimeOnly } from "@/lib/timezone"
 import {
   Plug,
-  LogIn,
   LogOut,
   Terminal,
   Key,

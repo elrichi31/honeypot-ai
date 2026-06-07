@@ -43,7 +43,7 @@ function buildSearchClause(search?: string) {
   return Prisma.sql`(COALESCE(username, '') ILIKE ${wildcard} OR COALESCE(password, '') ILIKE ${wildcard} OR src_ip ILIKE ${ipPrefix})`
 }
 
-function defaultSortBy(mainTab: CredentialsMainTab, rankingType: CredentialsRankingType) {
+function defaultSortBy(mainTab: CredentialsMainTab) {
   return mainTab === 'recent' ? 'eventTs' : 'attempts'
 }
 
@@ -88,12 +88,6 @@ function getRankingOrderSql(rankingType: CredentialsRankingType, sortBy: string,
   return Prisma.sql`ORDER BY ${Prisma.raw(col)}`
 }
 
-function getRecentOrderSql(sortBy: string, sortDir: CredentialsSortDirection) {
-  const d = sortDir === 'asc' ? 'ASC' : 'DESC'
-  const col = { status: Prisma.raw(`success ${d} NULLS LAST, event_ts DESC`), username: Prisma.raw(`username ${d} NULLS LAST, event_ts DESC`), password: Prisma.raw(`password ${d} NULLS LAST, event_ts DESC`), srcIp: Prisma.raw(`src_ip ${d}, event_ts DESC`), eventTs: Prisma.raw(`event_ts ${d}`) }[sortBy] ?? Prisma.raw(`event_ts DESC`)
-  return Prisma.sql`ORDER BY ${col}`
-}
-
 export async function credentialsRoute(fastify: FastifyInstance) {
   fastify.get('/stats/credentials', async (request, reply) => {
     const parsed = schema.safeParse(request.query)
@@ -104,9 +98,9 @@ export async function credentialsRoute(fastify: FastifyInstance) {
     const endDate = p.endDate ? parseDate(p.endDate, new Date()) : undefined
     const { page, pageSize, offset } = getPagination(p)
     const search = p.search?.trim()
-    const activeSortBy = p.sortBy ?? defaultSortBy(p.mainTab, p.rankingType)
+    const activeSortBy = p.sortBy ?? defaultSortBy(p.mainTab)
     const activeSortDir = p.sortDir
-    const rankingSortBy = p.mainTab === 'rankings' ? activeSortBy : defaultSortBy('rankings', p.rankingType)
+    const rankingSortBy = p.mainTab === 'rankings' ? activeSortBy : defaultSortBy('rankings')
     const rankingSortDir: CredentialsSortDirection = p.mainTab === 'rankings' ? activeSortDir : 'desc'
     const recentSortBy = p.mainTab === 'recent' ? activeSortBy : 'eventTs'
     const recentSortDir: CredentialsSortDirection = p.mainTab === 'recent' ? activeSortDir : 'desc'

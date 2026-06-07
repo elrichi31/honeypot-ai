@@ -14,8 +14,6 @@ const SERVICE_MAP: Record<string, string[]> = {
 
 const VALID_SERVICES = Object.keys(SERVICE_MAP)
 
-const DEFAULT_SERVICES = VALID_SERVICES.join(',')
-
 export async function sensorProvisionRoutes(fastify: FastifyInstance) {
   // POST /sensor/tokens — generate a provisioning token for a client (auth required)
   fastify.post('/sensor/tokens', async (request, reply) => {

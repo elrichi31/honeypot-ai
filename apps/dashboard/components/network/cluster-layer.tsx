@@ -1,5 +1,5 @@
 import { Lock } from "lucide-react"
-import { NODE_H, EXT_Y, INT_Y, INT_LABEL_Y } from "./constants"
+import { NODE_H, EXT_Y, INT_LABEL_Y } from "./constants"
 import type { Cluster } from "./types"
 
 interface ClusterLayerProps {

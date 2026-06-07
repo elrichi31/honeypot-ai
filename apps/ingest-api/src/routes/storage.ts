@@ -45,7 +45,6 @@ async function getDbStats(fastify: FastifyInstance) {
 
 async function getIngestion(fastify: FastifyInstance, range: Range) {
   const { trunc, slots, intervalSql } = RANGE_CONFIG[range]
-  const truncSql    = Prisma.raw(trunc)
   const intervalRaw = Prisma.raw(`'${intervalSql}'`)
 
   // Average bytes per row

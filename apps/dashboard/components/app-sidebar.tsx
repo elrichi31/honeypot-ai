@@ -15,8 +15,6 @@ import {
   LogOut,
   Globe,
   ChevronDown,
-  FolderSearch,
-  Map,
   ShieldAlert,
   BarChart2,
   Layers3,
