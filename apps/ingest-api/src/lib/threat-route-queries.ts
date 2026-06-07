@@ -20,15 +20,34 @@ export type CommandDetailRow = {
 // memory just to render one page.
 const UNFILTERED_IP_LIMIT = 500
 
-function buildIpFilter(ipFilter: string | undefined, col: Prisma.Sql = Prisma.raw('src_ip')) {
+// Default lookback for the threats list. Scanning all-time grows unbounded; the
+// retention window already caps most tables at ~90 days, so a 90-day cutoff barely
+// changes results while letting the planner prune by the timestamp indexes.
+export const THREATS_WINDOW_DAYS = 90
+
+function cutoff(days: number): Date {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+}
+
+// Builds the WHERE (ip filter + time cutoff) and LIMIT. `tsCol` is the timestamp
+// column for this table (started_at / timestamp); when null no time filter applies.
+function buildIpFilter(
+  ipFilter: string | undefined,
+  col: Prisma.Sql = Prisma.raw('src_ip'),
+  tsCol: Prisma.Sql | null = Prisma.raw('timestamp'),
+  windowDays = THREATS_WINDOW_DAYS,
+) {
+  const conds: Prisma.Sql[] = []
+  if (ipFilter) conds.push(Prisma.sql`${col} ILIKE ${`%${ipFilter}%`}`)
+  if (tsCol) conds.push(Prisma.sql`${tsCol} >= ${cutoff(windowDays)}`)
   return {
-    where: ipFilter ? Prisma.sql`WHERE ${col} ILIKE ${`%${ipFilter}%`}` : Prisma.empty,
+    where: conds.length ? Prisma.sql`WHERE ${Prisma.join(conds, ' AND ')}` : Prisma.empty,
     limit: ipFilter ? Prisma.sql`LIMIT 200` : Prisma.sql`LIMIT ${UNFILTERED_IP_LIMIT}`,
   }
 }
 
 export async function queryThreatSshRows(prisma: PrismaClient, ipFilter?: string) {
-  const { where, limit } = buildIpFilter(ipFilter, Prisma.raw('s.src_ip'))
+  const { where, limit } = buildIpFilter(ipFilter, Prisma.raw('s.src_ip'), Prisma.raw('s.started_at'))
   return prisma.$queryRaw<Array<SshAggRow>>`
     SELECT
       s.src_ip,
@@ -48,7 +67,7 @@ export async function queryThreatSshRows(prisma: PrismaClient, ipFilter?: string
 
 export async function queryThreatCommandRows(prisma: PrismaClient, ipFilter?: string) {
   const ipClause = ipFilter ? Prisma.sql`AND e.src_ip ILIKE ${`%${ipFilter}%`}` : Prisma.empty
-  const where = Prisma.sql`WHERE e.event_type = 'command.input' AND e.command IS NOT NULL ${ipClause}`
+  const where = Prisma.sql`WHERE e.event_type = 'command.input' AND e.command IS NOT NULL AND e.event_ts >= ${cutoff(THREATS_WINDOW_DAYS)} ${ipClause}`
   const limit = ipFilter ? Prisma.sql`LIMIT 2000` : Prisma.sql`LIMIT 10000`
   return prisma.$queryRaw<Array<CommandAggRow>>`
     SELECT DISTINCT e.src_ip, e.command

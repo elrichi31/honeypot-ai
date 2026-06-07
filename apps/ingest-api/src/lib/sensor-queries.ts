@@ -47,18 +47,42 @@ export async function resolveClientId(
 }
 
 export async function querySensors(fastify: FastifyInstance): Promise<SensorRow[]> {
-  return fastify.prisma.$queryRaw<SensorRow[]>`
+  // Event counts come from per-table GROUP BYs joined by sensor_id, not a
+  // correlated COUNT subquery per sensor row. The old form re-scanned a big table
+  // once for every sensor on every /sensors load (every ~30s); these aggregates
+  // each scan once and the planner can use the sensor_id indexes. Read-only, so
+  // route to the replica.
+  return fastify.prismaRead.$queryRaw<SensorRow[]>`
+    WITH ssh_counts AS (
+      SELECT sensor_id, COUNT(*)::bigint AS n FROM sessions GROUP BY sensor_id
+    ),
+    web_counts AS (
+      SELECT sensor_id, COUNT(*)::bigint AS n FROM web_hits GROUP BY sensor_id
+    ),
+    proto_counts AS (
+      -- sensor_id is backfilled from data->>'sensor'; COALESCE covers the few old
+      -- rows where it wasn't, counting each hit once under its effective sensor.
+      SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id, COUNT(*)::bigint AS n
+      FROM protocol_hits
+      WHERE COALESCE(sensor_id, data->>'sensor') IS NOT NULL
+      GROUP BY COALESCE(sensor_id, data->>'sensor')
+    )
     SELECT
       s.sensor_id, c.id AS client_id, c.name AS client_name, c.slug AS client_slug,
       c.code AS client_code, s.name, s.protocol, s.ip, s.version,
       s.ports, s.probe_ports, s.probe_host, s.last_seen, s.created_at,
-      CASE
-        WHEN s.protocol = 'ssh'  THEN (SELECT COUNT(*)::bigint FROM sessions   sess WHERE sess.sensor_id = s.sensor_id)
-        WHEN s.protocol = 'http' THEN (SELECT COUNT(*)::bigint FROM web_hits      wh WHERE wh.sensor_id   = s.sensor_id)
-        ELSE                          (SELECT COUNT(*)::bigint FROM protocol_hits ph WHERE ph.sensor_id   = s.sensor_id OR ph.data->>'sensor' = s.sensor_id)
-      END AS event_count
+      COALESCE(
+        CASE
+          WHEN s.protocol = 'ssh'  THEN sc.n
+          WHEN s.protocol = 'http' THEN wc.n
+          ELSE pc.n
+        END, 0
+      )::bigint AS event_count
     FROM sensors s
-    LEFT JOIN clients c ON c.id = s.client_id
+    LEFT JOIN clients c     ON c.id = s.client_id
+    LEFT JOIN ssh_counts sc ON sc.sensor_id = s.sensor_id
+    LEFT JOIN web_counts wc ON wc.sensor_id = s.sensor_id
+    LEFT JOIN proto_counts pc ON pc.sensor_id = s.sensor_id
     ORDER BY s.last_seen DESC
   `
 }
