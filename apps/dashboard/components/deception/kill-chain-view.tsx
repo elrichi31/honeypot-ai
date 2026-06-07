@@ -52,7 +52,7 @@ function StepNode({ step }: { step: KillChainStep }) {
         isAuth ? "border-red-400/30 bg-red-400/10 text-red-300" : "border-border bg-card text-muted-foreground"
       }`}>
         {serviceIcon(step.protocol)}
-        <span className="font-mono">{step.nodeId ?? "?"}</span>
+        <span className="font-mono">{step.nodeName ?? step.nodeId ?? "?"}</span>
         <span className="text-muted-foreground/60">:{step.dstPort}</span>
         {isAuth && <KeyRound className="h-3 w-3 text-red-400" />}
       </div>
@@ -91,7 +91,7 @@ function StepTimeline({ chain }: { chain: KillChain }) {
               }`}>{i + 1}</span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                  <span className="text-xs font-mono text-foreground">{step.nodeId ?? "?"}</span>
+                  <span className="text-xs font-mono text-foreground">{step.nodeName ?? step.nodeId ?? "?"}</span>
                   <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                     {serviceIcon(step.protocol)}
                     {step.protocol.toUpperCase()} :{step.dstPort}

@@ -56,7 +56,7 @@ function EventDetail({ event }: { event: DeceptionEvent }) {
       {/* Connection facts */}
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
         <Field label="IP origen (interna)" value={`${event.src_ip}${event.src_port ? `:${event.src_port}` : ""}`} />
-        <Field label="Nodo destino" value={event.dst_host ?? event.node_id} />
+        <Field label="Nodo destino" value={event.node_name ?? event.dst_host ?? event.node_id} />
         <Field label="Servicio" value={`${event.protocol.toUpperCase()} :${event.dst_port}`} />
         <Field label="Tipo" value={event.event_type} />
       </div>
@@ -125,7 +125,7 @@ export function DeceptionEventsTable({ events }: { events: DeceptionEvent[] }) {
                     <td className="px-4 py-2 text-muted-foreground/50">
                       {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                     </td>
-                    <td className="px-4 py-2 font-mono text-foreground">{e.node_id ?? "?"}</td>
+                    <td className="px-4 py-2 font-mono text-foreground">{e.node_name ?? e.node_id ?? "?"}</td>
                     <td className="px-4 py-2 font-mono text-muted-foreground">{e.src_ip}</td>
                     <td className="px-4 py-2 text-muted-foreground">{e.protocol.toUpperCase()} :{e.dst_port}</td>
                     <td className="px-4 py-2">

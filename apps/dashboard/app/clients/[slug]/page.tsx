@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { ArrowLeft, Server, Wifi } from "lucide-react"
+import { ArrowLeft, Server, Wifi, Ghost } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { ClientSensorAssignment } from "@/components/clients/client-sensor-assignment"
 import { ClientForwardingSettings } from "@/components/clients/client-forwarding-settings"
@@ -43,6 +43,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ s
 
   const online = clientSensors.filter((sensor) => sensor.online).length
   const totalEvents = clientSensors.reduce((sum, sensor) => sum + sensor.eventsTotal, 0)
+  const hasDeception = clientSensors.some((sensor) => sensor.protocol === "deception")
 
   return (
     <PageShell>
@@ -71,6 +72,15 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ s
           <span className="text-sm text-muted-foreground">total events</span>
         </div>
         <ClientOVADownload client={client} />
+        {hasDeception && (
+          <Link
+            href={`/clients/${client.slug}/deception`}
+            className="inline-flex items-center gap-2 rounded-xl border border-purple-400/30 bg-purple-400/10 px-4 py-3 text-sm font-medium text-purple-300 transition-colors hover:bg-purple-400/20"
+          >
+            <Ghost className="h-4 w-4" />
+            Ver deception
+          </Link>
+        )}
       </div>
 
       <div className="mb-6">

@@ -24,6 +24,7 @@ export type DeceptionNode = {
 
 export type KillChainStep = {
   nodeId: string | null
+  nodeName: string | null
   protocol: string
   dstPort: number
   eventType: string
@@ -48,6 +49,7 @@ export type KillChain = {
 export type DeceptionEvent = {
   id: string
   node_id: string | null
+  node_name: string | null
   protocol: string
   src_ip: string
   src_port: number | null
@@ -81,4 +83,26 @@ export function fetchDeceptionKillchain(limit = 200): Promise<KillChain[]> {
 export function fetchDeceptionEvents(params: { page?: number; limit?: number; nodeId?: string } = {}): Promise<DeceptionEventsResponse> {
   const sp = buildSearchParams(params)
   return apiFetch(`${getApiUrl()}/deception/events?${sp}`, 30)
+}
+
+// ── Per-client (scoped to one client's deception network) ────────────────────
+
+export function fetchClientDeceptionOverview(clientSlug: string): Promise<DeceptionOverview> {
+  return apiFetch(`${getApiUrl()}/clients/${encodeURIComponent(clientSlug)}/deception/overview`, 30)
+}
+
+export function fetchClientDeceptionNodes(clientSlug: string): Promise<DeceptionNode[]> {
+  return apiFetch(`${getApiUrl()}/clients/${encodeURIComponent(clientSlug)}/deception/nodes`, 30)
+}
+
+export function fetchClientDeceptionKillchain(clientSlug: string, limit = 200): Promise<KillChain[]> {
+  return apiFetch(`${getApiUrl()}/clients/${encodeURIComponent(clientSlug)}/deception/killchain?limit=${limit}`, 30)
+}
+
+export function fetchClientDeceptionEvents(
+  clientSlug: string,
+  params: { page?: number; limit?: number; nodeId?: string } = {},
+): Promise<DeceptionEventsResponse> {
+  const sp = buildSearchParams(params)
+  return apiFetch(`${getApiUrl()}/clients/${encodeURIComponent(clientSlug)}/deception/events?${sp}`, 30)
 }

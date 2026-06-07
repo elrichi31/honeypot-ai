@@ -17,8 +17,13 @@ SECRET = os.getenv("INGEST_SHARED_SECRET", "")
 LOG_DIR = os.getenv("OPENCANARY_LOG_DIR", "/var/log/opencanary")
 STATE_DIR = os.getenv("STATE_DIR", "/state")
 READ_FROM_END = os.getenv("READ_FROM_END", "1") == "1"
+# Client this deception network belongs to. The whole 5-node unit is assigned to
+# one client; we suffix each node's sensorId with the (already unique, URL-safe)
+# slug so multiple clients' deception networks don't collide in the sensors table.
+CLIENT_SLUG = os.getenv("CLIENT_SLUG", "").strip()
+CLIENT_NAME = os.getenv("CLIENT_NAME", "").strip()
 
-# Heartbeat sent for each node (node_id → metadata)
+# Heartbeat sent for each node (node_key → metadata)
 NODE_SENSORS: dict[str, dict] = {
     "fake-dc":         {"name": "Deception: DC (10.0.1.2)",         "ip": "10.0.1.2",  "ports": [22, 80],         "protocol": "deception"},
     "fake-intranet":   {"name": "Deception: Intranet (10.0.1.5)",   "ip": "10.0.1.5",  "ports": [22, 80],         "protocol": "deception"},
@@ -26,6 +31,22 @@ NODE_SENSORS: dict[str, dict] = {
     "fake-db-replica": {"name": "Deception: DB Replica (10.0.1.11)", "ip": "10.0.1.11", "ports": [3306],           "protocol": "deception"},
     "fake-cache":      {"name": "Deception: Cache (10.0.1.20)",      "ip": "10.0.1.20", "ports": [22, 80],         "protocol": "deception"},
 }
+
+
+def _sensor_id(node_key: str) -> str:
+    """Per-client unique sensorId for a node. Falls back to the bare id when the
+    deception network isn't assigned to a client."""
+    base = f"opencanary-{node_key}"
+    return f"{base}-{CLIENT_SLUG}" if CLIENT_SLUG else base
+
+
+def _node_key_from_node_id(node_id: str | None) -> str | None:
+    """OpenCanary's device.node_id is 'opencanary-<node_key>' (e.g.
+    opencanary-fake-cache). Strip the prefix to recover the node_key so event
+    sensorIds match the heartbeat sensorIds."""
+    if not node_id:
+        return None
+    return node_id[len("opencanary-"):] if node_id.startswith("opencanary-") else node_id
 
 # OpenCanary logtype → protocol name
 LOGTYPE_PROTOCOL: dict[int, str] = {
@@ -84,11 +105,12 @@ def _post_json(url: str, payload: dict) -> int:
 # ---------------------------------------------------------------------------
 
 def _send_heartbeat(node_key: str, meta: dict) -> None:
+    sensor_id = _sensor_id(node_key)
     payload = {
-        "sensorId": f"opencanary-{node_key}",
+        "sensorId": sensor_id,
         "name": meta["name"],
-        "clientSlug": "",
-        "clientName": "",
+        "clientSlug": CLIENT_SLUG,
+        "clientName": CLIENT_NAME,
         "protocol": meta["protocol"],
         "ip": meta["ip"],
         "version": "opencanary",
@@ -98,7 +120,7 @@ def _send_heartbeat(node_key: str, meta: dict) -> None:
     }
     try:
         _post_json(f"{INGEST_URL}/sensors/heartbeat", payload)
-        print(f"[opencanary-shipper] heartbeat ok sensor=opencanary-{node_key}", flush=True)
+        print(f"[opencanary-shipper] heartbeat ok sensor={sensor_id}", flush=True)
     except Exception as exc:
         print(f"[opencanary-shipper] heartbeat error ({node_key}): {exc}", flush=True)
 
@@ -188,9 +210,18 @@ def _to_event(raw: dict) -> dict | None:
     event_id_source = json.dumps(raw, sort_keys=True, default=str)
     event_id = str(uuid.uuid5(uuid.NAMESPACE_URL, event_id_source))
 
+    # The event's sensorId must match the per-client heartbeat sensorId so the
+    # dashboard can scope events by client (sensor_id IN client's sensors). Derive
+    # it from the OpenCanary node_id rather than using node_id raw. We also set
+    # data.node_id to this same per-client sensorId so the deception views that
+    # GROUP BY data->>'node_id' map cleanly to the sensors row (sensors.name gives
+    # the human label). data.node_raw keeps the original OpenCanary node for ref.
+    node_key = _node_key_from_node_id(raw.get("node_id"))
+    sensor_id = _sensor_id(node_key) if node_key else "opencanary"
+
     return {
         "eventId": event_id,
-        "sensorId": str(raw.get("node_id") or "opencanary"),
+        "sensorId": sensor_id,
         "protocol": protocol,
         "srcIp": src_ip,
         "srcPort": src_port,
@@ -200,7 +231,8 @@ def _to_event(raw: dict) -> dict | None:
         "password": password,
         "data": {
             "source": "opencanary",
-            "node_id": raw.get("node_id"),
+            "node_id": sensor_id,
+            "node_raw": raw.get("node_id"),
             "logtype": logtype,
             "logdata": logdata,
             "dst_host": raw.get("dst_host"),
