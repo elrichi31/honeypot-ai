@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, Fragment } from "react"
 import { format } from "date-fns"
 import { enUS } from "date-fns/locale"
 import {
@@ -270,23 +270,32 @@ export default function AuditPage() {
   const [filterResource, setFilterResource] = useState("")
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  const fetchAudit = useCallback(async () => {
+  const fetchAudit = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
     try {
       const params = new URLSearchParams({ page: String(page), limit: "50" })
       if (filterAction) params.set("action", filterAction)
       if (filterResource) params.set("resource", filterResource)
 
-      const res = await fetch(`/api/audit?${params}`)
+      const res = await fetch(`/api/audit?${params}`, { signal })
       if (res.ok) {
         setData(await res.json())
       }
+    } catch {
+      // ignore aborts (filter changed mid-flight) and transient errors
     } finally {
-      setLoading(false)
+      // Don't flip loading off for a request we aborted — a newer one is running.
+      if (!signal?.aborted) setLoading(false)
     }
   }, [page, filterAction, filterResource])
 
-  useEffect(() => { fetchAudit() }, [fetchAudit])
+  // Re-fetch on filter/page change, cancelling the previous request so a slow
+  // earlier response can't overwrite a newer one (out-of-order results).
+  useEffect(() => {
+    const controller = new AbortController()
+    fetchAudit(controller.signal)
+    return () => controller.abort()
+  }, [fetchAudit])
 
   function handleFilterChange() {
     setPage(1)
@@ -375,9 +384,8 @@ export default function AuditPage() {
                 const isExpanded = expandedId === entry.id
                 const hasDetails = Object.keys(entry.details ?? {}).length > 0
                 return (
-                  <>
+                  <Fragment key={entry.id}>
                     <tr
-                      key={entry.id}
                       onClick={() => hasDetails && setExpandedId(isExpanded ? null : entry.id)}
                       className={`transition-colors ${hasDetails ? "cursor-pointer hover:bg-muted/20" : "hover:bg-muted/10"}`}
                     >
@@ -431,13 +439,13 @@ export default function AuditPage() {
                       </td>
                     </tr>
                     {isExpanded && (
-                      <tr key={`${entry.id}-detail`} className="bg-muted/10">
+                      <tr className="bg-muted/10">
                         <td colSpan={6} className="px-4 py-3">
                           <AuditDetail entry={entry} />
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 )
               })}
             </tbody>

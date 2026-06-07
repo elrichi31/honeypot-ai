@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, Fragment } from "react"
 import { formatDistanceToNow } from "date-fns"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import type { DeceptionEvent } from "@/lib/api/deception"
@@ -116,9 +116,8 @@ export function DeceptionEventsTable({ events }: { events: DeceptionEvent[] }) {
             ) : events.map(e => {
               const isExpanded = expandedId === e.id
               return (
-                <>
+                <Fragment key={e.id}>
                   <tr
-                    key={e.id}
                     onClick={() => setExpandedId(isExpanded ? null : e.id)}
                     className="border-b border-border/20 hover:bg-white/[0.02] cursor-pointer"
                   >
@@ -139,13 +138,13 @@ export function DeceptionEventsTable({ events }: { events: DeceptionEvent[] }) {
                     </td>
                   </tr>
                   {isExpanded && (
-                    <tr key={`${e.id}-detail`}>
+                    <tr>
                       <td colSpan={7} className="p-0">
                         <EventDetail event={e} />
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               )
             })}
           </tbody>
