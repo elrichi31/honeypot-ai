@@ -43,6 +43,26 @@ LOGTYPE_PROTOCOL: dict[int, str] = {
     11001: "vnc",
 }
 
+# Canonical service port per protocol. OpenCanary's dst_port in the event JSON is
+# unreliable for some modules (e.g. the HTTP module reports dst_port=22 even
+# though it served on :80), which surfaced as nonsense like "HTTP :22" in the UI.
+# When the protocol has a well-known port, prefer it over the raw dst_port so the
+# reported service/port pair is always coherent.
+PROTOCOL_PORT: dict[str, int] = {
+    "ftp": 21,
+    "git": 9418,
+    "http": 80,
+    "https": 443,
+    "ssh": 22,
+    "ssh-tunnel": 22,
+    "telnet": 23,
+    "http-proxy": 8080,
+    "mysql": 3306,
+    "mssql": 1433,
+    "smb": 445,
+    "vnc": 5900,
+}
+
 
 # ---------------------------------------------------------------------------
 # HTTP helpers
@@ -145,10 +165,15 @@ def _to_event(raw: dict) -> dict | None:
     src_port_raw = raw.get("src_port")
     src_port = int(src_port_raw) if src_port_raw is not None else None
 
+    # Prefer the protocol's canonical port: OpenCanary's raw dst_port is wrong for
+    # some modules (HTTP reports 22), which would otherwise show as e.g. "HTTP :22".
+    # Fall back to the raw dst_port only when the protocol has no well-known port.
     dst_port_raw = raw.get("dst_port")
-    if dst_port_raw is None:
-        return None
-    dst_port = int(dst_port_raw)
+    dst_port = PROTOCOL_PORT.get(protocol)
+    if dst_port is None:
+        if dst_port_raw is None or int(dst_port_raw) < 0:
+            return None
+        dst_port = int(dst_port_raw)
 
     logdata = raw.get("logdata") or {}
     username = logdata.get("USERNAME") or logdata.get("username") or None
