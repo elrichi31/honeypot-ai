@@ -1,5 +1,7 @@
 "use client"
 
+import { apiFetch } from "@/lib/client-fetch"
+
 import { useMemo, useState } from "react"
 import { Link2, Server, Unlink2, Ghost, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -47,7 +49,7 @@ export function ClientSensorAssignment({
   // Caller owns the optimistic list updates so batch callers can update once.
   async function doAssign(sensor: Sensor): Promise<string | null> {
     try {
-      const res = await fetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/client`, {
+      const res = await apiFetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/client`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clientId: client.id }),
@@ -110,7 +112,7 @@ export function ClientSensorAssignment({
     setMessage(null)
 
     try {
-      const res = await fetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/client`, {
+      const res = await apiFetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/client`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clientId: null }),

@@ -1,5 +1,7 @@
 "use client"
 
+import { apiFetch } from "@/lib/client-fetch"
+
 import { useState, useEffect } from "react"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
@@ -61,7 +63,7 @@ export function AlertsForm() {
   const [error, setError] = useState("")
 
   useEffect(() => {
-    fetch("/api/config")
+    apiFetch("/api/config")
       .then((r) => r.json())
       .then((d) => {
         setCfg({
@@ -86,7 +88,7 @@ export function AlertsForm() {
     setStatus("saving")
     setError("")
     try {
-      const res = await fetch("/api/config", {
+      const res = await apiFetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

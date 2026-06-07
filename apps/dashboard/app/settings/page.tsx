@@ -3,6 +3,7 @@
 import { PageShell } from "@/components/page-shell"
 import { InfrastructureForm } from "@/components/settings/infrastructure-form"
 import { IngestSecretForm } from "@/components/settings/ingest-secret-form"
+import { SessionConfigForm } from "@/components/settings/session-config-form"
 import { OpenAiForm } from "@/components/settings/openai-form"
 import { EnrichmentForm } from "@/components/settings/enrichment-form"
 import { DiscordForm } from "@/components/settings/discord-form"
@@ -19,6 +20,7 @@ export default function SettingsPage() {
       <div className="max-w-2xl space-y-6">
         <InfrastructureForm />
         <IngestSecretForm />
+        <SessionConfigForm />
         <DiscordForm />
         <AlertsForm />
         <OpenAiForm />

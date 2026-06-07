@@ -28,6 +28,7 @@ export async function GET() {
     ingestApiUrl: config.ingestApiUrl ?? process.env.INTERNAL_API_URL ?? "http://localhost:3000",
     ingestSecret: getIngestSecret() ? maskKey(getIngestSecret()) : "",
     hasIngestSecret: !!getIngestSecret(),
+    sessionDurationHours: config.sessionDurationHours ?? 8,
     timezone: config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC",
     alertMinLevel: config.alertMinLevel ?? "critical",
     alertCooldownMinutes: config.alertCooldownMinutes ?? 60,
@@ -69,6 +70,7 @@ export async function POST(req: NextRequest) {
     // Guard against accidentally saving the masked display value back.
     if (!trimmed.includes("•")) config.ingestSecret = trimmed || undefined
   }
+  if ("sessionDurationHours" in body) config.sessionDurationHours = Math.max(1, Math.min(720, Number(body.sessionDurationHours) || 8))
   if ("timezone" in body) config.timezone = body.timezone?.trim() || undefined
   if ("alertMinLevel" in body) config.alertMinLevel = body.alertMinLevel === 'high' ? 'high' : 'critical'
   if ("alertCooldownMinutes" in body) config.alertCooldownMinutes = Math.max(1, Number(body.alertCooldownMinutes) || 60)

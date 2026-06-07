@@ -1,5 +1,7 @@
 "use client"
 
+import { apiFetch } from "@/lib/client-fetch"
+
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -17,7 +19,7 @@ export function DiscordForm() {
   const [testError, setTestError] = useState("")
 
   useEffect(() => {
-    fetch("/api/config")
+    apiFetch("/api/config")
       .then((r) => r.json())
       .then((d) => {
         setHasWebhook(d.hasDiscordWebhook)
@@ -34,7 +36,7 @@ export function DiscordForm() {
       const body: Record<string, string> = {}
       // Only include the URL if the user actually typed something
       if (url.trim()) body.discordWebhookUrl = url.trim()
-      const res = await fetch("/api/config", {
+      const res = await apiFetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -53,7 +55,7 @@ export function DiscordForm() {
     setTesting(true)
     setTestError("")
     try {
-      const res = await fetch("/api/alerts/test", { method: "POST" })
+      const res = await apiFetch("/api/alerts/test", { method: "POST" })
       if (res.status === 401 || res.status === 403) {
         setTestError("Se requiere rol admin para enviar la prueba.")
       } else if (!res.ok) {
@@ -69,7 +71,7 @@ export function DiscordForm() {
   function clear() {
     setUrl("")
     setHasWebhook(false)
-    fetch("/api/config", {
+    apiFetch("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ discordWebhookUrl: "" }),

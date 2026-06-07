@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server"
 import { logAuditDirect } from "@/lib/audit"
 import { lookupIpFull } from "@/lib/geo"
 import { enrichIp } from "@/lib/ip-enrichment"
+import { isPrivateIp, extractClientIp } from "@/lib/ip"
 import { db } from "@/lib/db"
 
 export const runtime = "nodejs"
@@ -11,28 +12,6 @@ export const dynamic = "force-dynamic"
 
 const { GET, POST: authPost } = toNextJsHandler(auth)
 export { GET }
-
-const PRIVATE_IP_RE =
-  /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1$|fc|fd|fe80:|169\.254\.)/i
-
-function isPrivateIp(ip: string): boolean {
-  return PRIVATE_IP_RE.test(ip)
-}
-
-/**
- * IP del cliente. Como el login llega por túnel SSH / proxy, los headers HTTP
- * suelen traer loopback; por eso priorizamos la IP pública que reporta el
- * navegador (x-client-public-ip) y caemos a los headers estándar si no viene.
- */
-function extractIp(req: NextRequest): string | null {
-  const clientReported = req.headers.get("x-client-public-ip")?.trim()
-  if (clientReported && !isPrivateIp(clientReported)) return clientReported
-
-  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-  if (forwarded) return forwarded
-
-  return req.headers.get("x-real-ip") ?? clientReported ?? null
-}
 
 /**
  * Construye los `details` de auditoría para login/logout. Si la IP es pública
@@ -99,7 +78,7 @@ export async function POST(req: NextRequest) {
   const isSignOut = path.endsWith("/sign-out")
   const isSignUp = path.endsWith("/sign-up/email")
 
-  const ip = extractIp(req)
+  const ip = extractClientIp(req.headers)
   const userAgent = req.headers.get("user-agent") ?? null
 
   // For logout: capture who's logged in BEFORE the session is destroyed

@@ -1,5 +1,7 @@
 "use client"
 
+import { apiFetch } from "@/lib/client-fetch"
+
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Settings2 } from "lucide-react"
@@ -69,7 +71,7 @@ export function SensorCard({
   const fetchDockerStatus = useCallback(async (signal?: AbortSignal) => {
     if (!hasContainer) return
     try {
-      const res = await fetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/control`, { cache: "no-store", signal })
+      const res = await apiFetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/control`, { cache: "no-store", signal })
       if (res.ok) {
         const data = await res.json()
         setDockerStatus(data.status ?? null)
@@ -96,7 +98,7 @@ export function SensorCard({
     setDeleteError("")
     setRemoved(true)
     try {
-      const res = await fetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}`, { method: "DELETE" })
+      const res = await apiFetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}`, { method: "DELETE" })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         setDeleteError(data.error ?? `Error ${res.status}`)
@@ -118,7 +120,7 @@ export function SensorCard({
     setControlState("loading")
     setControlMsg("")
     try {
-      const res = await fetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/control`, {
+      const res = await apiFetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/control`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),

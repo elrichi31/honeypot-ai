@@ -1,5 +1,7 @@
 "use client"
 
+import { apiFetch } from "@/lib/client-fetch"
+
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -46,7 +48,7 @@ export function InfrastructureForm() {
   function loadOvaConfig() {
     setOvaLoading(true)
     setOvaError(null)
-    fetch("/api/ova/config")
+    apiFetch("/api/ova/config")
       .then((r) => r.json())
       .then((d: OvaConfig & { error?: string }) => {
         if (d.error) setOvaError(d.error)
@@ -57,7 +59,7 @@ export function InfrastructureForm() {
   }
 
   useEffect(() => {
-    fetch("/api/config")
+    apiFetch("/api/config")
       .then((r) => r.json())
       .then((data) => {
         const hasManualUrl = !!data.ingestApiUrl &&
@@ -88,7 +90,7 @@ export function InfrastructureForm() {
     setStatus("saving")
     setError("")
     try {
-      const res = await fetch("/api/config", {
+      const res = await apiFetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

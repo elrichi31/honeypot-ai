@@ -1,5 +1,7 @@
 "use client"
 
+import { apiFetch } from "@/lib/client-fetch"
+
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { FileText, Save, Send, Settings2, CheckCircle2 } from "lucide-react"
@@ -42,7 +44,7 @@ export function ClientForwardingSettings({ client }: Props) {
     setSaving(true)
     setMessage(null)
     try {
-      const res = await fetch(`/api/clients/${encodeURIComponent(client.id)}`, {
+      const res = await apiFetch(`/api/clients/${encodeURIComponent(client.id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, code, description, forwardUrl }),

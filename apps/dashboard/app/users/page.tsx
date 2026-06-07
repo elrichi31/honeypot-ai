@@ -1,5 +1,7 @@
 "use client"
 
+import { apiFetch } from "@/lib/client-fetch"
+
 import { useEffect, useState } from "react"
 import { formatDistanceToNow } from "date-fns"
 import { es } from "date-fns/locale"
@@ -44,7 +46,7 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
     setError("")
     setLoading(true)
     try {
-      const res = await fetch("/api/users", {
+      const res = await apiFetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password, role }),
@@ -145,7 +147,7 @@ function DeleteConfirmDialog({ user, onClose, onDeleted }: { user: User; onClose
     setLoading(true)
     setError("")
     try {
-      const res = await fetch(`/api/users/${user.id}`, { method: "DELETE" })
+      const res = await apiFetch(`/api/users/${user.id}`, { method: "DELETE" })
       if (!res.ok) { const data = await res.json().catch(() => ({})); setError(data.error ?? "Error al eliminar"); return }
       onDeleted()
     } catch {
@@ -195,7 +197,7 @@ export default function UsersPage() {
   async function fetchAll() {
     setLoading(true)
     try {
-      const [usersRes, meRes] = await Promise.all([fetch("/api/users"), fetch("/api/me")])
+      const [usersRes, meRes] = await Promise.all([apiFetch("/api/users"), apiFetch("/api/me")])
       if (usersRes.ok) setUsers(await usersRes.json())
       if (meRes.ok) setMe(await meRes.json())
     } finally {
@@ -210,7 +212,7 @@ export default function UsersPage() {
   async function handleRoleChange(userId: string, newRole: Role) {
     setChangingRole(userId)
     try {
-      await fetch(`/api/users/${userId}`, {
+      await apiFetch(`/api/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role: newRole }),

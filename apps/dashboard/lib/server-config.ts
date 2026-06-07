@@ -23,6 +23,8 @@ export interface AppConfig {
   // Shared secret sensors use to authenticate to ingest. Configurable so the
   // installer embeds a real secret instead of the .env placeholder.
   ingestSecret?: string
+  // Auth: how long a dashboard login session stays valid (applied on restart).
+  sessionDurationHours?: number
   // Display
   timezone?: string
   // Alert configuration
@@ -66,6 +68,19 @@ export function getOpenAiKey(): string | undefined {
 export function getIngestSecret(): string {
   const config = readConfig()
   return config.ingestSecret || process.env.INGEST_SHARED_SECRET || ""
+}
+
+const DEFAULT_SESSION_HOURS = 8
+
+/**
+ * Session lifetime in seconds for better-auth, from config (clamped 1h–720h).
+ * Read at auth init, so changes apply after a dashboard restart.
+ */
+export function getSessionDurationSeconds(): number {
+  const config = readConfig()
+  const hours = config.sessionDurationHours
+  if (typeof hours !== "number" || !Number.isFinite(hours)) return DEFAULT_SESSION_HOURS * 3600
+  return Math.max(1, Math.min(720, Math.round(hours))) * 3600
 }
 
 function isUsableUrl(url: string | undefined | null): url is string {

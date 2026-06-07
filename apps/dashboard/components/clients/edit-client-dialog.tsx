@@ -1,5 +1,7 @@
 "use client"
 
+import { apiFetch } from "@/lib/client-fetch"
+
 import { useEffect, useState } from "react"
 import { Save, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -44,7 +46,7 @@ export function EditClientDialog({ client, onClose, onSaved }: Props) {
     if (!client) return
     setSaving(true)
     try {
-      const res = await fetch(`/api/clients/${encodeURIComponent(client.id)}`, {
+      const res = await apiFetch(`/api/clients/${encodeURIComponent(client.id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, code, description, forwardUrl }),

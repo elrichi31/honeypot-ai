@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth"
 import { nextCookies } from "better-auth/next-js"
 import { Pool } from "pg"
+import { getSessionDurationSeconds } from "@/lib/server-config"
 
 const authBaseUrl = process.env.BETTER_AUTH_URL || "http://localhost:4000"
 const authBaseUrlObject = new URL(authBaseUrl)
@@ -21,7 +22,7 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   emailAndPassword: { enabled: true },
   session: {
-    expiresIn: 60 * 60 * 8,   // 8 hours
+    expiresIn: getSessionDurationSeconds(),   // configurable in Settings (default 8h)
     updateAge: 60 * 60 * 2,   // re-issue cookie every 2 hours of activity
     cookieCache: {
       enabled: true,

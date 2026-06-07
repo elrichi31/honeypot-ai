@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { apiFetchAudited } from "@/lib/client-fetch"
 import { Download, Globe, Network, Server, CheckCircle2, Terminal, ChevronRight, Loader2, Radar, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -157,7 +158,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
         clientSlug: client.slug,
         clientName: client.name,
       })
-      const res = await fetch(`/api/sensor/install?${params}`)
+      const res = await apiFetchAudited(`/api/sensor/install?${params}`)
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error((data as { error?: string }).error ?? "Download failed")
@@ -175,7 +176,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
     setDownloadingEnv(entry.protocol)
     setError(null)
     try {
-      const res = await fetch(
+      const res = await apiFetchAudited(
         `/api/sensor-bundle?clientSlug=${encodeURIComponent(client.slug)}&sensorType=${encodeURIComponent(entry.protocol)}`,
       )
       if (!res.ok) throw new Error("Download failed")

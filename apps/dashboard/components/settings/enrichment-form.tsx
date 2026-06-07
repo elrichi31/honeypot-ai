@@ -1,5 +1,7 @@
 "use client"
 
+import { apiFetch } from "@/lib/client-fetch"
+
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -73,7 +75,7 @@ export function EnrichmentForm() {
   const [ipinfoError, setIpinfoError] = useState("")
 
   useEffect(() => {
-    fetch("/api/config")
+    apiFetch("/api/config")
       .then((r) => r.json())
       .then((d) => {
         setHasAbuseKey(d.hasAbuseipdbKey)
@@ -90,7 +92,7 @@ export function EnrichmentForm() {
     setStatus("saving")
     setError("")
     try {
-      const res = await fetch("/api/config", {
+      const res = await apiFetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [field]: value }),
@@ -108,7 +110,7 @@ export function EnrichmentForm() {
   function clearKey(field: string, setValue: (s: string) => void, setHas: (b: boolean) => void) {
     setValue("")
     setHas(false)
-    fetch("/api/config", {
+    apiFetch("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [field]: "" }),

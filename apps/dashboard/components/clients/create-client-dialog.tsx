@@ -1,5 +1,7 @@
 "use client"
 
+import { apiFetch } from "@/lib/client-fetch"
+
 import { useState } from "react"
 import { Save, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -47,7 +49,7 @@ export function CreateClientDialog({ trigger, onCreated }: Props) {
     setCreating(true)
     setError("")
     try {
-      const res = await fetch("/api/clients", {
+      const res = await apiFetch("/api/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

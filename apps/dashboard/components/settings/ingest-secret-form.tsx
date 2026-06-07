@@ -1,5 +1,7 @@
 "use client"
 
+import { apiFetch } from "@/lib/client-fetch"
+
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -25,7 +27,7 @@ export function IngestSecretForm() {
   const [dirty, setDirty] = useState(false)
 
   useEffect(() => {
-    fetch("/api/config")
+    apiFetch("/api/config")
       .then((r) => r.json())
       .then((d) => {
         setHasSecret(d.hasIngestSecret)
@@ -39,7 +41,7 @@ export function IngestSecretForm() {
     setStatus("saving")
     setError("")
     try {
-      const res = await fetch("/api/config", {
+      const res = await apiFetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ingestSecret: value }),

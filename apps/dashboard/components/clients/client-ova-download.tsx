@@ -1,5 +1,7 @@
 "use client"
 
+import { apiFetch } from "@/lib/client-fetch"
+
 import { useEffect, useState } from "react"
 import { AlertCircle, Box, CheckCircle2, Download, HardDrive, Loader2, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -52,7 +54,7 @@ export function ClientOVADownload({ client }: Props) {
     if (!open) return
     setConfigLoading(true)
     setConfigError(null)
-    fetch("/api/ova/config")
+    apiFetch("/api/ova/config")
       .then(r => r.json())
       .then((data: OvaConfig & { error?: string }) => {
         if (data.error) setConfigError(data.error)
@@ -76,7 +78,7 @@ export function ClientOVADownload({ client }: Props) {
     setError(null)
 
     try {
-      const res = await fetch(`/api/clients/${client.id}/ova`, {
+      const res = await apiFetch(`/api/clients/${client.id}/ova`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ services: Array.from(selected) }),
@@ -194,7 +196,7 @@ export function ClientOVADownload({ client }: Props) {
 
             {config && (
               <button
-                onClick={() => { setConfig(null); setConfigLoading(true); fetch("/api/ova/config").then(r=>r.json()).then((d: OvaConfig & {error?:string})=>{ if(d.error) setConfigError(d.error); else setConfig(d) }).catch(()=>setConfigError("Error")).finally(()=>setConfigLoading(false)) }}
+                onClick={() => { setConfig(null); setConfigLoading(true); apiFetch("/api/ova/config").then(r=>r.json()).then((d: OvaConfig & {error?:string})=>{ if(d.error) setConfigError(d.error); else setConfig(d) }).catch(()=>setConfigError("Error")).finally(()=>setConfigLoading(false)) }}
                 className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
               >
                 <RefreshCw className="h-3 w-3" /> Redetectar

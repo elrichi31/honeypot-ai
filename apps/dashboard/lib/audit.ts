@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { headers } from "next/headers"
+import { extractClientIp } from "@/lib/ip"
 
 export type AuditAction = "CREATE" | "UPDATE" | "DELETE" | "DOWNLOAD" | "LOGIN" | "LOGOUT"
 export type AuditResource =
@@ -96,17 +97,10 @@ export async function logAudit({
     const session = await auth.api.getSession({ headers: reqHeaders as Headers })
     if (!session?.user) return
 
-    const forwardedFor = request
-      ? request.headers.get("x-forwarded-for")
-      : (await headers()).get("x-forwarded-for")
-    const realIp = request
-      ? request.headers.get("x-real-ip")
-      : (await headers()).get("x-real-ip")
-    const userAgent = request
-      ? request.headers.get("user-agent")
-      : (await headers()).get("user-agent")
-
-    const ip = forwardedFor?.split(",")[0]?.trim() ?? realIp ?? null
+    // Prefer the browser-reported public IP (x-client-public-ip); the raw
+    // forwarded headers are internal (172.x) behind the tunnel/Docker.
+    const ip = extractClientIp(reqHeaders as Headers)
+    const userAgent = reqHeaders.get("user-agent")
 
     await insertAuditRow(
       session.user.id,

@@ -1,5 +1,7 @@
 "use client"
 
+import { apiFetch } from "@/lib/client-fetch"
+
 import { useEffect, useRef, useState } from "react"
 import { Save, X, RotateCcw, Info, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -142,7 +144,7 @@ export function SensorConfigDialog({
     setLoading(true)
     setError("")
     setSaved(false)
-    fetch(`/api/sensors/${encodeURIComponent(sensorId)}/config`, { cache: "no-store" })
+    apiFetch(`/api/sensors/${encodeURIComponent(sensorId)}/config`, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         if (data?.config) setCfg({ ...DEFAULTS, ...data.config })
@@ -161,7 +163,7 @@ export function SensorConfigDialog({
     setSaving(true)
     setError("")
     try {
-      const res = await fetch(`/api/sensors/${encodeURIComponent(sensorId)}/config`, {
+      const res = await apiFetch(`/api/sensors/${encodeURIComponent(sensorId)}/config`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(cfg),

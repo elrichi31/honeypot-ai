@@ -32,6 +32,7 @@ import {
   Bell,
   BookOpen,
   Ghost,
+  MonitorSmartphone,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { signOut, useSession, fetchPublicIp } from "@/lib/auth-client"
@@ -102,6 +103,7 @@ const navSections = [
     minRole: "analyst" as Role,
     items: [
       { title: "Users", href: "/users", icon: Users, minRole: "admin" as Role },
+      { title: "Sessions", href: "/sessions-admin", icon: MonitorSmartphone, minRole: "admin" as Role },
       { title: "Audit Log", href: "/audit", icon: ClipboardList, minRole: "analyst" as Role },
     ],
   },
