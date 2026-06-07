@@ -1,10 +1,17 @@
 import type { Metadata } from 'next'
+import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { TimezoneProvider } from '@/components/timezone-provider'
 import { SidebarLayout } from '@/components/sidebar-layout'
 import { Toaster } from '@/components/ui/sonner'
 import { readConfig } from '@/lib/server-config'
 import './globals.css'
+
+// Loading these registers the Geist / Geist Mono @font-face rules that
+// globals.css references by name (--font-sans: 'Geist', --font-mono: 'Geist Mono').
+// Without these calls the families don't exist and text falls back to serif.
+const geistSans = Geist({ subsets: ['latin'] })
+const geistMono = Geist_Mono({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'HoneyTrap - Honeypot Monitor',
@@ -37,7 +44,7 @@ export default function RootLayout({
   const config = readConfig()
   const timezone = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
   return (
-    <html lang="en" className="bg-background" suppressHydrationWarning>
+    <html lang="en" className={`bg-background ${geistSans.className} ${geistMono.className}`} suppressHydrationWarning>
       <body className="font-sans antialiased">
         <TimezoneProvider timezone={timezone}>
           <SidebarLayout>{children}</SidebarLayout>
