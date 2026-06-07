@@ -21,6 +21,7 @@ interface ProtocolHitRow {
 
 let queue:  ProtocolHitRow[]  = []
 let prisma: PrismaClient | null = null
+let timer:  ReturnType<typeof setInterval> | null = null
 
 async function flush() {
   if (!prisma || queue.length === 0) return
@@ -35,7 +36,14 @@ async function flush() {
 
 export function initProtocolBatch(p: PrismaClient): void {
   prisma = p
-  setInterval(flush, FLUSH_MS)
+  timer = setInterval(flush, FLUSH_MS)
+}
+
+/** Stop the timer and flush any queued hits — call on graceful shutdown so the
+ *  in-memory queue (up to MAX_SIZE) isn't lost when the process exits. */
+export async function stopProtocolBatch(): Promise<void> {
+  if (timer) { clearInterval(timer); timer = null }
+  await flush()
 }
 
 export function enqueueProtocolHit(

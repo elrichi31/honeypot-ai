@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import type { FastifyError } from 'fastify';
+import { ZodError } from 'zod';
 import cors from '@fastify/cors';
 import { checkIngestRateLimit } from './lib/ingest-rate-limiter.js';
 import prismaPlugin from './plugins/prisma.js';
@@ -38,6 +39,12 @@ export async function buildApp() {
   // message for client errors (4xx). 5xx responses stay generic so internal
   // details (stack traces, SQL) never leak to callers.
   app.setErrorHandler((error: FastifyError, request, reply) => {
+    // Validation errors (manual zod .parse() in handlers) are client errors, not
+    // 500s — a ZodError has no statusCode and would otherwise leak as a 500.
+    if (error instanceof ZodError) {
+      request.log.warn({ url: request.url }, 'Validation error')
+      return reply.status(400).send({ error: 'Invalid request', details: error.flatten() })
+    }
     const statusCode = error.statusCode ?? 500
     if (statusCode >= 500) {
       request.log.error({ err: error, url: request.url }, 'Unhandled route error')

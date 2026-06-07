@@ -119,7 +119,25 @@ async function purgeSessions(
   }
 }
 
+// Re-entrancy guard: a purge can take longer than the schedule interval. Without
+// this, the startup run and a scheduled run (or two scheduled runs) could overlap
+// and double-delete / contend. Skip if one is already in progress.
+let retentionRunning = false
+
 async function runRetention(fastify: FastifyInstance) {
+  if (retentionRunning) {
+    fastify.log.warn('[retention] previous run still in progress, skipping this tick')
+    return
+  }
+  retentionRunning = true
+  try {
+    await runRetentionInner(fastify)
+  } finally {
+    retentionRunning = false
+  }
+}
+
+async function runRetentionInner(fastify: FastifyInstance) {
   const settings = await fastify.prisma.retentionSettings.findMany({ where: { enabled: true } })
 
   const perTable: Record<string, number> = {}
