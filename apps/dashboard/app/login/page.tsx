@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Bug, Loader2, AlertCircle, CheckCircle } from "lucide-react"
-import { signIn } from "@/lib/auth-client"
+import { signIn, fetchPublicIp } from "@/lib/auth-client"
 
 function LoginForm() {
   const router = useRouter()
@@ -30,7 +30,15 @@ function LoginForm() {
     setError("")
     setPhase("signing-in")
     try {
-      const result = await signIn.email({ email, password })
+      // El servidor solo ve la IP del túnel/proxy (loopback), así que el
+      // navegador reporta su IP pública real para enriquecer la auditoría.
+      const publicIp = await fetchPublicIp()
+      const result = await signIn.email(
+        { email, password },
+        publicIp
+          ? { headers: { "x-client-public-ip": publicIp } }
+          : undefined,
+      )
       if (result.error) {
         setError(result.error.message ?? "Invalid email or password.")
         setPhase("idle")

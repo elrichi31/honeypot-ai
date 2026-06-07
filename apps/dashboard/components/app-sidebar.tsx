@@ -34,7 +34,7 @@ import {
   Ghost,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { signOut, useSession } from "@/lib/auth-client"
+import { signOut, useSession, fetchPublicIp } from "@/lib/auth-client"
 import { AlertsBell } from "@/components/alerts/alerts-bell"
 
 const navSections = [
@@ -190,7 +190,10 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
   }, [pathname])
 
   async function handleLogout() {
-    await signOut()
+    const publicIp = await fetchPublicIp()
+    await signOut(
+      publicIp ? { fetchOptions: { headers: { "x-client-public-ip": publicIp } } } : undefined,
+    )
     router.push("/login")
   }
 

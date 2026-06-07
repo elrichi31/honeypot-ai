@@ -35,10 +35,26 @@ Cada entrada del audit log captura:
 
 | Accion | Cuando ocurre | Datos adicionales |
 |--------|--------------|-------------------|
-| `LOGIN USER` | Un usuario inicia sesion | IP, pais, ciudad, region, timezone, user-agent |
-| `LOGOUT USER` | Un usuario cierra sesion | IP, pais, ciudad |
+| `LOGIN USER` | Un usuario inicia sesion | IP publica, pais, ciudad, region, timezone, ASN, org/ISP, score de abuso, user-agent |
+| `LOGOUT USER` | Un usuario cierra sesion | IP publica, pais, ASN, org/ISP, score de abuso |
 
-El pais y la ciudad se resuelven offline con **geoip-lite** — sin llamadas externas. Aparecen en la columna **Detalle** de la tabla y en el JSON expandible.
+### IP publica real del cliente
+
+Como el dashboard suele servirse detras de un tunel SSH o un reverse proxy, el servidor
+solo veria la IP de loopback (`127.0.0.1`). Para registrar la IP **real** de quien inicia
+sesion, el navegador consulta su propia IP publica (`api.ipify.org`) y la envia en el header
+`x-client-public-ip` al hacer login/logout. Es best-effort: si la consulta falla, la
+auditoria cae al comportamiento previo (IP de los headers + geoip-lite).
+
+### Enriquecimiento (pais, ASN, abuso)
+
+Cuando la IP es publica se enriquece con **AbuseIPDB** + **ipinfo** (las mismas fuentes que
+el resto del dashboard, con cache en `ip_enrichment_cache`): pais, ciudad, ASN, organizacion/ISP,
+tipo de uso, score de confianza de abuso y flags VPN/Tor/hosting. Si la IP es privada o el
+enriquecimiento externo falla, se resuelve offline con **geoip-lite** como respaldo.
+
+El pais, ASN, org y score de abuso aparecen bajo la IP en la columna **IP** de la tabla; el
+detalle completo esta en el JSON expandible.
 
 ### Usuarios
 

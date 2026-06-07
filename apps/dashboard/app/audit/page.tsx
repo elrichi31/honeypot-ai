@@ -224,7 +224,27 @@ export default function AuditPage() {
                         ) : "—"}
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground font-mono">
-                        {entry.ipAddress ?? "—"}
+                        <div>{entry.ipAddress ?? "—"}</div>
+                        {(() => {
+                          const d = entry.details ?? {}
+                          const country = (d.countryName ?? d.country) as string | undefined
+                          const asn = d.asn as string | undefined
+                          const org = d.org as string | undefined
+                          const score = d.abuseConfidenceScore as number | null | undefined
+                          if (!country && !asn && !org && score == null) return null
+                          return (
+                            <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[10px] font-sans text-muted-foreground/70">
+                              {country && <span>{country}</span>}
+                              {asn && <span className="text-muted-foreground/50">{asn}</span>}
+                              {org && <span className="truncate max-w-[140px]">{org}</span>}
+                              {typeof score === "number" && score > 0 && (
+                                <span className={score >= 80 ? "text-red-400" : score >= 25 ? "text-amber-400" : "text-muted-foreground/60"}>
+                                  abuso {score}%
+                                </span>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </td>
                     </tr>
                     {isExpanded && (
