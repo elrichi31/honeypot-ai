@@ -3,7 +3,10 @@
 import { useEffect, useState, useCallback } from "react"
 import { format } from "date-fns"
 import { enUS } from "date-fns/locale"
-import { ClipboardList, ChevronLeft, ChevronRight, Filter, X } from "lucide-react"
+import {
+  ClipboardList, ChevronLeft, ChevronRight, Filter, X,
+  MapPin, Network, ShieldAlert, Globe, Monitor, Code2,
+} from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 
 type AuditEntry = {
@@ -76,6 +79,186 @@ function Badge({ value, colorMap, labelMap }: { value: string; colorMap: Record<
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${color}`}>
       {labelMap[value] ?? value}
     </span>
+  )
+}
+
+function ScoreBadge({ score }: { score: number }) {
+  const cls =
+    score >= 80 ? "bg-red-500/15 text-red-300 border-red-500/30"
+    : score >= 25 ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
+    : "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+  const label = score >= 80 ? "Alto riesgo" : score >= 25 ? "Sospechosa" : "Limpia"
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium ${cls}`}>
+      {label} · {score}%
+    </span>
+  )
+}
+
+function Flag({ label, on }: { label: string; on: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${
+        on
+          ? "border-orange-500/30 bg-orange-500/10 text-orange-300"
+          : "border-border bg-muted/30 text-muted-foreground/50"
+      }`}
+    >
+      {label}
+    </span>
+  )
+}
+
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
+  if (value === null || value === undefined || value === "") return null
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[10px] uppercase tracking-wide text-muted-foreground/60">{label}</span>
+      <span className="text-xs text-foreground break-words">{value}</span>
+    </div>
+  )
+}
+
+function Section({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-border bg-background px-3 py-2.5">
+      <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+        {icon}
+        {title}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+/** Parsea un user-agent a "Navegador · SO" de forma aproximada. */
+function parseUserAgent(ua: string): string {
+  let browser = "Unknown browser"
+  if (/Edg\//.test(ua)) browser = "Edge"
+  else if (/OPR\/|Opera/.test(ua)) browser = "Opera"
+  else if (/Chrome\//.test(ua)) browser = "Chrome"
+  else if (/Firefox\//.test(ua)) browser = "Firefox"
+  else if (/Safari\//.test(ua)) browser = "Safari"
+
+  let os = "Unknown OS"
+  if (/Windows NT 10/.test(ua)) os = "Windows"
+  else if (/Windows/.test(ua)) os = "Windows"
+  else if (/Mac OS X|Macintosh/.test(ua)) os = "macOS"
+  else if (/Android/.test(ua)) os = "Android"
+  else if (/iPhone|iPad|iOS/.test(ua)) os = "iOS"
+  else if (/Linux/.test(ua)) os = "Linux"
+
+  return `${browser} · ${os}`
+}
+
+function AuditDetail({ entry }: { entry: AuditEntry }) {
+  const [showRaw, setShowRaw] = useState(false)
+  const d = (entry.details ?? {}) as Record<string, unknown>
+  const isSession = entry.action === "LOGIN" || entry.action === "LOGOUT"
+
+  const countryName = (d.countryName ?? d.country) as string | undefined
+  const city = d.city as string | undefined
+  const region = d.region as string | undefined
+  const timezone = d.timezone as string | undefined
+  const asn = d.asn as string | undefined
+  const org = d.org as string | undefined
+  const isp = d.isp as string | undefined
+  const usageType = d.usageType as string | undefined
+  const score = d.abuseConfidenceScore as number | null | undefined
+  const totalReports = d.totalReports as number | null | undefined
+  const isVpn = d.isVpn as boolean | null | undefined
+  const isTor = d.isTor as boolean | null | undefined
+  const isHosting = d.isHosting as boolean | null | undefined
+
+  const hasGeo = isSession && (countryName || city || asn || org || score != null)
+
+  return (
+    <div className="space-y-3">
+      {hasGeo ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Section icon={<MapPin className="h-3.5 w-3.5" />} title="Geolocalización">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+              <Field label="País" value={countryName} />
+              <Field label="Ciudad" value={city} />
+              <Field label="Región" value={region} />
+              <Field label="Zona horaria" value={timezone} />
+            </div>
+          </Section>
+
+          <Section icon={<Network className="h-3.5 w-3.5" />} title="Red">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+              <Field label="ASN" value={asn} />
+              <Field label="Organización" value={org} />
+              <Field label="ISP" value={isp} />
+              <Field label="Tipo de uso" value={usageType} />
+            </div>
+          </Section>
+
+          <Section icon={<ShieldAlert className="h-3.5 w-3.5" />} title="Reputación">
+            <div className="space-y-2">
+              {score != null && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground/60">AbuseIPDB</span>
+                  <ScoreBadge score={score} />
+                </div>
+              )}
+              {totalReports != null && totalReports > 0 && (
+                <Field label="Reportes" value={totalReports.toLocaleString()} />
+              )}
+              {(isVpn != null || isTor != null || isHosting != null) && (
+                <div className="flex flex-wrap gap-1 pt-0.5">
+                  {isVpn != null && <Flag label="VPN" on={!!isVpn} />}
+                  {isTor != null && <Flag label="Tor" on={!!isTor} />}
+                  {isHosting != null && <Flag label="Hosting" on={!!isHosting} />}
+                </div>
+              )}
+            </div>
+          </Section>
+        </div>
+      ) : (
+        // Eventos no-sesión: grilla key/value legible
+        <Section icon={<Globe className="h-3.5 w-3.5" />} title="Detalle del evento">
+          <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+            {Object.entries(d).map(([k, v]) => (
+              <Field
+                key={k}
+                label={k}
+                value={
+                  typeof v === "object" && v !== null
+                    ? JSON.stringify(v)
+                    : v === null
+                      ? "—"
+                      : String(v)
+                }
+              />
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {entry.userAgent && (
+        <div className="flex items-start gap-2 rounded-lg border border-border bg-background px-3 py-2">
+          <Monitor className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <div className="min-w-0">
+            <div className="text-xs font-medium text-foreground">{parseUserAgent(entry.userAgent)}</div>
+            <div className="truncate text-[10px] text-muted-foreground/60">{entry.userAgent}</div>
+          </div>
+        </div>
+      )}
+
+      <button
+        onClick={() => setShowRaw((v) => !v)}
+        className="flex items-center gap-1 text-[11px] text-muted-foreground/70 hover:text-foreground transition-colors"
+      >
+        <Code2 className="h-3 w-3" />
+        {showRaw ? "Ocultar JSON" : "Ver JSON crudo"}
+      </button>
+      {showRaw && (
+        <pre className="rounded-lg bg-background border border-border px-3 py-2 text-xs text-foreground overflow-x-auto whitespace-pre-wrap break-all">
+          {JSON.stringify(entry.details, null, 2)}
+        </pre>
+      )}
+    </div>
   )
 }
 
@@ -250,14 +433,7 @@ export default function AuditPage() {
                     {isExpanded && (
                       <tr key={`${entry.id}-detail`} className="bg-muted/10">
                         <td colSpan={6} className="px-4 py-3">
-                          <pre className="rounded-lg bg-background border border-border px-3 py-2 text-xs text-foreground overflow-x-auto whitespace-pre-wrap break-all">
-                            {JSON.stringify(entry.details, null, 2)}
-                          </pre>
-                          {entry.userAgent && (
-                            <p className="mt-2 text-[11px] text-muted-foreground">
-                              <span className="font-medium">User-Agent:</span> {entry.userAgent}
-                            </p>
-                          )}
+                          <AuditDetail entry={entry} />
                         </td>
                       </tr>
                     )}
