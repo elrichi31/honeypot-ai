@@ -8,6 +8,14 @@ const slugParam   = z.object({ clientSlug: z.string().trim().min(1) })
 const pageQuery   = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(50) })
 const IP_RE       = /^[\d.]{7,15}$|^[0-9a-fA-F:]+:[0-9a-fA-F:]+$/
 
+// The client threats ranking aggregates by IP over the sensors' history. Bound it
+// to a default lookback (retention already caps most tables near 90 days) so the
+// timestamp indexes can prune instead of scanning the full history.
+const THREATS_WINDOW_DAYS = 90
+function threatsCutoff(): Date {
+  return new Date(Date.now() - THREATS_WINDOW_DAYS * 24 * 60 * 60 * 1000)
+}
+
 type LogRow = {
   id: string; source: string; protocol: string; src_ip: string; event_type: string
   ts: Date; message: string | null; command: string | null; username: string | null
@@ -179,6 +187,7 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
     const offset = (page - 1) * pageSize
     const sids   = Prisma.join(cs.sensorIds)
 
+    const since = threatsCutoff()
     const cacheKey = `client:threats:${cs.clientId}:${page}:${pageSize}`
     const result = await withCache(fastify.cache, cacheKey, 60, async () => {
       const [rows, countRows] = await Promise.all([
@@ -189,22 +198,22 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
           FROM (
             SELECT s.src_ip, 'ssh' AS source, 'ssh' AS protocol,
                    COALESCE(s.ended_at, s.started_at) AS ts, COALESCE(s.login_success, false) AS login_success
-            FROM sessions s WHERE s.sensor_id IN (${sids})
+            FROM sessions s WHERE s.sensor_id IN (${sids}) AND s.started_at >= ${since}
             UNION ALL
             SELECT ph.src_ip, 'protocol', ph.protocol, ph.timestamp, false
-            FROM protocol_hits ph WHERE ph.sensor_id IN (${sids})
+            FROM protocol_hits ph WHERE ph.sensor_id IN (${sids}) AND ph.timestamp >= ${since}
             UNION ALL
             SELECT wh.src_ip, 'web', 'http', wh.timestamp, false
-            FROM web_hits wh WHERE wh.sensor_id IN (${sids})
+            FROM web_hits wh WHERE wh.sensor_id IN (${sids}) AND wh.timestamp >= ${since}
           ) AS combined
           GROUP BY src_ip ORDER BY login_successes DESC, last_seen DESC, total_events DESC
           LIMIT ${pageSize} OFFSET ${offset}
         `,
         fastify.prismaRead.$queryRaw<[{ total: bigint }]>`
           SELECT COUNT(DISTINCT src_ip) AS total FROM (
-            SELECT src_ip FROM sessions WHERE sensor_id IN (${sids})
-            UNION ALL SELECT src_ip FROM protocol_hits WHERE sensor_id IN (${sids})
-            UNION ALL SELECT src_ip FROM web_hits WHERE sensor_id IN (${sids})
+            SELECT src_ip FROM sessions WHERE sensor_id IN (${sids}) AND started_at >= ${since}
+            UNION ALL SELECT src_ip FROM protocol_hits WHERE sensor_id IN (${sids}) AND timestamp >= ${since}
+            UNION ALL SELECT src_ip FROM web_hits WHERE sensor_id IN (${sids}) AND timestamp >= ${since}
           ) AS ips
         `,
       ])
