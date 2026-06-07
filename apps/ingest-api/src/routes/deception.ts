@@ -220,9 +220,13 @@ export async function deceptionRoutes(fastify: FastifyInstance) {
         id: string; node_id: string | null; protocol: string; src_ip: string;
         src_port: number | null; dst_port: number; event_type: string;
         username: string | null; password: string | null; timestamp: Date;
+        logtype: number | null; logdata: unknown; dst_host: string | null;
       }>>(`
         SELECT id, data->>'node_id' AS node_id, protocol, src_ip, src_port, dst_port,
-               event_type, username, password, timestamp
+               event_type, username, password, timestamp,
+               (data->>'logtype')::int AS logtype,
+               data->'logdata'         AS logdata,
+               data->>'dst_host'       AS dst_host
         FROM protocol_hits
         WHERE ${DECEPTION_FILTER}
           AND ($1::text IS NULL OR data->>'node_id' = $1)
