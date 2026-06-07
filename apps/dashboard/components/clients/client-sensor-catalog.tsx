@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Download, Globe, Network, Server, CheckCircle2, Terminal, ChevronRight, Loader2 } from "lucide-react"
+import { Download, Globe, Network, Server, CheckCircle2, Terminal, ChevronRight, Loader2, Radar, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -83,6 +83,17 @@ const CATALOG: CatalogEntry[] = [
     iconBg: "bg-blue-400/10",
   },
   {
+    serviceKey: "deception",
+    protocol: "deception",
+    name: "Deception Network (OpenCanary)",
+    description: "Deploys 5 internal trap nodes on 10.0.1.0/24. Requires SSH (Cowrie) as the entry point.",
+    sensorPrefix: "opencanary",
+    ports: "interna 10.0.1.0/24",
+    icon: Radar,
+    iconColor: "text-fuchsia-400",
+    iconBg: "bg-fuchsia-400/10",
+  },
+  {
     serviceKey: null,
     protocol: "dionaea",
     name: "Dionaea Multi-Protocol",
@@ -126,7 +137,14 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
 
   function toggle(key: ServiceKey) {
     setError(null)
-    setSelected((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
+    setSelected((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+      // Deception needs cowrie as its entry point: turning it on forces ssh on.
+      if (key === "deception" && next.includes("deception") && !next.includes("ssh")) {
+        next.push("ssh")
+      }
+      return next
+    })
   }
 
   async function downloadBundle() {
@@ -230,8 +248,8 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
                   className={[
                     "flex flex-col gap-3 rounded-xl border p-4 text-left transition-colors",
                     active
-                      ? "border-cyan-400/50 bg-cyan-400/10"
-                      : "border-border/70 bg-background/50 hover:bg-accent",
+                      ? "border-cyan-400/60 bg-cyan-400/[0.06] ring-1 ring-inset ring-cyan-400/25"
+                      : "border-border/70 bg-background/50 hover:border-border hover:bg-accent/60",
                   ].join(" ")}
                 >
                   <div className="flex items-start gap-3">
@@ -263,7 +281,10 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
                       <p className="text-xs text-muted-foreground mt-0.5">{entry.description}</p>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-1.5">
+                  <div className={[
+                    "flex items-center justify-between rounded-md px-3 py-1.5 transition-colors",
+                    active ? "bg-cyan-400/10" : "bg-muted/50",
+                  ].join(" ")}>
                     <p className="font-mono text-xs text-muted-foreground">{entry.ports}</p>
                     <span className="text-[10px] text-cyan-400/70 font-mono">.sh</span>
                   </div>
@@ -271,6 +292,16 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
               )
             })}
           </div>
+
+          {selected.includes("deception") && (
+            <p className="flex items-start gap-2 rounded-lg bg-amber-400/10 px-3 py-2 text-xs text-amber-300">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                La red de deception requiere SSH (Cowrie) como entrada y despliega 5 nodos trampa
+                internos en 10.0.1.0/24. Se incluye SSH automáticamente.
+              </span>
+            </p>
+          )}
 
           {error && <p className="text-xs text-destructive">{error}</p>}
 
