@@ -425,130 +425,6 @@ services:
           cpus: "0.3"
           pids: 64
 
-  # ── Deception network ──────────────────────────────────────────────────────
-  # OpenCanary trap nodes on deception_net (10.0.1.0/24). Their fixed IPs match
-  # cowrie's /etc/hosts, so an attacker who runs `ssh 10.0.1.10` from inside
-  # cowrie reaches fake-db. Each node writes its log to a shared volume that the
-  # single opencanary-shipper tails and forwards to ingest as protocol_hits.
-  fake-dc:
-    <<: *service-defaults
-    logging: *json-logging
-    build:
-      context: ./sensors/opencanary
-    container_name: fake-dc
-    volumes:
-      - ./sensors/opencanary/configs/fake-dc.json:/etc/opencanary/opencanary.conf:ro
-      - opencanary_logs:/var/log/opencanary
-    networks:
-      deception_net:
-        ipv4_address: 10.0.1.2
-    deploy:
-      resources:
-        limits:
-          cpus: "0.2"
-          pids: 64
-
-  fake-intranet:
-    <<: *service-defaults
-    logging: *json-logging
-    build:
-      context: ./sensors/opencanary
-    container_name: fake-intranet
-    volumes:
-      - ./sensors/opencanary/configs/fake-intranet.json:/etc/opencanary/opencanary.conf:ro
-      - opencanary_logs:/var/log/opencanary
-    networks:
-      deception_net:
-        ipv4_address: 10.0.1.5
-    deploy:
-      resources:
-        limits:
-          cpus: "0.2"
-          pids: 64
-
-  fake-db:
-    <<: *service-defaults
-    logging: *json-logging
-    build:
-      context: ./sensors/opencanary
-    container_name: fake-db
-    volumes:
-      - ./sensors/opencanary/configs/fake-db.json:/etc/opencanary/opencanary.conf:ro
-      - opencanary_logs:/var/log/opencanary
-    networks:
-      deception_net:
-        ipv4_address: 10.0.1.10
-    deploy:
-      resources:
-        limits:
-          cpus: "0.2"
-          pids: 64
-
-  fake-db-replica:
-    <<: *service-defaults
-    logging: *json-logging
-    build:
-      context: ./sensors/opencanary
-    container_name: fake-db-replica
-    volumes:
-      - ./sensors/opencanary/configs/fake-db-replica.json:/etc/opencanary/opencanary.conf:ro
-      - opencanary_logs:/var/log/opencanary
-    networks:
-      deception_net:
-        ipv4_address: 10.0.1.11
-    deploy:
-      resources:
-        limits:
-          cpus: "0.2"
-          pids: 64
-
-  fake-cache:
-    <<: *service-defaults
-    logging: *json-logging
-    build:
-      context: ./sensors/opencanary
-    container_name: fake-cache
-    volumes:
-      - ./sensors/opencanary/configs/fake-cache.json:/etc/opencanary/opencanary.conf:ro
-      - opencanary_logs:/var/log/opencanary
-    networks:
-      deception_net:
-        ipv4_address: 10.0.1.20
-    deploy:
-      resources:
-        limits:
-          cpus: "0.2"
-          pids: 64
-
-  opencanary-shipper:
-    <<: *service-defaults
-    cap_add:
-      - DAC_OVERRIDE
-    logging: *json-logging
-    image: python:3.12-alpine
-    container_name: opencanary-shipper
-    depends_on:
-      ingest-api:
-        condition: service_healthy
-    environment:
-      INGEST_API_URL: http://ingest-api:3000
-      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
-      OPENCANARY_LOG_DIR: /var/log/opencanary
-      STATE_DIR: /state
-      READ_FROM_END: "1"
-    volumes:
-      - opencanary_logs:/var/log/opencanary:ro
-      - opencanary_shipper_state:/state
-      - ./sensors/opencanary/shipper.py:/shipper.py:ro
-    command: ["python3", "/shipper.py"]
-    networks:
-      - honeypot_ingest
-    deploy:
-      resources:
-        limits:
-          cpus: "0.3"
-          pids: 64
-
   port-honeypot:
     <<: *service-defaults
     logging: *json-logging
@@ -677,8 +553,6 @@ volumes:
   dashboard_data:
   vector_data:
   suricata_logs:
-  opencanary_logs:
-  opencanary_shipper_state:
 
 networks:
   edge:
