@@ -1,15 +1,9 @@
 import type { Sensor } from "@/lib/api"
 import type { Group, Layout, SensorNode, Cluster } from "./types"
 import { CANVAS_W, STEP, CLIENT_GAP, EXT_Y, INT_Y, INET_Y, NODE_H, INT_LABEL_Y } from "./constants"
+import { isPrivateIp } from "@/lib/ip"
 
-// ─── IP helpers ───────────────────────────────────────────────────────────────
-export function isPrivateIp(ip: string): boolean {
-  if (!ip || ip === "-") return false
-  const v4 = ip.startsWith("::ffff:") ? ip.slice(7) : ip
-  if (!/^\d+\.\d+\.\d+\.\d+$/.test(v4)) return false
-  const [a, b] = v4.split(".").map(Number)
-  return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
-}
+export { isPrivateIp }
 
 // ─── Group sensors by client ──────────────────────────────────────────────────
 export function buildGroups(sensors: Sensor[]): Group[] {

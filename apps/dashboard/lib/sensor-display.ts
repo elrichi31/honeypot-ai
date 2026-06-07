@@ -1,5 +1,8 @@
 import { Database, Globe, Lock, Network, Server } from "lucide-react"
 
+// Single source of truth lives in lib/ip.ts; re-exported here for existing imports.
+export { isPrivateIp } from "@/lib/ip"
+
 export const PROTOCOL_META: Record<string, { label: string; icon: React.ElementType; color: string; bg: string }> = {
   ssh:         { label: "SSH",       icon: Server,   color: "text-cyan-400",   bg: "bg-cyan-400/10"   },
   ftp:         { label: "FTP",       icon: Server,   color: "text-yellow-400", bg: "bg-yellow-400/10" },
@@ -17,14 +20,6 @@ export const PROTOCOL_META: Record<string, { label: string; icon: React.ElementT
 
 export function getProtocolMeta(protocol: string) {
   return PROTOCOL_META[protocol] ?? { label: protocol, icon: Server, color: "text-slate-400", bg: "bg-slate-400/10" }
-}
-
-export function isPrivateIp(ip: string): boolean {
-  if (!ip || ip === "-") return false
-  const v4 = ip.startsWith("::ffff:") ? ip.slice(7) : ip
-  if (!/^\d+\.\d+\.\d+\.\d+$/.test(v4)) return false
-  const [a, b] = v4.split(".").map(Number)
-  return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
 }
 
 export function formatRelative(value: string | null | undefined): string {

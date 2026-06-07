@@ -3,11 +3,16 @@
 // internal address (e.g. 172.21.0.1 / 127.0.0.1). The browser reports its real
 // public IP in the `x-client-public-ip` header, which we prefer when it's public.
 
+// Single source of truth for "is this a private / non-routable address". Covers
+// IPv4 RFC1918 + loopback/link-local and IPv6 loopback/ULA/link-local, and the
+// IPv4-mapped IPv6 form (::ffff:10.0.0.1) used by sensor display code.
 const PRIVATE_IP_RE =
   /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1$|fc|fd|fe80:|169\.254\.)/i
 
 export function isPrivateIp(ip: string): boolean {
-  return PRIVATE_IP_RE.test(ip)
+  if (!ip || ip === "-") return false
+  const normalized = ip.startsWith("::ffff:") ? ip.slice(7) : ip
+  return PRIVATE_IP_RE.test(normalized)
 }
 
 /**

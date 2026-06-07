@@ -20,16 +20,20 @@ const SESSION_FALLBACK_WINDOW = `interval '2 hours'`
 // sensors; when null, they aggregate across all clients (the global view).
 type Scope = { clientId: string; sensorIds: string[] } | null
 
-// Build the extra SQL + params for restricting protocol_hits to a client's
-// sensors. `col` is the (possibly aliased) sensor_id column. Returns a clause to
-// AND into the WHERE and the param array (appended after any fixed params the
-// caller already uses). When there are zero sensors, returns a clause that
-// matches nothing so a client with no deception shows empty.
-function sensorScopeClause(scope: Scope, startIndex: number, col = 'sensor_id'): { clause: string; params: string[] } {
+// Restrict protocol_hits to a client's sensors. Uses a single array bind
+// (`col = ANY($n::text[])`) so the param count is fixed at exactly one regardless
+// of how many sensors the client has — no dynamic placeholder arithmetic. `index`
+// is that one placeholder's position; `col` is the (possibly aliased) sensor_id
+// column. When there are zero sensors, matches nothing so an empty client shows
+// empty. Global scope (null) adds no clause and no param.
+function sensorScopeClause(
+  scope: Scope,
+  index: number,
+  col = 'sensor_id',
+): { clause: string; params: unknown[] } {
   if (!scope) return { clause: '', params: [] }
   if (scope.sensorIds.length === 0) return { clause: ' AND false', params: [] }
-  const placeholders = scope.sensorIds.map((_, i) => `$${startIndex + i}`).join(', ')
-  return { clause: ` AND ${col} IN (${placeholders})`, params: scope.sensorIds }
+  return { clause: ` AND ${col} = ANY($${index}::text[])`, params: [scope.sensorIds] }
 }
 
 type KillChainStepRow = {
@@ -230,10 +234,10 @@ async function queryEvents(
   nodeId: string | null,
 ) {
   const offset = (page - 1) * limit
-  // Fixed params: $1 nodeId. Sensor scope params follow (from $2).
-  const rowsScope = sensorScopeClause(scope, 2, 'ph.sensor_id')
+  // Fixed params: $1 nodeId, $2 limit, $3 offset; the optional sensor scope is a
+  // single array bind at $4 (positions never shift, so no placeholder math).
+  const rowsScope = sensorScopeClause(scope, 4, 'ph.sensor_id')
   const countScope = sensorScopeClause(scope, 2, 'sensor_id')
-  const nParams = rowsScope.params.length
 
   const [rows, countRows] = await Promise.all([
     fastify.prisma.$queryRawUnsafe<Array<{
@@ -252,8 +256,8 @@ async function queryEvents(
       LEFT JOIN sensors sn ON sn.sensor_id = ph.data->>'node_id'
       WHERE ${DECEPTION_FILTER} AND ($1::text IS NULL OR ph.data->>'node_id' = $1)${rowsScope.clause}
       ORDER BY ph.timestamp DESC
-      LIMIT $${2 + nParams} OFFSET $${3 + nParams}
-    `, nodeId, ...rowsScope.params, limit, offset),
+      LIMIT $2 OFFSET $3
+    `, nodeId, limit, offset, ...rowsScope.params),
     fastify.prisma.$queryRawUnsafe<[{ count: bigint }]>(`
       SELECT COUNT(*) FROM protocol_hits
       WHERE ${DECEPTION_FILTER} AND ($1::text IS NULL OR data->>'node_id' = $1)${countScope.clause}
