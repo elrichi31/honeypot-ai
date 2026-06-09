@@ -2,6 +2,13 @@
 
 import { useSearchParams } from "next/navigation"
 import { useNavTransitionOptional } from "@/lib/use-nav-transition"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 export interface SensorLite {
   sensorId: string
@@ -16,11 +23,16 @@ export interface ClientLite {
   name: string
 }
 
+// Radix Select forbids an empty-string item value, so "all" is the sentinel for
+// "no filter" and is translated to a removed query param.
+const ALL = "__all"
+
 /**
  * Two linked dropdowns to scope web-attacks telemetry to a client and/or a
  * single sensor. Defaults to "all", so the global aggregated view stays the
  * default. Picking a client narrows the sensor list to that client's sensors;
  * picking a sensor sets `?sensorId=`. Both drive URL params and reset paging.
+ * Uses the themed Radix Select so the open menu matches the dark dashboard.
  */
 export function ClientSensorFilter({
   clients,
@@ -44,42 +56,46 @@ export function ClientSensorFilter({
     ? relevantSensors.filter((s) => s.clientSlug === activeClient)
     : relevantSensors
 
-  const onClient = (slug: string) => {
-    if (!slug) pushParams({}, ["clientSlug", "sensorId", "page"])
-    else pushParams({ clientSlug: slug }, ["sensorId", "page"])
+  const onClient = (value: string) => {
+    if (value === ALL) pushParams({}, ["clientSlug", "sensorId", "page"])
+    else pushParams({ clientSlug: value }, ["sensorId", "page"])
   }
-  const onSensor = (id: string) => {
-    if (!id) pushParams({}, ["sensorId", "page"])
-    else pushParams({ sensorId: id }, ["page"])
+  const onSensor = (value: string) => {
+    if (value === ALL) pushParams({}, ["sensorId", "page"])
+    else pushParams({ sensorId: value }, ["page"])
   }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <select
-        value={activeClient}
-        onChange={(e) => onClient(e.target.value)}
-        className="rounded-md border border-border bg-muted/30 px-2.5 py-2 text-xs font-medium text-foreground outline-none focus:border-cyan-400/50"
-        title="Filter by client"
-      >
-        <option value="">All clients</option>
-        {clients.map((c) => (
-          <option key={c.slug} value={c.slug}>{c.name}</option>
-        ))}
-      </select>
-      <select
-        value={activeSensor}
-        onChange={(e) => onSensor(e.target.value)}
-        className="rounded-md border border-border bg-muted/30 px-2.5 py-2 text-xs font-medium text-foreground outline-none focus:border-cyan-400/50 disabled:opacity-40"
-        title="Filter by sensor"
+      <Select value={activeClient || ALL} onValueChange={onClient}>
+        <SelectTrigger size="sm" className="w-[160px] bg-muted/30" aria-label="Filter by client">
+          <SelectValue placeholder="All clients" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL}>All clients</SelectItem>
+          {clients.map((c) => (
+            <SelectItem key={c.slug} value={c.slug}>{c.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={activeSensor || ALL}
+        onValueChange={onSensor}
         disabled={sensorsForClient.length === 0}
       >
-        <option value="">All web sensors</option>
-        {sensorsForClient.map((s) => (
-          <option key={s.sensorId} value={s.sensorId}>
-            {s.name}{s.clientName && !activeClient ? ` · ${s.clientName}` : ""}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger size="sm" className="w-[180px] bg-muted/30" aria-label="Filter by sensor">
+          <SelectValue placeholder="All web sensors" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL}>All web sensors</SelectItem>
+          {sensorsForClient.map((s) => (
+            <SelectItem key={s.sensorId} value={s.sensorId}>
+              {s.name}{s.clientName && !activeClient ? ` · ${s.clientName}` : ""}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   )
 }

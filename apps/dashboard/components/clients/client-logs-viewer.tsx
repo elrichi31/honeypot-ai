@@ -3,6 +3,13 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { ScrollText, ChevronLeft, ChevronRight, RefreshCw, ChevronDown, ChevronRight as CollapseIcon, Search, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { IpEnrichmentPopover } from "@/components/ip-enrichment-popover"
 import { ClientSessionModal } from "@/components/clients/client-session-modal"
 import { formatTs } from "@/lib/formatting"
@@ -145,19 +152,19 @@ export function ClientLogsViewer({ clientSlug, sensors = [] }: Props) {
           </div>
           <div className="flex items-center gap-2">
             {sensors.length > 1 && (
-              <select
-                value={sensorId}
-                onChange={(e) => setSensorFilter(e.target.value)}
-                className="rounded-md border border-border bg-muted/30 px-2 py-1 text-[11px] font-medium text-foreground outline-none focus:border-cyan-400/50"
-                title="Filter by sensor"
-              >
-                <option value="all">All sensors ({sensors.length})</option>
-                {sensors.map((s) => (
-                  <option key={s.sensorId} value={s.sensorId}>
-                    {s.name} · {s.protocol}
-                  </option>
-                ))}
-              </select>
+              <Select value={sensorId} onValueChange={setSensorFilter}>
+                <SelectTrigger size="sm" className="h-7 bg-muted/30 text-[11px]" aria-label="Filter by sensor">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All sensors ({sensors.length})</SelectItem>
+                  {sensors.map((s) => (
+                    <SelectItem key={s.sensorId} value={s.sensorId}>
+                      {s.name} · {s.protocol}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
             <div className="flex gap-0.5 rounded-md border border-border bg-muted/30 p-0.5">
               {SOURCE_TABS.map(tab => (
