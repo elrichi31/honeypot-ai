@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { signOut, useSession, fetchPublicIp } from "@/lib/auth-client"
+import { useT } from "@/components/locale-provider"
 
 function initialsOf(name?: string | null, email?: string | null) {
   const source = name?.trim() || email?.trim() || "?"
@@ -29,6 +30,7 @@ function initialsOf(name?: string | null, email?: string | null) {
  */
 export function SidebarUserCard({ collapsed }: { collapsed: boolean }) {
   const router = useRouter()
+  const t = useT()
   const { data: session } = useSession()
   const user = session?.user
 
@@ -63,7 +65,7 @@ export function SidebarUserCard({ collapsed }: { collapsed: boolean }) {
           <>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-sidebar-foreground">
-                {user?.name ?? "Account"}
+                {user?.name ?? t("user.account")}
               </p>
               <p className="truncate text-[11px] text-muted-foreground">
                 {user?.email ?? ""}
@@ -76,26 +78,26 @@ export function SidebarUserCard({ collapsed }: { collapsed: boolean }) {
 
       <DropdownMenuContent side="top" align="start" className="w-56">
         <DropdownMenuLabel className="flex flex-col">
-          <span className="truncate text-sm font-medium">{user?.name ?? "Account"}</span>
+          <span className="truncate text-sm font-medium">{user?.name ?? t("user.account")}</span>
           <span className="truncate text-xs font-normal text-muted-foreground">{user?.email ?? ""}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/profile" className="cursor-pointer">
             <User className="mr-2 h-4 w-4" />
-            Perfil
+            {t("user.profile")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/settings" className="cursor-pointer">
             <Settings className="mr-2 h-4 w-4" />
-            Settings
+            {t("user.settings")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:text-destructive">
           <LogOut className="mr-2 h-4 w-4" />
-          Log out
+          {t("user.logout")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

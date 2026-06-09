@@ -38,74 +38,85 @@ import { AlertsBell } from "@/components/alerts/alerts-bell"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useSidebarCollapse } from "@/components/sidebar-collapse-context"
 import { SidebarUserCard } from "@/components/sidebar-user-card"
+import { useT } from "@/components/locale-provider"
+import type { TranslationKey } from "@/lib/i18n/dictionaries"
 
+// `key` is a stable identifier (used for React keys + open/closed state), since
+// the visible label (`titleKey` resolved via t()) changes with the locale.
 const navSections = [
   {
-    title: "Inicio",
+    key: "inicio",
+    titleKey: "sidebar.section.inicio",
     icon: BarChart2,
     items: [
-      { title: "Dashboard", href: "/", icon: BarChart2 },
+      { titleKey: "sidebar.item.dashboard", href: "/", icon: BarChart2 },
     ],
   },
   {
-    title: "SSH Honeypot",
+    key: "ssh",
+    titleKey: "sidebar.section.ssh",
     icon: Terminal,
     items: [
-      { title: "Sessions", href: "/sessions", icon: Activity },
-      { title: "Commands", href: "/commands", icon: Terminal },
-      { title: "Credentials", href: "/credentials", icon: Shield },
-      { title: "Campaigns", href: "/campaigns", icon: Crosshair },
+      { titleKey: "sidebar.item.sessions", href: "/sessions", icon: Activity },
+      { titleKey: "sidebar.item.commands", href: "/commands", icon: Terminal },
+      { titleKey: "sidebar.item.credentials", href: "/credentials", icon: Shield },
+      { titleKey: "sidebar.item.campaigns", href: "/campaigns", icon: Crosshair },
     ],
   },
   {
-    title: "Web Honeypot",
+    key: "web",
+    titleKey: "sidebar.section.web",
     icon: Globe,
     items: [
-      { title: "Web Attacks", href: "/web-attacks", icon: Globe },
+      { titleKey: "sidebar.item.webAttacks", href: "/web-attacks", icon: Globe },
     ],
   },
   {
-    title: "Network Honeypots",
+    key: "network",
+    titleKey: "sidebar.section.network",
     icon: Network,
     items: [
-      { title: "Overview", href: "/services", icon: Network },
-      { title: "Deception", href: "/deception", icon: Ghost },
-      { title: "FTP", href: "/services/ftp", icon: HardDrive },
-      { title: "MySQL", href: "/services/mysql", icon: Database },
-      { title: "Port Scan", href: "/services/ports", icon: Radar },
+      { titleKey: "sidebar.item.overview", href: "/services", icon: Network },
+      { titleKey: "sidebar.item.deception", href: "/deception", icon: Ghost },
+      { titleKey: "sidebar.item.ftp", href: "/services/ftp", icon: HardDrive },
+      { titleKey: "sidebar.item.mysql", href: "/services/mysql", icon: Database },
+      { titleKey: "sidebar.item.portScan", href: "/services/ports", icon: Radar },
     ],
   },
   {
-    title: "Intelligence",
+    key: "intelligence",
+    titleKey: "sidebar.section.intelligence",
     icon: Layers3,
     items: [
-      { title: "Alerts",      href: "/alerts",       icon: Bell        },
-      { title: "Threats",     href: "/threats",      icon: ShieldAlert },
-      { title: "Malware",     href: "/malware",      icon: Biohazard   },
-      { title: "Network IDS",    href: "/suricata", icon: FileCode },
-      { title: "API Defense", href: "/api-defense",  icon: Radar       },
+      { titleKey: "sidebar.item.alerts",     href: "/alerts",      icon: Bell        },
+      { titleKey: "sidebar.item.threats",    href: "/threats",     icon: ShieldAlert },
+      { titleKey: "sidebar.item.malware",    href: "/malware",     icon: Biohazard   },
+      { titleKey: "sidebar.item.networkIds", href: "/suricata",    icon: FileCode    },
+      { titleKey: "sidebar.item.apiDefense", href: "/api-defense", icon: Radar       },
     ],
   },
   {
-    title: "Infrastructure",
+    key: "infrastructure",
+    titleKey: "sidebar.section.infrastructure",
     icon: Server,
     items: [
-      { title: "Clients", href: "/clients", icon: Layers3 },
-      { title: "Sensors", href: "/sensors", icon: Server },
-      { title: "Install Guide", href: "/install", icon: BookOpen },
-      { title: "Storage", href: "/storage", icon: HardDrive },
-      { title: "Monitoring", href: "/monitoring", icon: Activity },
-      { title: "Settings", href: "/settings", icon: Settings },
+      { titleKey: "sidebar.item.clients", href: "/clients", icon: Layers3 },
+      { titleKey: "sidebar.item.sensors", href: "/sensors", icon: Server },
+      { titleKey: "sidebar.item.installGuide", href: "/install", icon: BookOpen },
+      { titleKey: "sidebar.item.storage", href: "/storage", icon: HardDrive },
+      { titleKey: "sidebar.item.monitoring", href: "/monitoring", icon: Activity },
+      { titleKey: "sidebar.item.settings", href: "/settings", icon: Settings },
     ],
   },
   {
-    title: "Administration",
+    key: "administration",
+    titleKey: "sidebar.section.administration",
     icon: Users,
     minRole: "analyst" as Role,
     items: [
-      { title: "Users", href: "/users", icon: Users, minRole: "admin" as Role },
-      { title: "Sessions", href: "/sessions-admin", icon: MonitorSmartphone, minRole: "admin" as Role },
-      { title: "Audit Log", href: "/audit", icon: ClipboardList, minRole: "analyst" as Role },
+      { titleKey: "sidebar.item.users", href: "/users", icon: Users, minRole: "admin" as Role },
+      { titleKey: "sidebar.item.adminSessions", href: "/sessions-admin", icon: MonitorSmartphone, minRole: "admin" as Role },
+      { titleKey: "sidebar.item.auditLog", href: "/audit", icon: ClipboardList, minRole: "analyst" as Role },
     ],
   },
 ] as const
@@ -149,6 +160,7 @@ function hasPermission(userRole: Role, required: Role) {
 export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
   const pathname = usePathname()
   const health = useHealthCheck()
+  const t = useT()
   const { collapsed: collapsedState, toggle, setCollapsed } = useSidebarCollapse()
   // The rail (collapsed) mode only applies to the fixed desktop sidebar. Inside
   // the mobile sheet we always render the full expanded panel.
@@ -175,7 +187,7 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
   const initialOpenSections = useMemo(() => {
     const map: Record<string, boolean> = {}
     navSections.forEach((section) => {
-      map[section.title] = section.items.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+      map[section.key] = section.items.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
     })
     return map
   }, [pathname])
@@ -187,7 +199,7 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
       const next = { ...current }
       navSections.forEach((section) => {
         if (section.items.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))) {
-          next[section.title] = true
+          next[section.key] = true
         }
       })
       return next
@@ -196,9 +208,9 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
 
   // Collapsed rail: clicking a section icon expands the panel and opens that
   // section, so a single click takes the user from rail → the items they want.
-  function openSectionFromRail(title: string) {
+  function openSectionFromRail(key: string) {
     setCollapsed(false)
-    setOpenSections((current) => ({ ...current, [title]: true }))
+    setOpenSections((current) => ({ ...current, [key]: true }))
   }
 
   const visibleSections = navSections.filter(
@@ -226,7 +238,7 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
             <>
               <div className="flex-1">
                 <p className="font-semibold text-sidebar-foreground">HoneyTrap</p>
-                <p className="text-[11px] text-muted-foreground">SOC view for the honeypot</p>
+                <p className="text-[11px] text-muted-foreground">{t("sidebar.tagline")}</p>
               </div>
               <AlertsBell />
               {!mobile && (
@@ -234,13 +246,13 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
                   <TooltipTrigger asChild>
                     <button
                       onClick={toggle}
-                      aria-label="Collapse sidebar"
+                      aria-label={t("sidebar.collapse")}
                       className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                     >
                       <PanelLeftClose className="h-4 w-4" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="right">Collapse</TooltipContent>
+                  <TooltipContent side="right">{t("sidebar.collapse")}</TooltipContent>
                 </Tooltip>
               )}
             </>
@@ -254,13 +266,13 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
               <TooltipTrigger asChild>
                 <button
                   onClick={toggle}
-                  aria-label="Expand sidebar"
+                  aria-label={t("sidebar.expand")}
                   className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 >
                   <PanelLeftOpen className="h-4 w-4" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="right">Expand</TooltipContent>
+              <TooltipContent side="right">{t("sidebar.expand")}</TooltipContent>
             </Tooltip>
           </div>
         )}
@@ -272,16 +284,17 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
               (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
             )
             const SectionIcon = section.icon
+            const sectionTitle = t(section.titleKey as TranslationKey)
 
             // Collapsed rail: one icon per section, tooltip with the title, click
             // expands + opens that section.
             if (collapsed) {
               return (
-                <Tooltip key={section.title}>
+                <Tooltip key={section.key}>
                   <TooltipTrigger asChild>
                     <button
-                      onClick={() => openSectionFromRail(section.title)}
-                      aria-label={section.title}
+                      onClick={() => openSectionFromRail(section.key)}
+                      aria-label={sectionTitle}
                       className={cn(
                         "flex h-10 w-full items-center justify-center rounded-lg transition-colors",
                         sectionActive
@@ -292,19 +305,19 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
                       <SectionIcon className="h-4 w-4" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="right">{section.title}</TooltipContent>
+                  <TooltipContent side="right">{sectionTitle}</TooltipContent>
                 </Tooltip>
               )
             }
 
             return (
-              <div key={section.title}>
+              <div key={section.key}>
                 {/* Section header — icon + title, borderless, toggles the group. */}
                 <button
                   onClick={() =>
                     setOpenSections((current) => ({
                       ...current,
-                      [section.title]: !current[section.title],
+                      [section.key]: !current[section.key],
                     }))
                   }
                   className={cn(
@@ -315,16 +328,16 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
                   )}
                 >
                   <SectionIcon className="h-4 w-4 shrink-0" />
-                  <span className="flex-1">{section.title}</span>
+                  <span className="flex-1">{sectionTitle}</span>
                   <ChevronDown
                     className={cn(
                       "h-3.5 w-3.5 shrink-0 transition-transform",
-                      openSections[section.title] && "rotate-180",
+                      openSections[section.key] && "rotate-180",
                     )}
                   />
                 </button>
 
-                {openSections[section.title] && (
+                {openSections[section.key] && (
                   /* Indented sub-items with a vertical guide rail on the left so
                      it reads as a nested group (like the reference). */
                   <div className="ml-[18px] mt-0.5 space-y-0.5 border-l border-border/60 pl-2">
@@ -344,7 +357,7 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
                           )}
                         >
                           <item.icon className="h-4 w-4 shrink-0" />
-                          {item.title}
+                          {t(item.titleKey as TranslationKey)}
                         </Link>
                       )
                     })}
@@ -368,7 +381,7 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  aria-label="Ingest API status"
+                  aria-label={t("sidebar.status")}
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-background/40"
                 >
                   {health.apiOnline === null ? (
@@ -386,17 +399,17 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
               <TooltipContent side="top" className="flex flex-col gap-0.5">
                 <span>
                   {health.apiOnline === null
-                    ? "Conectando..."
+                    ? t("sidebar.status.connecting")
                     : health.apiOnline
-                      ? "Ingest API online"
-                      : "Ingest API offline"}
+                      ? t("sidebar.status.online")
+                      : t("sidebar.status.offline")}
                 </span>
                 <span className="text-muted-foreground">
                   {health.lastEventAt
-                    ? `Last event ${formatDistanceToNow(new Date(health.lastEventAt), { addSuffix: true })}`
+                    ? t("sidebar.status.lastEvent", { time: formatDistanceToNow(new Date(health.lastEventAt), { addSuffix: true }) })
                     : health.apiOnline === false
-                      ? "No connection to backend"
-                      : "No events yet"}
+                      ? t("sidebar.status.noConnection")
+                      : t("sidebar.status.noEvents")}
                 </span>
               </TooltipContent>
             </Tooltip>

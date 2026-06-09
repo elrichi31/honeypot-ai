@@ -1,10 +1,13 @@
 import type { Metadata } from 'next'
+import { cookies } from 'next/headers'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { TimezoneProvider } from '@/components/timezone-provider'
+import { LocaleProvider, LOCALE_COOKIE } from '@/components/locale-provider'
 import { SidebarLayout } from '@/components/sidebar-layout'
 import { Toaster } from '@/components/ui/sonner'
 import { readConfig } from '@/lib/server-config'
+import { DEFAULT_LOCALE, isLocale } from '@/lib/i18n/dictionaries'
 import './globals.css'
 
 // Loading these registers the Geist / Geist Mono @font-face rules that
@@ -36,19 +39,26 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
   const config = readConfig()
   const timezone = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
+
+  const cookieStore = await cookies()
+  const cookieLocale = cookieStore.get(LOCALE_COOKIE)?.value
+  const locale = isLocale(cookieLocale) ? cookieLocale : DEFAULT_LOCALE
+
   return (
-    <html lang="en" className={`bg-background ${geistSans.className} ${geistMono.className}`} suppressHydrationWarning>
+    <html lang={locale} className={`bg-background ${geistSans.className} ${geistMono.className}`} suppressHydrationWarning>
       <body className="font-sans antialiased">
-        <TimezoneProvider timezone={timezone}>
-          <SidebarLayout>{children}</SidebarLayout>
-        </TimezoneProvider>
+        <LocaleProvider initialLocale={locale}>
+          <TimezoneProvider timezone={timezone}>
+            <SidebarLayout>{children}</SidebarLayout>
+          </TimezoneProvider>
+        </LocaleProvider>
         <Toaster richColors position="top-right" />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
