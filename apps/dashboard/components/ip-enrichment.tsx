@@ -85,7 +85,7 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
   if (loading) return (
     <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-      Consultando feeds de inteligencia…
+      Querying intelligence feeds…
     </div>
   )
 
@@ -94,7 +94,7 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
       <div className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <ShieldCheck className="h-4 w-4 text-cyan-400" />
-          <span>IP Enrichment — sin datos en caché</span>
+          <span>IP Enrichment — no cached data</span>
         </div>
         <button onClick={doFetch} className="rounded-lg border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary/80 transition-colors">
           Consultar ahora
@@ -195,7 +195,7 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
                 <div className="flex items-center gap-1.5 col-span-2">
                   <Clock className="h-3 w-3 shrink-0 text-muted-foreground" />
                   <span className="text-muted-foreground">
-                    Último reporte {formatDistanceToNow(new Date(ab.lastReportedAt), { addSuffix: true })}
+                    Last reported {formatDistanceToNow(new Date(ab.lastReportedAt), { addSuffix: true })}
                   </span>
                 </div>
               )}
@@ -233,7 +233,7 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
                   >
                     {showAllReports
                       ? <><ChevronUp className="h-3 w-3" />Ver menos</>
-                      : <><ChevronDown className="h-3 w-3" />Ver {ab.reports.length - 3} más</>}
+                      : <><ChevronDown className="h-3 w-3" />Show {ab.reports.length - 3} more</>}
                   </button>
                 )}
               </div>

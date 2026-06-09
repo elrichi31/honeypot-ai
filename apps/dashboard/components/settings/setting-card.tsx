@@ -19,7 +19,7 @@ export function SaveFeedback({ status, error }: { status: SaveStatus; error: str
   if (status === "saved")
     return (
       <p className="flex items-center gap-1 text-xs text-success">
-        <CheckCircle className="h-3 w-3" /> Guardado correctamente.
+        <CheckCircle className="h-3 w-3" /> Saved successfully.
       </p>
     )
   return null
@@ -33,11 +33,11 @@ export function SaveButton({ status, loading }: { status: SaveStatus; loading: b
       className="bg-primary text-primary-foreground hover:bg-primary/90"
     >
       {status === "saving" ? (
-        <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Guardando</>
+        <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Saving</>
       ) : status === "saved" ? (
-        <><CheckCircle className="mr-1.5 h-3.5 w-3.5" /> Guardado</>
+        <><CheckCircle className="mr-1.5 h-3.5 w-3.5" /> Saved</>
       ) : (
-        "Guardar"
+        "Save"
       )}
     </Button>
   )

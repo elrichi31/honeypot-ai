@@ -13,9 +13,9 @@ export function NetworkTopology({ sensors }: NetworkTopologyProps) {
     return (
       <div className="rounded-xl border border-border bg-card flex flex-col items-center justify-center py-24 text-center">
         <Network className="h-10 w-10 text-muted-foreground/30 mb-3" />
-        <p className="text-sm font-medium text-foreground mb-1">No hay sensores registrados</p>
+        <p className="text-sm font-medium text-foreground mb-1">No sensors registered</p>
         <p className="text-xs text-muted-foreground max-w-sm">
-          Los sensores aparecen aquí automáticamente al iniciar y se agrupan por cliente.
+          Sensors appear here automatically on startup and are grouped by client.
         </p>
       </div>
     )

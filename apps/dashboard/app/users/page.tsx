@@ -52,10 +52,10 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
         body: JSON.stringify({ name, email, password, role }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error ?? "Error al crear usuario"); return }
+      if (!res.ok) { setError(data.error ?? "Failed to create user"); return }
       onCreated()
     } catch {
-      setError("Error de red al crear usuario")
+      setError("Network error while creating user")
     } finally {
       setLoading(false)
     }
@@ -66,8 +66,8 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
       <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <h2 className="text-base font-semibold text-foreground">Crear usuario</h2>
-            <p className="text-sm text-muted-foreground">El usuario podrá acceder al dashboard con estas credenciales.</p>
+            <h2 className="text-base font-semibold text-foreground">Create user</h2>
+            <p className="text-sm text-muted-foreground">The user will be able to access the dashboard with these credentials.</p>
           </div>
           <button onClick={onClose} className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground">
             <X className="h-4 w-4" />
@@ -76,22 +76,22 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Nombre</label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Nombre completo"
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Name</label>
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Full name"
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring" />
           </div>
 
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="usuario@empresa.com"
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="user@company.com"
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring" />
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Contraseña</label>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Password</label>
             <div className="relative">
               <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)}
-                required minLength={8} placeholder="Mínimo 8 caracteres"
+                required minLength={8} placeholder="At least 8 characters"
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring" />
               <button type="button" onClick={() => setShowPassword((v) => !v)}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
@@ -101,7 +101,7 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Rol</label>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Role</label>
             <div className="grid grid-cols-3 gap-2">
               {ROLES.map((r) => (
                 <button key={r} type="button" onClick={() => setRole(r)}
@@ -126,11 +126,11 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose}
               className="rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground">
-              Cancelar
+              Cancel
             </button>
             <button type="submit" disabled={loading}
               className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60">
-              {loading ? "Creando..." : "Crear usuario"}
+              {loading ? "Creating..." : "Create user"}
             </button>
           </div>
         </form>
@@ -148,10 +148,10 @@ function DeleteConfirmDialog({ user, onClose, onDeleted }: { user: User; onClose
     setError("")
     try {
       const res = await apiFetch(`/api/users/${user.id}`, { method: "DELETE" })
-      if (!res.ok) { const data = await res.json().catch(() => ({})); setError(data.error ?? "Error al eliminar"); return }
+      if (!res.ok) { const data = await res.json().catch(() => ({})); setError(data.error ?? "Failed to delete"); return }
       onDeleted()
     } catch {
-      setError("Error de red al eliminar usuario")
+      setError("Network error while deleting user")
     } finally {
       setLoading(false)
     }
@@ -161,23 +161,23 @@ function DeleteConfirmDialog({ user, onClose, onDeleted }: { user: User; onClose
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-foreground">Eliminar usuario</h2>
+          <h2 className="text-base font-semibold text-foreground">Delete user</h2>
           <button onClick={onClose} className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         </div>
         <p className="mb-2 text-sm text-muted-foreground">
-          ¿Eliminar a <span className="font-medium text-foreground">{user.name}</span> ({user.email})?
+          Delete <span className="font-medium text-foreground">{user.name}</span> ({user.email})?
         </p>
-        <p className="mb-5 text-xs text-muted-foreground">Esta acción no se puede deshacer. Se cierran todas sus sesiones activas.</p>
+        <p className="mb-5 text-xs text-muted-foreground">This action cannot be undone. All of their active sessions will be closed.</p>
         {error && <p className="mb-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
         <div className="flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground">
-            Cancelar
+            Cancel
           </button>
           <button onClick={handleDelete} disabled={loading}
             className="rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-60">
-            {loading ? "Eliminando..." : "Eliminar"}
+            {loading ? "Deleting..." : "Delete"}
           </button>
         </div>
       </div>
@@ -227,14 +227,14 @@ export default function UsersPage() {
     <PageShell>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Usuarios</h1>
-          <p className="text-sm text-muted-foreground">Gestiona quién tiene acceso al dashboard y con qué permisos.</p>
+          <h1 className="text-2xl font-semibold text-foreground">Users</h1>
+          <p className="text-sm text-muted-foreground">Manage who has access to the dashboard and with what permissions.</p>
         </div>
         {isAdmin && (
           <button onClick={() => setShowCreate(true)}
             className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90">
             <UserPlus className="h-4 w-4" />
-            Crear usuario
+            Create user
           </button>
         )}
       </div>
@@ -251,20 +251,20 @@ export default function UsersPage() {
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         {loading ? (
-          <div className="px-6 py-16 text-center text-sm text-muted-foreground">Cargando usuarios...</div>
+          <div className="px-6 py-16 text-center text-sm text-muted-foreground">Loading users...</div>
         ) : users.length === 0 ? (
           <div className="px-6 py-16 text-center">
             <Users className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
-            <p className="text-sm font-medium text-foreground mb-1">No hay usuarios</p>
+            <p className="text-sm font-medium text-foreground mb-1">No users</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Nombre</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Name</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Email</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Rol</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Registrado</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Role</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Registered</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground"></th>
               </tr>
             </thead>
@@ -278,7 +278,7 @@ export default function UsersPage() {
                       <div className="flex items-center gap-2">
                         {user.name}
                         {isCurrentUser && (
-                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">tú</span>
+                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">you</span>
                         )}
                       </div>
                     </td>
@@ -311,7 +311,7 @@ export default function UsersPage() {
                       {isAdmin && !isCurrentUser && (
                         <button onClick={() => setDeleteTarget(user)}
                           className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                          title="Eliminar usuario">
+                          title="Delete user">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       )}
@@ -326,7 +326,7 @@ export default function UsersPage() {
 
       {!isAdmin && !loading && (
         <p className="mt-4 text-xs text-muted-foreground text-center">
-          Solo los administradores pueden crear, eliminar o cambiar roles de usuarios.
+          Only administrators can create, delete, or change user roles.
         </p>
       )}
 

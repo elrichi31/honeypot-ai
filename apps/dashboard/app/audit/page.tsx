@@ -87,7 +87,7 @@ function ScoreBadge({ score }: { score: number }) {
     score >= 80 ? "bg-red-500/15 text-red-300 border-red-500/30"
     : score >= 25 ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
     : "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
-  const label = score >= 80 ? "Alto riesgo" : score >= 25 ? "Sospechosa" : "Limpia"
+  const label = score >= 80 ? "High risk" : score >= 25 ? "Suspicious" : "Clean"
   return (
     <span className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium ${cls}`}>
       {label} · {score}%
@@ -131,7 +131,7 @@ function Section({ icon, title, children }: { icon: React.ReactNode; title: stri
   )
 }
 
-/** Parsea un user-agent a "Navegador · SO" de forma aproximada. */
+/** Approximately parses a user-agent into "Browser · OS". */
 function parseUserAgent(ua: string): string {
   let browser = "Unknown browser"
   if (/Edg\//.test(ua)) browser = "Edge"
@@ -176,25 +176,25 @@ function AuditDetail({ entry }: { entry: AuditEntry }) {
     <div className="space-y-3">
       {hasGeo ? (
         <div className="grid gap-3 sm:grid-cols-3">
-          <Section icon={<MapPin className="h-3.5 w-3.5" />} title="Geolocalización">
+          <Section icon={<MapPin className="h-3.5 w-3.5" />} title="Geolocation">
             <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-              <Field label="País" value={countryName} />
-              <Field label="Ciudad" value={city} />
-              <Field label="Región" value={region} />
-              <Field label="Zona horaria" value={timezone} />
+              <Field label="Country" value={countryName} />
+              <Field label="City" value={city} />
+              <Field label="Region" value={region} />
+              <Field label="Timezone" value={timezone} />
             </div>
           </Section>
 
-          <Section icon={<Network className="h-3.5 w-3.5" />} title="Red">
+          <Section icon={<Network className="h-3.5 w-3.5" />} title="Network">
             <div className="grid grid-cols-2 gap-x-3 gap-y-2">
               <Field label="ASN" value={asn} />
-              <Field label="Organización" value={org} />
+              <Field label="Organization" value={org} />
               <Field label="ISP" value={isp} />
-              <Field label="Tipo de uso" value={usageType} />
+              <Field label="Usage type" value={usageType} />
             </div>
           </Section>
 
-          <Section icon={<ShieldAlert className="h-3.5 w-3.5" />} title="Reputación">
+          <Section icon={<ShieldAlert className="h-3.5 w-3.5" />} title="Reputation">
             <div className="space-y-2">
               {score != null && (
                 <div className="flex flex-col gap-1">
@@ -203,7 +203,7 @@ function AuditDetail({ entry }: { entry: AuditEntry }) {
                 </div>
               )}
               {totalReports != null && totalReports > 0 && (
-                <Field label="Reportes" value={totalReports.toLocaleString()} />
+                <Field label="Reports" value={totalReports.toLocaleString()} />
               )}
               {(isVpn != null || isTor != null || isHosting != null) && (
                 <div className="flex flex-wrap gap-1 pt-0.5">
@@ -216,8 +216,8 @@ function AuditDetail({ entry }: { entry: AuditEntry }) {
           </Section>
         </div>
       ) : (
-        // Eventos no-sesión: grilla key/value legible
-        <Section icon={<Globe className="h-3.5 w-3.5" />} title="Detalle del evento">
+        // Non-session events: readable key/value grid
+        <Section icon={<Globe className="h-3.5 w-3.5" />} title="Event detail">
           <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
             {Object.entries(d).map(([k, v]) => (
               <Field
@@ -251,7 +251,7 @@ function AuditDetail({ entry }: { entry: AuditEntry }) {
         className="flex items-center gap-1 text-[11px] text-muted-foreground/70 hover:text-foreground transition-colors"
       >
         <Code2 className="h-3 w-3" />
-        {showRaw ? "Ocultar JSON" : "Ver JSON crudo"}
+        {showRaw ? "Hide JSON" : "View raw JSON"}
       </button>
       {showRaw && (
         <pre className="rounded-lg bg-background border border-border px-3 py-2 text-xs text-foreground overflow-x-auto whitespace-pre-wrap break-all">
@@ -431,7 +431,7 @@ export default function AuditPage() {
                               {org && <span className="truncate max-w-[140px]">{org}</span>}
                               {typeof score === "number" && score > 0 && (
                                 <span className={score >= 80 ? "text-red-400" : score >= 25 ? "text-amber-400" : "text-muted-foreground/60"}>
-                                  abuso {score}%
+                                  abuse {score}%
                                 </span>
                               )}
                             </div>

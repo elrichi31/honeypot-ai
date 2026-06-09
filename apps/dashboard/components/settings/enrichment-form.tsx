@@ -133,7 +133,7 @@ export function EnrichmentForm() {
           id="abuseipdb-key"
           label="AbuseIPDB API Key"
           placeholder="your-abuseipdb-key"
-          hint="Free: 1,000 checks/día · abuseipdb.com/account/api"
+          hint="Free: 1,000 checks/day · abuseipdb.com/account/api"
           value={abuseKey}
           hasKey={hasAbuseKey}
           loading={abuseStatus === "loading"}
@@ -150,7 +150,7 @@ export function EnrichmentForm() {
           id="ipinfo-key"
           label="ipinfo.io API Key"
           placeholder="your-ipinfo-token"
-          hint="Free: 50,000 requests/mes (funciona sin key, key solo sube el límite) · ipinfo.io/signup"
+          hint="Free: 50,000 requests/month (works without a key, the key only raises the limit) · ipinfo.io/signup"
           value={ipinfoKey}
           hasKey={hasIpinfoKey}
           loading={ipinfoStatus === "loading"}
@@ -162,8 +162,8 @@ export function EnrichmentForm() {
         />
 
         <div className="rounded-lg border border-border bg-secondary/50 p-3 text-xs text-muted-foreground">
-          <p className="mb-1 font-medium text-foreground">Cómo funciona</p>
-          <p>Al abrir el detalle de una amenaza o sesión, se consultan estas APIs. El resultado se cachea <strong>7 días</strong> (AbuseIPDB) y <strong>30 días</strong> (ipinfo) para no desperdiciar quota. ipinfo funciona sin key.</p>
+          <p className="mb-1 font-medium text-foreground">How it works</p>
+          <p>When you open a threat or session detail, these APIs are queried. The result is cached for <strong>7 days</strong> (AbuseIPDB) and <strong>30 days</strong> (ipinfo) to avoid wasting quota. ipinfo works without a key.</p>
         </div>
       </div>
     </div>

@@ -53,8 +53,8 @@ export default async function DeceptionPage({
     return (
       <PageShell>
         <SectionError
-          title="No se pudo cargar la red de deception"
-          message="El servidor tardó demasiado o no respondió. Reintenta en unos segundos."
+          title="Could not load the deception network"
+          message="The server took too long or did not respond. Try again in a few seconds."
         />
       </PageShell>
     )
@@ -78,14 +78,14 @@ export default async function DeceptionPage({
           <h1 className="text-2xl font-semibold text-foreground">Deception Network</h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          Movimiento lateral del atacante dentro de la red trampa interna (OpenCanary). Cada
-          interacción con un nodo confirma que superó el honeypot SSH.
+          Attacker lateral movement inside the internal trap network (OpenCanary). Each
+          interaction with a node confirms they got past the SSH honeypot.
         </p>
       </div>
 
       <div className="mb-6 rounded-xl border border-border bg-card p-4">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-xs text-muted-foreground">Filtrar:</span>
+          <span className="text-xs text-muted-foreground">Filter:</span>
           <DeceptionFilter
             clients={clients.map((c) => ({ slug: c.slug, name: c.name }))}
             nodes={deceptionSensors.map((s) => ({
@@ -102,12 +102,12 @@ export default async function DeceptionPage({
         <DeceptionOverview data={data.overview} />
 
         <section>
-          <h2 className="mb-3 text-sm font-semibold text-foreground">Kill-chain · movimiento lateral</h2>
+          <h2 className="mb-3 text-sm font-semibold text-foreground">Kill-chain · lateral movement</h2>
           <KillChainView chains={data.chains} />
         </section>
 
         <section>
-          <h2 className="mb-3 text-sm font-semibold text-foreground">Nodos trampa</h2>
+          <h2 className="mb-3 text-sm font-semibold text-foreground">Trap nodes</h2>
           <DeceptionNodesGrid nodes={visibleNodes} />
         </section>
 

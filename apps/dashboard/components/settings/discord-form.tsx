@@ -46,7 +46,7 @@ export function DiscordForm() {
       setStatus("saved")
       setTimeout(() => setStatus("idle"), 3000)
     } catch {
-      setError("No se pudo guardar.")
+      setError("Could not save.")
       setStatus("error")
     }
   }
@@ -57,12 +57,12 @@ export function DiscordForm() {
     try {
       const res = await apiFetch("/api/alerts/test", { method: "POST" })
       if (res.status === 401 || res.status === 403) {
-        setTestError("Se requiere rol admin para enviar la prueba.")
+        setTestError("Admin role is required to send the test.")
       } else if (!res.ok) {
-        setTestError("Error al enviar la prueba.")
+        setTestError("Failed to send the test.")
       }
     } catch {
-      setTestError("No se pudo conectar.")
+      setTestError("Could not connect.")
     } finally {
       setTesting(false)
     }
@@ -80,7 +80,7 @@ export function DiscordForm() {
 
   const badge = hasWebhook ? (
     <span className="flex items-center gap-1 rounded-full bg-success/20 px-2 py-0.5 text-xs text-success">
-      <CheckCircle className="h-3 w-3" /> Configurado
+      <CheckCircle className="h-3 w-3" /> Configured
     </span>
   ) : undefined
 
@@ -90,8 +90,8 @@ export function DiscordForm() {
         icon={Bell}
         iconBg="bg-indigo-500/20"
         iconColor="text-indigo-400"
-        title="Alertas Discord"
-        description="Notificaciones en tiempo real de eventos críticos del honeypot"
+        title="Discord alerts"
+        description="Real-time notifications of critical honeypot events"
         badge={badge}
       />
 
@@ -108,7 +108,7 @@ export function DiscordForm() {
                 <Input
                   id="discord-webhook"
                   type={show ? "text" : "password"}
-                  placeholder={hasWebhook ? "Pega una URL nueva para reemplazar el webhook actual" : "https://discord.com/api/webhooks/..."}
+                  placeholder={hasWebhook ? "Paste a new URL to replace the current webhook" : "https://discord.com/api/webhooks/..."}
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && save()}
@@ -140,7 +140,7 @@ export function DiscordForm() {
           </div>
           <SaveFeedback status={status} error={error} />
           <p className="text-xs text-muted-foreground">
-            Discord → canal → Editar → Integraciones → Webhooks → Nuevo Webhook → Copiar URL
+            Discord → channel → Edit → Integrations → Webhooks → New Webhook → Copy URL
           </p>
         </div>
 
@@ -154,8 +154,8 @@ export function DiscordForm() {
               className="gap-2 self-start"
             >
               {testing
-                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Enviando...</>
-                : <><Send className="h-3.5 w-3.5" />Enviar mensaje de prueba</>}
+                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Sending...</>
+                : <><Send className="h-3.5 w-3.5" />Send test message</>}
             </Button>
             {testError && (
               <p className="flex items-center gap-1.5 text-xs text-destructive">
@@ -166,10 +166,10 @@ export function DiscordForm() {
         )}
 
         <div className="rounded-lg border border-border bg-secondary/50 p-3 text-xs text-muted-foreground">
-          <p className="mb-1 font-medium text-foreground">Cuándo recibirás alertas</p>
+          <p className="mb-1 font-medium text-foreground">When you'll receive alerts</p>
           <ul className="space-y-0.5">
-            <li>🔓 <strong>Login SSH exitoso</strong> — un atacante autenticó correctamente</li>
-            <li>🚨 <strong>IP con abuse score ≥ 80%</strong> — detectada al consultar enrichment</li>
+            <li>🔓 <strong>Successful SSH login</strong> — an attacker authenticated successfully</li>
+            <li>🚨 <strong>IP with abuse score ≥ 80%</strong> — detected when querying enrichment</li>
           </ul>
         </div>
       </div>

@@ -45,9 +45,9 @@ export default function AlertsPage() {
     try {
       const res = await fetch("/api/alerts?limit=100")
       if (res.ok) setData(await res.json())
-      else toast.error("No se pudieron cargar las alertas")
+      else toast.error("Could not load alerts")
     } catch {
-      toast.error("Error de red al cargar alertas")
+      toast.error("Network error while loading alerts")
     } finally {
       setLoading(false)
     }
@@ -66,7 +66,7 @@ export default function AlertsPage() {
       const res = await fetch(`/api/alerts/${encodeURIComponent(id)}/read`, { method: "POST" })
       if (!res.ok) throw new Error()
     } catch {
-      toast.error("No se pudo marcar como leída")
+      toast.error("Could not mark as read")
       fetchAlerts()
     }
   }
@@ -77,10 +77,10 @@ export default function AlertsPage() {
       const res = await fetch("/api/alerts/read-all", { method: "POST" })
       if (!res.ok) throw new Error()
       const body = await res.json().catch(() => ({}))
-      toast.success(`${body.updated ?? 0} alerta(s) marcadas como leídas`)
+      toast.success(`${body.updated ?? 0} alert(s) marked as read`)
       fetchAlerts()
     } catch {
-      toast.error("No se pudieron marcar todas como leídas")
+      toast.error("Could not mark all as read")
     } finally {
       setMarkingAll(false)
     }
@@ -92,16 +92,16 @@ export default function AlertsPage() {
     <PageShell>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Alertas</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Alerts</h1>
           <p className="text-sm text-muted-foreground">
-            Alertas de amenazas de todos los clientes y sensores.
+            Threat alerts from all clients and sensors.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3">
             <Bell className="h-4 w-4 text-amber-400" />
             <span className="text-sm font-medium text-foreground">{unread}</span>
-            <span className="text-sm text-muted-foreground">sin leer</span>
+            <span className="text-sm text-muted-foreground">unread</span>
           </div>
           <button
             onClick={markAllRead}
@@ -109,19 +109,19 @@ export default function AlertsPage() {
             className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {markingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
-            Marcar todas leídas
+            Mark all as read
           </button>
         </div>
       </div>
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         {loading ? (
-          <div className="px-6 py-16 text-center text-sm text-muted-foreground">Cargando alertas...</div>
+          <div className="px-6 py-16 text-center text-sm text-muted-foreground">Loading alerts...</div>
         ) : !data || data.alerts.length === 0 ? (
           <div className="px-6 py-16 text-center">
             <Bell className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
-            <p className="text-sm font-medium text-foreground mb-1">No hay alertas</p>
-            <p className="text-sm text-muted-foreground">Las alertas que se disparen aparecerán aquí.</p>
+            <p className="text-sm font-medium text-foreground mb-1">No alerts</p>
+            <p className="text-sm text-muted-foreground">Alerts that fire will appear here.</p>
           </div>
         ) : (
           <ul className="divide-y divide-border">
@@ -140,7 +140,7 @@ export default function AlertsPage() {
                         {style.label}
                       </span>
                       <span className="text-sm font-medium text-foreground">{alert.title}</span>
-                      {isUnread && <span className="text-[10px] uppercase tracking-wide text-amber-400">nuevo</span>}
+                      {isUnread && <span className="text-[10px] uppercase tracking-wide text-amber-400">new</span>}
                     </div>
                     {alert.description && (
                       <p className="mt-0.5 text-xs text-muted-foreground">{alert.description}</p>
@@ -154,7 +154,7 @@ export default function AlertsPage() {
                   {isUnread && (
                     <button
                       onClick={() => markRead(alert.id)}
-                      title="Marcar como leída"
+                      title="Mark as read"
                       className="shrink-0 rounded-lg p-1.5 text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
                     >
                       <Check className="h-4 w-4" />

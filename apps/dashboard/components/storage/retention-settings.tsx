@@ -35,10 +35,10 @@ function OldestBadge({ oldestDaysAgo, retentionDays, enabled, pendingRows }: {
     <span className="text-[11px] text-right w-48 tabular-nums">
       <span className="text-muted-foreground">oldest {oldestDaysAgo}d ago · </span>
       {pending > 0 ? (
-        <span className="text-amber-400 font-medium">borrará {pending.toLocaleString()} fila{pending === 1 ? "" : "s"}</span>
+        <span className="text-amber-400 font-medium">will delete {pending.toLocaleString()} row{pending === 1 ? "" : "s"}</span>
       ) : (
         <span className={urgent ? "text-red-400 font-medium" : "text-muted-foreground"}>
-          {daysLeft <= 0 ? "al día" : `${daysLeft}d left`}
+          {daysLeft <= 0 ? "up to date" : `${daysLeft}d left`}
         </span>
       )}
     </span>
@@ -47,7 +47,7 @@ function OldestBadge({ oldestDaysAgo, retentionDays, enabled, pendingRows }: {
 
 function LastRunBadge({ run }: { run: RetentionRun | null }) {
   if (!run) {
-    return <span className="text-[11px] text-muted-foreground/50">Aún no se ha ejecutado</span>
+    return <span className="text-[11px] text-muted-foreground/50">Not run yet</span>
   }
   const when = formatDistanceToNow(new Date(run.startedAt), { addSuffix: true })
   const tablesPurged = Object.entries(run.perTable ?? {})
@@ -62,9 +62,9 @@ function LastRunBadge({ run }: { run: RetentionRun | null }) {
         ) : (
           <AlertTriangle className="h-3.5 w-3.5 text-red-400" />
         )}
-        <span className="text-muted-foreground">Última purga {when}</span>
+        <span className="text-muted-foreground">Last purge {when}</span>
         <span className={run.ok ? "text-emerald-400" : "text-red-400"}>
-          · {run.rowsDeleted.toLocaleString()} filas
+          · {run.rowsDeleted.toLocaleString()} rows
         </span>
       </span>
       {!run.ok && run.error && (
@@ -78,12 +78,12 @@ function LastRunBadge({ run }: { run: RetentionRun | null }) {
 }
 
 const INTERVAL_OPTIONS = [
-  { value: 15,   label: "cada 15 min" },
-  { value: 30,   label: "cada 30 min" },
-  { value: 60,   label: "cada hora" },
-  { value: 360,  label: "cada 6 horas" },
-  { value: 720,  label: "cada 12 horas" },
-  { value: 1440, label: "cada 24 horas" },
+  { value: 15,   label: "every 15 min" },
+  { value: 30,   label: "every 30 min" },
+  { value: 60,   label: "every hour" },
+  { value: 360,  label: "every 6 hours" },
+  { value: 720,  label: "every 12 hours" },
+  { value: 1440, label: "every 24 hours" },
 ]
 
 function NextRunBanner({
@@ -97,12 +97,12 @@ function NextRunBanner({
 }) {
   const next = nextRunAt ? new Date(nextRunAt) : null
   const when = next
-    ? (next.getTime() > Date.now() ? formatDistanceToNow(next, { addSuffix: true }) : "pronto")
-    : "en la próxima ejecución"
+    ? (next.getTime() > Date.now() ? formatDistanceToNow(next, { addSuffix: true }) : "soon")
+    : "on the next run"
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/40 bg-muted/20 px-4 py-2">
       <div className="flex items-center gap-2">
-        <span className="text-[11px] text-muted-foreground">Frecuencia:</span>
+        <span className="text-[11px] text-muted-foreground">Frequency:</span>
         <select
           value={intervalMinutes}
           disabled={savingInterval}
@@ -117,12 +117,12 @@ function NextRunBanner({
       </div>
       <div className="flex items-center gap-3 text-[11px] tabular-nums">
         <span className="text-muted-foreground">
-          Próxima purga <span className="text-foreground">{when}</span>
+          Next purge <span className="text-foreground">{when}</span>
         </span>
         {totalPending > 0 ? (
-          <span className="text-amber-400">se borrarán ~{totalPending.toLocaleString()} filas</span>
+          <span className="text-amber-400">~{totalPending.toLocaleString()} rows will be deleted</span>
         ) : (
-          <span className="text-muted-foreground/60">nada por purgar</span>
+          <span className="text-muted-foreground/60">nothing to purge</span>
         )}
       </div>
     </div>

@@ -81,11 +81,11 @@ export function AttackMap({ countryAttacks }: AttackMapProps) {
           <div className="flex items-center gap-3 rounded-lg border border-border bg-secondary px-3 py-1.5 text-sm shrink-0">
             <span className="text-lg">{countryFlag(tooltip.country)}</span>
             <span className="font-semibold text-foreground">{tooltip.name}</span>
-            <span className="text-muted-foreground">{tooltip.sessions} sesiones</span>
+            <span className="text-muted-foreground">{tooltip.sessions} sessions</span>
             {tooltip.successfulLogins > 0 && (
               <span className="flex items-center gap-1 rounded-full bg-destructive/20 px-2 py-0.5 text-xs font-medium text-destructive">
                 <ShieldX className="h-3 w-3" />
-                {tooltip.successfulLogins} comprometidas
+                {tooltip.successfulLogins} compromised
               </span>
             )}
           </div>
@@ -220,7 +220,7 @@ export function AttackMap({ countryAttacks }: AttackMapProps) {
                 <div className="flex-1 min-w-0">
                   <p className="truncate text-xs font-medium text-foreground">{ca.name}</p>
                   <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-                    <span>{ca.sessions} sesiones</span>
+                    <span>{ca.sessions} sessions</span>
                     <span className="text-muted-foreground/40">·</span>
                     <span>{ca.count} IPs</span>
                   </div>

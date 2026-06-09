@@ -21,8 +21,8 @@ export async function ProtocolServicePage({ protocol }: { protocol: ProtocolKind
     return (
       <PageShell>
         <SectionError
-          title="No se pudo cargar este servicio"
-          message="El servidor tardó demasiado o no respondió. Suele ser temporal — reintenta en unos segundos."
+          title="Could not load this service"
+          message="The server took too long or did not respond. This is usually temporary — retry in a few seconds."
         />
       </PageShell>
     )

@@ -149,7 +149,7 @@ export function SensorConfigDialog({
       .then((data) => {
         if (data?.config) setCfg({ ...DEFAULTS, ...data.config })
       })
-      .catch(() => setError("No se pudo cargar la configuración"))
+      .catch(() => setError("Could not load the configuration"))
       .finally(() => setLoading(false))
   }, [open, sensorId])
 
@@ -171,7 +171,7 @@ export function SensorConfigDialog({
       if (!res.ok) throw new Error()
       setSaved(true)
     } catch {
-      setError("Error al guardar. Intenta de nuevo.")
+      setError("Failed to save. Try again.")
     } finally {
       setSaving(false)
     }

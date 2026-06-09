@@ -64,7 +64,7 @@ export function CreateClientDialog({ trigger, onCreated }: Props) {
         // Surface the server's validation message (e.g. invalid slug/code/URL)
         // instead of silently leaving the dialog open with no feedback.
         const data = await res.json().catch(() => ({}))
-        setError(data?.error ?? `No se pudo crear el cliente (error ${res.status})`)
+        setError(data?.error ?? `Could not create client (error ${res.status})`)
         return
       }
       const client = (await res.json()) as Client
@@ -72,7 +72,7 @@ export function CreateClientDialog({ trigger, onCreated }: Props) {
       reset()
       setOpen(false)
     } catch {
-      setError("No se pudo conectar con el servidor")
+      setError("Could not connect to the server")
     } finally {
       setCreating(false)
     }

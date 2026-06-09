@@ -25,9 +25,9 @@ function optimisticDockerStatus(action: ControlAction): string {
 }
 
 function controlLabel(action: ControlAction): string {
-  if (action === "stop") return "Detenido"
-  if (action === "start") return "Iniciado"
-  return "Reiniciado"
+  if (action === "stop") return "Stopped"
+  if (action === "start") return "Started"
+  return "Restarted"
 }
 
 export function SensorCard({
@@ -110,7 +110,7 @@ export function SensorCard({
       // list; the card is already hidden, so the user doesn't wait on it.
       router.refresh()
     } catch {
-      setDeleteError("No se pudo conectar")
+      setDeleteError("Could not connect")
       setRemoved(false)
       setDeleting(false)
     }
@@ -139,7 +139,7 @@ export function SensorCard({
       }
     } catch {
       setControlState("error")
-      setControlMsg("No se pudo conectar")
+      setControlMsg("Could not connect")
       setTimeout(() => setControlState("idle"), CONTROL_ERROR_DELAY)
     }
   }
@@ -151,7 +151,7 @@ export function SensorCard({
       <SensorHeader sensor={sensor} dockerStatus={dockerStatus} isRemote={isRemote} deleting={deleting} onDelete={handleDelete} />
       {deleteError && (
         <p className="rounded-md bg-destructive/10 px-2.5 py-1.5 text-[11px] font-medium text-destructive">
-          No se pudo eliminar: {deleteError}
+          Could not delete: {deleteError}
         </p>
       )}
       <SensorStats sensor={sensor} isInternal={isInternal} honeypotPublicIp={honeypotPublicIp} clientCode={clientCode} />

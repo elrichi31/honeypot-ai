@@ -11,8 +11,8 @@ import { AlertTriangle, RefreshCw, Loader2 } from "lucide-react"
  * re-renders the server component so the section recovers without a full reload.
  */
 export function SectionError({
-  title = "No se pudo cargar esta sección",
-  message = "El servidor tardó demasiado o no respondió. Suele ser temporal.",
+  title = "Could not load this section",
+  message = "The server took too long or did not respond. This is usually temporary.",
 }: {
   title?: string
   message?: string
@@ -43,7 +43,7 @@ export function SectionError({
         className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
       >
         {retrying ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-        Reintentar
+        Retry
       </button>
     </div>
   )

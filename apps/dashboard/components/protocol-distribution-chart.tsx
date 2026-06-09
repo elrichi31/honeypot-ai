@@ -64,8 +64,8 @@ export function ProtocolDistributionChart({ overview }: { overview: HoneypotOver
   return (
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="mb-2">
-        <h3 className="font-semibold text-foreground">Distribución de eventos</h3>
-        <p className="text-sm text-muted-foreground">Por tipo de sensor · total acumulado</p>
+        <h3 className="font-semibold text-foreground">Event distribution</h3>
+        <p className="text-sm text-muted-foreground">By sensor type · cumulative total</p>
       </div>
 
       <div className="relative flex items-center justify-center">

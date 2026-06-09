@@ -18,7 +18,7 @@ export function CommandPaths({ patterns }: Props) {
         <div>
           <h2 className="font-semibold text-foreground">Post-Login Command Paths</h2>
           <p className="text-sm text-muted-foreground">
-            Secuencias de comandos más frecuentes en sesiones exitosas
+            Most frequent command sequences in successful sessions
           </p>
         </div>
       </div>
@@ -28,7 +28,7 @@ export function CommandPaths({ patterns }: Props) {
           <div key={`${pattern.sequence}-${index}`} className="rounded-xl border border-border bg-background/40 p-4">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Patrón #{index + 1}</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Pattern #{index + 1}</p>
                 <code className="mt-2 block truncate font-mono text-sm text-foreground" title={pattern.sequence}>
                   {truncateSequence(pattern.sequence)}
                 </code>
@@ -37,7 +37,7 @@ export function CommandPaths({ patterns }: Props) {
                 {pattern.sessions}
               </div>
             </div>
-            <p className="mt-3 text-xs text-muted-foreground">{pattern.uniqueIps} IPs origen</p>
+            <p className="mt-3 text-xs text-muted-foreground">{pattern.uniqueIps} source IPs</p>
           </div>
         ))}
       </div>

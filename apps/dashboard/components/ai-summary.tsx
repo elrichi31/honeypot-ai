@@ -110,7 +110,7 @@ export function AiSummary({ session, events }: AiSummaryProps) {
       if (data.error) throw new Error(data.error)
       setAnalysis(data as SessionAnalysis)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error desconocido")
+      setError(e instanceof Error ? e.message : "Unknown error")
     } finally {
       setLoading(false)
     }
@@ -208,7 +208,7 @@ export function AiSummary({ session, events }: AiSummaryProps) {
             {analysis.riskBreakdown.length > 0 && (
               <div className="space-y-1.5">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Factores de riesgo
+                  Risk factors
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {analysis.riskBreakdown.map((b, i) => (
@@ -229,7 +229,7 @@ export function AiSummary({ session, events }: AiSummaryProps) {
             {/* Summary */}
             <div className="rounded-lg border border-border bg-secondary/40 p-3">
               <p className="mb-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Resumen
+                Summary
               </p>
               <p className="text-sm text-foreground leading-relaxed">{analysis.summary}</p>
             </div>
@@ -238,7 +238,7 @@ export function AiSummary({ session, events }: AiSummaryProps) {
             {analysis.keyIndicators.length > 0 && (
               <div className="space-y-1.5">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Indicadores clave
+                  Key indicators
                 </p>
                 <ul className="space-y-1">
                   {analysis.keyIndicators.map((ind, i) => (

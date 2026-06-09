@@ -43,8 +43,8 @@ export default async function ClientDeceptionPage({ params }: { params: Promise<
     return (
       <PageShell>
         <SectionError
-          title="No se pudo cargar la red de deception"
-          message="El servidor tardó demasiado o no respondió. Reintenta en unos segundos."
+          title="Could not load the deception network"
+          message="The server took too long or did not respond. Try again in a few seconds."
         />
       </PageShell>
     )
@@ -67,8 +67,8 @@ export default async function ClientDeceptionPage({ params }: { params: Promise<
           </h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          Movimiento lateral del atacante dentro de la red trampa interna (OpenCanary) de
-          este cliente. Cada interacción con un nodo confirma que superó el honeypot SSH.
+          Attacker lateral movement inside this client's internal trap network (OpenCanary).
+          Each interaction with a node confirms they got past the SSH honeypot.
         </p>
       </div>
 
@@ -76,12 +76,12 @@ export default async function ClientDeceptionPage({ params }: { params: Promise<
         <DeceptionOverview data={data.overview} />
 
         <section>
-          <h2 className="mb-3 text-sm font-semibold text-foreground">Kill-chain · movimiento lateral</h2>
+          <h2 className="mb-3 text-sm font-semibold text-foreground">Kill-chain · lateral movement</h2>
           <KillChainView chains={data.chains} />
         </section>
 
         <section>
-          <h2 className="mb-3 text-sm font-semibold text-foreground">Nodos trampa</h2>
+          <h2 className="mb-3 text-sm font-semibold text-foreground">Trap nodes</h2>
           <DeceptionNodesGrid nodes={data.nodes} />
         </section>
 

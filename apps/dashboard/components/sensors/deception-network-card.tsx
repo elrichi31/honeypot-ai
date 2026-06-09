@@ -50,10 +50,10 @@ export function DeceptionNetworkCard({
         </div>
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Wifi className="h-3.5 w-3.5 text-emerald-400" />
-          <span className="text-foreground">{online}</span>/{total} nodos
+          <span className="text-foreground">{online}</span>/{total} nodes
         </div>
         <span className="hidden text-xs text-muted-foreground sm:inline">
-          {events.toLocaleString()} eventos
+          {events.toLocaleString()} events
         </span>
         {clientSlug && (
           <Link
@@ -61,7 +61,7 @@ export function DeceptionNetworkCard({
             onClick={(e) => e.stopPropagation()}
             className="text-xs font-medium text-cyan-400 hover:text-cyan-300"
           >
-            Ver red
+            View network
           </Link>
         )}
       </button>
@@ -76,7 +76,7 @@ export function DeceptionNetworkCard({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-medium text-foreground">{node.name}</p>
                 <p className="font-mono text-[10px] text-muted-foreground">
-                  {node.ip} · puertos {node.ports.join(", ") || "—"}
+                  {node.ip} · ports {node.ports.join(", ") || "—"}
                 </p>
               </div>
               <span className="text-[11px] tabular-nums text-muted-foreground">

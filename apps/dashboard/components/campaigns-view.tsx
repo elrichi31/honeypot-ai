@@ -35,10 +35,10 @@ const GROUP_OPTIONS: {
   icon: typeof Globe
   desc: string
 }[] = [
-  { value: "ip",       label: "IP Address",      icon: Globe,        desc: "Misma IP exacta" },
-  { value: "subnet",   label: "Subnet /24",       icon: Network,      desc: "Misma subred /24" },
-  { value: "hassh",    label: "SSH Fingerprint",  icon: Fingerprint,  desc: "Mismo cliente SSH" },
-  { value: "username", label: "Username",         icon: User,         desc: "Mismo usuario" },
+  { value: "ip",       label: "IP Address",      icon: Globe,        desc: "Same exact IP" },
+  { value: "subnet",   label: "Subnet /24",       icon: Network,      desc: "Same /24 subnet" },
+  { value: "hassh",    label: "SSH Fingerprint",  icon: Fingerprint,  desc: "Same SSH client" },
+  { value: "username", label: "Username",         icon: User,         desc: "Same user" },
 ]
 
 // ─── Campaign card ────────────────────────────────────────────────────────────
@@ -68,13 +68,13 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
             </span>
             {campaign.loginSuccess && (
               <span className="inline-flex items-center gap-1 rounded-full bg-destructive/20 px-2 py-0.5 text-xs text-destructive">
-                <ShieldX className="h-3 w-3" /> Comprometido
+                <ShieldX className="h-3 w-3" /> Compromised
               </span>
             )}
           </div>
           <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
-              <Terminal className="h-3 w-3" /> {campaign.sessions.length} sesiones
+              <Terminal className="h-3 w-3" /> {campaign.sessions.length} sessions
             </span>
             {campaign.groupBy !== "ip" && (
               <span className="flex items-center gap-1">
@@ -82,7 +82,7 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
               </span>
             )}
             <span className="flex items-center gap-1">
-              <Terminal className="h-3 w-3" /> {campaign.totalCommands} eventos
+              <Terminal className="h-3 w-3" /> {campaign.totalCommands} events
             </span>
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
@@ -114,7 +114,7 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
 
         <div className="shrink-0 text-right">
           <div className="text-2xl font-bold text-primary">{campaign.sessions.length}</div>
-          <div className="text-xs text-muted-foreground">sesiones</div>
+          <div className="text-xs text-muted-foreground">sessions</div>
         </div>
       </button>
 
@@ -140,7 +140,7 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {formatInTimezone(session.startedAt, tz, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })} ·{" "}
-                      {session._count.events} eventos
+                      {session._count.events} events
                     </p>
                   </div>
                 </div>
@@ -183,18 +183,18 @@ function ClusterCard({ cluster }: { cluster: BehaviorCluster }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-foreground">
-              {cluster.sessions.length} sesiones · {simPct}% similitud
+              {cluster.sessions.length} sessions · {simPct}% similarity
             </span>
             {cluster.dominantUsername && (
               <span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-xs text-muted-foreground">
-                usuario: {cluster.dominantUsername}
+                user: {cluster.dominantUsername}
               </span>
             )}
           </div>
 
           {cluster.sharedCommands.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
-              <span className="text-xs text-muted-foreground mr-1">Comandos compartidos:</span>
+              <span className="text-xs text-muted-foreground mr-1">Shared commands:</span>
               {cluster.sharedCommands.slice(0, 5).map((cmd, i) => (
                 <code
                   key={i}
@@ -208,7 +208,7 @@ function ClusterCard({ cluster }: { cluster: BehaviorCluster }) {
 
           {cluster.sharedDomains.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
-              <span className="text-xs text-muted-foreground mr-1">Dominios:</span>
+              <span className="text-xs text-muted-foreground mr-1">Domains:</span>
               {cluster.sharedDomains.slice(0, 3).map((d, i) => (
                 <code key={i} className="rounded bg-warning/10 px-1.5 py-0.5 font-mono text-xs text-warning">
                   {d}
@@ -316,7 +316,7 @@ export function CampaignsView({
           )}
         >
           <Cpu className="h-3.5 w-3.5" />
-          Clusters conductuales
+          Behavioral clusters
           {clusters.length > 0 && (
             <span className="rounded-full bg-primary/20 px-1.5 text-xs">
               {clusters.length}
@@ -359,7 +359,7 @@ export function CampaignsView({
             <p className="mb-3 text-sm text-muted-foreground">
               {campaigns.length > 0
                 ? `${campaigns.length} campaign${campaigns.length > 1 ? "s" : ""} detected · ${sessions.length} sessions analyzed`
-                : `No se detectaron patrones repetidos agrupando por ${groupBy}. Se necesitan 2+ sesiones del mismo origen.`}
+                : `No repeated patterns detected when grouping by ${groupBy}. 2+ sessions from the same origin are needed.`}
             </p>
             <div className="space-y-3">
               {campaigns.map((c) => (

@@ -4,10 +4,10 @@ import { AlertTriangle, CheckCircle2, Lock, XCircle } from "lucide-react"
 import type { Sensor } from "@/lib/api"
 
 function portTitle(port: number, up: boolean | undefined, probeFailedWhileOnline: boolean): string {
-  if (up === true) return `Puerto ${port} accesible`
-  if (probeFailedWhileOnline) return `Puerto ${port} no alcanzable desde el servidor (firewall o NAT)`
-  if (up === false) return `Puerto ${port} offline`
-  return `Puerto ${port} — comprobando accesibilidad…`
+  if (up === true) return `Port ${port} reachable`
+  if (probeFailedWhileOnline) return `Port ${port} unreachable from the server (firewall or NAT)`
+  if (up === false) return `Port ${port} offline`
+  return `Port ${port} — checking reachability…`
 }
 
 function portClassName(up: boolean | undefined, probeFailedWhileOnline: boolean): string {
@@ -43,7 +43,7 @@ function ExternalPortBadge({ port, sensor }: { port: number; sensor: Sensor }) {
 function InternalPortBadge({ port }: { port: number }) {
   return (
     <span
-      title={`Puerto ${port} — red interna, no expuesto al exterior`}
+      title={`Port ${port} — internal network, not exposed externally`}
       className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono font-medium cursor-default bg-violet-400/10 text-violet-400"
     >
       <Lock className="h-2.5 w-2.5" />
@@ -55,7 +55,7 @@ function InternalPortBadge({ port }: { port: number }) {
 function RemotePortBadge({ port }: { port: number }) {
   return (
     <span
-      title={`Puerto ${port} — sensor remoto, no se sondea desde este servidor`}
+      title={`Port ${port} — remote sensor, not probed from this server`}
       className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono font-medium cursor-default bg-muted/60 text-muted-foreground"
     >
       :{port}

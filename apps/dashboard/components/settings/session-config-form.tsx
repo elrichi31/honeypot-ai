@@ -36,7 +36,7 @@ export function SessionConfigForm() {
       setStatus("saved")
       setTimeout(() => setStatus("idle"), 3000)
     } catch {
-      setError("No se pudo guardar.")
+      setError("Could not save.")
       setStatus("error")
     }
   }
@@ -47,16 +47,16 @@ export function SessionConfigForm() {
         icon={Clock}
         iconBg="bg-indigo-500/20"
         iconColor="text-indigo-400"
-        title="Duración de sesión"
-        description="Cuánto tiempo permanece válida una sesión de inicio de sesión en el dashboard."
+        title="Session duration"
+        description="How long a login session stays valid in the dashboard."
       />
 
       <div className="space-y-3 p-4">
-        <Label htmlFor="session-hours">Horas (1 – 720)</Label>
+        <Label htmlFor="session-hours">Hours (1 – 720)</Label>
         <div className="flex gap-2">
           {status === "loading" ? (
             <div className="flex h-10 flex-1 items-center rounded-md border border-border bg-secondary px-3 text-sm text-muted-foreground">
-              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Cargando...
+              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Loading...
             </div>
           ) : (
             <Input
@@ -75,13 +75,13 @@ export function SessionConfigForm() {
             disabled={status === "saving" || status === "loading"}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
-            {status === "saving" ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Guardando</> : status === "saved" ? <><CheckCircle className="mr-1.5 h-3.5 w-3.5" />Guardado</> : "Guardar"}
+            {status === "saving" ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Saving</> : status === "saved" ? <><CheckCircle className="mr-1.5 h-3.5 w-3.5" />Saved</> : "Save"}
           </Button>
         </div>
         <SaveFeedback status={status} error={error} />
         <div className="rounded-lg border border-border bg-secondary/50 p-3 text-xs text-muted-foreground">
-          El cambio aplica a las <strong>nuevas</strong> sesiones tras reiniciar el dashboard. Las
-          sesiones existentes conservan su expiración; puedes forzarlas desde
+          The change applies to <strong>new</strong> sessions after restarting the dashboard. Existing
+          sessions keep their expiration; you can force them from
           <span className="font-mono"> Administration → Sessions</span>.
         </div>
       </div>

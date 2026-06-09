@@ -30,8 +30,8 @@ function LoginForm() {
     setError("")
     setPhase("signing-in")
     try {
-      // El servidor solo ve la IP del túnel/proxy (loopback), así que el
-      // navegador reporta su IP pública real para enriquecer la auditoría.
+      // The server only sees the tunnel/proxy IP (loopback), so the browser
+      // reports its real public IP to enrich the audit log.
       const publicIp = await fetchPublicIp()
       const result = await signIn.email(
         { email, password },

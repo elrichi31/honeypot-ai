@@ -20,7 +20,7 @@ const SENSOR_OPTIONS: { key: ServiceKey; label: string; ports: string }[] = [
   { key: "ftp",   label: "FTP",           ports: ":21"             },
   { key: "mysql", label: "MySQL",         ports: ":3306"           },
   { key: "port",  label: "Port scanner",  ports: ":1433 :6379 …"  },
-  { key: "deception", label: "Deception (OpenCanary)", ports: "interna 10.0.1.0/24" },
+  { key: "deception", label: "Deception (OpenCanary)", ports: "internal 10.0.1.0/24" },
 ]
 
 export function AddSensorButton() {
@@ -158,8 +158,8 @@ export function AddSensorButton() {
               </div>
               {selected.includes("deception") && (
                 <p className="rounded-lg bg-amber-400/10 px-3 py-2 text-xs text-amber-300">
-                  La red de deception requiere SSH (Cowrie) como entrada y despliega 5 nodos trampa
-                  internos en 10.0.1.0/24. Se incluye SSH automáticamente.
+                  The deception network requires SSH (Cowrie) as its entry point and deploys 5 internal
+                  trap nodes on 10.0.1.0/24. SSH is included automatically.
                 </p>
               )}
             </div>

@@ -38,13 +38,13 @@ export function DeleteClientDialog({ client, onClose, onDeleted }: Props) {
       const res = await apiFetch(`/api/clients/${encodeURIComponent(client.id)}`, { method: "DELETE" })
       if (!res.ok) {
         const data = await res.json().catch(() => null)
-        setError(data?.error ?? `Error ${res.status}: no se pudo eliminar el cliente`)
+        setError(data?.error ?? `Error ${res.status}: could not delete client`)
         return
       }
       onDeleted(client.id)
       handleClose()
     } catch {
-      setError("Error de red al intentar eliminar el cliente")
+      setError("Network error while trying to delete the client")
     } finally {
       setDeleting(false)
     }

@@ -20,7 +20,7 @@ type SessionRow = {
 
 function parseUserAgent(ua: string | null): string {
   if (!ua) return "—"
-  let browser = "Navegador"
+  let browser = "Browser"
   if (/Edg\//.test(ua)) browser = "Edge"
   else if (/OPR\/|Opera/.test(ua)) browser = "Opera"
   else if (/Chrome\//.test(ua)) browser = "Chrome"
@@ -66,9 +66,9 @@ export default function SessionsAdminPage() {
       const res = await apiFetch(`/api/sessions-admin/${encodeURIComponent(id)}`, { method: "DELETE" })
       if (!res.ok) throw new Error()
       setSessions((cur) => cur.filter((s) => s.id !== id))
-      setMessage("Sesión revocada.")
+      setMessage("Session revoked.")
     } catch {
-      setMessage("No se pudo revocar la sesión.")
+      setMessage("Could not revoke the session.")
     } finally {
       setPendingId(null)
     }
@@ -85,9 +85,9 @@ export default function SessionsAdminPage() {
       })
       if (!res.ok) throw new Error()
       setSessions((cur) => cur.filter((s) => s.userId !== userId))
-      setMessage(`Todas las sesiones de ${email} fueron revocadas.`)
+      setMessage(`All sessions for ${email} were revoked.`)
     } catch {
-      setMessage("No se pudieron revocar las sesiones.")
+      setMessage("Could not revoke the sessions.")
     } finally {
       setPendingId(null)
     }
@@ -97,24 +97,24 @@ export default function SessionsAdminPage() {
     <PageShell>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Sesiones activas</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Active sessions</h1>
           <p className="text-sm text-muted-foreground">
-            Sesiones de inicio de sesión del dashboard. Revócalas para forzar el cierre de sesión.
+            Dashboard login sessions. Revoke them to force a sign-out.
           </p>
         </div>
         <button
           onClick={load}
           className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground hover:bg-muted/40"
         >
-          <RefreshCw className="h-4 w-4" /> Actualizar
+          <RefreshCw className="h-4 w-4" /> Refresh
         </button>
       </div>
 
       <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">
         <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
         <span>
-          Por la caché de cookie (5 min), una sesión revocada puede seguir válida hasta ~5 minutos
-          antes de que el usuario sea expulsado.
+          Due to the cookie cache (5 min), a revoked session may stay valid for up to ~5 minutes
+          before the user is kicked out.
         </span>
       </div>
 
@@ -128,18 +128,18 @@ export default function SessionsAdminPage() {
         ) : sessions.length === 0 ? (
           <div className="py-16 text-center">
             <MonitorSmartphone className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">No hay sesiones activas.</p>
+            <p className="text-sm text-muted-foreground">No active sessions.</p>
           </div>
         ) : (
           <table className="w-full">
             <thead>
               <tr className="border-b border-border bg-muted/30 text-left text-xs font-medium text-muted-foreground">
-                <th className="px-4 py-3">Usuario</th>
+                <th className="px-4 py-3">User</th>
                 <th className="px-4 py-3">IP</th>
-                <th className="px-4 py-3">Dispositivo</th>
-                <th className="px-4 py-3">Inicio</th>
-                <th className="px-4 py-3">Expira</th>
-                <th className="px-4 py-3 text-right">Acciones</th>
+                <th className="px-4 py-3">Device</th>
+                <th className="px-4 py-3">Started</th>
+                <th className="px-4 py-3">Expires</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -149,7 +149,7 @@ export default function SessionsAdminPage() {
                     <div className="text-xs font-medium text-foreground">
                       {s.name || "—"}
                       {s.userId === currentUserId && (
-                        <span className="ml-2 rounded bg-cyan-500/10 px-1.5 py-0.5 text-[10px] text-cyan-300">tú</span>
+                        <span className="ml-2 rounded bg-cyan-500/10 px-1.5 py-0.5 text-[10px] text-cyan-300">you</span>
                       )}
                     </div>
                     <div className="font-mono text-[11px] text-muted-foreground">{s.email}</div>
@@ -167,18 +167,18 @@ export default function SessionsAdminPage() {
                       <button
                         onClick={() => revokeOne(s.id)}
                         disabled={pendingId === s.id}
-                        title="Revocar esta sesión"
+                        title="Revoke this session"
                         className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
                       >
-                        <Trash2 className="h-3 w-3" /> Revocar
+                        <Trash2 className="h-3 w-3" /> Revoke
                       </button>
                       <button
                         onClick={() => revokeUser(s.userId, s.email)}
                         disabled={pendingId === s.userId}
-                        title="Cerrar todas las sesiones de este usuario"
+                        title="Close all sessions for this user"
                         className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
                       >
-                        <LogOut className="h-3 w-3" /> Todas
+                        <LogOut className="h-3 w-3" /> All
                       </button>
                     </div>
                   </td>

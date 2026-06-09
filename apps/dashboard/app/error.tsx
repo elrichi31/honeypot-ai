@@ -29,10 +29,10 @@ export default function Error({
             <AlertTriangle className="h-6 w-6 text-amber-400" />
           </div>
           <div className="space-y-1">
-            <h2 className="text-lg font-semibold text-foreground">No se pudo cargar la vista</h2>
+            <h2 className="text-lg font-semibold text-foreground">Could not load the view</h2>
             <p className="text-sm text-muted-foreground">
-              El servidor tardó demasiado o no respondió. Suele ser temporal —
-              vuelve a intentarlo en unos segundos.
+              The server took too long or did not respond. This is usually
+              temporary — try again in a few seconds.
             </p>
           </div>
           <button
@@ -40,7 +40,7 @@ export default function Error({
             className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             <RefreshCw className="h-4 w-4" />
-            Reintentar
+            Try again
           </button>
         </div>
       </div>

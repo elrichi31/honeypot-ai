@@ -44,8 +44,8 @@ export default function ProfilePage() {
   return (
     <PageShell>
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-foreground">Perfil</h1>
-        <p className="text-sm text-muted-foreground">Tu cuenta y acceso al SOC</p>
+        <h1 className="text-2xl font-semibold text-foreground">Profile</h1>
+        <p className="text-sm text-muted-foreground">Your account and SOC access</p>
       </div>
 
       <div className="max-w-2xl space-y-6">
@@ -69,16 +69,16 @@ export default function ProfilePage() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field icon={UserIcon} label="Nombre" value={user?.name ?? "—"} />
+          <Field icon={UserIcon} label="Name" value={user?.name ?? "—"} />
           <Field icon={Mail} label="Email" value={user?.email ?? "—"} />
-          <Field icon={Shield} label="Rol" value={role ? (ROLE_LABELS[role] ?? role) : "—"} />
+          <Field icon={Shield} label="Role" value={role ? (ROLE_LABELS[role] ?? role) : "—"} />
         </div>
 
         <div className="rounded-xl border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-medium text-foreground">Preferencias de la cuenta</p>
-              <p className="text-xs text-muted-foreground">Configura la plataforma y las integraciones desde Settings.</p>
+              <p className="text-sm font-medium text-foreground">Account preferences</p>
+              <p className="text-xs text-muted-foreground">Configure the platform and integrations from Settings.</p>
             </div>
             <Link
               href="/settings"

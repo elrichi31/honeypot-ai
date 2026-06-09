@@ -165,7 +165,7 @@ export function TopologyCanvas({ sensors }: TopologyCanvasProps) {
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
             Online
           </span>
-          <span className="text-muted-foreground/35">Scroll → zoom · Arrastrar → mover</span>
+          <span className="text-muted-foreground/35">Scroll → zoom · Drag → pan</span>
         </div>
       </div>
     </div>

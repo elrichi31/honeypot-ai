@@ -86,7 +86,7 @@ export default async function CredentialsPage({
 
         <div className="mb-6 rounded-xl border border-border bg-card p-4">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-xs text-muted-foreground">Filtrar:</span>
+            <span className="text-xs text-muted-foreground">Filter:</span>
             <ClientSensorFilter
               clients={clients.map((c) => ({ slug: c.slug, name: c.name }))}
               sensors={sensors.map((s) => ({ sensorId: s.sensorId, name: s.name, protocol: s.protocol, clientSlug: s.clientSlug, clientName: s.clientName }))}

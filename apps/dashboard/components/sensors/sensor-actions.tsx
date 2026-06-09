@@ -47,21 +47,21 @@ export function SensorActions({
       <div className="flex items-center gap-1">
         <ControlButton
           icon={Play}
-          label="Iniciar"
+          label="Start"
           color="text-emerald-400 hover:bg-emerald-400/15"
           disabled={loading}
           onClick={() => onControl("start")}
         />
         <ControlButton
           icon={Square}
-          label="Detener"
+          label="Stop"
           color="text-red-400 hover:bg-red-400/15"
           disabled={loading}
           onClick={() => onControl("stop")}
         />
         <ControlButton
           icon={loading ? Loader2 : RotateCcw}
-          label="Reiniciar"
+          label="Restart"
           color="text-amber-400 hover:bg-amber-400/15"
           disabled={loading}
           spinning={loading}

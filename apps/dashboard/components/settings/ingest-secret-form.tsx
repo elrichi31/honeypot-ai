@@ -52,7 +52,7 @@ export function IngestSecretForm() {
       setStatus("saved")
       setTimeout(() => setStatus("idle"), 3000)
     } catch {
-      setError("No se pudo guardar.")
+      setError("Could not save.")
       setStatus("error")
     }
   }
@@ -73,7 +73,7 @@ export function IngestSecretForm() {
 
   const badge = hasSecret ? (
     <span className="flex items-center gap-1 rounded-full bg-success/20 px-2 py-0.5 text-xs text-success">
-      <CheckCircle className="h-3 w-3" /> Configurado
+      <CheckCircle className="h-3 w-3" /> Configured
     </span>
   ) : undefined
 
@@ -83,8 +83,8 @@ export function IngestSecretForm() {
         icon={KeyRound}
         iconBg="bg-amber-500/20"
         iconColor="text-amber-400"
-        title="Secreto de ingestión"
-        description="Clave compartida que los sensores usan para autenticarse al ingest. Se incrusta automáticamente en cada instalador."
+        title="Ingest secret"
+        description="Shared key that sensors use to authenticate to the ingest. It's embedded automatically in every installer."
         badge={badge}
       />
 
@@ -94,13 +94,13 @@ export function IngestSecretForm() {
           <div className="relative flex-1">
             {status === "loading" ? (
               <div className="flex h-10 items-center rounded-md border border-border bg-secondary px-3 text-sm text-muted-foreground">
-                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Cargando...
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Loading...
               </div>
             ) : (
               <Input
                 id="ingest-secret"
                 type={show ? "text" : "password"}
-                placeholder="genera o pega un secreto largo"
+                placeholder="generate or paste a long secret"
                 value={secret}
                 onChange={(e) => { setSecret(e.target.value); setDirty(true) }}
                 onKeyDown={(e) => e.key === "Enter" && dirty && save(secret)}
@@ -118,25 +118,25 @@ export function IngestSecretForm() {
             )}
           </div>
           <Button variant="outline" onClick={handleGenerate} disabled={status === "loading"} className="gap-1.5">
-            <RefreshCw className="h-3.5 w-3.5" /> Generar
+            <RefreshCw className="h-3.5 w-3.5" /> Generate
           </Button>
           <Button
             onClick={() => save(secret)}
             disabled={status === "saving" || status === "loading" || !dirty}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
-            {status === "saving" ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Guardando</> : status === "saved" ? <><CheckCircle className="mr-1.5 h-3.5 w-3.5" />Guardado</> : "Guardar"}
+            {status === "saving" ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Saving</> : status === "saved" ? <><CheckCircle className="mr-1.5 h-3.5 w-3.5" />Saved</> : "Save"}
           </Button>
-          {hasSecret && <Button variant="outline" onClick={handleClear}>Borrar</Button>}
+          {hasSecret && <Button variant="outline" onClick={handleClear}>Clear</Button>}
         </div>
         <SaveFeedback status={status} error={error} />
 
         <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-muted-foreground">
-          <p className="mb-1 font-medium text-foreground">Importante</p>
+          <p className="mb-1 font-medium text-foreground">Important</p>
           <p>
-            Si cambias este secreto, los sensores ya desplegados dejarán de reportar (HTTP 401)
-            hasta que los reinstales con un instalador nuevo. El ingest-api del servidor debe usar
-            el mismo valor (variable <span className="font-mono">INGEST_SHARED_SECRET</span>).
+            If you change this secret, already-deployed sensors will stop reporting (HTTP 401)
+            until you reinstall them with a new installer. The server's ingest-api must use
+            the same value (<span className="font-mono">INGEST_SHARED_SECRET</span> variable).
           </p>
         </div>
       </div>

@@ -31,12 +31,12 @@ function OfflineBadge() {
 }
 
 const DOCKER_BADGE_CONFIG: Record<string, { dot: string; pulse: boolean; label: string; text: string }> = {
-  running:    { dot: "bg-emerald-400", pulse: true,  label: "Iniciado",     text: "text-emerald-400" },
-  restarting: { dot: "bg-amber-400",   pulse: true,  label: "Reiniciando",  text: "text-amber-400"   },
-  exited:     { dot: "bg-red-500",     pulse: false, label: "Detenido",     text: "text-red-400"     },
-  dead:       { dot: "bg-red-500",     pulse: false, label: "Detenido",     text: "text-red-400"     },
-  paused:     { dot: "bg-slate-400",   pulse: false, label: "Pausado",      text: "text-slate-400"   },
-  not_found:  { dot: "bg-muted-foreground/50", pulse: false, label: "No encontrado", text: "text-muted-foreground" },
+  running:    { dot: "bg-emerald-400", pulse: true,  label: "Running",       text: "text-emerald-400" },
+  restarting: { dot: "bg-amber-400",   pulse: true,  label: "Restarting",    text: "text-amber-400"   },
+  exited:     { dot: "bg-red-500",     pulse: false, label: "Stopped",       text: "text-red-400"     },
+  dead:       { dot: "bg-red-500",     pulse: false, label: "Stopped",       text: "text-red-400"     },
+  paused:     { dot: "bg-slate-400",   pulse: false, label: "Paused",        text: "text-slate-400"   },
+  not_found:  { dot: "bg-muted-foreground/50", pulse: false, label: "Not found", text: "text-muted-foreground" },
 }
 
 function DockerStatusBadge({ status }: { status: string }) {
@@ -94,19 +94,19 @@ function DeleteSensorDialog({ sensor, deleting, onDelete }: { sensor: Sensor; de
 function RemoteBadge({ online }: { online: boolean }) {
   if (online) {
     return (
-      <div className="flex items-center gap-1.5" title="Sensor en otro host — reportando heartbeats. Su contenedor no se gestiona desde aquí.">
+      <div className="flex items-center gap-1.5" title="Sensor on another host — reporting heartbeats. Its container is not managed from here.">
         <span className="relative flex h-2 w-2">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
           <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
         </span>
-        <span className="text-xs font-medium text-emerald-400">Remoto · activo</span>
+        <span className="text-xs font-medium text-emerald-400">Remote · active</span>
       </div>
     )
   }
   return (
-    <div className="flex items-center gap-1.5" title="Sensor en otro host — sin heartbeats recientes.">
+    <div className="flex items-center gap-1.5" title="Sensor on another host — no recent heartbeats.">
       <span className="relative inline-flex h-2 w-2 rounded-full bg-muted-foreground/50" />
-      <span className="text-xs font-medium text-muted-foreground">Remoto · sin señal</span>
+      <span className="text-xs font-medium text-muted-foreground">Remote · no signal</span>
     </div>
   )
 }

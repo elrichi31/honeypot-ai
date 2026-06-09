@@ -7,7 +7,7 @@ import { Loader2 } from "lucide-react"
  */
 export function SectionLoading({
   height = "h-[500px]",
-  label = "Cargando…",
+  label = "Loading…",
 }: {
   height?: string
   label?: string

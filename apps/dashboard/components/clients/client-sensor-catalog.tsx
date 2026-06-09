@@ -298,8 +298,8 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
             <p className="flex items-start gap-2 rounded-lg bg-amber-400/10 px-3 py-2 text-xs text-amber-300">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>
-                La red de deception requiere SSH (Cowrie) como entrada y despliega 5 nodos trampa
-                internos en 10.0.1.0/24. Se incluye SSH automáticamente.
+                The deception network requires SSH (Cowrie) as its entry point and deploys 5 internal
+                trap nodes on 10.0.1.0/24. SSH is included automatically.
               </span>
             </p>
           )}

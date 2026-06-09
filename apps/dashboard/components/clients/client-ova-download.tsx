@@ -19,11 +19,11 @@ import type { Client } from "@/lib/api"
 type ServiceKey = "ssh" | "http" | "ftp" | "mysql" | "port"
 
 const SERVICES: { key: ServiceKey; label: string; description: string; ports: string }[] = [
-  { key: "ssh",   label: "SSH Honeypot",   description: "Cowrie — captura brute-force SSH",            ports: "22, 2222" },
-  { key: "http",  label: "Web Honeypot",   description: "HTTP/HTTPS — fake login pages y admin panels", ports: "80, 8443" },
-  { key: "ftp",   label: "FTP Honeypot",   description: "Captura credenciales FTP",                     ports: "21" },
-  { key: "mysql", label: "MySQL Honeypot", description: "Captura intentos de conexión MySQL",           ports: "3306" },
-  { key: "port",  label: "Port Honeypot",  description: "RDP, Redis, MongoDB, Docker, Elastic…",       ports: "múltiples" },
+  { key: "ssh",   label: "SSH Honeypot",   description: "Cowrie — captures SSH brute-force",            ports: "22, 2222" },
+  { key: "http",  label: "Web Honeypot",   description: "HTTP/HTTPS — fake login pages and admin panels", ports: "80, 8443" },
+  { key: "ftp",   label: "FTP Honeypot",   description: "Captures FTP credentials",                     ports: "21" },
+  { key: "mysql", label: "MySQL Honeypot", description: "Captures MySQL connection attempts",           ports: "3306" },
+  { key: "port",  label: "Port Honeypot",  description: "RDP, Redis, MongoDB, Docker, Elastic…",       ports: "multiple" },
 ]
 
 type OvaConfig = { ingestUrl: string; ip: string; port: string; source: string; vmdkReleasedAt: string | null }
@@ -31,11 +31,11 @@ type OvaConfig = { ingestUrl: string; ip: string; port: string; source: string; 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 60) return `hace ${mins} min`
+  if (mins < 60) return `${mins} min ago`
   const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `hace ${hrs} h`
+  if (hrs < 24) return `${hrs} h ago`
   const days = Math.floor(hrs / 24)
-  return `hace ${days} días`
+  return `${days} days ago`
 }
 
 type Props = { client: Client }
@@ -60,7 +60,7 @@ export function ClientOVADownload({ client }: Props) {
         if (data.error) setConfigError(data.error)
         else setConfig(data)
       })
-      .catch(() => setConfigError("No se pudo obtener la configuración del servidor"))
+      .catch(() => setConfigError("Could not fetch server configuration"))
       .finally(() => setConfigLoading(false))
   }, [open])
 
@@ -111,9 +111,9 @@ export function ClientOVADownload({ client }: Props) {
   }
 
   const sourceLabel: Record<string, string> = {
-    "SENSOR_INGEST_URL":   "variable SENSOR_INGEST_URL",
-    "NEXT_PUBLIC_API_URL": "variable NEXT_PUBLIC_API_URL",
-    "auto-detected":       "IP pública auto-detectada",
+    "SENSOR_INGEST_URL":   "SENSOR_INGEST_URL variable",
+    "NEXT_PUBLIC_API_URL": "NEXT_PUBLIC_API_URL variable",
+    "auto-detected":       "auto-detected public IP",
   }
 
   return (
@@ -132,7 +132,7 @@ export function ClientOVADownload({ client }: Props) {
             OVA Sensor Package — {client.name}
           </DialogTitle>
           <DialogDescription>
-            Selecciona los honeypots a activar. El OVA generado ya tiene el token embebido — solo importa en VMware y arranca.
+            Select the honeypots to enable. The generated OVA already has the token embedded — just import it into VMware and boot.
           </DialogDescription>
         </DialogHeader>
 
@@ -140,12 +140,12 @@ export function ClientOVADownload({ client }: Props) {
 
           {/* Server config preview */}
           <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Configuración del servidor</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Server configuration</p>
 
             {configLoading && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Detectando IP pública…
+                Detecting public IP…
               </div>
             )}
 
@@ -163,15 +163,15 @@ export function ClientOVADownload({ client }: Props) {
                   <code className="font-mono text-xs text-foreground">{config.ingestUrl}</code>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-muted-foreground">IP pública</span>
+                  <span className="text-xs text-muted-foreground">Public IP</span>
                   <code className="font-mono text-xs text-foreground">{config.ip}</code>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-muted-foreground">Puerto</span>
+                  <span className="text-xs text-muted-foreground">Port</span>
                   <code className="font-mono text-xs text-foreground">{config.port}</code>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-muted-foreground">Fuente</span>
+                  <span className="text-xs text-muted-foreground">Source</span>
                   <span className="flex items-center gap-1 text-xs text-emerald-400">
                     <CheckCircle2 className="h-3 w-3" />
                     {sourceLabel[config.source] ?? config.source}
@@ -179,15 +179,15 @@ export function ClientOVADownload({ client }: Props) {
                 </div>
                 {config.source === "auto-detected" && (
                   <p className="text-[11px] text-amber-400/80 pt-0.5">
-                    Asegúrate de que el puerto {config.port} esté abierto en el firewall del servidor.
+                    Make sure port {config.port} is open in the server firewall.
                   </p>
                 )}
                 <div className="border-t border-border/50 pt-2 mt-1 flex items-center justify-between gap-2">
-                  <span className="text-xs text-muted-foreground">Disco base</span>
+                  <span className="text-xs text-muted-foreground">Base disk</span>
                   <span className="text-xs font-mono">
                     {config.vmdkReleasedAt
-                      ? <span className="text-foreground">actualizado {timeAgo(config.vmdkReleasedAt)}</span>
-                      : <span className="text-amber-400/80">BASE_VMDK_URL no configurado</span>
+                      ? <span className="text-foreground">updated {timeAgo(config.vmdkReleasedAt)}</span>
+                      : <span className="text-amber-400/80">BASE_VMDK_URL not configured</span>
                     }
                   </span>
                 </div>
@@ -199,7 +199,7 @@ export function ClientOVADownload({ client }: Props) {
                 onClick={() => { setConfig(null); setConfigLoading(true); apiFetch("/api/ova/config").then(r=>r.json()).then((d: OvaConfig & {error?:string})=>{ if(d.error) setConfigError(d.error); else setConfig(d) }).catch(()=>setConfigError("Error")).finally(()=>setConfigLoading(false)) }}
                 className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
               >
-                <RefreshCw className="h-3 w-3" /> Redetectar
+                <RefreshCw className="h-3 w-3" /> Re-detect
               </button>
             )}
           </div>
@@ -233,7 +233,7 @@ export function ClientOVADownload({ client }: Props) {
           </div>
 
           {selected.size === 0 && (
-            <p className="text-xs text-destructive">Selecciona al menos un servicio.</p>
+            <p className="text-xs text-destructive">Select at least one service.</p>
           )}
 
           {error && (
@@ -251,13 +251,13 @@ export function ClientOVADownload({ client }: Props) {
             className="w-full gap-2"
           >
             {loading
-              ? <><Loader2 className="h-4 w-4 animate-spin" /> Generando OVA…</>
-              : <><Download className="h-4 w-4" /> Descargar OVA con token embebido</>}
+              ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating OVA…</>
+              : <><Download className="h-4 w-4" /> Download OVA with embedded token</>}
           </Button>
 
           {loading && (
             <p className="text-center text-xs text-muted-foreground">
-              Esto puede tardar unos segundos en la primera descarga mientras se prepara el disco base.
+              This may take a few seconds on the first download while the base disk is prepared.
             </p>
           )}
         </div>

@@ -61,7 +61,7 @@ export default async function ThreatDetailPage({
             href="/threats"
             className="mb-3 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
           >
-            <ArrowLeft className="h-3.5 w-3.5" /> Volver a Threats
+            <ArrowLeft className="h-3.5 w-3.5" /> Back to Threats
           </Link>
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -84,7 +84,7 @@ export default async function ThreatDetailPage({
         {/* Top factors */}
         {threat.risk.topFactors.length > 0 && (
           <div className={`mb-6 rounded-xl border border-border ${s.bg} p-4`}>
-            <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">Factores principales</p>
+            <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">Top factors</p>
             <ul className="flex flex-wrap gap-2">
               {threat.risk.topFactors.map((f, i) => (
                 <li key={i} className="flex items-center gap-1.5 text-sm text-foreground">
@@ -148,7 +148,7 @@ export default async function ThreatDetailPage({
                 </div>
                 <div className="divide-y divide-border text-sm">
                   <div className="flex justify-between px-4 py-2.5">
-                    <span className="text-muted-foreground">Sesiones</span>
+                    <span className="text-muted-foreground">Sessions</span>
                     <span className="font-mono font-semibold text-foreground">{threat.ssh.sessions}</span>
                   </div>
                   <div className="flex justify-between px-4 py-2.5">
@@ -156,9 +156,9 @@ export default async function ThreatDetailPage({
                     <span className="font-mono font-semibold text-foreground">{threat.ssh.authAttempts}</span>
                   </div>
                   <div className="flex justify-between px-4 py-2.5">
-                    <span className="text-muted-foreground">Login exitoso</span>
+                    <span className="text-muted-foreground">Successful login</span>
                     <span className={`font-semibold ${threat.ssh.loginSuccess ? "text-destructive" : "text-success"}`}>
-                      {threat.ssh.loginSuccess ? "Sí" : "No"}
+                      {threat.ssh.loginSuccess ? "Yes" : "No"}
                     </span>
                   </div>
                 </div>
@@ -304,21 +304,21 @@ export default async function ThreatDetailPage({
             <div className="rounded-xl border border-border bg-card overflow-hidden">
               <div className="border-b border-border p-4">
                 <h3 className="font-semibold text-foreground">SSH Commands timeline</h3>
-                <p className="text-xs text-muted-foreground">{threat.classifiedCommands.length} comandos clasificados</p>
+                <p className="text-xs text-muted-foreground">{threat.classifiedCommands.length} classified commands</p>
               </div>
               {threat.classifiedCommands.length === 0 ? (
                 <div className="p-8 text-center">
                   <Terminal className="mx-auto mb-2 h-8 w-8 text-muted-foreground/30" />
-                  <p className="text-sm text-muted-foreground">No se ejecutaron comandos SSH</p>
+                  <p className="text-sm text-muted-foreground">No SSH commands were executed</p>
                 </div>
               ) : (
                 <div className="overflow-y-auto max-h-[600px]">
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 z-10">
                       <tr className="border-b border-border bg-card">
-                        <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Hora</th>
-                        <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Categoría</th>
-                        <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Comando</th>
+                        <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Time</th>
+                        <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Category</th>
+                        <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Command</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">

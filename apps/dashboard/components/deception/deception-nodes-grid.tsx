@@ -17,7 +17,7 @@ export function DeceptionNodesGrid({ nodes }: { nodes: DeceptionNode[] }) {
   if (nodes.length === 0) {
     return (
       <div className="rounded-xl border border-border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
-        No hay nodos de deception registrados.
+        No deception nodes registered.
       </div>
     )
   }
@@ -37,11 +37,11 @@ export function DeceptionNodesGrid({ nodes }: { nodes: DeceptionNode[] }) {
               </span>
             </div>
           </div>
-          <p className="font-mono text-[11px] text-muted-foreground">{node.ip} · puertos {node.ports.join(", ") || "—"}</p>
+          <p className="font-mono text-[11px] text-muted-foreground">{node.ip} · ports {node.ports.join(", ") || "—"}</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <div>
               <p className="text-lg font-semibold tabular-nums text-blue-400">{node.hits.toLocaleString()}</p>
-              <p className="text-[10px] text-muted-foreground">interacciones</p>
+              <p className="text-[10px] text-muted-foreground">interactions</p>
             </div>
             <div>
               <p className="text-lg font-semibold tabular-nums text-red-400">{node.authAttempts.toLocaleString()}</p>
@@ -49,7 +49,7 @@ export function DeceptionNodesGrid({ nodes }: { nodes: DeceptionNode[] }) {
             </div>
           </div>
           <p className="mt-2 text-[10px] text-muted-foreground/60">
-            {node.lastHit ? `último golpe ${formatDistanceToNow(new Date(node.lastHit), { addSuffix: true })}` : "sin actividad"}
+            {node.lastHit ? `last hit ${formatDistanceToNow(new Date(node.lastHit), { addSuffix: true })}` : "no activity"}
           </p>
         </div>
       ))}

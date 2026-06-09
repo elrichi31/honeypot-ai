@@ -10,15 +10,15 @@ import type { KillChain, KillChainStep } from "@/lib/api/deception"
 
 // OpenCanary logdata keys worth surfacing per step, in display order.
 const STEP_FIELD_LABELS: Record<string, string> = {
-  USERNAME: "Usuario",
-  PASSWORD: "Contraseña",
-  PATH: "Ruta",
+  USERNAME: "Username",
+  PASSWORD: "Password",
+  PATH: "Path",
   HOSTNAME: "Host",
   USERAGENT: "User-Agent",
   USER_AGENT: "User-Agent",
-  REMOTEVERSION: "Cliente",
-  CLIENTVERSION: "Cliente",
-  COMMAND: "Comando",
+  REMOTEVERSION: "Client",
+  CLIENTVERSION: "Client",
+  COMMAND: "Command",
 }
 
 function stepLogFields(logdata: Record<string, unknown> | null): Array<[string, string]> {
@@ -73,15 +73,15 @@ function StepTimeline({ chain }: { chain: KillChain }) {
   return (
     <div className="mt-3 border-t border-border/40 pt-3">
       <p className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/60">
-        Recorrido paso a paso ({chain.steps.length})
+        Step-by-step path ({chain.steps.length})
       </p>
       <ol className="space-y-2">
         {/* Entry point */}
         <li className="flex items-start gap-2.5">
           <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-400/15 text-[10px] font-medium text-emerald-300">0</span>
           <div className="min-w-0">
-            <p className="text-xs text-emerald-300 font-mono">cowrie SSH · entrada</p>
-            <p className="text-[10px] text-muted-foreground/60">El atacante superó el honeypot SSH y entró a la red interna.</p>
+            <p className="text-xs text-emerald-300 font-mono">cowrie SSH · entry</p>
+            <p className="text-[10px] text-muted-foreground/60">The attacker got past the SSH honeypot and entered the internal network.</p>
           </div>
         </li>
         {chain.steps.map((step, i) => {
@@ -100,7 +100,7 @@ function StepTimeline({ chain }: { chain: KillChain }) {
                     {step.protocol.toUpperCase()} :{step.dstPort}
                   </span>
                   <span className={`rounded px-1 py-0.5 text-[10px] ${isAuth ? "bg-red-400/15 text-red-300" : "bg-muted/60 text-muted-foreground"}`}>
-                    {isAuth ? "intento de login" : "conexión"}
+                    {isAuth ? "login attempt" : "connection"}
                   </span>
                   <span className="text-[10px] text-muted-foreground/50 font-mono">
                     {formatInTimezone(step.timestamp, tz, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
@@ -111,7 +111,7 @@ function StepTimeline({ chain }: { chain: KillChain }) {
                     {fields.map(([label, value]) => (
                       <span key={label} className="text-[11px] text-muted-foreground">
                         <span className="text-muted-foreground/50">{label}:</span>{" "}
-                        <span className={`font-mono ${label === "Contraseña" || label === "Usuario" ? "text-red-300" : "text-foreground"}`}>{value}</span>
+                        <span className={`font-mono ${label === "Password" || label === "Username" ? "text-red-300" : "text-foreground"}`}>{value}</span>
                       </span>
                     ))}
                   </div>
@@ -137,23 +137,23 @@ function ChainRow({ chain }: { chain: KillChain }) {
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 rounded-md bg-slate-400/10 px-2 py-0.5 text-[10px] font-medium text-slate-400">
-              <Ghost className="h-3 w-3" /> interno
+              <Ghost className="h-3 w-3" /> internal
             </span>
           )}
-          <span className="font-mono text-sm text-foreground">{chain.publicIp ?? "IP desconocida"}</span>
+          <span className="font-mono text-sm text-foreground">{chain.publicIp ?? "Unknown IP"}</span>
           {chain.sessionId && (
             <Link
               href={`/sessions/${chain.sessionId}`}
               className="inline-flex items-center gap-1 text-[11px] text-blue-400 hover:underline"
             >
-              ver sesión <ExternalLink className="h-3 w-3" />
+              view session <ExternalLink className="h-3 w-3" />
             </Link>
           )}
         </div>
         <div className="flex items-center gap-3 text-[11px] tabular-nums text-muted-foreground">
-          <span>{chain.nodesTouched} nodo{chain.nodesTouched === 1 ? "" : "s"}</span>
+          <span>{chain.nodesTouched} node{chain.nodesTouched === 1 ? "" : "s"}</span>
           <span>·</span>
-          <span>{chain.steps.length} pasos</span>
+          <span>{chain.steps.length} steps</span>
           <span>·</span>
           <span>{formatDistanceToNow(new Date(chain.lastSeen), { addSuffix: true })}</span>
         </div>
@@ -179,7 +179,7 @@ function ChainRow({ chain }: { chain: KillChain }) {
         className="mt-2 inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
       >
         {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-        {expanded ? "Ocultar recorrido" : "Ver recorrido detallado"}
+        {expanded ? "Hide path" : "View detailed path"}
       </button>
       {expanded && <StepTimeline chain={chain} />}
     </div>
@@ -191,8 +191,8 @@ export function KillChainView({ chains }: { chains: KillChain[] }) {
     return (
       <div className="rounded-xl border border-dashed border-border bg-card/40 px-4 py-10 text-center">
         <Ghost className="mx-auto mb-2 h-6 w-6 text-muted-foreground/40" />
-        <p className="text-sm text-muted-foreground">Aún no hay movimiento lateral hacia los nodos trampa.</p>
-        <p className="text-[11px] text-muted-foreground/60">Cuando un atacante salte de cowrie a la red interna, su recorrido aparecerá aquí.</p>
+        <p className="text-sm text-muted-foreground">No lateral movement toward the trap nodes yet.</p>
+        <p className="text-[11px] text-muted-foreground/60">When an attacker jumps from cowrie into the internal network, their path will appear here.</p>
       </div>
     )
   }

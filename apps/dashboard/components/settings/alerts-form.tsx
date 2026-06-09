@@ -27,20 +27,20 @@ interface AlertConfig {
 }
 
 const ALERT_TYPE_LABELS: { key: keyof AlertEnabledTypes; label: string; description: string }[] = [
-  { key: "threatScore",   label: "Amenaza crítica",              description: "Score de riesgo ≥ 80/100" },
-  { key: "multiService",  label: "Multi-servicio",               description: "3+ protocolos distintos en 10 min" },
-  { key: "authBurst",     label: "Ráfaga de autenticación",      description: "12+ intentos en 5 min" },
-  { key: "postAuth",      label: "Login exitoso + comandos",     description: "Autenticó y ejecutó comandos sospechosos" },
-  { key: "attackChain",   label: "Cadena de ataque",             description: "Scan → exploit → auth en secuencia" },
-  { key: "sensorOffline", label: "Sensor offline",               description: "Sensor sin heartbeat por más de 2 min" },
+  { key: "threatScore",   label: "Critical threat",              description: "Risk score ≥ 80/100" },
+  { key: "multiService",  label: "Multi-service",                description: "3+ distinct protocols in 10 min" },
+  { key: "authBurst",     label: "Authentication burst",         description: "12+ attempts in 5 min" },
+  { key: "postAuth",      label: "Successful login + commands",  description: "Authenticated and ran suspicious commands" },
+  { key: "attackChain",   label: "Attack chain",                 description: "Scan → exploit → auth in sequence" },
+  { key: "sensorOffline", label: "Sensor offline",               description: "Sensor with no heartbeat for over 2 min" },
 ]
 
 const REPORT_INTERVAL_OPTIONS = [
-  { value: 0,  label: "Desactivado" },
-  { value: 4,  label: "Cada 4 horas" },
-  { value: 8,  label: "Cada 8 horas" },
-  { value: 12, label: "Cada 12 horas" },
-  { value: 24, label: "Una vez al día" },
+  { value: 0,  label: "Disabled" },
+  { value: 4,  label: "Every 4 hours" },
+  { value: 8,  label: "Every 8 hours" },
+  { value: 12, label: "Every 12 hours" },
+  { value: 24, label: "Once a day" },
 ]
 
 const DEFAULT_CONFIG: AlertConfig = {
@@ -102,7 +102,7 @@ export function AlertsForm() {
       setStatus("saved")
       setTimeout(() => setStatus("idle"), 3000)
     } catch {
-      setError("No se pudo guardar.")
+      setError("Could not save.")
       setStatus("error")
     }
   }
@@ -115,15 +115,15 @@ export function AlertsForm() {
         icon={SlidersHorizontal}
         iconBg="bg-orange-500/20"
         iconColor="text-orange-400"
-        title="Configuración de alertas"
-        description="Controla qué eventos generan notificaciones y con qué frecuencia"
+        title="Alert configuration"
+        description="Control which events trigger notifications and how often"
       />
 
       <div className="space-y-6 p-4">
 
-        {/* Nivel mínimo */}
+        {/* Minimum level */}
         <div className="space-y-2">
-          <Label className="text-sm font-medium">Nivel mínimo de alerta</Label>
+          <Label className="text-sm font-medium">Minimum alert level</Label>
           <div className="flex gap-2">
             {(["critical", "high"] as const).map((level) => (
               <button
@@ -138,18 +138,18 @@ export function AlertsForm() {
                     : "border-border bg-secondary text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {level === "critical" ? "Solo CRITICAL" : "HIGH y CRITICAL"}
+                {level === "critical" ? "CRITICAL only" : "HIGH and CRITICAL"}
               </button>
             ))}
           </div>
           <p className="text-xs text-muted-foreground">
-            CRITICAL = score ≥ 80. HIGH = score ≥ 60. Recomendado: Solo CRITICAL para menos ruido.
+            CRITICAL = score ≥ 80. HIGH = score ≥ 60. Recommended: CRITICAL only for less noise.
           </p>
         </div>
 
-        {/* Tipos de alerta */}
+        {/* Alert types */}
         <div className="space-y-3">
-          <Label className="text-sm font-medium">Tipos de alerta activos</Label>
+          <Label className="text-sm font-medium">Active alert types</Label>
           <div className="rounded-lg border border-border divide-y divide-border">
             {ALERT_TYPE_LABELS.map(({ key, label, description }) => (
               <div key={key} className="flex items-center justify-between px-3 py-2.5">
@@ -169,7 +169,7 @@ export function AlertsForm() {
 
         {/* Cooldown */}
         <div className="space-y-2">
-          <Label htmlFor="cooldown" className="text-sm font-medium">Cooldown por IP (minutos)</Label>
+          <Label htmlFor="cooldown" className="text-sm font-medium">Cooldown per IP (minutes)</Label>
           <div className="flex items-center gap-3">
             <Input
               id="cooldown"
@@ -182,14 +182,14 @@ export function AlertsForm() {
               className="w-28"
             />
             <span className="text-xs text-muted-foreground">
-              Una vez alertada una IP, no se vuelve a notificar hasta que pase este tiempo.
+              Once an IP has been alerted, it won't be notified again until this time has elapsed.
             </span>
           </div>
         </div>
 
-        {/* Informe automático */}
+        {/* Automatic report */}
         <div className="space-y-2">
-          <Label className="text-sm font-medium">Informe automático a Discord</Label>
+          <Label className="text-sm font-medium">Automatic report to Discord</Label>
           <div className="flex flex-wrap gap-2">
             {REPORT_INTERVAL_OPTIONS.map(({ value, label }) => (
               <button
@@ -207,7 +207,7 @@ export function AlertsForm() {
             ))}
           </div>
           <p className="text-xs text-muted-foreground">
-            Resumen de actividad enviado a Discord. Si no hubo actividad en el período, no se envía nada.
+            Activity summary sent to Discord. If there was no activity in the period, nothing is sent.
           </p>
         </div>
 
@@ -217,7 +217,7 @@ export function AlertsForm() {
             disabled={status === "saving" || loading}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
-            {status === "saving" ? "Guardando..." : status === "saved" ? "Guardado" : "Guardar"}
+            {status === "saving" ? "Saving..." : status === "saved" ? "Saved" : "Save"}
           </Button>
           <SaveFeedback status={status} error={error} />
         </div>

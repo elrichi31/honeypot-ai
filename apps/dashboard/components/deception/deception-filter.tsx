@@ -62,11 +62,11 @@ export function DeceptionFilter({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Select value={activeClient || ALL} onValueChange={onClient}>
-        <SelectTrigger size="sm" className="w-[180px] bg-muted/30" aria-label="Filtrar por grupo de deception">
-          <SelectValue placeholder="Todas las redes" />
+        <SelectTrigger size="sm" className="w-[180px] bg-muted/30" aria-label="Filter by deception group">
+          <SelectValue placeholder="All networks" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={ALL}>Todas las redes</SelectItem>
+          <SelectItem value={ALL}>All networks</SelectItem>
           {clients.map((c) => (
             <SelectItem key={c.slug} value={c.slug}>{c.name}</SelectItem>
           ))}
@@ -78,11 +78,11 @@ export function DeceptionFilter({
         onValueChange={onNode}
         disabled={nodesForClient.length === 0}
       >
-        <SelectTrigger size="sm" className="w-[200px] bg-muted/30" aria-label="Filtrar por nodo trampa">
-          <SelectValue placeholder="Todos los nodos" />
+        <SelectTrigger size="sm" className="w-[200px] bg-muted/30" aria-label="Filter by trap node">
+          <SelectValue placeholder="All nodes" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={ALL}>Todos los nodos</SelectItem>
+          <SelectItem value={ALL}>All nodes</SelectItem>
           {nodesForClient.map((n) => (
             <SelectItem key={n.sensorId} value={n.sensorId}>
               {n.name}{n.clientName && !activeClient ? ` · ${n.clientName}` : ""}

@@ -130,7 +130,7 @@ async function OverviewSection() {
   try {
     overview = await fetchHoneypotOverview()
   } catch {
-    return <SectionError title="No se pudieron cargar las métricas" />
+    return <SectionError title="Could not load metrics" />
   }
 
   const activeSources = overview.totals.activeSources
@@ -182,7 +182,7 @@ async function CrossTimelineSection({ timezone }: { timezone: string }) {
   try {
     crossTimeline = await fetchCrossSensorTimeline({ range: "day", timezone })
   } catch {
-    return <SectionError title="No se pudo cargar la actividad cross-sensor" />
+    return <SectionError title="Could not load cross-sensor activity" />
   }
   return <CrossSensorActivityChart timeline={crossTimeline} range="day" />
 }
@@ -192,7 +192,7 @@ async function GlobeSection() {
   try {
     geoData = await fetchGeoSummary()
   } catch {
-    return <SectionError title="No se pudo cargar el mapa de ataques" />
+    return <SectionError title="Could not load the attack map" />
   }
   return <GlobeMap countryAttacks={geolocateIps(geoData)} />
 }
@@ -202,7 +202,7 @@ async function InsightsSection() {
   try {
     insights = await fetchDashboardInsights()
   } catch {
-    return <SectionError title="No se pudo cargar el análisis SSH" />
+    return <SectionError title="Could not load SSH analysis" />
   }
   return (
     <DashboardInsightsView
@@ -234,20 +234,20 @@ export default function DashboardPage() {
       </div>
 
       {/* KPIs + per-sensor grid + protocol distribution */}
-      <Suspense fallback={<SectionLoading label="Cargando métricas…" />}>
+      <Suspense fallback={<SectionLoading label="Loading metrics…" />}>
         <OverviewSection />
       </Suspense>
 
       {/* Cross-sensor activity timeline */}
       <div className="mb-6">
-        <Suspense fallback={<SectionLoading label="Cargando actividad…" />}>
+        <Suspense fallback={<SectionLoading label="Loading activity…" />}>
           <CrossTimelineSection timezone={timezone} />
         </Suspense>
       </div>
 
       {/* Globe map */}
       <div className="mb-6">
-        <Suspense fallback={<SectionLoading height="h-[400px]" label="Cargando mapa…" />}>
+        <Suspense fallback={<SectionLoading height="h-[400px]" label="Loading map…" />}>
           <GlobeSection />
         </Suspense>
       </div>
@@ -260,7 +260,7 @@ export default function DashboardPage() {
             SSH Analysis
           </h2>
         </div>
-        <Suspense fallback={<SectionLoading label="Cargando análisis SSH…" />}>
+        <Suspense fallback={<SectionLoading label="Loading SSH analysis…" />}>
           <InsightsSection />
         </Suspense>
       </div>

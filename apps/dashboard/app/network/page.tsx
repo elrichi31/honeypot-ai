@@ -18,7 +18,7 @@ export default async function NetworkPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-foreground">Network Map</h1>
         <p className="text-sm text-muted-foreground">
-          Topología de sensores por cliente — sensores expuestos a Internet vs red interna.
+          Sensor topology by client — Internet-facing sensors vs internal network.
         </p>
       </div>
 

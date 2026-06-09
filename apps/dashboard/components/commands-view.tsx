@@ -50,7 +50,7 @@ export function CommandsView({ events, searchQuery, pagination }: CommandsViewPr
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   name="q"
-                  placeholder="Buscar comando, IP o credencial..."
+                  placeholder="Search command, IP or credential..."
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   className="pl-10"
@@ -60,7 +60,7 @@ export function CommandsView({ events, searchQuery, pagination }: CommandsViewPr
                 type="submit"
                 className="h-10 rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
               >
-                Buscar
+                Search
               </button>
             </form>
           </div>

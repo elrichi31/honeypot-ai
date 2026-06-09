@@ -9,20 +9,20 @@ import type { DeceptionEvent } from "@/lib/api/deception"
 // up in the raw JSON toggle, so we never hide data — we just surface the common
 // fields first.
 const FIELD_LABELS: Record<string, string> = {
-  USERNAME: "Usuario",
-  PASSWORD: "Contraseña",
-  PATH: "Ruta",
+  USERNAME: "Username",
+  PASSWORD: "Password",
+  PATH: "Path",
   HOSTNAME: "Host",
   USERAGENT: "User-Agent",
   USER_AGENT: "User-Agent",
   SKIN: "Skin",
-  LOCALVERSION: "Versión local",
-  REMOTEVERSION: "Versión cliente",
-  CLIENTVERSION: "Versión cliente",
-  COMMAND: "Comando",
-  COMMANDS: "Comandos",
-  SESSION: "Sesión",
-  MYSQLVERSION: "Versión MySQL",
+  LOCALVERSION: "Local version",
+  REMOTEVERSION: "Client version",
+  CLIENTVERSION: "Client version",
+  COMMAND: "Command",
+  COMMANDS: "Commands",
+  SESSION: "Session",
+  MYSQLVERSION: "MySQL version",
 }
 
 function prettyValue(v: unknown): string {
@@ -55,10 +55,10 @@ function EventDetail({ event }: { event: DeceptionEvent }) {
     <div className="space-y-3 px-4 py-3 bg-background/40">
       {/* Connection facts */}
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
-        <Field label="IP origen (interna)" value={`${event.src_ip}${event.src_port ? `:${event.src_port}` : ""}`} />
-        <Field label="Nodo destino" value={event.node_name ?? event.dst_host ?? event.node_id} />
-        <Field label="Servicio" value={`${event.protocol.toUpperCase()} :${event.dst_port}`} />
-        <Field label="Tipo" value={event.event_type} />
+        <Field label="Source IP (internal)" value={`${event.src_ip}${event.src_port ? `:${event.src_port}` : ""}`} />
+        <Field label="Target node" value={event.node_name ?? event.dst_host ?? event.node_id} />
+        <Field label="Service" value={`${event.protocol.toUpperCase()} :${event.dst_port}`} />
+        <Field label="Type" value={event.event_type} />
       </div>
 
       {/* Decoded logdata fields */}
@@ -77,7 +77,7 @@ function EventDetail({ event }: { event: DeceptionEvent }) {
         onClick={() => setShowRaw((v) => !v)}
         className="text-[11px] text-muted-foreground/70 hover:text-foreground transition-colors"
       >
-        {showRaw ? "Ocultar JSON" : "Ver JSON crudo"}
+        {showRaw ? "Hide JSON" : "View raw JSON"}
       </button>
       {showRaw && (
         <pre className="rounded-lg bg-background border border-border px-3 py-2 text-[11px] text-foreground overflow-x-auto whitespace-pre-wrap break-all">
@@ -94,25 +94,25 @@ export function DeceptionEventsTable({ events }: { events: DeceptionEvent[] }) {
   return (
     <div className="rounded-xl border border-border bg-card">
       <div className="border-b border-border/60 px-4 py-3">
-        <h2 className="text-sm font-semibold text-foreground">Eventos crudos en nodos trampa</h2>
-        <p className="text-[11px] text-muted-foreground">Cada interacción registrada por OpenCanary en la red interna. Haz clic en una fila para ver el detalle.</p>
+        <h2 className="text-sm font-semibold text-foreground">Raw events on trap nodes</h2>
+        <p className="text-[11px] text-muted-foreground">Every interaction logged by OpenCanary on the internal network. Click a row to see the detail.</p>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left text-[12px]">
           <thead className="text-[10px] uppercase text-muted-foreground/60">
             <tr className="border-b border-border/40">
               <th className="px-4 py-2 font-medium w-6"></th>
-              <th className="px-4 py-2 font-medium">Nodo</th>
-              <th className="px-4 py-2 font-medium">Origen</th>
-              <th className="px-4 py-2 font-medium">Servicio</th>
-              <th className="px-4 py-2 font-medium">Tipo</th>
-              <th className="px-4 py-2 font-medium">Credencial</th>
-              <th className="px-4 py-2 font-medium text-right">Cuándo</th>
+              <th className="px-4 py-2 font-medium">Node</th>
+              <th className="px-4 py-2 font-medium">Source</th>
+              <th className="px-4 py-2 font-medium">Service</th>
+              <th className="px-4 py-2 font-medium">Type</th>
+              <th className="px-4 py-2 font-medium">Credential</th>
+              <th className="px-4 py-2 font-medium text-right">When</th>
             </tr>
           </thead>
           <tbody>
             {events.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Sin eventos.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">No events.</td></tr>
             ) : events.map(e => {
               const isExpanded = expandedId === e.id
               return (
