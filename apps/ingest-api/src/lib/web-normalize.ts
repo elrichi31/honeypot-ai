@@ -12,6 +12,9 @@ export const webHitSchema = z.object({
   headers: z.unknown().default({}),
   body: z.string().default(''),
   attackType: z.string().min(1),
+  // Set by the web honeypot when an attacker replays the leaked DB credentials
+  // at a login form — a high-confidence compromise signal.
+  canaryTriggered: z.boolean().default(false),
 });
 
 export type WebHit = z.infer<typeof webHitSchema>;

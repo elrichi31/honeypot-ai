@@ -368,6 +368,7 @@ model WebHit {
   headers     Json
   body        String   @default("")
   attackType  String   @map("attack_type")
+  canaryTriggered Boolean @default(false) @map("canary_triggered")
   timestamp   DateTime
   createdAt   DateTime @default(now()) @map("created_at")
 

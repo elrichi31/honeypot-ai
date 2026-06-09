@@ -5,7 +5,7 @@ import { ensureIngestToken } from '../lib/ingest-auth.js';
 import { isWebHitBot } from '../lib/bot-detector.js';
 import { eventBus } from '../lib/event-bus.js';
 import { lookupGeo } from '../lib/geo.js';
-import { scheduleThreatAlert } from '../lib/threat-alerts.js';
+import { scheduleThreatAlert, evaluateCanaryAlert } from '../lib/threat-alerts.js';
 import { forwardClientEventBySensorId } from '../lib/client-forward.js';
 import { basePaginationSchema, getPagination, buildPaginationResponse } from '../lib/pagination.js';
 import { withCache } from '../lib/cache-helper.js';
@@ -30,8 +30,11 @@ const webHitsQuerySchema = z.object({
   srcIp: z.string().optional(),
 });
 
+const ATTACK_TYPES = ['sqli', 'xss', 'lfi', 'rfi', 'cmdi', 'scanner', 'info_disclosure', 'recon'] as const;
+
 const byIpQuerySchema = basePaginationSchema.extend({
   q: z.string().trim().min(1).optional(),
+  attackType: z.enum(ATTACK_TYPES).optional(),
   sortBy: z.enum(['totalHits', 'lastSeen', 'firstSeen']).default('totalHits'),
   sortDir: z.enum(['asc', 'desc']).default('desc'),
 });
@@ -82,6 +85,9 @@ async function handleSingleEvent(fastify: FastifyInstance, request: FastifyReque
       emitAttackEvent(d.srcIp, d.timestamp);
       forwardWebEvent(fastify, d, sensorId);
       scheduleThreatAlert(fastify.prisma, d.srcIp);
+      if (d.canaryTriggered) {
+        void evaluateCanaryAlert(fastify.prisma, { ip: d.srcIp, path: d.path });
+      }
       return reply.status(201).send({ id: row.id, attackType: row.attack_type });
     }
     return reply.status(200).send({ duplicate: true });
@@ -112,6 +118,9 @@ async function handleBatchEvents(fastify: FastifyInstance, request: FastifyReque
         emitAttackEvent(d.srcIp, d.timestamp);
         forwardWebEvent(fastify, d, d.sensorId ?? null);
         scheduleThreatAlert(fastify.prisma, d.srcIp);
+        if (d.canaryTriggered) {
+          void evaluateCanaryAlert(fastify.prisma, { ip: d.srcIp, path: d.path });
+        }
       }
     } catch {
       // skip malformed individual events
@@ -225,10 +234,10 @@ async function handleByIp(fastify: FastifyInstance, request: FastifyRequest, rep
   }
 
   const { page, pageSize, offset } = getPagination(parsed.data);
-  const cacheKey = `web-hits:by-ip:${page}:${pageSize}:${parsed.data.q ?? ''}:${parsed.data.sortBy}:${parsed.data.sortDir}`
+  const cacheKey = `web-hits:by-ip:${page}:${pageSize}:${parsed.data.q ?? ''}:${parsed.data.attackType ?? ''}:${parsed.data.sortBy}:${parsed.data.sortDir}`
 
   return reply.send(await withCache(fastify.cache, cacheKey, 60, async () => {
-    const whereSql = buildByIpWhereSql(parsed.data.q);
+    const whereSql = buildByIpWhereSql(parsed.data.q, parsed.data.attackType);
     const orderCol = buildSortSql(parsed.data.sortBy);
     const orderDir = parsed.data.sortDir === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`;
 

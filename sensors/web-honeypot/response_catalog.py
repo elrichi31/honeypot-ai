@@ -6,18 +6,34 @@ payloads live on disk so the honeypot is easy to extend.
 """
 
 import json
+import secrets
 from functools import lru_cache
 from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs
 
-from flask import session
+from flask import g, session
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup, escape
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
 PAYLOADS_DIR = BASE_DIR / "payloads"
+
+# Canary credentials — the exact DB user+password leaked by the fake .env payload
+# (payloads/config/env.txt). If an attacker submits *both* of these at any login
+# form, it confirms they read the leaked config and are reusing it: the cleanest
+# possible signal of compromise. We flag it on flask.g so app.py can mark the
+# ingest event without threading a return value through every handler signature.
+_CANARY_DB_USER = "techcorp_app"
+_CANARY_DB_PASSWORD = "techcorp-db-password-example"
+
+
+def _check_canary(user: str, password: str) -> None:
+    """Flag the request on flask.g when both leaked DB creds are reused."""
+    if user == _CANARY_DB_USER and password == _CANARY_DB_PASSWORD:
+        g.canary_triggered = True
+        g.canary_credential = _CANARY_DB_USER
 
 _template_env = Environment(
     loader=FileSystemLoader(str(TEMPLATES_DIR)),
@@ -107,6 +123,7 @@ def _wp_login(method: str, query: str, body: str) -> tuple[str, str, int]:
     if method == "POST":
         user = fd.get("log", "")
         pwd = fd.get("pwd", "")
+        _check_canary(user, pwd)
         session["wp_last_user"] = user  # remember across requests
         if not user:
             msg = Markup("The username field is empty.")
@@ -162,6 +179,7 @@ def _admin(method: str, _q, body: str) -> tuple[str, str, int]:
     fd = _parse_form(body)
     if method == "POST":
         user = fd.get("username", "") or fd.get("email", "")
+        _check_canary(user, fd.get("password", ""))
         session["admin_last_user"] = user
         if user:
             notice = Markup(f'<div class="alert-error">Authentication failed for <strong>{escape(user)}</strong>. '
@@ -178,16 +196,20 @@ def _phpmyadmin(method: str, _q, body: str) -> tuple[str, str, int]:
     user = fd.get("pma_username", "") or session.get("pma_last_user", "")
     server = fd.get("server", "1")
     server_name = "db-replica.internal" if server == "2" else "db-primary.internal"
+    # Real phpMyAdmin rotates the anti-CSRF token every request; a static value is
+    # an instant fingerprint, so mint a fresh one each time.
+    csrf_token = secrets.token_hex(16)
     if method == "POST":
+        _check_canary(user, fd.get("pma_password", ""))
         session["pma_last_user"] = user
         login = escape(user or "anonymous")
         notice = Markup(f'<div class="alert"><strong>Cannot log in to the MySQL server</strong><br>'
                         f"mysqli::real_connect(): (HY000/1045): Access denied for user "
                         f"&#39;{login}&#39;@&#39;localhost&#39; (using password: YES)</div>")
         return (_render("phpmyadmin/login.html", submitted_user=user, selected_server=server,
-                        server_name=server_name, notice_html=notice), "text/html", 200)
+                        server_name=server_name, csrf_token=csrf_token, notice_html=notice), "text/html", 200)
     return (_render("phpmyadmin/login.html", submitted_user=user, selected_server=server,
-                    server_name=server_name, notice_html=""), "text/html", 200)
+                    server_name=server_name, csrf_token=csrf_token, notice_html=""), "text/html", 200)
 
 
 def _server_status(_m, _q, _b) -> tuple[str, str, int]:

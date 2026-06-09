@@ -180,6 +180,25 @@ export function checkDeceptionInteraction(
   }
 }
 
+export function checkCanaryReplay(
+  ip: string,
+  path: string,
+  cooldownMs: number,
+): AlertPayload {
+  return {
+    key: `canary:${ip}`,
+    cooldownMs,
+    level: 'critical',
+    title: 'Canary tripped: leaked DB credentials replayed',
+    description: `Attacker \`${ip}\` submitted the leaked database credentials at \`${path}\` — confirms they read the planted \`.env\` and are reusing its secrets.`,
+    fields: [
+      { name: 'Attacker IP', value: ip, inline: true },
+      { name: 'Login path', value: path, inline: true },
+      { name: 'Signal', value: 'Decoy DB credential reuse', inline: false },
+    ],
+  }
+}
+
 export function checkAttackChain(
   ip: string,
   hasPortScan: boolean,

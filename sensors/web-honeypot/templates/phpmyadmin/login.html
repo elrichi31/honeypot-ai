@@ -53,7 +53,7 @@ input[type=text]:focus,input[type=password]:focus,select:focus{outline:none;bord
         </select>
       </div>
       <input type="hidden" name="set_session" value="">
-      <input type="hidden" name="token" value="9f3a2e1b8c7d4f6a0e5b2c9d8a1f4e7b">
+      <input type="hidden" name="token" value="{{ csrf_token }}">
       <button type="submit" name="Login" value="1" id="input_go" class="btn" tabindex="4">Log in</button>
     </form>
     <div class="footer">phpMyAdmin 5.2.1 &bull; <a href="https://www.phpmyadmin.net/" target="_blank" rel="noopener">phpmyadmin.net</a></div>

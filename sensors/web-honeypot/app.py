@@ -10,6 +10,7 @@ Design goals (inspired by SNARE/TANNER):
 
 import logging
 import os
+import secrets
 import socket
 import threading
 import time
@@ -19,7 +20,7 @@ from email.utils import formatdate
 from urllib.request import urlopen
 
 import requests
-from flask import Flask, request, Response, session
+from flask import Flask, g, request, Response, session
 from classifier import classify
 from response_catalog import get_response
 
@@ -122,6 +123,10 @@ def catch_all(path: str):
         user_agent=user_agent,
     )
 
+    # Build a convincing response. Handlers may set g.canary_triggered when an
+    # attacker reuses the leaked DB credentials, so render before building the event.
+    resp_body, content_type, status_code = get_response(full_path, method, query, body_raw, attack_type)
+
     # Build ingest event
     event = {
         "eventId":    str(uuid.uuid4()),
@@ -135,13 +140,21 @@ def catch_all(path: str):
         "headers":    dict(request.headers),
         "body":       body_raw,
         "attackType": attack_type,
+        "canaryTriggered": bool(getattr(g, "canary_triggered", False)),
     }
 
+    if event["canaryTriggered"]:
+        log.warning("[%s] CANARY credential reuse on %s — leaked DB creds replayed", src_ip, full_path)
     log.info("[%s] %s %s?%s — %s", src_ip, method, full_path, query, attack_type)
     send_to_ingest(event)
 
-    # Build a convincing response
-    resp_body, content_type, status_code = get_response(full_path, method, query, body_raw, attack_type)
+    # Content-Length jitter: append an HTML comment with a random nonce so every
+    # HTML response has a slightly different size. This breaks the static
+    # response-length signatures that dir-fuzzers (gobuster, ffuf) use to group or
+    # filter pages. HTML-only — injecting into JSON/XML/SQL payloads would corrupt
+    # them and hurt the very realism we're trying to preserve.
+    if content_type.startswith("text/html") and method != "HEAD":
+        resp_body = f"{resp_body}\n<!-- {secrets.token_hex(secrets.randbelow(24) + 4)} -->"
 
     # HEAD requests: same headers, no body
     if method == "HEAD":

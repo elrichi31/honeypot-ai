@@ -7,18 +7,19 @@ import { SearchInput } from "@/components/ui/search-input"
 import { lookupIp } from "@/lib/geo"
 import { AttackersTable } from "./attackers-table"
 import { WebAttacksNav } from "@/components/web-attacks-nav"
-import { ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
+import { AttackTypeFilter } from "@/components/attack-type-filter"
 import { TablePagination } from "@/components/table-pagination"
 
 function SortableWebTh({
-  label, column, sortBy, sortDir, q, pageSize,
+  label, column, sortBy, sortDir, q, type, pageSize,
 }: {
-  label: string; column: string; sortBy: string; sortDir: string; q?: string; pageSize: number
+  label: string; column: string; sortBy: string; sortDir: string; q?: string; type?: string; pageSize: number
 }) {
   const isActive = sortBy === column
   const nextDir = isActive && sortDir === "desc" ? "asc" : "desc"
   const params = new URLSearchParams({ sortBy: column, sortDir: nextDir, pageSize: String(pageSize) })
   if (q) params.set("q", q)
+  if (type) params.set("type", type)
   return (
     <th className="px-4 py-3 text-left font-medium text-muted-foreground">
       <Link href={`/web-attacks?${params}`} className="inline-flex items-center gap-1 hover:text-foreground transition-colors">
@@ -33,6 +34,7 @@ const PAGE_SIZE_OPTIONS = new Set(["50", "100", "200"])
 
 const VALID_WEB_SORT_BY = new Set(["totalHits", "lastSeen", "firstSeen"])
 const VALID_SORT_DIR = new Set(["asc", "desc"])
+const VALID_ATTACK_TYPES = new Set(["sqli", "xss", "lfi", "rfi", "cmdi", "scanner", "info_disclosure", "recon"])
 
 export default async function WebAttacksPage({
   searchParams,
@@ -41,6 +43,7 @@ export default async function WebAttacksPage({
     page?: string
     pageSize?: string
     q?: string
+    type?: string
     sortBy?: string
     sortDir?: string
   }>
@@ -49,6 +52,7 @@ export default async function WebAttacksPage({
   const page = Number(params.page ?? "1")
   const pageSize = PAGE_SIZE_OPTIONS.has(params.pageSize ?? "") ? Number(params.pageSize) : 50
   const q = params.q?.trim() || undefined
+  const attackType = VALID_ATTACK_TYPES.has(params.type ?? "") ? params.type : undefined
   const sortBy = VALID_WEB_SORT_BY.has(params.sortBy ?? "") ? (params.sortBy as "totalHits" | "lastSeen" | "firstSeen") : "totalHits"
   const sortDir = VALID_SORT_DIR.has(params.sortDir ?? "") ? (params.sortDir as "asc" | "desc") : "desc"
 
@@ -56,7 +60,7 @@ export default async function WebAttacksPage({
   let stats: Awaited<ReturnType<typeof fetchWebHitsStats>>
   try {
     ;[attackersPage, stats] = await Promise.all([
-      fetchWebHitsByIpPage({ page, pageSize, q, sortBy, sortDir }),
+      fetchWebHitsByIpPage({ page, pageSize, q, attackType, sortBy, sortDir }),
       fetchWebHitsStats(),
     ])
   } catch {
@@ -105,18 +109,11 @@ export default async function WebAttacksPage({
           <p className="mt-1 text-2xl font-semibold">{attackersPage.pagination.total}</p>
         </div>
         <div className="col-span-2 rounded-xl border border-border bg-card p-4">
-          <p className="mb-2 text-sm text-muted-foreground">Attack types</p>
-          <div className="flex flex-wrap gap-2">
-            {stats.byAttackType.map((attack) => (
-              <span
-                key={attack.attackType}
-                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${ATTACK_COLORS[attack.attackType] ?? ATTACK_COLORS.recon}`}
-              >
-                {ATTACK_LABELS[attack.attackType] ?? attack.attackType}
-                <span className="font-mono opacity-70">{attack.count}</span>
-              </span>
-            ))}
-          </div>
+          <p className="mb-2 text-sm text-muted-foreground">Filter by attack type</p>
+          <AttackTypeFilter
+            types={stats.byAttackType.map((a) => a.attackType)}
+            counts={Object.fromEntries(stats.byAttackType.map((a) => [a.attackType, a.count]))}
+          />
         </div>
       </div>
 
@@ -131,11 +128,11 @@ export default async function WebAttacksPage({
             <thead>
               <tr className="border-b border-border bg-muted/30">
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Attacker IP</th>
-                <SortableWebTh label="Hits" column="totalHits" sortBy={sortBy} sortDir={sortDir} q={q} pageSize={pageSize} />
+                <SortableWebTh label="Hits" column="totalHits" sortBy={sortBy} sortDir={sortDir} q={q} type={attackType} pageSize={pageSize} />
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Attack types</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Top paths</th>
-                <SortableWebTh label="First hit" column="firstSeen" sortBy={sortBy} sortDir={sortDir} q={q} pageSize={pageSize} />
-                <SortableWebTh label="Last hit" column="lastSeen" sortBy={sortBy} sortDir={sortDir} q={q} pageSize={pageSize} />
+                <SortableWebTh label="First hit" column="firstSeen" sortBy={sortBy} sortDir={sortDir} q={q} type={attackType} pageSize={pageSize} />
+                <SortableWebTh label="Last hit" column="lastSeen" sortBy={sortBy} sortDir={sortDir} q={q} type={attackType} pageSize={pageSize} />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">

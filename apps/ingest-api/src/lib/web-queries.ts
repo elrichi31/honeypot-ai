@@ -37,11 +37,14 @@ export type IpStatRow = {
   count: number;
 };
 
-export function buildByIpWhereSql(query?: string): Prisma.Sql {
+export function buildByIpWhereSql(query?: string, attackType?: string): Prisma.Sql {
   const clauses: Prisma.Sql[] = [Prisma.sql`1 = 1`];
   if (query?.trim()) {
     const wildcard = /^[0-9a-fA-F:.]+$/.test(query) ? `${query}%` : `%${query}%`;
     clauses.push(Prisma.sql`src_ip ILIKE ${wildcard}`);
+  }
+  if (attackType?.trim()) {
+    clauses.push(Prisma.sql`attack_type = ${attackType}`);
   }
   return Prisma.sql`WHERE ${Prisma.join(clauses, ' AND ')}`;
 }
@@ -110,14 +113,14 @@ export async function insertWebHit(
   const rows = await prisma.$queryRaw<InsertedWebHit[]>`
     INSERT INTO web_hits (
       id, event_id, src_ip, sensor_id, method, path, query,
-      user_agent, headers, body, attack_type, timestamp
+      user_agent, headers, body, attack_type, canary_triggered, timestamp
     )
     VALUES (
       gen_random_uuid()::text,
       ${d.eventId}, ${d.srcIp}, ${sensorId}, ${d.method}, ${d.path}, ${d.query},
       ${d.userAgent},
       CAST(${JSON.stringify(d.headers)} AS jsonb),
-      ${d.body}, ${d.attackType},
+      ${d.body}, ${d.attackType}, ${d.canaryTriggered},
       ${new Date(d.timestamp)}
     )
     ON CONFLICT (event_id) DO NOTHING

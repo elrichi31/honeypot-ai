@@ -10,6 +10,7 @@ import {
   checkPostAuthSuccess,
   checkAttackChain,
   checkDeceptionInteraction,
+  checkCanaryReplay,
   type AlertPayload,
 } from './threat-checks.js'
 export {
@@ -207,6 +208,29 @@ export function pendingThreatCount(): number {
 }
 
 const DECEPTION_ALERT_COOLDOWN_MS = 15 * 60 * 1000
+const CANARY_ALERT_COOLDOWN_MS = 15 * 60 * 1000
+
+/**
+ * Fire a critical alert when an attacker replays the leaked DB credentials at a
+ * web login form. Unlike the aggregate threat evaluation, this is a per-event
+ * high-confidence signal, so we alert immediately rather than queueing. The
+ * honeypot already reports the real public IP, so no session attribution is
+ * needed. Cooldown is keyed by IP so a credential-stuffing loop doesn't flood
+ * Discord. Best-effort: never let alerting throw into the ingest hot path.
+ */
+export async function evaluateCanaryAlert(
+  prisma: PrismaClient,
+  input: { ip: string; path: string },
+): Promise<void> {
+  try {
+    const payload = checkCanaryReplay(input.ip, input.path, CANARY_ALERT_COOLDOWN_MS)
+    await sendAlertOnce(prisma, payload)
+  } catch (error) {
+    console.warn(
+      `[canary-alert] failed for ip=${input.ip}: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+}
 
 /**
  * Fire a critical alert for an interaction with a deception (OpenCanary) node.
