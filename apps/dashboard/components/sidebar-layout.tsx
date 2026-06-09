@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation"
 import { Menu, Bug } from "lucide-react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { useIsMobile } from "@/components/ui/use-mobile"
+import { cn } from "@/lib/utils"
+import { SidebarCollapseProvider, useSidebarCollapse } from "@/components/sidebar-collapse-context"
 import {
   Sheet,
   SheetContent,
@@ -14,8 +16,17 @@ import {
 const NO_SIDEBAR_PATHS = ["/login", "/setup"]
 
 export function SidebarLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <SidebarCollapseProvider>
+      <SidebarLayoutInner>{children}</SidebarLayoutInner>
+    </SidebarCollapseProvider>
+  )
+}
+
+function SidebarLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isMobile = useIsMobile()
+  const { collapsed } = useSidebarCollapse()
   const [open, setOpen] = useState(false)
 
   if (NO_SIDEBAR_PATHS.includes(pathname)) {
@@ -58,8 +69,16 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
       <AppSidebar />
       {/* min-w-0 lets this flex child shrink below its content width; without it
           wide children (tables, KPI rows) overflow past the viewport and get
-          clipped on the right. */}
-      <main className="ml-72 min-w-0 flex-1 p-6">{children}</main>
+          clipped on the right. The left margin tracks the sidebar's current width
+          (rail vs expanded) and animates with it. */}
+      <main
+        className={cn(
+          "min-w-0 flex-1 p-6 transition-[margin] duration-200",
+          collapsed ? "ml-[68px]" : "ml-72",
+        )}
+      >
+        {children}
+      </main>
     </div>
   )
 }
