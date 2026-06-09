@@ -1,5 +1,5 @@
 import { getApiUrl, apiFetch, buildSearchParams } from "./client"
-import type { WebHit, WebHitByIp, PaginatedResponse } from "./types"
+import type { WebHit, WebHitByIp, WebBurst, WebHourlyCell, PaginatedResponse } from "./types"
 
 export async function fetchWebHits(params?: {
   limit?: number; offset?: number; attackType?: string; srcIp?: string
@@ -46,6 +46,24 @@ export async function fetchWebHitsByIpPage(params?: {
 
 export async function fetchWebHitsByIp(params?: Parameters<typeof fetchWebHitsByIpPage>[0]): Promise<WebHitByIp[]> {
   return (await fetchWebHitsByIpPage({ pageSize: 1000, ...params })).items
+}
+
+export async function fetchWebBursts(params?: {
+  page?: number; pageSize?: number; q?: string; attackType?: string; range?: string; gapMinutes?: number
+}): Promise<PaginatedResponse<WebBurst>> {
+  const sp = buildSearchParams({
+    page: params?.page, pageSize: params?.pageSize, q: params?.q,
+    attackType: params?.attackType, range: params?.range, gapMinutes: params?.gapMinutes,
+  })
+  return apiFetch(`${getApiUrl()}/web-hits/bursts?${sp}`, 30)
+}
+
+export async function fetchWebHourly(params?: { range?: string }): Promise<{ cells: WebHourlyCell[] }> {
+  const sp = buildSearchParams({ range: params?.range })
+  const qs = sp.toString()
+  const res = await fetch(`${getApiUrl()}/web-hits/hourly${qs ? `?${qs}` : ''}`, { next: { revalidate: 300 } })
+  if (!res.ok) return { cells: [] }
+  return res.json()
 }
 
 export async function fetchWebHitsStats(params?: { range?: string }): Promise<{

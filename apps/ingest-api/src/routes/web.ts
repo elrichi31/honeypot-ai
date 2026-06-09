@@ -16,6 +16,8 @@ import {
   buildWebHitsWhereSql,
   buildSortSql,
   rangeToInterval,
+  queryWebBursts,
+  countWebBursts,
   countWebHitsByIp,
   queryWebHitsByIp,
   type WebHitsByIpRow,
@@ -294,6 +296,72 @@ async function handleStats(fastify: FastifyInstance, request: FastifyRequest, re
   }));
 }
 
+const burstsQuerySchema = basePaginationSchema.extend({
+  q: z.string().trim().min(1).optional(),
+  attackType: z.enum(ATTACK_TYPES).optional(),
+  range: z.enum(RANGES).optional(),
+  gapMinutes: z.coerce.number().int().min(1).max(240).default(15),
+});
+
+async function handleBursts(fastify: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
+  const parsed = burstsQuerySchema.safeParse(request.query);
+  if (!parsed.success) {
+    return reply.status(400).send({ error: 'Invalid query params', details: parsed.error.flatten().fieldErrors });
+  }
+
+  const { page, pageSize, offset } = getPagination(parsed.data);
+  const { q, attackType, range, gapMinutes } = parsed.data;
+  const cacheKey = `web-hits:bursts:${page}:${pageSize}:${q ?? ''}:${attackType ?? ''}:${range ?? ''}:${gapMinutes}`;
+
+  return reply.send(await withCache(fastify.cache, cacheKey, 60, async () => {
+    const whereSql = buildByIpWhereSql(q, attackType, range);
+    const [total, rows] = await Promise.all([
+      countWebBursts(fastify.prisma, whereSql, gapMinutes),
+      queryWebBursts(fastify.prisma, whereSql, gapMinutes, pageSize, offset),
+    ]);
+    const items = rows.map((r) => {
+      const durationSec = r.duration_sec ?? 0;
+      // Intensity in hits/min; a single-hit burst (0s) reports its raw hit count.
+      const intensity = durationSec > 0 ? (r.hits / (durationSec / 60)) : r.hits;
+      return {
+        srcIp: r.src_ip,
+        startedAt: r.started_at,
+        endedAt: r.ended_at,
+        hits: r.hits,
+        durationSec,
+        intensityPerMin: Math.round(intensity * 10) / 10,
+        attackTypes: r.attack_types ?? [],
+        topPaths: r.top_paths ?? [],
+        canaryHits: r.canary_hits ?? 0,
+      };
+    });
+    return { items, pagination: buildPaginationResponse(total, page, pageSize) };
+  }));
+}
+
+async function handleHourly(fastify: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
+  const parsed = statsQuerySchema.safeParse(request.query);
+  const range = parsed.success ? parsed.data.range : undefined;
+  const interval = rangeToInterval(range);
+  const windowSql = interval
+    ? Prisma.sql`WHERE timestamp >= NOW() - ${interval}::interval`
+    : range === 'all'
+      ? Prisma.sql``
+      : Prisma.sql`WHERE timestamp >= NOW() - INTERVAL '7 days'`;
+
+  return reply.send(await withCache(fastify.cache, `web-hits:hourly:${range ?? ''}`, 300, async () => {
+    // Hits bucketed by day + hour-of-day, for an activity heatmap.
+    const rows = await fastify.prisma.$queryRaw<Array<{ day: string; hour: number; count: number }>>`
+      SELECT TO_CHAR(DATE_TRUNC('day', timestamp AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day,
+        EXTRACT(HOUR FROM timestamp AT TIME ZONE 'UTC')::int AS hour,
+        COUNT(*)::int AS count
+      FROM web_hits ${windowSql}
+      GROUP BY 1, 2 ORDER BY 1, 2
+    `;
+    return { cells: rows };
+  }));
+}
+
 export async function webRoutes(fastify: FastifyInstance) {
   fastify.post('/ingest/web/event', (req, rep) => handleSingleEvent(fastify, req, rep));
   fastify.post('/ingest/web/vector', (req, rep) => handleBatchEvents(fastify, req, rep));
@@ -301,5 +369,7 @@ export async function webRoutes(fastify: FastifyInstance) {
   fastify.get('/web-hits/timeline', (req, rep) => handleTimeline(fastify, req, rep));
   fastify.get('/web-hits/paths', (req, rep) => handlePaths(fastify, req, rep));
   fastify.get('/web-hits/by-ip', (req, rep) => handleByIp(fastify, req, rep));
+  fastify.get('/web-hits/bursts', (req, rep) => handleBursts(fastify, req, rep));
+  fastify.get('/web-hits/hourly', (req, rep) => handleHourly(fastify, req, rep));
   fastify.get('/web-hits/stats', (req, rep) => handleStats(fastify, req, rep));
 }

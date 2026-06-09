@@ -317,6 +317,24 @@ export interface WebHitByIp {
   canaryHits?: number
 }
 
+export interface WebBurst {
+  srcIp:           string
+  startedAt:       string
+  endedAt:         string
+  hits:            number
+  durationSec:     number
+  intensityPerMin: number
+  attackTypes:     string[]
+  topPaths:        string[]
+  canaryHits:      number
+}
+
+export interface WebHourlyCell {
+  day:   string
+  hour:  number
+  count: number
+}
+
 export type RiskLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO'
 
 export interface ThreatsSummary {

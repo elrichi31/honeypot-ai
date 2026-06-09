@@ -3,14 +3,16 @@ import { cn } from "@/lib/utils"
 
 const tabs = [
   { label: "Attackers", href: "/web-attacks" },
+  { label: "Bursts",    href: "/web-attacks/bursts" },
   { label: "Timeline",  href: "/web-attacks/timeline" },
   { label: "Paths",     href: "/web-attacks/paths" },
   { label: "Geo",       href: "/web-attacks/geo" },
 ]
 
-export function WebAttacksNav({ active }: { active: "attackers" | "timeline" | "paths" | "geo" }) {
+export function WebAttacksNav({ active }: { active: "attackers" | "bursts" | "timeline" | "paths" | "geo" }) {
   const activeHref = {
     attackers: "/web-attacks",
+    bursts:    "/web-attacks/bursts",
     timeline:  "/web-attacks/timeline",
     paths:     "/web-attacks/paths",
     geo:       "/web-attacks/geo",

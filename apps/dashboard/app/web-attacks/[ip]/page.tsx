@@ -11,6 +11,7 @@ import { ATTACK_COLORS, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack
 import { StatCard } from "@/components/stat-card"
 import { AttackTypeFilter } from "@/components/attack-type-filter"
 import { RequestRow, type RequestGroup } from "./request-row"
+import { IpBursts } from "./ip-bursts"
 
 const VALID_ATTACK_TYPES = new Set(["sqli", "xss", "lfi", "rfi", "cmdi", "log4shell", "ssti", "xxe", "deserialization", "scanner", "info_disclosure", "recon"])
 
@@ -160,6 +161,9 @@ export default async function WebAttackerDetailPage({
         <div className="grid gap-6 xl:grid-cols-3">
           {/* Left column */}
           <div className="space-y-6 xl:col-span-1">
+            {/* Attack bursts (time-grouped campaigns) */}
+            <IpBursts hits={hits} />
+
             {/* Attack type breakdown */}
             <div className="rounded-xl border border-border bg-card">
               <div className="border-b border-border p-4">

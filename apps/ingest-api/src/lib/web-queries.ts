@@ -122,6 +122,87 @@ export async function queryWebHitsByIp(
   `;
 }
 
+export type WebBurstRow = {
+  src_ip: string;
+  started_at: Date;
+  ended_at: Date;
+  hits: number;
+  duration_sec: number;
+  attack_types: string[] | null;
+  top_paths: string[] | null;
+  canary_hits: number;
+};
+
+/**
+ * Detect attack "bursts": runs of hits from one IP with no inter-hit gap larger
+ * than `gapMinutes`. A scanner firing 1000 requests in 10 minutes collapses into
+ * a single burst row; if that IP returns hours later it starts a new burst. This
+ * is what makes a one-off scan stop drowning out the rest of the timeline.
+ *
+ * Technique: mark each hit where the gap from the previous hit (same IP) exceeds
+ * the threshold, take a running sum of those marks as a burst id, then aggregate.
+ */
+export async function queryWebBursts(
+  prisma: PrismaClient,
+  whereSql: Prisma.Sql,
+  gapMinutes: number,
+  limit: number,
+  offset: number,
+): Promise<WebBurstRow[]> {
+  return prisma.$queryRaw<WebBurstRow[]>`
+    WITH ordered AS (
+      SELECT src_ip, timestamp, attack_type, path, canary_triggered,
+        EXTRACT(EPOCH FROM (
+          timestamp - LAG(timestamp) OVER (PARTITION BY src_ip ORDER BY timestamp)
+        )) AS gap_sec
+      FROM web_hits ${whereSql}
+    ),
+    marked AS (
+      SELECT *,
+        SUM(CASE WHEN gap_sec IS NULL OR gap_sec > ${gapMinutes} * 60 THEN 1 ELSE 0 END)
+          OVER (PARTITION BY src_ip ORDER BY timestamp) AS burst_id
+      FROM ordered
+    )
+    SELECT src_ip,
+      MIN(timestamp) AS started_at,
+      MAX(timestamp) AS ended_at,
+      COUNT(*)::int AS hits,
+      GREATEST(EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))), 0)::int AS duration_sec,
+      ARRAY_AGG(DISTINCT attack_type) AS attack_types,
+      (ARRAY_AGG(path ORDER BY timestamp DESC))[1:5] AS top_paths,
+      COUNT(*) FILTER (WHERE canary_triggered)::int AS canary_hits
+    FROM marked
+    GROUP BY src_ip, burst_id
+    ORDER BY started_at DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `;
+}
+
+export async function countWebBursts(
+  prisma: PrismaClient,
+  whereSql: Prisma.Sql,
+  gapMinutes: number,
+): Promise<number> {
+  const rows = await prisma.$queryRaw<Array<{ total: number }>>`
+    WITH ordered AS (
+      SELECT src_ip, timestamp,
+        EXTRACT(EPOCH FROM (
+          timestamp - LAG(timestamp) OVER (PARTITION BY src_ip ORDER BY timestamp)
+        )) AS gap_sec
+      FROM web_hits ${whereSql}
+    ),
+    marked AS (
+      SELECT src_ip, timestamp,
+        SUM(CASE WHEN gap_sec IS NULL OR gap_sec > ${gapMinutes} * 60 THEN 1 ELSE 0 END)
+          OVER (PARTITION BY src_ip ORDER BY timestamp) AS burst_id
+      FROM ordered
+    )
+    SELECT COUNT(*)::int AS total
+    FROM (SELECT src_ip, burst_id FROM marked GROUP BY src_ip, burst_id) b
+  `;
+  return rows[0]?.total ?? 0;
+}
+
 type InsertedWebHit = { id: string; attack_type: string };
 
 export async function insertWebHit(
