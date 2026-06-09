@@ -299,7 +299,7 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
 
             return (
               <div key={section.title}>
-                {/* Section header — a subtle, borderless label that toggles the group. */}
+                {/* Section header — icon + title, borderless, toggles the group. */}
                 <button
                   onClick={() =>
                     setOpenSections((current) => ({
@@ -308,12 +308,13 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
                     }))
                   }
                   className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[11px] font-medium uppercase tracking-wide transition-colors",
+                    "flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm font-medium transition-colors",
                     sectionActive
                       ? "text-sidebar-foreground"
-                      : "text-muted-foreground/70 hover:text-sidebar-foreground",
+                      : "text-muted-foreground hover:text-sidebar-foreground",
                   )}
                 >
+                  <SectionIcon className="h-4 w-4 shrink-0" />
                   <span className="flex-1">{section.title}</span>
                   <ChevronDown
                     className={cn(
@@ -324,7 +325,9 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
                 </button>
 
                 {openSections[section.title] && (
-                  <div className="mt-0.5 space-y-0.5">
+                  /* Indented sub-items with a vertical guide rail on the left so
+                     it reads as a nested group (like the reference). */
+                  <div className="ml-[18px] mt-0.5 space-y-0.5 border-l border-border/60 pl-2">
                     {section.items.filter((item) => !("minRole" in item) || hasPermission(myRole, (item as { minRole: Role }).minRole)).map((item) => {
                       const isActive =
                         pathname === item.href ||
