@@ -56,7 +56,17 @@ export function AttackersTable({
                   </span>
                 )}
                 <div>
-                  <p className="font-mono text-sm text-foreground">{attacker.srcIp}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-mono text-sm text-foreground">{attacker.srcIp}</p>
+                    {(attacker.canaryHits ?? 0) > 0 && (
+                      <span
+                        className="inline-flex items-center rounded-full border border-red-500/40 bg-red-500/15 px-1.5 py-0 text-[10px] font-semibold text-red-400"
+                        title={`${attacker.canaryHits} canary credential replay${attacker.canaryHits! > 1 ? "s" : ""}`}
+                      >
+                        🎯 Canary
+                      </span>
+                    )}
+                  </div>
                   {location?.countryName && <p className="text-xs text-muted-foreground">{location.countryName}</p>}
                 </div>
               </div>

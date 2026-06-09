@@ -21,6 +21,14 @@ PATTERNS: list[tuple[str, list[re.Pattern]]] = [
         re.compile(r"<\s*(img|svg|iframe|body)[^>]*(src|href)\s*=\s*[\"']?javascript", re.I),
         re.compile(r"(alert|confirm|prompt)\s*\(", re.I),
     ]),
+    ("xxe", [
+        # XML external entity declarations. Checked before LFI because an XXE
+        # payload that reads /etc/passwd is primarily an XXE (the XML entity is
+        # the vector); the structural markers below are far more specific.
+        re.compile(r"<!ENTITY\s+\S+\s+SYSTEM", re.I),
+        re.compile(r"<!DOCTYPE[^>]*\[", re.I),
+        re.compile(r"SYSTEM\s+[\"']file://", re.I),
+    ]),
     ("lfi", [
         re.compile(r"\.\./|\.\.\\", re.I),
         re.compile(r"(etc/passwd|etc/shadow|etc/hosts|proc/self)", re.I),
@@ -35,6 +43,27 @@ PATTERNS: list[tuple[str, list[re.Pattern]]] = [
         re.compile(r"(;|\|{1,2}|&&)\s*(ls|cat|id|whoami|uname|wget|curl|bash|sh|nc)\b", re.I),
         re.compile(r"\$\(.*\)|`[^`]+`"),
         re.compile(r"(ping|nslookup|traceroute)\s+-", re.I),
+    ]),
+    ("log4shell", [
+        # JNDI lookup injection (Log4Shell / CVE-2021-44228) and obfuscated variants
+        re.compile(r"\$\{jndi:(ldaps?|rmi|dns|iiop|nis|corba)://", re.I),
+        re.compile(r"\$\{(\$\{|lower:|upper:|env:|sys:|::-)", re.I),
+    ]),
+    ("ssti", [
+        # Server-side template injection probes across engines (Jinja2, Twig,
+        # Freemarker, Velocity, ERB). Math-in-braces is the classic canary.
+        re.compile(r"\{\{\s*\d+\s*[*]\s*\d+\s*\}\}"),
+        re.compile(r"\$\{\s*\d+\s*[*]\s*\d+\s*\}"),
+        re.compile(r"\{\{.*(self|config|request|__class__|__globals__|cycler|joiner).*\}\}", re.I),
+        re.compile(r"(freemarker|<#assign|\.getClass\(\)|T\(java\.lang)", re.I),
+        re.compile(r"#\{.*\}|<%=.*%>"),
+    ]),
+    ("deserialization", [
+        # Java/PHP/.NET/Python insecure deserialization gadget markers
+        re.compile(r"(rO0AB|aced0005)", re.I),                       # Java serialized stream
+        re.compile(r"O:\d+:\"[^\"]+\":\d+:\{", re.I),                # PHP serialized object
+        re.compile(r"(__reduce__|cPickle|pickle\.loads)", re.I),     # Python pickle
+        re.compile(r"(TypeObject|__type|\$type)\s*[:=]", re.I),      # .NET / JSON.NET
     ]),
     ("scanner", [
         re.compile(r"/(\.git/config|\.env|\.htaccess|\.htpasswd|web\.config)", re.I),
@@ -55,7 +84,8 @@ PATTERNS: list[tuple[str, list[re.Pattern]]] = [
 def classify(path: str, query: str = "", body: str = "", user_agent: str = "") -> str:
     """
     Returns the attack category or 'recon' if nothing specific matched.
-    Priority: sqli > xss > lfi > rfi > cmdi > scanner > info_disclosure > recon
+    Priority: sqli > xss > xxe > lfi > rfi > cmdi > log4shell > ssti >
+              deserialization > scanner > info_disclosure > recon
     """
     haystack = f"{path} {query} {body}"
 

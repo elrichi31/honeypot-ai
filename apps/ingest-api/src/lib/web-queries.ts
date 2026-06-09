@@ -11,6 +11,7 @@ export type WebHitsByIpRow = {
   top_paths: string[] | null;
   user_agents: string[] | null;
   bot_hits: number;
+  canary_hits: number;
 };
 
 export type WebHitRow = {
@@ -21,6 +22,9 @@ export type WebHitRow = {
   query: string;
   userAgent: string;
   attackType: string;
+  canaryTriggered: boolean;
+  body: string;
+  headers: Record<string, string> | null;
   timestamp: Date;
   galahResult: string | null;
   galahErrorType: string | null;
@@ -37,7 +41,17 @@ export type IpStatRow = {
   count: number;
 };
 
-export function buildByIpWhereSql(query?: string, attackType?: string): Prisma.Sql {
+/** Maps a range token to a Postgres interval, or null for "all time". */
+export function rangeToInterval(range?: string): string | null {
+  switch (range) {
+    case '24h': return '24 hours';
+    case '7d':  return '7 days';
+    case '30d': return '30 days';
+    default:    return null;
+  }
+}
+
+export function buildByIpWhereSql(query?: string, attackType?: string, range?: string): Prisma.Sql {
   const clauses: Prisma.Sql[] = [Prisma.sql`1 = 1`];
   if (query?.trim()) {
     const wildcard = /^[0-9a-fA-F:.]+$/.test(query) ? `${query}%` : `%${query}%`;
@@ -45,6 +59,10 @@ export function buildByIpWhereSql(query?: string, attackType?: string): Prisma.S
   }
   if (attackType?.trim()) {
     clauses.push(Prisma.sql`attack_type = ${attackType}`);
+  }
+  const interval = rangeToInterval(range);
+  if (interval) {
+    clauses.push(Prisma.sql`timestamp >= NOW() - ${interval}::interval`);
   }
   return Prisma.sql`WHERE ${Prisma.join(clauses, ' AND ')}`;
 }
@@ -95,7 +113,8 @@ export async function queryWebHitsByIp(
         COUNT(*) FILTER (
           WHERE attack_type IN ('scanner', 'recon')
              OR user_agent ~* ${BOT_USER_AGENT_PATTERN}
-        )::int AS bot_hits
+        )::int AS bot_hits,
+        COUNT(*) FILTER (WHERE canary_triggered)::int AS canary_hits
       FROM web_hits ${whereSql} GROUP BY src_ip
     )
     SELECT * FROM grouped_hits ORDER BY ${orderCol} ${orderDir}, last_seen DESC

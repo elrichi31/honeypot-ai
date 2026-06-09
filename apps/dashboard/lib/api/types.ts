@@ -298,6 +298,9 @@ export interface WebHit {
   query:      string
   userAgent:  string
   attackType: string
+  canaryTriggered?: boolean
+  body?:      string
+  headers?:   Record<string, string> | null
   timestamp:  string
   galahResult?: string | null
   galahErrorType?: string | null
@@ -311,6 +314,7 @@ export interface WebHitByIp {
   attackTypes: string[]
   topPaths:    string[]
   userAgents:  string[]
+  canaryHits?: number
 }
 
 export type RiskLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO'

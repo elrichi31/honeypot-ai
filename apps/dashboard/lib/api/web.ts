@@ -30,13 +30,14 @@ export async function fetchWebPaths(): Promise<{
 export async function fetchWebHitsByIpPage(params?: {
   page?: number; pageSize?: number; limit?: number; offset?: number; q?: string
   attackType?: string
+  range?: string
   sortBy?: 'totalHits' | 'lastSeen' | 'firstSeen'
   sortDir?: 'asc' | 'desc'
 }): Promise<PaginatedResponse<WebHitByIp>> {
   const sp = buildSearchParams({
     page: params?.page, pageSize: params?.pageSize,
     limit: params?.limit, offset: params?.offset, q: params?.q,
-    attackType: params?.attackType,
+    attackType: params?.attackType, range: params?.range,
   })
   if (params?.sortBy) sp.set('sortBy', params.sortBy)
   if (params?.sortDir) sp.set('sortDir', params.sortDir)
@@ -47,10 +48,12 @@ export async function fetchWebHitsByIp(params?: Parameters<typeof fetchWebHitsBy
   return (await fetchWebHitsByIpPage({ pageSize: 1000, ...params })).items
 }
 
-export async function fetchWebHitsStats(): Promise<{
+export async function fetchWebHitsStats(params?: { range?: string }): Promise<{
   total: number
   byAttackType: { attackType: string; count: number }[]
   topIps: { srcIp: string; count: number }[]
 }> {
-  return apiFetch(`${getApiUrl()}/web-hits/stats`, 60)
+  const sp = buildSearchParams({ range: params?.range })
+  const qs = sp.toString()
+  return apiFetch(`${getApiUrl()}/web-hits/stats${qs ? `?${qs}` : ''}`, 60)
 }

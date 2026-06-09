@@ -15,6 +15,7 @@ import {
   buildByIpWhereSql,
   buildWebHitsWhereSql,
   buildSortSql,
+  rangeToInterval,
   countWebHitsByIp,
   queryWebHitsByIp,
   type WebHitsByIpRow,
@@ -30,11 +31,14 @@ const webHitsQuerySchema = z.object({
   srcIp: z.string().optional(),
 });
 
-const ATTACK_TYPES = ['sqli', 'xss', 'lfi', 'rfi', 'cmdi', 'scanner', 'info_disclosure', 'recon'] as const;
+const ATTACK_TYPES = ['sqli', 'xss', 'lfi', 'rfi', 'cmdi', 'log4shell', 'ssti', 'xxe', 'deserialization', 'scanner', 'info_disclosure', 'recon'] as const;
+
+const RANGES = ['24h', '7d', '30d', 'all'] as const;
 
 const byIpQuerySchema = basePaginationSchema.extend({
   q: z.string().trim().min(1).optional(),
   attackType: z.enum(ATTACK_TYPES).optional(),
+  range: z.enum(RANGES).optional(),
   sortBy: z.enum(['totalHits', 'lastSeen', 'firstSeen']).default('totalHits'),
   sortDir: z.enum(['asc', 'desc']).default('desc'),
 });
@@ -141,7 +145,8 @@ async function handleListHits(fastify: FastifyInstance, request: FastifyRequest,
     fastify.prisma.$queryRaw<Array<{ total: number }>>`SELECT COUNT(*)::int AS total FROM web_hits ${whereSql}`,
     fastify.prisma.$queryRaw<WebHitRow[]>`
       SELECT id, src_ip AS "srcIp", method, path, query, user_agent AS "userAgent",
-        attack_type AS "attackType", timestamp,
+        attack_type AS "attackType", canary_triggered AS "canaryTriggered",
+        body, headers, timestamp,
         headers->>'x-galah-result' AS "galahResult",
         headers->>'x-galah-error-type' AS "galahErrorType",
         FALSE AS "isBot"
@@ -224,6 +229,7 @@ function mapByIpRow(row: WebHitsByIpRow) {
     userAgents: (row.user_agents ?? []).slice(0, 3),
     botHits: row.bot_hits ?? 0,
     isBot: (row.bot_hits ?? 0) >= row.total_hits * 0.8,
+    canaryHits: row.canary_hits ?? 0,
   };
 }
 
@@ -234,10 +240,10 @@ async function handleByIp(fastify: FastifyInstance, request: FastifyRequest, rep
   }
 
   const { page, pageSize, offset } = getPagination(parsed.data);
-  const cacheKey = `web-hits:by-ip:${page}:${pageSize}:${parsed.data.q ?? ''}:${parsed.data.attackType ?? ''}:${parsed.data.sortBy}:${parsed.data.sortDir}`
+  const cacheKey = `web-hits:by-ip:${page}:${pageSize}:${parsed.data.q ?? ''}:${parsed.data.attackType ?? ''}:${parsed.data.range ?? ''}:${parsed.data.sortBy}:${parsed.data.sortDir}`
 
   return reply.send(await withCache(fastify.cache, cacheKey, 60, async () => {
-    const whereSql = buildByIpWhereSql(parsed.data.q, parsed.data.attackType);
+    const whereSql = buildByIpWhereSql(parsed.data.q, parsed.data.attackType, parsed.data.range);
     const orderCol = buildSortSql(parsed.data.sortBy);
     const orderDir = parsed.data.sortDir === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`;
 
@@ -253,20 +259,32 @@ async function handleByIp(fastify: FastifyInstance, request: FastifyRequest, rep
   }));
 }
 
-async function handleStats(fastify: FastifyInstance, _request: FastifyRequest, reply: FastifyReply) {
-  return reply.send(await withCache(fastify.cache, 'web-hits:stats', 300, async () => {
+const statsQuerySchema = z.object({ range: z.enum(RANGES).optional() });
+
+async function handleStats(fastify: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
+  const parsed = statsQuerySchema.safeParse(request.query);
+  const range = parsed.success ? parsed.data.range : undefined;
+  // Default window is 30 days; an explicit range narrows or opens it ('all').
+  const interval = rangeToInterval(range);
+  const windowSql = interval
+    ? Prisma.sql`WHERE timestamp >= NOW() - ${interval}::interval`
+    : range === 'all'
+      ? Prisma.sql``
+      : Prisma.sql`WHERE timestamp >= NOW() - INTERVAL '30 days'`;
+
+  return reply.send(await withCache(fastify.cache, `web-hits:stats:${range ?? ''}`, 300, async () => {
     const [attackTypeRows, topIpRows, totalRows] = await Promise.all([
       fastify.prisma.$queryRaw<AttackTypeStatRow[]>`
         SELECT attack_type, COUNT(*)::int AS count FROM web_hits
-        WHERE timestamp >= NOW() - INTERVAL '30 days'
+        ${windowSql}
         GROUP BY attack_type ORDER BY count DESC
       `,
       fastify.prisma.$queryRaw<IpStatRow[]>`
         SELECT src_ip, COUNT(*)::int AS count FROM web_hits
-        WHERE timestamp >= NOW() - INTERVAL '30 days'
+        ${windowSql}
         GROUP BY src_ip ORDER BY count DESC LIMIT 10
       `,
-      fastify.prisma.$queryRaw<Array<{ total: number }>>`SELECT COUNT(*)::int AS total FROM web_hits`,
+      fastify.prisma.$queryRaw<Array<{ total: number }>>`SELECT COUNT(*)::int AS total FROM web_hits ${windowSql}`,
     ]);
     return {
       total: totalRows[0]?.total ?? 0,
