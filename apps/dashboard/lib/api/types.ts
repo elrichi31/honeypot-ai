@@ -315,6 +315,9 @@ export interface WebHitByIp {
   topPaths:    string[]
   userAgents:  string[]
   canaryHits?: number
+  sensorIds?:   string[]
+  sensorNames?: string[]
+  clientNames?: string[]
 }
 
 export interface WebBurst {

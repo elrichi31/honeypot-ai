@@ -61,10 +61,12 @@ const VALUE_COLOR: Record<string, string> = {
 // Detect if string looks like an IP address (v4 or v6)
 const IP_RE = /^[\d.]{7,15}$|^[0-9a-fA-F:]+:[0-9a-fA-F:]+$/
 
-type Props = { clientSlug: string }
+type SensorOption = { sensorId: string; name: string; protocol: string }
+type Props = { clientSlug: string; sensors?: SensorOption[] }
 
-export function ClientLogsViewer({ clientSlug }: Props) {
+export function ClientLogsViewer({ clientSlug, sensors = [] }: Props) {
   const [source, setSource]         = useState<LogSource>("all")
+  const [sensorId, setSensorFilter] = useState<string>("all")
   const [page, setPage]             = useState(1)
   const [items, setItems]           = useState<LogEntry[]>([])
   const [meta, setMeta]             = useState<PaginationMeta | null>(null)
@@ -92,7 +94,7 @@ export function ClientLogsViewer({ clientSlug }: Props) {
     setPage(1)
   }
 
-  const load = useCallback((p: number, src: LogSource, q: string) => {
+  const load = useCallback((p: number, src: LogSource, q: string, sensor: string) => {
     setLoading(true)
     setExpanded(new Set())
 
@@ -100,8 +102,9 @@ export function ClientLogsViewer({ clientSlug }: Props) {
     const searchParam = q
       ? IP_RE.test(q) ? `&ip=${encodeURIComponent(q)}` : `&q=${encodeURIComponent(q)}`
       : ""
+    const sensorParam = sensor !== "all" ? `&sensorId=${encodeURIComponent(sensor)}` : ""
 
-    fetch(`/api/clients/${clientSlug}/events?page=${p}&pageSize=25&source=${src}${searchParam}`)
+    fetch(`/api/clients/${clientSlug}/events?page=${p}&pageSize=25&source=${src}${sensorParam}${searchParam}`)
       .then(r => r.json())
       .then((data: unknown) => {
         const d = data && typeof data === "object" ? data as Record<string, unknown> : {}
@@ -112,9 +115,9 @@ export function ClientLogsViewer({ clientSlug }: Props) {
       .finally(() => setLoading(false))
   }, [clientSlug])
 
-  useEffect(() => { setPage(1); load(1, source, debouncedSearch) }, [source, debouncedSearch, load])
+  useEffect(() => { setPage(1); load(1, source, debouncedSearch, sensorId) }, [source, debouncedSearch, sensorId, load])
 
-  function goPage(p: number) { setPage(p); load(p, source, debouncedSearch) }
+  function goPage(p: number) { setPage(p); load(p, source, debouncedSearch, sensorId) }
 
   function toggleRow(id: string) {
     setExpanded(prev => {
@@ -141,6 +144,21 @@ export function ClientLogsViewer({ clientSlug }: Props) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {sensors.length > 1 && (
+              <select
+                value={sensorId}
+                onChange={(e) => setSensorFilter(e.target.value)}
+                className="rounded-md border border-border bg-muted/30 px-2 py-1 text-[11px] font-medium text-foreground outline-none focus:border-cyan-400/50"
+                title="Filter by sensor"
+              >
+                <option value="all">All sensors ({sensors.length})</option>
+                {sensors.map((s) => (
+                  <option key={s.sensorId} value={s.sensorId}>
+                    {s.name} · {s.protocol}
+                  </option>
+                ))}
+              </select>
+            )}
             <div className="flex gap-0.5 rounded-md border border-border bg-muted/30 p-0.5">
               {SOURCE_TABS.map(tab => (
                 <button
@@ -157,7 +175,7 @@ export function ClientLogsViewer({ clientSlug }: Props) {
               ))}
             </div>
             <button
-              onClick={() => load(page, source, debouncedSearch)}
+              onClick={() => load(page, source, debouncedSearch, sensorId)}
               disabled={loading}
               className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
             >

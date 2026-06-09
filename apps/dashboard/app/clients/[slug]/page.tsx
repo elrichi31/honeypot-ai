@@ -100,7 +100,10 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ s
       </div>
 
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
-        <ClientLogsViewer clientSlug={client.slug} />
+        <ClientLogsViewer
+          clientSlug={client.slug}
+          sensors={clientSensors.map((s) => ({ sensorId: s.sensorId, name: s.name, protocol: s.protocol }))}
+        />
         <ClientAlerts clientSlug={client.slug} />
       </div>
 

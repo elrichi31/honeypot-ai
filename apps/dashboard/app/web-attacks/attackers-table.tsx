@@ -26,7 +26,7 @@ export function AttackersTable({
   if (attackers.length === 0) {
     return (
       <tr>
-        <td colSpan={6}>
+        <td colSpan={7}>
           <EmptyState
             icon="globe"
             title="No web attacks recorded"
@@ -87,6 +87,24 @@ export function AttackersTable({
                   </span>
                 ))}
               </div>
+            </td>
+
+            <td className="max-w-[200px] px-4 py-3">
+              {(attacker.sensorNames?.length ?? 0) > 0 ? (
+                <div className="space-y-0.5">
+                  <p className="truncate text-xs text-foreground" title={attacker.sensorNames!.join(", ")}>
+                    {attacker.sensorNames!.slice(0, 2).join(", ")}
+                    {attacker.sensorNames!.length > 2 ? ` +${attacker.sensorNames!.length - 2}` : ""}
+                  </p>
+                  {(attacker.clientNames?.length ?? 0) > 0 && (
+                    <p className="truncate text-[11px] text-muted-foreground" title={attacker.clientNames!.join(", ")}>
+                      {attacker.clientNames!.join(", ")}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <span className="text-xs text-muted-foreground/50">—</span>
+              )}
             </td>
 
             <td className="max-w-[220px] px-4 py-3">

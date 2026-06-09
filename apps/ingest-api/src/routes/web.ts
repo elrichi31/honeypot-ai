@@ -7,6 +7,7 @@ import { eventBus } from '../lib/event-bus.js';
 import { lookupGeo } from '../lib/geo.js';
 import { scheduleThreatAlert, evaluateCanaryAlert } from '../lib/threat-alerts.js';
 import { forwardClientEventBySensorId } from '../lib/client-forward.js';
+import { resolveClientSensors } from '../lib/client-helpers.js';
 import { basePaginationSchema, getPagination, buildPaginationResponse } from '../lib/pagination.js';
 import { withCache } from '../lib/cache-helper.js';
 import { webHitSchema, normalizeHeaders, parseWebHitBatch } from '../lib/web-normalize.js';
@@ -42,9 +43,31 @@ const byIpQuerySchema = basePaginationSchema.extend({
   q: z.string().trim().min(1).optional(),
   attackType: z.enum(ATTACK_TYPES).optional(),
   range: z.enum(RANGES).optional(),
+  clientSlug: z.string().trim().min(1).optional(),
+  sensorId: z.string().trim().min(1).optional(),
   sortBy: z.enum(['totalHits', 'lastSeen', 'firstSeen']).default('totalHits'),
   sortDir: z.enum(['asc', 'desc']).default('desc'),
 });
+
+/**
+ * Resolve a client/sensor selection into the list of sensor IDs to filter web
+ * hits by. Returns undefined when no scope is requested (so all hits match), or
+ * a possibly-empty list when a scope is given (empty => match nothing).
+ * A sensorId is honored only if it belongs to the requested client.
+ */
+async function resolveSensorScope(
+  fastify: FastifyInstance,
+  clientSlug?: string,
+  sensorId?: string,
+): Promise<string[] | undefined> {
+  if (!clientSlug && !sensorId) return undefined;
+  if (clientSlug) {
+    const cs = await resolveClientSensors(fastify.prismaRead, clientSlug);
+    if (!cs) return [];
+    return sensorId ? cs.sensorIds.filter((id) => id === sensorId) : cs.sensorIds;
+  }
+  return sensorId ? [sensorId] : undefined;
+}
 
 function emitAttackEvent(srcIp: string, timestamp: string) {
   const geo = lookupGeo(srcIp);
@@ -233,6 +256,9 @@ function mapByIpRow(row: WebHitsByIpRow) {
     botHits: row.bot_hits ?? 0,
     isBot: (row.bot_hits ?? 0) >= row.total_hits * 0.8,
     canaryHits: row.canary_hits ?? 0,
+    sensorIds: row.sensor_ids ?? [],
+    sensorNames: row.sensor_names ?? [],
+    clientNames: row.client_names ?? [],
   };
 }
 
@@ -243,10 +269,12 @@ async function handleByIp(fastify: FastifyInstance, request: FastifyRequest, rep
   }
 
   const { page, pageSize, offset } = getPagination(parsed.data);
-  const cacheKey = `web-hits:by-ip:${page}:${pageSize}:${parsed.data.q ?? ''}:${parsed.data.attackType ?? ''}:${parsed.data.range ?? ''}:${parsed.data.sortBy}:${parsed.data.sortDir}`
+  const sensorIds = await resolveSensorScope(fastify, parsed.data.clientSlug, parsed.data.sensorId);
+  const scopeKey = `${parsed.data.clientSlug ?? ''}:${parsed.data.sensorId ?? ''}`;
+  const cacheKey = `web-hits:by-ip:${page}:${pageSize}:${parsed.data.q ?? ''}:${parsed.data.attackType ?? ''}:${parsed.data.range ?? ''}:${scopeKey}:${parsed.data.sortBy}:${parsed.data.sortDir}`
 
   return reply.send(await withCache(fastify.cache, cacheKey, 60, async () => {
-    const whereSql = buildByIpWhereSql(parsed.data.q, parsed.data.attackType, parsed.data.range);
+    const whereSql = buildByIpWhereSql(parsed.data.q, parsed.data.attackType, parsed.data.range, sensorIds);
     const orderCol = buildSortSql(parsed.data.sortBy);
     const orderDir = parsed.data.sortDir === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`;
 
@@ -262,20 +290,25 @@ async function handleByIp(fastify: FastifyInstance, request: FastifyRequest, rep
   }));
 }
 
-const statsQuerySchema = z.object({ range: z.enum(RANGES).optional() });
+const statsQuerySchema = z.object({
+  range: z.enum(RANGES).optional(),
+  clientSlug: z.string().trim().min(1).optional(),
+  sensorId: z.string().trim().min(1).optional(),
+});
 
 async function handleStats(fastify: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
   const parsed = statsQuerySchema.safeParse(request.query);
   const range = parsed.success ? parsed.data.range : undefined;
+  const clientSlug = parsed.success ? parsed.data.clientSlug : undefined;
+  const sensorId = parsed.success ? parsed.data.sensorId : undefined;
+  const sensorIds = await resolveSensorScope(fastify, clientSlug, sensorId);
   // Default window is 30 days; an explicit range narrows or opens it ('all').
-  const interval = rangeToInterval(range);
-  const windowSql = interval
-    ? Prisma.sql`WHERE timestamp >= NOW() - ${interval}::interval`
-    : range === 'all'
-      ? Prisma.sql``
-      : Prisma.sql`WHERE timestamp >= NOW() - INTERVAL '30 days'`;
+  // buildByIpWhereSql composes the range + sensor scope into one WHERE clause.
+  const effectiveRange = range ?? '30d';
+  const windowSql = buildByIpWhereSql(undefined, undefined, effectiveRange, sensorIds);
+  const scopeKey = `${clientSlug ?? ''}:${sensorId ?? ''}`;
 
-  return reply.send(await withCache(fastify.cache, `web-hits:stats:${range ?? ''}`, 300, async () => {
+  return reply.send(await withCache(fastify.cache, `web-hits:stats:${range ?? ''}:${scopeKey}`, 300, async () => {
     const [attackTypeRows, topIpRows, totalRows] = await Promise.all([
       fastify.prisma.$queryRaw<AttackTypeStatRow[]>`
         SELECT attack_type, COUNT(*)::int AS count FROM web_hits
@@ -301,6 +334,8 @@ const burstsQuerySchema = basePaginationSchema.extend({
   q: z.string().trim().min(1).optional(),
   attackType: z.enum(ATTACK_TYPES).optional(),
   range: z.enum(RANGES).optional(),
+  clientSlug: z.string().trim().min(1).optional(),
+  sensorId: z.string().trim().min(1).optional(),
   gapMinutes: z.coerce.number().int().min(1).max(240).default(15),
   sortBy: z.enum(['startedAt', 'hits', 'durationSec', 'intensity']).default('startedAt'),
   sortDir: z.enum(['asc', 'desc']).default('desc'),
@@ -314,10 +349,12 @@ async function handleBursts(fastify: FastifyInstance, request: FastifyRequest, r
 
   const { page, pageSize, offset } = getPagination(parsed.data);
   const { q, attackType, range, gapMinutes, sortBy, sortDir } = parsed.data;
-  const cacheKey = `web-hits:bursts:${page}:${pageSize}:${q ?? ''}:${attackType ?? ''}:${range ?? ''}:${gapMinutes}:${sortBy}:${sortDir}`;
+  const sensorIds = await resolveSensorScope(fastify, parsed.data.clientSlug, parsed.data.sensorId);
+  const scopeKey = `${parsed.data.clientSlug ?? ''}:${parsed.data.sensorId ?? ''}`;
+  const cacheKey = `web-hits:bursts:${page}:${pageSize}:${q ?? ''}:${attackType ?? ''}:${range ?? ''}:${scopeKey}:${gapMinutes}:${sortBy}:${sortDir}`;
 
   return reply.send(await withCache(fastify.cache, cacheKey, 60, async () => {
-    const whereSql = buildByIpWhereSql(q, attackType, range);
+    const whereSql = buildByIpWhereSql(q, attackType, range, sensorIds);
     const orderCol = buildBurstSortSql(sortBy);
     const orderDir = sortDir === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`;
     const [total, rows] = await Promise.all([

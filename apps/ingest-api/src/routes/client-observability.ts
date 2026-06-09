@@ -54,9 +54,10 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
     if (!params.success) return reply.status(400).send({ error: 'Invalid client slug' })
 
     const query = pageQuery.extend({
-      source: z.enum(['ssh', 'protocol', 'web', 'all']).default('all'),
-      ip:     z.string().trim().optional(),
-      q:      z.string().trim().min(1).max(200).optional(),
+      source:   z.enum(['ssh', 'protocol', 'web', 'all']).default('all'),
+      sensorId: z.string().trim().min(1).optional(),
+      ip:       z.string().trim().optional(),
+      q:        z.string().trim().min(1).max(200).optional(),
     }).safeParse(request.query)
     if (!query.success) return reply.status(400).send({ error: 'Invalid query params' })
 
@@ -64,7 +65,12 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
     const offset = (page - 1) * pageSize
     const cs = await resolveClientSensors(fastify.prismaRead, params.data.clientSlug)
     if (!cs) return reply.status(404).send({ error: 'Client not found' })
-    if (cs.sensorIds.length === 0) return reply.send({ items: [], pagination: buildPagination(page, pageSize, 0) })
+    // Optionally narrow to a single sensor, but only if it belongs to this client
+    // (so the param can't be used to read another client's telemetry).
+    const scopedSensorIds = query.data.sensorId
+      ? cs.sensorIds.filter((id) => id === query.data.sensorId)
+      : cs.sensorIds
+    if (scopedSensorIds.length === 0) return reply.send({ items: [], pagination: buildPagination(page, pageSize, 0) })
 
     // Normalize search: IP-like strings use exact indexed match, everything else uses ILIKE
     const rawQ  = query.data.q
@@ -75,12 +81,12 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
     const wantSsh      = source === 'all' || source === 'ssh'
     const wantProtocol = source === 'all' || source === 'protocol'
     const wantWeb      = source === 'all' || source === 'web'
-    const sids         = Prisma.join(cs.sensorIds)
+    const sids         = Prisma.join(scopedSensorIds)
 
     // The COUNT over the 3-table UNION is the expensive part and does not change
-    // between pages, so cache it per (client, source, filters) and only run the
-    // page-row query on each pagination click.
-    const countKey = `client:events:count:${cs.clientId}:${source}:${rawIp ?? ''}:${textQ ?? ''}`
+    // between pages, so cache it per (client, sensor, source, filters) and only
+    // run the page-row query on each pagination click.
+    const countKey = `client:events:count:${cs.clientId}:${query.data.sensorId ?? 'all'}:${source}:${rawIp ?? ''}:${textQ ?? ''}`
 
     const [rows, total] = await Promise.all([
       fastify.prismaRead.$queryRaw<LogRow[]>`
@@ -130,19 +136,25 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
     const params = slugParam.safeParse(request.params)
     if (!params.success) return reply.status(400).send({ error: 'Invalid client slug' })
 
-    const query = z.object({ range: z.enum(['day', 'week', 'month']).default('week') }).safeParse(request.query)
+    const query = z.object({
+      range: z.enum(['day', 'week', 'month']).default('week'),
+      sensorId: z.string().trim().min(1).optional(),
+    }).safeParse(request.query)
     if (!query.success) return reply.status(400).send({ error: 'Invalid query params' })
 
     const cs = await resolveClientSensors(fastify.prismaRead, params.data.clientSlug)
     if (!cs) return reply.status(404).send({ error: 'Client not found' })
-    if (cs.sensorIds.length === 0) return reply.send([])
+    const scopedSensorIds = query.data.sensorId
+      ? cs.sensorIds.filter((id) => id === query.data.sensorId)
+      : cs.sensorIds
+    if (scopedSensorIds.length === 0) return reply.send([])
 
     const { range } = query.data
     const bucketUnit  = range === 'month' ? 'day' : 'hour'
     const intervalSql = range === 'day' ? '1 day' : range === 'week' ? '7 days' : '30 days'
-    const sids        = Prisma.join(cs.sensorIds)
+    const sids        = Prisma.join(scopedSensorIds)
 
-    const cacheKey = `client:timeline:${cs.clientId}:${range}`
+    const cacheKey = `client:timeline:${cs.clientId}:${query.data.sensorId ?? 'all'}:${range}`
     const result = await withCache(fastify.cache, cacheKey, 120, async () => {
       const rows = await fastify.prismaRead.$queryRaw<BucketRow[]>`
         SELECT date_trunc(${bucketUnit}, ts) AS bucket,

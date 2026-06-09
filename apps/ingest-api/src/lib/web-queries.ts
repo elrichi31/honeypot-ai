@@ -12,6 +12,9 @@ export type WebHitsByIpRow = {
   user_agents: string[] | null;
   bot_hits: number;
   canary_hits: number;
+  sensor_ids: string[] | null;
+  sensor_names: string[] | null;
+  client_names: string[] | null;
 };
 
 export type WebHitRow = {
@@ -51,7 +54,12 @@ export function rangeToInterval(range?: string): string | null {
   }
 }
 
-export function buildByIpWhereSql(query?: string, attackType?: string, range?: string): Prisma.Sql {
+export function buildByIpWhereSql(
+  query?: string,
+  attackType?: string,
+  range?: string,
+  sensorIds?: string[],
+): Prisma.Sql {
   const clauses: Prisma.Sql[] = [Prisma.sql`1 = 1`];
   if (query?.trim()) {
     const wildcard = /^[0-9a-fA-F:.]+$/.test(query) ? `${query}%` : `%${query}%`;
@@ -63,6 +71,15 @@ export function buildByIpWhereSql(query?: string, attackType?: string, range?: s
   const interval = rangeToInterval(range);
   if (interval) {
     clauses.push(Prisma.sql`timestamp >= NOW() - ${interval}::interval`);
+  }
+  // Scope to a client/sensor selection. An empty (but defined) list means the
+  // selection resolved to zero sensors, so match nothing rather than everything.
+  if (sensorIds) {
+    clauses.push(
+      sensorIds.length > 0
+        ? Prisma.sql`sensor_id IN (${Prisma.join(sensorIds)})`
+        : Prisma.sql`FALSE`,
+    );
   }
   return Prisma.sql`WHERE ${Prisma.join(clauses, ' AND ')}`;
 }
@@ -110,6 +127,7 @@ export async function queryWebHitsByIp(
         ARRAY_AGG(DISTINCT attack_type) AS attack_types,
         (ARRAY_AGG(path ORDER BY timestamp DESC))[1:5] AS top_paths,
         ARRAY_AGG(DISTINCT user_agent) FILTER (WHERE user_agent <> '') AS user_agents,
+        ARRAY_AGG(DISTINCT sensor_id) FILTER (WHERE sensor_id IS NOT NULL) AS sensor_ids,
         COUNT(*) FILTER (
           WHERE attack_type IN ('scanner', 'recon')
              OR user_agent ~* ${BOT_USER_AGENT_PATTERN}
@@ -117,7 +135,10 @@ export async function queryWebHitsByIp(
         COUNT(*) FILTER (WHERE canary_triggered)::int AS canary_hits
       FROM web_hits ${whereSql} GROUP BY src_ip
     )
-    SELECT * FROM grouped_hits ORDER BY ${orderCol} ${orderDir}, last_seen DESC
+    SELECT g.*,
+      (SELECT ARRAY_AGG(DISTINCT s.name) FROM sensors s WHERE s.sensor_id = ANY(g.sensor_ids)) AS sensor_names,
+      (SELECT ARRAY_AGG(DISTINCT c.name) FROM sensors s JOIN clients c ON c.id = s.client_id WHERE s.sensor_id = ANY(g.sensor_ids)) AS client_names
+    FROM grouped_hits g ORDER BY ${orderCol} ${orderDir}, last_seen DESC
     LIMIT ${pageSize} OFFSET ${offset}
   `;
 }

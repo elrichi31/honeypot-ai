@@ -1,6 +1,6 @@
 import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import Link from "next/link"
-import { fetchWebHitsByIpPage, fetchWebHitsStats } from "@/lib/api"
+import { fetchWebHitsByIpPage, fetchWebHitsStats, fetchClients, fetchSensors } from "@/lib/api"
 import { PageShell } from "@/components/page-shell"
 import { ErrorState } from "@/components/ui/data-states"
 import { SearchInput } from "@/components/ui/search-input"
@@ -9,12 +9,13 @@ import { AttackersTable } from "./attackers-table"
 import { WebAttacksNav } from "@/components/web-attacks-nav"
 import { AttackTypeFilter } from "@/components/attack-type-filter"
 import { TimeRangeFilter } from "@/components/time-range-filter"
+import { ClientSensorFilter } from "@/components/client-sensor-filter"
 import { TablePagination } from "@/components/table-pagination"
 
 function SortableWebTh({
-  label, column, sortBy, sortDir, q, type, range, pageSize,
+  label, column, sortBy, sortDir, q, type, range, clientSlug, sensorId, pageSize,
 }: {
-  label: string; column: string; sortBy: string; sortDir: string; q?: string; type?: string; range?: string; pageSize: number
+  label: string; column: string; sortBy: string; sortDir: string; q?: string; type?: string; range?: string; clientSlug?: string; sensorId?: string; pageSize: number
 }) {
   const isActive = sortBy === column
   const nextDir = isActive && sortDir === "desc" ? "asc" : "desc"
@@ -22,6 +23,8 @@ function SortableWebTh({
   if (q) params.set("q", q)
   if (type) params.set("type", type)
   if (range) params.set("range", range)
+  if (clientSlug) params.set("clientSlug", clientSlug)
+  if (sensorId) params.set("sensorId", sensorId)
   return (
     <th className="px-4 py-3 text-left font-medium text-muted-foreground">
       <Link href={`/web-attacks?${params}`} className="inline-flex items-center gap-1 hover:text-foreground transition-colors">
@@ -48,6 +51,8 @@ export default async function WebAttacksPage({
     q?: string
     type?: string
     range?: string
+    clientSlug?: string
+    sensorId?: string
     sortBy?: string
     sortDir?: string
   }>
@@ -58,15 +63,21 @@ export default async function WebAttacksPage({
   const q = params.q?.trim() || undefined
   const attackType = VALID_ATTACK_TYPES.has(params.type ?? "") ? params.type : undefined
   const range = VALID_RANGES.has(params.range ?? "") ? params.range : undefined
+  const clientSlug = params.clientSlug?.trim() || undefined
+  const sensorId = params.sensorId?.trim() || undefined
   const sortBy = VALID_WEB_SORT_BY.has(params.sortBy ?? "") ? (params.sortBy as "totalHits" | "lastSeen" | "firstSeen") : "totalHits"
   const sortDir = VALID_SORT_DIR.has(params.sortDir ?? "") ? (params.sortDir as "asc" | "desc") : "desc"
 
   let attackersPage: Awaited<ReturnType<typeof fetchWebHitsByIpPage>>
   let stats: Awaited<ReturnType<typeof fetchWebHitsStats>>
+  let clients: Awaited<ReturnType<typeof fetchClients>> = []
+  let sensors: Awaited<ReturnType<typeof fetchSensors>> = []
   try {
-    ;[attackersPage, stats] = await Promise.all([
-      fetchWebHitsByIpPage({ page, pageSize, q, attackType, range, sortBy, sortDir }),
-      fetchWebHitsStats({ range }),
+    ;[attackersPage, stats, clients, sensors] = await Promise.all([
+      fetchWebHitsByIpPage({ page, pageSize, q, attackType, range, clientSlug, sensorId, sortBy, sortDir }),
+      fetchWebHitsStats({ range, clientSlug, sensorId }),
+      fetchClients().catch(() => []),
+      fetchSensors().catch(() => []),
     ])
   } catch {
     return (
@@ -99,6 +110,10 @@ export default async function WebAttacksPage({
         <div className="flex flex-wrap items-center gap-3">
           <SearchInput defaultValue={q ?? ""} placeholder="Search attacker IP..." />
           <TimeRangeFilter />
+          <ClientSensorFilter
+            clients={clients.map((c) => ({ slug: c.slug, name: c.name }))}
+            sensors={sensors.map((s) => ({ sensorId: s.sensorId, name: s.name, protocol: s.protocol, clientSlug: s.clientSlug, clientName: s.clientName }))}
+          />
           <span className="inline-flex items-center rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
             {attackersPage.items.length} rows on this page
           </span>
@@ -134,11 +149,12 @@ export default async function WebAttacksPage({
             <thead>
               <tr className="border-b border-border bg-muted/30">
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Attacker IP</th>
-                <SortableWebTh label="Hits" column="totalHits" sortBy={sortBy} sortDir={sortDir} q={q} type={attackType} range={range} pageSize={pageSize} />
+                <SortableWebTh label="Hits" column="totalHits" sortBy={sortBy} sortDir={sortDir} q={q} type={attackType} range={range} clientSlug={clientSlug} sensorId={sensorId} pageSize={pageSize} />
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Attack types</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Sensor / Client</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Top paths</th>
-                <SortableWebTh label="First hit" column="firstSeen" sortBy={sortBy} sortDir={sortDir} q={q} type={attackType} range={range} pageSize={pageSize} />
-                <SortableWebTh label="Last hit" column="lastSeen" sortBy={sortBy} sortDir={sortDir} q={q} type={attackType} range={range} pageSize={pageSize} />
+                <SortableWebTh label="First hit" column="firstSeen" sortBy={sortBy} sortDir={sortDir} q={q} type={attackType} range={range} clientSlug={clientSlug} sensorId={sensorId} pageSize={pageSize} />
+                <SortableWebTh label="Last hit" column="lastSeen" sortBy={sortBy} sortDir={sortDir} q={q} type={attackType} range={range} clientSlug={clientSlug} sensorId={sensorId} pageSize={pageSize} />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">

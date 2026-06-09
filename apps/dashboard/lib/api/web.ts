@@ -31,6 +31,8 @@ export async function fetchWebHitsByIpPage(params?: {
   page?: number; pageSize?: number; limit?: number; offset?: number; q?: string
   attackType?: string
   range?: string
+  clientSlug?: string
+  sensorId?: string
   sortBy?: 'totalHits' | 'lastSeen' | 'firstSeen'
   sortDir?: 'asc' | 'desc'
 }): Promise<PaginatedResponse<WebHitByIp>> {
@@ -38,6 +40,7 @@ export async function fetchWebHitsByIpPage(params?: {
     page: params?.page, pageSize: params?.pageSize,
     limit: params?.limit, offset: params?.offset, q: params?.q,
     attackType: params?.attackType, range: params?.range,
+    clientSlug: params?.clientSlug, sensorId: params?.sensorId,
   })
   if (params?.sortBy) sp.set('sortBy', params.sortBy)
   if (params?.sortDir) sp.set('sortDir', params.sortDir)
@@ -50,12 +53,14 @@ export async function fetchWebHitsByIp(params?: Parameters<typeof fetchWebHitsBy
 
 export async function fetchWebBursts(params?: {
   page?: number; pageSize?: number; q?: string; attackType?: string; range?: string; gapMinutes?: number
+  clientSlug?: string; sensorId?: string
   sortBy?: 'startedAt' | 'hits' | 'durationSec' | 'intensity'
   sortDir?: 'asc' | 'desc'
 }): Promise<PaginatedResponse<WebBurst>> {
   const sp = buildSearchParams({
     page: params?.page, pageSize: params?.pageSize, q: params?.q,
     attackType: params?.attackType, range: params?.range, gapMinutes: params?.gapMinutes,
+    clientSlug: params?.clientSlug, sensorId: params?.sensorId,
   })
   if (params?.sortBy) sp.set('sortBy', params.sortBy)
   if (params?.sortDir) sp.set('sortDir', params.sortDir)
@@ -70,12 +75,12 @@ export async function fetchWebHourly(params?: { range?: string }): Promise<{ cel
   return res.json()
 }
 
-export async function fetchWebHitsStats(params?: { range?: string }): Promise<{
+export async function fetchWebHitsStats(params?: { range?: string; clientSlug?: string; sensorId?: string }): Promise<{
   total: number
   byAttackType: { attackType: string; count: number }[]
   topIps: { srcIp: string; count: number }[]
 }> {
-  const sp = buildSearchParams({ range: params?.range })
+  const sp = buildSearchParams({ range: params?.range, clientSlug: params?.clientSlug, sensorId: params?.sensorId })
   const qs = sp.toString()
   return apiFetch(`${getApiUrl()}/web-hits/stats${qs ? `?${qs}` : ''}`, 60)
 }

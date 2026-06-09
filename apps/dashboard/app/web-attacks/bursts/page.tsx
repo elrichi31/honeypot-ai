@@ -1,11 +1,12 @@
 import Link from "next/link"
 import { Zap, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
-import { fetchWebBursts } from "@/lib/api"
+import { fetchWebBursts, fetchClients, fetchSensors } from "@/lib/api"
 import { PageShell } from "@/components/page-shell"
 import { ErrorState } from "@/components/ui/data-states"
 import { WebAttacksNav } from "@/components/web-attacks-nav"
 import { AttackTypeFilter } from "@/components/attack-type-filter"
 import { TimeRangeFilter } from "@/components/time-range-filter"
+import { ClientSensorFilter } from "@/components/client-sensor-filter"
 import { TablePagination } from "@/components/table-pagination"
 import { lookupIp } from "@/lib/geo"
 import { countryFlag } from "@/lib/formatting"
@@ -62,12 +63,14 @@ function SortableBurstTh({
 export default async function WebBurstsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; type?: string; range?: string; gap?: string; sort?: string; dir?: string }>
+  searchParams: Promise<{ page?: string; type?: string; range?: string; gap?: string; clientSlug?: string; sensorId?: string; sort?: string; dir?: string }>
 }) {
   const params = await searchParams
   const page = Number(params.page ?? "1")
   const attackType = VALID_ATTACK_TYPES.has(params.type ?? "") ? params.type : undefined
   const range = VALID_RANGES.has(params.range ?? "") ? params.range : undefined
+  const clientSlug = params.clientSlug?.trim() || undefined
+  const sensorId = params.sensorId?.trim() || undefined
   const gapMinutes = GAP_OPTIONS.includes(Number(params.gap)) ? Number(params.gap) : 15
   const sortBy = (VALID_SORT_BY.has(params.sort ?? "") ? params.sort : "startedAt") as BurstSortBy
   const sortDir = (params.dir === "asc" ? "asc" : "desc") as "asc" | "desc"
@@ -75,8 +78,14 @@ export default async function WebBurstsPage({
   const tz = readConfig().timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
 
   let burstsPage: Awaited<ReturnType<typeof fetchWebBursts>>
+  let clients: Awaited<ReturnType<typeof fetchClients>> = []
+  let sensors: Awaited<ReturnType<typeof fetchSensors>> = []
   try {
-    burstsPage = await fetchWebBursts({ page, pageSize: 50, attackType, range, gapMinutes, sortBy, sortDir })
+    ;[burstsPage, clients, sensors] = await Promise.all([
+      fetchWebBursts({ page, pageSize: 50, attackType, range, clientSlug, sensorId, gapMinutes, sortBy, sortDir }),
+      fetchClients().catch(() => []),
+      fetchSensors().catch(() => []),
+    ])
   } catch {
     return (
       <PageShell>
@@ -97,6 +106,8 @@ export default async function WebBurstsPage({
   const baseParams = new URLSearchParams()
   if (attackType) baseParams.set("type", attackType)
   if (range) baseParams.set("range", range)
+  if (clientSlug) baseParams.set("clientSlug", clientSlug)
+  if (sensorId) baseParams.set("sensorId", sensorId)
   if (gapMinutes !== 15) baseParams.set("gap", String(gapMinutes))
 
   const gapHref = (g: number) => {
@@ -124,6 +135,10 @@ export default async function WebBurstsPage({
         <div className="flex flex-wrap items-center gap-4">
           <AttackTypeFilter types={[...VALID_ATTACK_TYPES]} />
           <TimeRangeFilter />
+          <ClientSensorFilter
+            clients={clients.map((c) => ({ slug: c.slug, name: c.name }))}
+            sensors={sensors.map((s) => ({ sensorId: s.sensorId, name: s.name, protocol: s.protocol, clientSlug: s.clientSlug, clientName: s.clientName }))}
+          />
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-muted-foreground">Gap:</span>
             <div className="inline-flex rounded-lg border border-border bg-muted/20 p-0.5">
