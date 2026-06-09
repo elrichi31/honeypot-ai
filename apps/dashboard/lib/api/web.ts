@@ -50,11 +50,15 @@ export async function fetchWebHitsByIp(params?: Parameters<typeof fetchWebHitsBy
 
 export async function fetchWebBursts(params?: {
   page?: number; pageSize?: number; q?: string; attackType?: string; range?: string; gapMinutes?: number
+  sortBy?: 'startedAt' | 'hits' | 'durationSec' | 'intensity'
+  sortDir?: 'asc' | 'desc'
 }): Promise<PaginatedResponse<WebBurst>> {
   const sp = buildSearchParams({
     page: params?.page, pageSize: params?.pageSize, q: params?.q,
     attackType: params?.attackType, range: params?.range, gapMinutes: params?.gapMinutes,
   })
+  if (params?.sortBy) sp.set('sortBy', params.sortBy)
+  if (params?.sortDir) sp.set('sortDir', params.sortDir)
   return apiFetch(`${getApiUrl()}/web-hits/bursts?${sp}`, 30)
 }
 

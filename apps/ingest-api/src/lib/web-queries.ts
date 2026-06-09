@@ -142,10 +142,25 @@ export type WebBurstRow = {
  * Technique: mark each hit where the gap from the previous hit (same IP) exceeds
  * the threshold, take a running sum of those marks as a burst id, then aggregate.
  */
+export type BurstSortBy = 'startedAt' | 'hits' | 'durationSec' | 'intensity';
+
+/** Maps a sort key to its aggregate SQL expression in the burst query. */
+export function buildBurstSortSql(sortBy: BurstSortBy): Prisma.Sql {
+  switch (sortBy) {
+    case 'hits':        return Prisma.sql`COUNT(*)`;
+    case 'durationSec': return Prisma.sql`GREATEST(EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))), 0)`;
+    // hits per second; ordering by it is equivalent to hits/min and avoids /0.
+    case 'intensity':   return Prisma.sql`COUNT(*)::numeric / GREATEST(EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))), 1)`;
+    default:            return Prisma.sql`MIN(timestamp)`;
+  }
+}
+
 export async function queryWebBursts(
   prisma: PrismaClient,
   whereSql: Prisma.Sql,
   gapMinutes: number,
+  orderCol: Prisma.Sql,
+  orderDir: Prisma.Sql,
   limit: number,
   offset: number,
 ): Promise<WebBurstRow[]> {
@@ -173,7 +188,7 @@ export async function queryWebBursts(
       COUNT(*) FILTER (WHERE canary_triggered)::int AS canary_hits
     FROM marked
     GROUP BY src_ip, burst_id
-    ORDER BY started_at DESC
+    ORDER BY ${orderCol} ${orderDir}, MIN(timestamp) DESC
     LIMIT ${limit} OFFSET ${offset}
   `;
 }

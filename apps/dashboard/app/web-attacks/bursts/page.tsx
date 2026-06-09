@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { format } from "date-fns"
-import { Zap } from "lucide-react"
+import { Zap, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { fetchWebBursts } from "@/lib/api"
 import { PageShell } from "@/components/page-shell"
 import { ErrorState } from "@/components/ui/data-states"
@@ -15,6 +15,8 @@ import { ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
 const VALID_ATTACK_TYPES = new Set(["sqli", "xss", "lfi", "rfi", "cmdi", "log4shell", "ssti", "xxe", "deserialization", "scanner", "info_disclosure", "recon"])
 const VALID_RANGES = new Set(["24h", "7d", "30d", "all"])
 const GAP_OPTIONS = [5, 15, 30, 60]
+const VALID_SORT_BY = new Set(["startedAt", "hits", "durationSec", "intensity"])
+type BurstSortBy = "startedAt" | "hits" | "durationSec" | "intensity"
 
 function fmtDuration(sec: number): string {
   if (sec >= 3600) return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`
@@ -30,20 +32,48 @@ function intensityClass(perMin: number): string {
   return "text-muted-foreground"
 }
 
+/** Sortable header that preserves the active filters (type / range / gap). */
+function SortableBurstTh({
+  label, column, align, sortBy, sortDir, baseParams,
+}: {
+  label: string; column: BurstSortBy; align?: "right"
+  sortBy: string; sortDir: string; baseParams: URLSearchParams
+}) {
+  const isActive = sortBy === column
+  const nextDir = isActive && sortDir === "desc" ? "asc" : "desc"
+  const params = new URLSearchParams(baseParams)
+  params.set("sort", column)
+  params.set("dir", nextDir)
+  const Icon = isActive ? (sortDir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown
+  return (
+    <th className={`px-4 py-3 font-medium text-muted-foreground ${align === "right" ? "text-right" : "text-left"}`}>
+      <Link
+        href={`/web-attacks/bursts?${params}`}
+        className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${align === "right" ? "flex-row-reverse" : ""}`}
+      >
+        {label}
+        <Icon className={`h-3 w-3 ${isActive ? "" : "opacity-40"}`} />
+      </Link>
+    </th>
+  )
+}
+
 export default async function WebBurstsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; type?: string; range?: string; gap?: string }>
+  searchParams: Promise<{ page?: string; type?: string; range?: string; gap?: string; sort?: string; dir?: string }>
 }) {
   const params = await searchParams
   const page = Number(params.page ?? "1")
   const attackType = VALID_ATTACK_TYPES.has(params.type ?? "") ? params.type : undefined
   const range = VALID_RANGES.has(params.range ?? "") ? params.range : undefined
   const gapMinutes = GAP_OPTIONS.includes(Number(params.gap)) ? Number(params.gap) : 15
+  const sortBy = (VALID_SORT_BY.has(params.sort ?? "") ? params.sort : "startedAt") as BurstSortBy
+  const sortDir = (params.dir === "asc" ? "asc" : "desc") as "asc" | "desc"
 
   let burstsPage: Awaited<ReturnType<typeof fetchWebBursts>>
   try {
-    burstsPage = await fetchWebBursts({ page, pageSize: 50, attackType, range, gapMinutes })
+    burstsPage = await fetchWebBursts({ page, pageSize: 50, attackType, range, gapMinutes, sortBy, sortDir })
   } catch {
     return (
       <PageShell>
@@ -59,11 +89,19 @@ export default async function WebBurstsPage({
   const geoMap: Record<string, { country: string; countryName: string } | null> = {}
   for (const b of burstsPage.items) geoMap[b.srcIp] = lookupIp(b.srcIp)
 
+  // Filters shared across sort links and the gap selector (everything except the
+  // varying control itself), so changing sort keeps the filters and vice versa.
+  const baseParams = new URLSearchParams()
+  if (attackType) baseParams.set("type", attackType)
+  if (range) baseParams.set("range", range)
+  if (gapMinutes !== 15) baseParams.set("gap", String(gapMinutes))
+
   const gapHref = (g: number) => {
-    const sp = new URLSearchParams()
-    if (attackType) sp.set("type", attackType)
-    if (range) sp.set("range", range)
+    const sp = new URLSearchParams(baseParams)
     if (g !== 15) sp.set("gap", String(g))
+    else sp.delete("gap")
+    if (sortBy !== "startedAt") sp.set("sort", sortBy)
+    if (sortDir !== "desc") sp.set("dir", sortDir)
     const qs = sp.toString()
     return `/web-attacks/bursts${qs ? `?${qs}` : ""}`
   }
@@ -116,10 +154,10 @@ export default async function WebBurstsPage({
             <thead>
               <tr className="border-b border-border bg-muted/30">
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Attacker IP</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Started</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Duration</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Hits</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Intensity</th>
+                <SortableBurstTh label="Started" column="startedAt" sortBy={sortBy} sortDir={sortDir} baseParams={baseParams} />
+                <SortableBurstTh label="Duration" column="durationSec" sortBy={sortBy} sortDir={sortDir} baseParams={baseParams} />
+                <SortableBurstTh label="Hits" column="hits" align="right" sortBy={sortBy} sortDir={sortDir} baseParams={baseParams} />
+                <SortableBurstTh label="Intensity" column="intensity" align="right" sortBy={sortBy} sortDir={sortDir} baseParams={baseParams} />
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Attack types</th>
               </tr>
             </thead>

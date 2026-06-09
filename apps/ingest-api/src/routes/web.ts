@@ -18,6 +18,7 @@ import {
   rangeToInterval,
   queryWebBursts,
   countWebBursts,
+  buildBurstSortSql,
   countWebHitsByIp,
   queryWebHitsByIp,
   type WebHitsByIpRow,
@@ -301,6 +302,8 @@ const burstsQuerySchema = basePaginationSchema.extend({
   attackType: z.enum(ATTACK_TYPES).optional(),
   range: z.enum(RANGES).optional(),
   gapMinutes: z.coerce.number().int().min(1).max(240).default(15),
+  sortBy: z.enum(['startedAt', 'hits', 'durationSec', 'intensity']).default('startedAt'),
+  sortDir: z.enum(['asc', 'desc']).default('desc'),
 });
 
 async function handleBursts(fastify: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
@@ -310,14 +313,16 @@ async function handleBursts(fastify: FastifyInstance, request: FastifyRequest, r
   }
 
   const { page, pageSize, offset } = getPagination(parsed.data);
-  const { q, attackType, range, gapMinutes } = parsed.data;
-  const cacheKey = `web-hits:bursts:${page}:${pageSize}:${q ?? ''}:${attackType ?? ''}:${range ?? ''}:${gapMinutes}`;
+  const { q, attackType, range, gapMinutes, sortBy, sortDir } = parsed.data;
+  const cacheKey = `web-hits:bursts:${page}:${pageSize}:${q ?? ''}:${attackType ?? ''}:${range ?? ''}:${gapMinutes}:${sortBy}:${sortDir}`;
 
   return reply.send(await withCache(fastify.cache, cacheKey, 60, async () => {
     const whereSql = buildByIpWhereSql(q, attackType, range);
+    const orderCol = buildBurstSortSql(sortBy);
+    const orderDir = sortDir === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`;
     const [total, rows] = await Promise.all([
       countWebBursts(fastify.prisma, whereSql, gapMinutes),
-      queryWebBursts(fastify.prisma, whereSql, gapMinutes, pageSize, offset),
+      queryWebBursts(fastify.prisma, whereSql, gapMinutes, orderCol, orderDir, pageSize, offset),
     ]);
     const items = rows.map((r) => {
       const durationSec = r.duration_sec ?? 0;
