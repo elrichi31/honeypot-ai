@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation"
 import { PageShell } from "@/components/page-shell"
 import Link from "next/link"
-import { format } from "date-fns"
 import { ArrowLeft, ShieldAlert, Terminal, Globe, Activity } from "lucide-react"
 import { fetchThreat } from "@/lib/api"
+import { readConfig } from "@/lib/server-config"
+import { formatInTimezone } from "@/lib/timezone"
 import { LEVEL_STYLES, CMD_COLORS, CMD_LABELS } from "@/lib/attack-types"
 import { AiThreatSummary } from "@/components/ai-threat-summary"
 import { IpEnrichment } from "@/components/ip-enrichment"
@@ -29,6 +30,7 @@ export default async function ThreatDetailPage({
 }) {
   const { ip } = await params
   const srcIp = decodeURIComponent(ip)
+  const tz = readConfig().timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
 
   let threat
   try {
@@ -323,9 +325,9 @@ export default async function ThreatDetailPage({
                       {threat.classifiedCommands.map((c, i) => (
                         <tr key={i} className="hover:bg-muted/10 transition-colors">
                           <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs text-muted-foreground">
-                            {format(new Date(c.ts), "HH:mm:ss")}
+                            {formatInTimezone(c.ts, tz, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                             <span className="ml-1 text-[10px] text-muted-foreground/50">
-                              {format(new Date(c.ts), "dd/MM")}
+                              {formatInTimezone(c.ts, tz, { day: "2-digit", month: "2-digit" })}
                             </span>
                           </td>
                           <td className="px-4 py-2.5">

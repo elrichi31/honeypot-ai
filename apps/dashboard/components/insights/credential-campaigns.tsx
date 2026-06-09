@@ -1,6 +1,8 @@
 "use client"
 
 import { Crosshair } from "lucide-react"
+import { useTimezone } from "@/components/timezone-provider"
+import { formatInTimezone } from "@/lib/timezone"
 
 export interface CampaignGeoRow {
   bucketStart: string
@@ -19,16 +21,15 @@ function formatCredential(username: string | null, password: string | null) {
   return `${username?.trim() || "?"}:${password?.trim() || "?"}`
 }
 
-function formatDateLabel(value: string | null) {
+function formatDateLabel(value: string | null, tz: string) {
   if (!value) return "n/a"
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
-  }).format(new Date(value))
+  return formatInTimezone(value, tz, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })
 }
 
 type Props = { rows: CampaignGeoRow[] }
 
 export function CredentialCampaigns({ rows }: Props) {
+  const tz = useTimezone()
   return (
     <section className="rounded-xl border border-border bg-card p-5">
       <div className="mb-5 flex items-center gap-2">
@@ -62,7 +63,7 @@ export function CredentialCampaigns({ rows }: Props) {
                     <p className="mt-1 text-xs text-muted-foreground">{campaign.successRate}% success within window</p>
                   </td>
                   <td className="px-4 py-3 align-top text-muted-foreground">
-                    {formatDateLabel(campaign.bucketStart)}
+                    {formatDateLabel(campaign.bucketStart, tz)}
                   </td>
                   <td className="px-4 py-3 align-top">
                     <p className="font-medium text-foreground">{campaign.uniqueIps} IPs · {campaign.countryCount} countries</p>

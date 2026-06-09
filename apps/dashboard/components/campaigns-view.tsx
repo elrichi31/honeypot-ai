@@ -2,7 +2,9 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { formatDistanceToNow, format } from "date-fns"
+import { formatDistanceToNow } from "date-fns"
+import { useTimezone } from "@/components/timezone-provider"
+import { formatInTimezone } from "@/lib/timezone"
 import {
   ChevronDown,
   ChevronRight,
@@ -42,6 +44,7 @@ const GROUP_OPTIONS: {
 // ─── Campaign card ────────────────────────────────────────────────────────────
 
 function CampaignCard({ campaign }: { campaign: Campaign }) {
+  const tz = useTimezone()
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -136,7 +139,7 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {format(new Date(session.startedAt), "MMM d, HH:mm:ss")} ·{" "}
+                      {formatInTimezone(session.startedAt, tz, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })} ·{" "}
                       {session._count.events} eventos
                     </p>
                   </div>
@@ -159,6 +162,7 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
 // ─── Behavior cluster card ────────────────────────────────────────────────────
 
 function ClusterCard({ cluster }: { cluster: BehaviorCluster }) {
+  const tz = useTimezone()
   const [expanded, setExpanded] = useState(false)
   const simPct = Math.round(cluster.similarity * 100)
 
@@ -253,7 +257,7 @@ function ClusterCard({ cluster }: { cluster: BehaviorCluster }) {
                     </span>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    {format(new Date(session.startedAt), "MMM d, HH:mm:ss")}
+                    {formatInTimezone(session.startedAt, tz, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                   </p>
                 </div>
                 <Link

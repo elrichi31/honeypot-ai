@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { format } from "date-fns"
-import { enUS } from "date-fns/locale"
+import { useTimezone } from "@/components/timezone-provider"
+import { formatInTimezone } from "@/lib/timezone"
 import { Bell, Check, CheckCheck, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { PageShell } from "@/components/page-shell"
@@ -35,6 +35,7 @@ function levelStyle(level: string) {
 }
 
 export default function AlertsPage() {
+  const tz = useTimezone()
   const [data, setData] = useState<AlertsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [markingAll, setMarkingAll] = useState(false)
@@ -145,7 +146,7 @@ export default function AlertsPage() {
                       <p className="mt-0.5 text-xs text-muted-foreground">{alert.description}</p>
                     )}
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                      <span>{format(new Date(alert.createdAt), "dd MMM yyyy HH:mm:ss", { locale: enUS })}</span>
+                      <span>{formatInTimezone(alert.createdAt, tz, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}</span>
                       {alert.srcIp && <span className="font-mono">IP: {alert.srcIp}</span>}
                       {alert.sensorId && <span className="font-mono">Sensor: {alert.sensorId}</span>}
                     </div>

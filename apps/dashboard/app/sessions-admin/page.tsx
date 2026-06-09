@@ -2,8 +2,8 @@
 
 import { apiFetch } from "@/lib/client-fetch"
 import { useEffect, useState, useCallback } from "react"
-import { format } from "date-fns"
-import { enUS } from "date-fns/locale"
+import { useTimezone } from "@/components/timezone-provider"
+import { formatInTimezone } from "@/lib/timezone"
 import { MonitorSmartphone, Loader2, Trash2, LogOut, RefreshCw, ShieldAlert } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 
@@ -36,6 +36,7 @@ function parseUserAgent(ua: string | null): string {
 }
 
 export default function SessionsAdminPage() {
+  const tz = useTimezone()
   const [sessions, setSessions] = useState<SessionRow[]>([])
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -156,10 +157,10 @@ export default function SessionsAdminPage() {
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{s.ipAddress ?? "—"}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{parseUserAgent(s.userAgent)}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                    {format(new Date(s.createdAt), "dd MMM HH:mm", { locale: enUS })}
+                    {formatInTimezone(s.createdAt, tz, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false })}
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                    {format(new Date(s.expiresAt), "dd MMM HH:mm", { locale: enUS })}
+                    {formatInTimezone(s.expiresAt, tz, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false })}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">

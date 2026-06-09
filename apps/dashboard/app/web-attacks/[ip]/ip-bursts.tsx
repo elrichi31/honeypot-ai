@@ -1,8 +1,9 @@
 "use client"
 
-import { format } from "date-fns"
 import { Zap } from "lucide-react"
 import { ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
+import { useTimezone } from "@/components/timezone-provider"
+import { formatInTimezone } from "@/lib/timezone"
 import type { WebHit } from "@/lib/api"
 
 const GAP_MS = 15 * 60 * 1000
@@ -29,6 +30,7 @@ function fmtDuration(sec: number): string {
  * as one row with its intensity, so it stops drowning the per-request timeline.
  */
 export function IpBursts({ hits }: { hits: WebHit[] }) {
+  const tz = useTimezone()
   const sorted = [...hits].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 
   const bursts: Burst[] = []
@@ -62,7 +64,7 @@ export function IpBursts({ hits }: { hits: WebHit[] }) {
           <div key={i} className="px-4 py-2.5">
             <div className="flex items-center justify-between gap-2">
               <span className="font-mono text-xs text-foreground">
-                {format(new Date(b.startedAt), "dd/MM HH:mm")}
+                {formatInTimezone(b.startedAt, tz, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}
                 <span className="text-muted-foreground"> · {fmtDuration(Math.round((new Date(b.endedAt).getTime() - new Date(b.startedAt).getTime()) / 1000))}</span>
               </span>
               <span className="font-mono text-xs font-semibold text-foreground">

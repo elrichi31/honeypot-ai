@@ -1,9 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { format } from "date-fns"
 import { ChevronRight } from "lucide-react"
 import { ATTACK_COLORS, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack-types"
+import { useTimezone } from "@/components/timezone-provider"
+import { formatInTimezone } from "@/lib/timezone"
 import { cn } from "@/lib/utils"
 
 export interface RequestGroup {
@@ -42,6 +43,7 @@ function HeaderBlock({ headers }: { headers: Record<string, string> | null }) {
  */
 export function RequestRow({ group }: { group: RequestGroup }) {
   const [open, setOpen] = useState(false)
+  const tz = useTimezone()
   const hasDetail = Boolean(group.sampleBody || (group.sampleHeaders && Object.keys(group.sampleHeaders).length))
 
   return (
@@ -82,8 +84,8 @@ export function RequestRow({ group }: { group: RequestGroup }) {
           ×{group.count}
         </td>
         <td className="whitespace-nowrap px-4 py-2 align-top font-mono text-xs text-muted-foreground">
-          {format(new Date(group.lastSeen), "HH:mm:ss")}
-          <span className="ml-1 text-[10px] text-muted-foreground/50">{format(new Date(group.lastSeen), "dd/MM")}</span>
+          {formatInTimezone(group.lastSeen, tz, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
+          <span className="ml-1 text-[10px] text-muted-foreground/50">{formatInTimezone(group.lastSeen, tz, { day: "2-digit", month: "2-digit" })}</span>
         </td>
       </tr>
       {open && hasDetail && (

@@ -1,5 +1,4 @@
 import Link from "next/link"
-import { format } from "date-fns"
 import { Zap, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { fetchWebBursts } from "@/lib/api"
 import { PageShell } from "@/components/page-shell"
@@ -11,6 +10,8 @@ import { TablePagination } from "@/components/table-pagination"
 import { lookupIp } from "@/lib/geo"
 import { countryFlag } from "@/lib/formatting"
 import { ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
+import { readConfig } from "@/lib/server-config"
+import { formatInTimezone } from "@/lib/timezone"
 
 const VALID_ATTACK_TYPES = new Set(["sqli", "xss", "lfi", "rfi", "cmdi", "log4shell", "ssti", "xxe", "deserialization", "scanner", "info_disclosure", "recon"])
 const VALID_RANGES = new Set(["24h", "7d", "30d", "all"])
@@ -70,6 +71,8 @@ export default async function WebBurstsPage({
   const gapMinutes = GAP_OPTIONS.includes(Number(params.gap)) ? Number(params.gap) : 15
   const sortBy = (VALID_SORT_BY.has(params.sort ?? "") ? params.sort : "startedAt") as BurstSortBy
   const sortDir = (params.dir === "asc" ? "asc" : "desc") as "asc" | "desc"
+
+  const tz = readConfig().timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
 
   let burstsPage: Awaited<ReturnType<typeof fetchWebBursts>>
   try {
@@ -176,7 +179,7 @@ export default async function WebBurstsPage({
                       </Link>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-muted-foreground">
-                      {format(new Date(b.startedAt), "dd/MM HH:mm:ss")}
+                      {formatInTimezone(b.startedAt, tz, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-muted-foreground">
                       {fmtDuration(b.durationSec)}

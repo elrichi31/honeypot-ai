@@ -2,18 +2,19 @@
 
 import Link from "next/link"
 import { Fingerprint } from "lucide-react"
+import { useTimezone } from "@/components/timezone-provider"
+import { formatInTimezone } from "@/lib/timezone"
 import type { DashboardInsights } from "@/lib/api"
 
-function formatDateLabel(value: string | null) {
+function formatDateLabel(value: string | null, tz: string) {
   if (!value) return "n/a"
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
-  }).format(new Date(value))
+  return formatInTimezone(value, tz, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })
 }
 
 type Props = { rows: DashboardInsights["recurringIps"] }
 
 export function RecurringIps({ rows }: Props) {
+  const tz = useTimezone()
   return (
     <section className="rounded-xl border border-border bg-card p-5">
       <div className="mb-5 flex items-center gap-2">
@@ -38,7 +39,7 @@ export function RecurringIps({ rows }: Props) {
                   {row.srcIp}
                 </Link>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {row.clientVersion ?? "Unknown client"} · first seen {formatDateLabel(row.firstSeen)}
+                  {row.clientVersion ?? "Unknown client"} · first seen {formatDateLabel(row.firstSeen, tz)}
                 </p>
               </div>
               <div className="rounded-full bg-secondary px-3 py-1 text-xs text-muted-foreground">

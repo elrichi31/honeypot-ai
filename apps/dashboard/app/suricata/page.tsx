@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react"
 import { Shield, AlertTriangle, RefreshCw, Search, EyeOff, Eye } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
-import { format } from "date-fns"
+import { useTimezone } from "@/components/timezone-provider"
+import { formatInTimezone } from "@/lib/timezone"
 
 const SEVERITY_CONFIG = {
   1: { label: "Critical", className: "bg-red-500/20 text-red-400 border-red-500/30" },
@@ -80,10 +81,13 @@ function ToggleButton({ active, onClick, icon: Icon, label }: {
 const RANGE_LABELS: Record<Range, string> = { "24h": "24h", "7d": "7 days", "30d": "30 days" }
 
 function TimelineChart({ data, range }: { data: Stats["timeline"]; range: Range }) {
+  const tz = useTimezone()
   if (!data.length) return null
-  const dateFormat = range === "24h" ? "MM/dd HH:mm" : "MM/dd"
+  const dateOpts: Intl.DateTimeFormatOptions = range === "24h"
+    ? { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }
+    : { month: "2-digit", day: "2-digit" }
   const chartData = data.map(d => ({
-    label: format(new Date(d.bucket), dateFormat),
+    label: formatInTimezone(d.bucket, tz, dateOpts),
     threats: d.threats,
     noise: d.total - d.threats,
   }))
@@ -104,6 +108,7 @@ function TimelineChart({ data, range }: { data: Stats["timeline"]; range: Range 
 }
 
 export default function SuricataPage() {
+  const tz = useTimezone()
   const [stats, setStats]           = useState<Stats | null>(null)
   const [alerts, setAlerts]         = useState<Alert[]>([])
   const [pagination, setPagination] = useState<Pagination | null>(null)
@@ -338,7 +343,7 @@ export default function SuricataPage() {
                   <tr key={alert.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-2.5"><SeverityBadge severity={alert.severity} /></td>
                     <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground whitespace-nowrap">
-                      {format(new Date(alert.timestamp), "yyyy-MM-dd HH:mm:ss")}
+                      {formatInTimezone(alert.timestamp, tz, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                     </td>
                     <td className="px-4 py-2.5 font-mono text-xs">
                       <div className="flex items-center gap-1.5">

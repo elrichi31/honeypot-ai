@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation"
 import { PageShell } from "@/components/page-shell"
 import Link from "next/link"
-import { format, formatDistanceToNow } from "date-fns"
+import { formatDistanceToNow } from "date-fns"
 import { ArrowLeft, Globe, Clock, MousePointerClick, Shield, Target } from "lucide-react"
 import { fetchWebHitsByIpPage, fetchWebHits, fetchThreat } from "@/lib/api"
 import { lookupIp } from "@/lib/geo"

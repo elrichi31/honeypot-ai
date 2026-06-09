@@ -1,6 +1,8 @@
 "use client"
 
-import { format, formatDistanceToNow } from "date-fns"
+import { formatDistanceToNow } from "date-fns"
+import { useTimezone } from "@/components/timezone-provider"
+import { formatInTimezone } from "@/lib/timezone"
 import { ArrowDown, ArrowUp, ArrowUpDown, Clock, Globe, Shield, ShieldX } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -78,6 +80,7 @@ export function PairsTable({
   sortDir: "asc" | "desc"
   onSort: (column: string) => void
 }) {
+  const tz = useTimezone()
   return (
     <Table>
       <TableHeader>
@@ -112,7 +115,7 @@ export function PairsTable({
               <TableCell className="px-4 py-3 text-destructive">{item.failedCount}</TableCell>
               <TableCell className="px-4 py-3">{item.uniqueIps}</TableCell>
               <TableCell className="px-4 py-3">
-                {item.lastSeen ? format(new Date(item.lastSeen), "MMM d, HH:mm") : "-"}
+                {item.lastSeen ? formatInTimezone(item.lastSeen, tz, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) : "-"}
               </TableCell>
             </TableRow>
           ))

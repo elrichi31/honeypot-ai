@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useState, useCallback, Fragment } from "react"
-import { format } from "date-fns"
-import { enUS } from "date-fns/locale"
+import { useTimezone } from "@/components/timezone-provider"
+import { formatInTimezone } from "@/lib/timezone"
 import {
   ClipboardList, ChevronLeft, ChevronRight, Filter, X,
   MapPin, Network, ShieldAlert, Globe, Monitor, Code2,
@@ -263,6 +263,7 @@ function AuditDetail({ entry }: { entry: AuditEntry }) {
 }
 
 export default function AuditPage() {
+  const tz = useTimezone()
   const [data, setData] = useState<AuditResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
@@ -390,7 +391,7 @@ export default function AuditPage() {
                       className={`transition-colors ${hasDetails ? "cursor-pointer hover:bg-muted/20" : "hover:bg-muted/10"}`}
                     >
                       <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                        {format(new Date(entry.createdAt), "dd MMM yyyy HH:mm:ss", { locale: enUS })}
+                        {formatInTimezone(entry.createdAt, tz, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                       </td>
                       <td className="px-4 py-3">
                         <div className="text-xs font-medium text-foreground">{entry.userName || "—"}</div>

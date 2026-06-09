@@ -3,7 +3,9 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Terminal, ChevronRight, ChevronDown, Database, Server, Globe, HardDrive, KeyRound, ExternalLink, Ghost } from "lucide-react"
-import { formatDistanceToNow, format } from "date-fns"
+import { formatDistanceToNow } from "date-fns"
+import { useTimezone } from "@/components/timezone-provider"
+import { formatInTimezone } from "@/lib/timezone"
 import type { KillChain, KillChainStep } from "@/lib/api/deception"
 
 // OpenCanary logdata keys worth surfacing per step, in display order.
@@ -67,6 +69,7 @@ function StepNode({ step }: { step: KillChainStep }) {
 }
 
 function StepTimeline({ chain }: { chain: KillChain }) {
+  const tz = useTimezone()
   return (
     <div className="mt-3 border-t border-border/40 pt-3">
       <p className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/60">
@@ -100,7 +103,7 @@ function StepTimeline({ chain }: { chain: KillChain }) {
                     {isAuth ? "intento de login" : "conexión"}
                   </span>
                   <span className="text-[10px] text-muted-foreground/50 font-mono">
-                    {format(new Date(step.timestamp), "HH:mm:ss")}
+                    {formatInTimezone(step.timestamp, tz, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                   </span>
                 </div>
                 {fields.length > 0 && (
