@@ -7,11 +7,13 @@ export async function fetchThreatsPage(params?: {
   crossProtocol?: boolean
   sortBy?: 'score' | 'sessions' | 'webHits' | 'protocols'
   sortDir?: 'asc' | 'desc'
+  clientSlug?: string; sensorId?: string
 }): Promise<PaginatedThreatsResponse> {
   const sp = buildSearchParams({
     page: params?.page, pageSize: params?.pageSize,
     limit: params?.limit, offset: params?.offset,
     q: params?.q, level: params?.level,
+    clientSlug: params?.clientSlug, sensorId: params?.sensorId,
   })
   if (params?.levels?.length) sp.set("levels", params.levels.join(","))
   if (params?.commands?.length) sp.set("commands", params.commands.join(","))

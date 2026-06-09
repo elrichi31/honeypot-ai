@@ -29,25 +29,43 @@ function cutoff(days: number): Date {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000)
 }
 
-// Builds the WHERE (ip filter + time cutoff) and LIMIT. `tsCol` is the timestamp
-// column for this table (started_at / timestamp); when null no time filter applies.
+// Optional per-client scope: when set, restrict to these sensors. An empty array
+// is the caller's signal for "client has no sensors" and must match nothing —
+// callers should short-circuit before querying, but we guard with `IN (NULL)`-style
+// false just in case. `sensorCol` is the (possibly aliased) sensor_id column.
+export type ThreatScope = { sensorIds: string[] } | undefined
+
+function sensorScope(scope: ThreatScope, sensorCol: Prisma.Sql): Prisma.Sql | null {
+  if (!scope) return null
+  if (scope.sensorIds.length === 0) return Prisma.sql`false`
+  return Prisma.sql`${sensorCol} IN (${Prisma.join(scope.sensorIds)})`
+}
+
+// Builds the WHERE (ip filter + time cutoff + optional sensor scope) and LIMIT.
+// `tsCol` is the timestamp column for this table (started_at / timestamp); when
+// null no time filter applies.
 function buildIpFilter(
   ipFilter: string | undefined,
   col: Prisma.Sql = Prisma.raw('src_ip'),
   tsCol: Prisma.Sql | null = Prisma.raw('timestamp'),
   windowDays = THREATS_WINDOW_DAYS,
+  scopeCond: Prisma.Sql | null = null,
 ) {
   const conds: Prisma.Sql[] = []
   if (ipFilter) conds.push(Prisma.sql`${col} ILIKE ${`%${ipFilter}%`}`)
   if (tsCol) conds.push(Prisma.sql`${tsCol} >= ${cutoff(windowDays)}`)
+  if (scopeCond) conds.push(scopeCond)
   return {
     where: conds.length ? Prisma.sql`WHERE ${Prisma.join(conds, ' AND ')}` : Prisma.empty,
     limit: ipFilter ? Prisma.sql`LIMIT 200` : Prisma.sql`LIMIT ${UNFILTERED_IP_LIMIT}`,
   }
 }
 
-export async function queryThreatSshRows(prisma: PrismaClient, ipFilter?: string) {
-  const { where, limit } = buildIpFilter(ipFilter, Prisma.raw('s.src_ip'), Prisma.raw('s.started_at'))
+export async function queryThreatSshRows(prisma: PrismaClient, ipFilter?: string, scope?: ThreatScope) {
+  const { where, limit } = buildIpFilter(
+    ipFilter, Prisma.raw('s.src_ip'), Prisma.raw('s.started_at'),
+    THREATS_WINDOW_DAYS, sensorScope(scope, Prisma.raw('s.sensor_id')),
+  )
   return prisma.$queryRaw<Array<SshAggRow>>`
     SELECT
       s.src_ip,
@@ -65,20 +83,28 @@ export async function queryThreatSshRows(prisma: PrismaClient, ipFilter?: string
   `
 }
 
-export async function queryThreatCommandRows(prisma: PrismaClient, ipFilter?: string) {
+export async function queryThreatCommandRows(prisma: PrismaClient, ipFilter?: string, scope?: ThreatScope) {
   const ipClause = ipFilter ? Prisma.sql`AND e.src_ip ILIKE ${`%${ipFilter}%`}` : Prisma.empty
-  const where = Prisma.sql`WHERE e.event_type = 'command.input' AND e.command IS NOT NULL AND e.event_ts >= ${cutoff(THREATS_WINDOW_DAYS)} ${ipClause}`
+  // events has no sensor_id; scope via the parent session's sensor_id.
+  const scopeCond = sensorScope(scope, Prisma.raw('s.sensor_id'))
+  const scopeJoin = scopeCond ? Prisma.sql`JOIN sessions s ON s.id = e.session_id` : Prisma.empty
+  const scopeClause = scopeCond ? Prisma.sql`AND ${scopeCond}` : Prisma.empty
+  const where = Prisma.sql`WHERE e.event_type = 'command.input' AND e.command IS NOT NULL AND e.event_ts >= ${cutoff(THREATS_WINDOW_DAYS)} ${ipClause} ${scopeClause}`
   const limit = ipFilter ? Prisma.sql`LIMIT 2000` : Prisma.sql`LIMIT 10000`
   return prisma.$queryRaw<Array<CommandAggRow>>`
     SELECT DISTINCT e.src_ip, e.command
     FROM events e
+    ${scopeJoin}
     ${where}
     ${limit}
   `
 }
 
-export async function queryThreatWebRows(prisma: PrismaClient, ipFilter?: string) {
-  const { where, limit } = buildIpFilter(ipFilter)
+export async function queryThreatWebRows(prisma: PrismaClient, ipFilter?: string, scope?: ThreatScope) {
+  const { where, limit } = buildIpFilter(
+    ipFilter, Prisma.raw('src_ip'), Prisma.raw('timestamp'),
+    THREATS_WINDOW_DAYS, sensorScope(scope, Prisma.raw('sensor_id')),
+  )
   return prisma.$queryRaw<Array<WebAggRow>>`
     SELECT
       src_ip,
@@ -94,8 +120,11 @@ export async function queryThreatWebRows(prisma: PrismaClient, ipFilter?: string
   `
 }
 
-export async function queryThreatProtocolRows(prisma: PrismaClient, ipFilter?: string) {
-  const { where, limit } = buildIpFilter(ipFilter)
+export async function queryThreatProtocolRows(prisma: PrismaClient, ipFilter?: string, scope?: ThreatScope) {
+  const { where, limit } = buildIpFilter(
+    ipFilter, Prisma.raw('src_ip'), Prisma.raw('timestamp'),
+    THREATS_WINDOW_DAYS, sensorScope(scope, Prisma.raw('sensor_id')),
+  )
   return prisma.$queryRaw<Array<ProtocolAggRow>>`
     SELECT
       src_ip,

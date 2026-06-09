@@ -23,6 +23,10 @@ interface SessionsTableProps {
   actor?: "all" | "bot" | "human" | "unknown"
   summary?: SessionsSummary
   pagination?: PaginationMeta
+  // Active client/sensor scope, threaded through the search form so submitting a
+  // search (which navigates via the form's GET action) doesn't drop the filter.
+  clientSlug?: string
+  sensorId?: string
 }
 
 interface Filters {
@@ -52,6 +56,8 @@ function SessionsTableInner({
   actor = "all",
   summary,
   pagination,
+  clientSlug,
+  sensorId,
 }: SessionsTableProps) {
   const pathname = usePathname()
   const { pushParams } = useNavTransitionOptional()
@@ -231,6 +237,8 @@ function SessionsTableInner({
           <form className="flex min-w-[320px] flex-1 items-center gap-2" action={pathname}>
             <input type="hidden" name="tab" value={tab} />
             <input type="hidden" name="pageSize" value={String(pagination?.pageSize ?? 20)} />
+            {clientSlug && <input type="hidden" name="clientSlug" value={clientSlug} />}
+            {sensorId && <input type="hidden" name="sensorId" value={sensorId} />}
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <input
@@ -249,12 +257,13 @@ function SessionsTableInner({
               Search
             </button>
             {searchQuery && (
-              <Link
-                href={`${pathname}?tab=${tab}&pageSize=${pagination?.pageSize ?? 20}`}
+              <button
+                type="button"
+                onClick={() => { setServerQuery(""); pushParams({ page: "1" }, ["q"]) }}
                 className="inline-flex h-10 items-center rounded-lg border border-border px-4 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
               >
                 Clear
-              </Link>
+              </button>
             )}
           </form>
 

@@ -20,7 +20,9 @@ import {
   queryThreatSshRows,
   queryThreatWebRow,
   queryThreatWebRows,
+  type ThreatScope,
 } from '../lib/threat-route-queries.js'
+import { resolveClientSensors } from '../lib/client-helpers.js'
 
 const RISK_LEVELS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'] as const
 const COMMAND_CATEGORIES = [
@@ -51,6 +53,10 @@ const threatListQuerySchema = basePaginationSchema.extend({
   crossProtocol: z.coerce.boolean().optional(),
   sortBy: z.enum(['score', 'sessions', 'webHits', 'protocols']).default('score'),
   sortDir: z.enum(['asc', 'desc']).default('desc'),
+  // Per-client / per-sensor scoping, mirroring the web-attacks filters. clientSlug
+  // resolves to the client's sensor set; sensorId narrows to a single sensor.
+  clientSlug: z.string().trim().min(1).optional(),
+  sensorId: z.string().trim().min(1).optional(),
 })
 
 type ThreatListQuery = z.infer<typeof threatListQuerySchema>
@@ -102,13 +108,13 @@ const THREATS_CACHE_KEY = 'threats:list'
 const THREATS_CACHE_TTL = 180 // 3 minutes
 const THREATS_FILTERED_TTL = 300 // 5 minutes for filtered/search results
 
-async function fetchThreats(fastify: FastifyInstance, ipFilter?: string) {
+async function fetchThreats(fastify: FastifyInstance, ipFilter?: string, scope?: ThreatScope) {
   const db = fastify.prismaRead
   const [sshRows, cmdRows, webRows, protocolRows] = await Promise.all([
-    queryThreatSshRows(db, ipFilter),
-    queryThreatCommandRows(db, ipFilter),
-    queryThreatWebRows(db, ipFilter),
-    queryThreatProtocolRows(db, ipFilter),
+    queryThreatSshRows(db, ipFilter, scope),
+    queryThreatCommandRows(db, ipFilter, scope),
+    queryThreatWebRows(db, ipFilter, scope),
+    queryThreatProtocolRows(db, ipFilter, scope),
   ])
   const sshMap = new Map(sshRows.map((row) => [row.src_ip, row]))
   const webMap = new Map(webRows.map((row) => [row.src_ip, row]))
@@ -155,10 +161,35 @@ function sendInvalidQuery(reply: FastifyReply, error: z.ZodError) {
   })
 }
 
+// Turn the optional clientSlug/sensorId query params into a concrete sensor
+// scope plus a cache-key suffix. A bare sensorId scopes to that one sensor. A
+// clientSlug resolves to the client's sensors (empty set if the client is
+// unknown or has none — which the queries render as "match nothing"). sensorId
+// wins when both are present, matching the web-attacks filter semantics.
+async function resolveThreatScope(
+  fastify: FastifyInstance,
+  clientSlug: string | undefined,
+  sensorId: string | undefined,
+): Promise<{ scope: ThreatScope; scopeKey: string }> {
+  if (sensorId) return { scope: { sensorIds: [sensorId] }, scopeKey: `:s=${sensorId}` }
+  if (clientSlug) {
+    const cs = await resolveClientSensors(fastify.prismaRead, clientSlug)
+    const sensorIds = cs?.sensorIds ?? []
+    return { scope: { sensorIds }, scopeKey: `:c=${clientSlug}` }
+  }
+  return { scope: undefined, scopeKey: '' }
+}
+
 async function handleListThreats(fastify: FastifyInstance, query: unknown, reply: FastifyReply) {
   const parsed = threatListQuerySchema.safeParse(query)
   if (!parsed.success) return sendInvalidQuery(reply, parsed.error)
   const { page, pageSize, offset } = getPagination(parsed.data)
+
+  // Resolve the optional client/sensor scope to a concrete sensor set. A client
+  // with zero sensors (or an unknown slug) yields an empty scope, which the
+  // queries treat as "match nothing" so the view is correctly empty rather than
+  // silently global.
+  const { scope, scopeKey } = await resolveThreatScope(fastify, parsed.data.clientSlug, parsed.data.sensorId)
 
   const levels = effectiveLevels(parsed.data)
   const commands = parsed.data.commands
@@ -166,11 +197,11 @@ async function handleListThreats(fastify: FastifyInstance, query: unknown, reply
 
   const threats: ThreatItem[] = await (() => {
     if (!hasFilters) {
-      return withCache(fastify.cache, THREATS_CACHE_KEY, THREATS_CACHE_TTL, () => fetchThreats(fastify))
+      return withCache(fastify.cache, `${THREATS_CACHE_KEY}${scopeKey}`, THREATS_CACHE_TTL, () => fetchThreats(fastify, undefined, scope))
     }
-    const filteredKey = `threats:filtered:${parsed.data.q ?? ''}:${levels.sort().join('+')}:${[...commands].sort().join('+')}:${parsed.data.crossProtocol ?? ''}`
+    const filteredKey = `threats:filtered${scopeKey}:${parsed.data.q ?? ''}:${levels.sort().join('+')}:${[...commands].sort().join('+')}:${parsed.data.crossProtocol ?? ''}`
     return withCache(fastify.cache, filteredKey, THREATS_FILTERED_TTL, async () =>
-      filterThreats(await fetchThreats(fastify, parsed.data.q), parsed.data)
+      filterThreats(await fetchThreats(fastify, parsed.data.q, scope), parsed.data)
     )
   })()
 

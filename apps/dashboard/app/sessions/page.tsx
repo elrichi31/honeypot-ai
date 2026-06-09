@@ -1,8 +1,9 @@
 import { PageShell } from "@/components/page-shell"
 import { SessionsTable } from "@/components/sessions-table"
 import { ErrorState } from "@/components/ui/data-states"
-import { fetchSessionScanGroupsPage, fetchSessionsPage } from "@/lib/api"
+import { fetchSessionScanGroupsPage, fetchSessionsPage, fetchClients, fetchSensors } from "@/lib/api"
 import { lookupIp } from "@/lib/geo"
+import { ClientSensorFilter } from "@/components/client-sensor-filter"
 
 const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
 
@@ -20,6 +21,8 @@ export default async function SessionsPage({
     tab?: string
     actor?: string
     sortDir?: string
+    clientSlug?: string
+    sensorId?: string
   }>
 }) {
   const params = await searchParams
@@ -29,14 +32,20 @@ export default async function SessionsPage({
   const q = params.q?.trim() || undefined
   const actor = VALID_ACTORS.has(params.actor ?? "") ? params.actor as "all" | "bot" | "human" | "unknown" : undefined
   const sortDir = VALID_SORT_DIR.has(params.sortDir ?? "") ? (params.sortDir as "asc" | "desc") : "desc"
+  const clientSlug = params.clientSlug?.trim() || undefined
+  const sensorId = params.sensorId?.trim() || undefined
 
   let sessionPage: Awaited<ReturnType<typeof fetchSessionsPage>> | null = null
+  let clients: Awaited<ReturnType<typeof fetchClients>> = []
+  let sensors: Awaited<ReturnType<typeof fetchSensors>> = []
   try {
-    sessionPage = await (
+    ;[sessionPage, clients, sensors] = await Promise.all([
       tab === "scans"
-        ? fetchSessionScanGroupsPage({ page, pageSize, q })
-        : fetchSessionsPage({ page, pageSize, q, outcome: "compromised", actor, sortDir })
-    )
+        ? fetchSessionScanGroupsPage({ page, pageSize, q, clientSlug, sensorId })
+        : fetchSessionsPage({ page, pageSize, q, outcome: "compromised", actor, sortDir, clientSlug, sensorId }),
+      fetchClients().catch(() => []),
+      fetchSensors().catch(() => []),
+    ])
   } catch {
     return (
       <PageShell>
@@ -90,6 +99,17 @@ export default async function SessionsPage({
         </p>
       </div>
 
+      <div className="mb-6 rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-xs text-muted-foreground">Filtrar:</span>
+          <ClientSensorFilter
+            clients={clients.map((c) => ({ slug: c.slug, name: c.name }))}
+            sensors={sensors.map((s) => ({ sensorId: s.sensorId, name: s.name, protocol: s.protocol, clientSlug: s.clientSlug, clientName: s.clientName }))}
+            webOnly={false}
+          />
+        </div>
+      </div>
+
       <SessionsTable
         sessions={sessionsList}
         showAll
@@ -98,6 +118,8 @@ export default async function SessionsPage({
         actor={actor ?? "all"}
         summary={sessionPage.summary}
         pagination={sessionPage.pagination}
+        clientSlug={clientSlug}
+        sensorId={sensorId}
       />
     </PageShell>
   )

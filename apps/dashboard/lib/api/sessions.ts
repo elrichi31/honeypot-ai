@@ -22,11 +22,13 @@ export async function fetchSessionsPage(params?: {
   q?: string; outcome?: "all" | "compromised" | "blocked"
   actor?: "all" | "bot" | "human" | "unknown"; startDate?: string; endDate?: string
   sortDir?: 'asc' | 'desc'
+  clientSlug?: string; sensorId?: string
 }): Promise<PaginatedSessionsResponse> {
   const sp = buildSearchParams({
     page: params?.page, pageSize: params?.pageSize, limit: params?.limit,
     offset: params?.offset, q: params?.q, outcome: params?.outcome,
     startDate: params?.startDate, endDate: params?.endDate,
+    clientSlug: params?.clientSlug, sensorId: params?.sensorId,
   })
   if (params?.actor && params.actor !== "all") sp.set("actor", params.actor)
   if (params?.sortDir) sp.set("sortDir", params.sortDir)
@@ -40,11 +42,13 @@ export async function fetchSessions(params?: Parameters<typeof fetchSessionsPage
 export async function fetchSessionScanGroupsPage(params?: {
   page?: number; pageSize?: number; limit?: number; offset?: number
   q?: string; startDate?: string; endDate?: string
+  clientSlug?: string; sensorId?: string
 }): Promise<PaginatedSessionsResponse> {
   const sp = buildSearchParams({
     page: params?.page, pageSize: params?.pageSize, limit: params?.limit,
     offset: params?.offset, q: params?.q,
     startDate: params?.startDate, endDate: params?.endDate,
+    clientSlug: params?.clientSlug, sensorId: params?.sensorId,
   })
   return apiFetch(`${getApiUrl()}/sessions/scan-groups?${sp}`, 30)
 }

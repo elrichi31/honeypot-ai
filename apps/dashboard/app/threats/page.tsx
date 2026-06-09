@@ -1,8 +1,9 @@
 import { ShieldAlert } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
-import { fetchThreatsPage } from "@/lib/api"
+import { fetchThreatsPage, fetchClients, fetchSensors } from "@/lib/api"
 import { ThreatsTable } from "./threats-table"
 import { SectionError } from "@/components/section-error"
+import { ClientSensorFilter } from "@/components/client-sensor-filter"
 
 const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
 
@@ -34,6 +35,8 @@ export default async function ThreatsPage({
     levels?: string
     commands?: string
     crossProtocol?: string
+    clientSlug?: string
+    sensorId?: string
   }>
 }) {
   const params = await searchParams
@@ -45,10 +48,18 @@ export default async function ThreatsPage({
   const levels = parseCsv<RiskLevel>(params.levels, VALID_LEVELS)
   const commands = parseCsv(params.commands, VALID_COMMANDS)
   const crossProtocol = params.crossProtocol === "true" ? true : undefined
+  const clientSlug = params.clientSlug?.trim() || undefined
+  const sensorId = params.sensorId?.trim() || undefined
 
   let pageData: Awaited<ReturnType<typeof fetchThreatsPage>> | null = null
+  let clients: Awaited<ReturnType<typeof fetchClients>> = []
+  let sensors: Awaited<ReturnType<typeof fetchSensors>> = []
   try {
-    pageData = await fetchThreatsPage({ page, pageSize, q, sortBy, sortDir, levels, commands, crossProtocol })
+    ;[pageData, clients, sensors] = await Promise.all([
+      fetchThreatsPage({ page, pageSize, q, sortBy, sortDir, levels, commands, crossProtocol, clientSlug, sensorId }),
+      fetchClients().catch(() => []),
+      fetchSensors().catch(() => []),
+    ])
   } catch {
     pageData = null
   }
@@ -83,6 +94,17 @@ export default async function ThreatsPage({
   return (
     <PageShell>
       {header}
+
+      <div className="mb-6 rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-xs text-muted-foreground">Filtrar:</span>
+          <ClientSensorFilter
+            clients={clients.map((c) => ({ slug: c.slug, name: c.name }))}
+            sensors={sensors.map((s) => ({ sensorId: s.sensorId, name: s.name, protocol: s.protocol, clientSlug: s.clientSlug, clientName: s.clientName }))}
+            webOnly={false}
+          />
+        </div>
+      </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-xl border border-border bg-card p-4">

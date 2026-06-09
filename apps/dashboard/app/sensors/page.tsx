@@ -4,6 +4,7 @@ import Link from "next/link"
 import { Activity, Server, Wifi, Waypoints } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { SensorCard } from "@/components/sensors/sensor-card"
+import { DeceptionNetworkCard } from "@/components/sensors/deception-network-card"
 import { fetchSensors } from "@/lib/api"
 import { readConfig } from "@/lib/server-config"
 import type { Sensor } from "@/lib/api"
@@ -136,9 +137,22 @@ export default async function SensorsPage() {
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {group.sensors.map((sensor) => (
-                  <SensorCard key={sensor.sensorId} sensor={sensor} clientCode={sensor.clientCode} honeypotPublicIp={honeypotPublicIp} />
-                ))}
+                {(() => {
+                  // The OpenCanary trap nodes are collapsed into one "Deception
+                  // Network" card per group; the rest render as normal sensor cards.
+                  const deception = group.sensors.filter((s) => s.protocol === "deception")
+                  const rest = group.sensors.filter((s) => s.protocol !== "deception")
+                  return (
+                    <>
+                      {deception.length > 0 && (
+                        <DeceptionNetworkCard sensors={deception} clientSlug={group.slug} />
+                      )}
+                      {rest.map((sensor) => (
+                        <SensorCard key={sensor.sensorId} sensor={sensor} clientCode={sensor.clientCode} honeypotPublicIp={honeypotPublicIp} />
+                      ))}
+                    </>
+                  )
+                })()}
               </div>
             </section>
           ))}

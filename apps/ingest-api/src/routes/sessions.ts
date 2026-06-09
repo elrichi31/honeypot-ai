@@ -14,6 +14,7 @@ import {
   type SessionSummaryRow,
   type SessionListRow,
 } from '../lib/session-queries.js';
+import { resolveClientSensors } from '../lib/client-helpers.js';
 
 const sessionListQuerySchema = basePaginationSchema.extend({
   startDate: z.string().datetime({ offset: true }).optional(),
@@ -22,6 +23,9 @@ const sessionListQuerySchema = basePaginationSchema.extend({
   outcome: z.enum(['all', 'compromised', 'blocked']).optional(),
   actor: z.enum(['all', 'bot', 'human', 'unknown']).optional(),
   sortDir: z.enum(['asc', 'desc']).default('desc'),
+  // Per-client / per-sensor scoping, mirroring the web-attacks filters.
+  clientSlug: z.string().trim().min(1).optional(),
+  sensorId: z.string().trim().min(1).optional(),
 });
 
 type SessionListQuery = z.infer<typeof sessionListQuerySchema>;
@@ -80,16 +84,35 @@ function parseQuery(request: FastifyRequest, reply: FastifyReply): SessionListQu
   return parsed.data;
 }
 
+// Resolve the optional clientSlug/sensorId params to a concrete sensor scope plus
+// a cache-key suffix. A bare sensorId scopes to that one sensor; a clientSlug
+// resolves to the client's sensors (empty set if unknown / none). sensorId wins
+// when both are present, matching the web-attacks filter semantics. `undefined`
+// scope means no filtering (global view).
+async function resolveSessionScope(
+  fastify: FastifyInstance,
+  clientSlug: string | undefined,
+  sensorId: string | undefined,
+): Promise<{ sensorIds: string[] | undefined; scopeKey: string }> {
+  if (sensorId) return { sensorIds: [sensorId], scopeKey: `:s=${sensorId}` };
+  if (clientSlug) {
+    const cs = await resolveClientSensors(fastify.prismaRead, clientSlug);
+    return { sensorIds: cs?.sensorIds ?? [], scopeKey: `:c=${clientSlug}` };
+  }
+  return { sensorIds: undefined, scopeKey: '' };
+}
+
 async function handleListSessions(fastify: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
   const params = parseQuery(request, reply);
   if (!params) return;
 
   const { page, pageSize, offset } = getPagination(params);
-  const cacheKey = `sessions:list:${page}:${pageSize}:${params.outcome ?? 'all'}:${params.actor ?? 'all'}:${params.q ?? ''}:${params.sortDir}:${params.startDate ?? ''}:${params.endDate ?? ''}`
+  const { sensorIds, scopeKey } = await resolveSessionScope(fastify, params.clientSlug, params.sensorId);
+  const cacheKey = `sessions:list${scopeKey}:${page}:${pageSize}:${params.outcome ?? 'all'}:${params.actor ?? 'all'}:${params.q ?? ''}:${params.sortDir}:${params.startDate ?? ''}:${params.endDate ?? ''}`
 
   return withCache(fastify.cache, cacheKey, 30, async () => {
-    const baseClauses = buildSessionClauses({ q: params.q, startDate: params.startDate, endDate: params.endDate, outcome: 'all', actor: params.actor ?? 'all' });
-    const listClauses = buildSessionClauses({ q: params.q, startDate: params.startDate, endDate: params.endDate, outcome: params.outcome ?? 'all', actor: params.actor ?? 'all' });
+    const baseClauses = buildSessionClauses({ q: params.q, startDate: params.startDate, endDate: params.endDate, outcome: 'all', actor: params.actor ?? 'all', sensorIds });
+    const listClauses = buildSessionClauses({ q: params.q, startDate: params.startDate, endDate: params.endDate, outcome: params.outcome ?? 'all', actor: params.actor ?? 'all', sensorIds });
 
     const [summaryRows, sessionRows] = await Promise.all([
       fastify.prismaRead.$queryRaw<SessionSummaryRow[]>(summaryQuery(buildWhereSql(baseClauses))),
@@ -106,11 +129,12 @@ async function handleScanGroups(fastify: FastifyInstance, request: FastifyReques
   if (!params) return;
 
   const { page, pageSize, offset } = getPagination(params);
-  const cacheKey = `sessions:scans:${page}:${pageSize}:${params.q ?? ''}:${params.startDate ?? ''}:${params.endDate ?? ''}`
+  const { sensorIds, scopeKey } = await resolveSessionScope(fastify, params.clientSlug, params.sensorId);
+  const cacheKey = `sessions:scans${scopeKey}:${page}:${pageSize}:${params.q ?? ''}:${params.startDate ?? ''}:${params.endDate ?? ''}`
 
   return withCache(fastify.cache, cacheKey, 30, async () => {
-    const baseClauses = buildSessionClauses({ q: params.q, startDate: params.startDate, endDate: params.endDate, outcome: 'all' });
-    const blockedClauses = buildSessionClauses({ q: params.q, startDate: params.startDate, endDate: params.endDate, outcome: 'blocked' });
+    const baseClauses = buildSessionClauses({ q: params.q, startDate: params.startDate, endDate: params.endDate, outcome: 'all', sensorIds });
+    const blockedClauses = buildSessionClauses({ q: params.q, startDate: params.startDate, endDate: params.endDate, outcome: 'blocked', sensorIds });
     const blockedWhere = buildWhereSql(blockedClauses);
 
     const [summaryRows, totalGroupRows, sessionRows] = await Promise.all([

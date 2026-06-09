@@ -8,22 +8,47 @@ import {
   fetchDeceptionNodes,
   fetchDeceptionKillchain,
   fetchDeceptionEvents,
+  fetchClientDeceptionOverview,
+  fetchClientDeceptionNodes,
+  fetchClientDeceptionKillchain,
+  fetchClientDeceptionEvents,
+  fetchClients,
+  fetchSensors,
 } from "@/lib/api"
 import { DeceptionOverview } from "@/components/deception/deception-overview"
 import { KillChainView } from "@/components/deception/kill-chain-view"
 import { DeceptionNodesGrid } from "@/components/deception/deception-nodes-grid"
 import { DeceptionEventsTable } from "@/components/deception/deception-events-table"
+import { DeceptionFilter } from "@/components/deception/deception-filter"
 
-export default async function DeceptionPage() {
+export default async function DeceptionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ clientSlug?: string; nodeId?: string }>
+}) {
+  const params = await searchParams
+  const clientSlug = params.clientSlug?.trim() || undefined
+  const nodeId = params.nodeId?.trim() || undefined
+
   let data
+  let clients: Awaited<ReturnType<typeof fetchClients>> = []
+  let sensors: Awaited<ReturnType<typeof fetchSensors>> = []
   try {
-    const [overview, nodes, chains, events] = await Promise.all([
-      fetchDeceptionOverview(),
-      fetchDeceptionNodes(),
-      fetchDeceptionKillchain(200),
-      fetchDeceptionEvents({ limit: 50 }),
+    const [overview, nodes, chains, events, clientList, sensorList] = await Promise.all([
+      // Scope the overview/nodes/killchain/events to the selected client's network
+      // (its OpenCanary trap nodes) when a client is picked; otherwise aggregate.
+      clientSlug ? fetchClientDeceptionOverview(clientSlug) : fetchDeceptionOverview(),
+      clientSlug ? fetchClientDeceptionNodes(clientSlug) : fetchDeceptionNodes(),
+      clientSlug ? fetchClientDeceptionKillchain(clientSlug, 200) : fetchDeceptionKillchain(200),
+      clientSlug
+        ? fetchClientDeceptionEvents(clientSlug, { limit: 50, nodeId })
+        : fetchDeceptionEvents({ limit: 50, nodeId }),
+      fetchClients().catch(() => []),
+      fetchSensors().catch(() => []),
     ])
     data = { overview, nodes, chains, events: events.data }
+    clients = clientList
+    sensors = sensorList
   } catch {
     return (
       <PageShell>
@@ -34,6 +59,16 @@ export default async function DeceptionPage() {
       </PageShell>
     )
   }
+
+  // Deception trap nodes carry client attribution on the sensor record, which the
+  // /deception/nodes feed doesn't include — so build the filter's node list from
+  // the sensors feed (protocol = deception).
+  const deceptionSensors = sensors.filter((s) => s.protocol === "deception")
+
+  // When a single node is selected, scope the cards/grid that the API doesn't
+  // filter by node (overview, nodes, killchain stay network-wide; the events
+  // table is already node-scoped server-side).
+  const visibleNodes = nodeId ? data.nodes.filter((n) => n.sensorId === nodeId) : data.nodes
 
   return (
     <PageShell>
@@ -48,6 +83,21 @@ export default async function DeceptionPage() {
         </p>
       </div>
 
+      <div className="mb-6 rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-xs text-muted-foreground">Filtrar:</span>
+          <DeceptionFilter
+            clients={clients.map((c) => ({ slug: c.slug, name: c.name }))}
+            nodes={deceptionSensors.map((s) => ({
+              sensorId: s.sensorId,
+              name: s.name,
+              clientSlug: s.clientSlug,
+              clientName: s.clientName,
+            }))}
+          />
+        </div>
+      </div>
+
       <div className="space-y-8">
         <DeceptionOverview data={data.overview} />
 
@@ -58,7 +108,7 @@ export default async function DeceptionPage() {
 
         <section>
           <h2 className="mb-3 text-sm font-semibold text-foreground">Nodos trampa</h2>
-          <DeceptionNodesGrid nodes={data.nodes} />
+          <DeceptionNodesGrid nodes={visibleNodes} />
         </section>
 
         <DeceptionEventsTable events={data.events} />

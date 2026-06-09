@@ -85,10 +85,10 @@ export function ClientSensorFilter({
         disabled={sensorsForClient.length === 0}
       >
         <SelectTrigger size="sm" className="w-[180px] bg-muted/30" aria-label="Filter by sensor">
-          <SelectValue placeholder="All web sensors" />
+          <SelectValue placeholder={webOnly ? "All web sensors" : "All sensors"} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={ALL}>All web sensors</SelectItem>
+          <SelectItem value={ALL}>{webOnly ? "All web sensors" : "All sensors"}</SelectItem>
           {sensorsForClient.map((s) => (
             <SelectItem key={s.sensorId} value={s.sensorId}>
               {s.name}{s.clientName && !activeClient ? ` · ${s.clientName}` : ""}

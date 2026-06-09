@@ -6,8 +6,9 @@ import type {
   CredentialPairRow, UsernameAggregateRow, PasswordAggregateRow,
   SprayPasswordRow, TargetedUsernameRow, DiversifiedAttackerRow, CountOnlyRow,
 } from './types.js'
-import { parseDate, toNumber, toOffsetISOString, buildAuthWhereSql, buildClauseBlock } from './utils.js'
+import { parseDate, toNumber, toOffsetISOString, buildAuthWhereSql, buildClauseBlock, eventScopeClause, eventScopeWhere, type EventScope } from './utils.js'
 import { withCache } from '../../lib/cache-helper.js'
+import { resolveClientSensors } from '../../lib/client-helpers.js'
 
 const DEFAULT_PAGE_SIZE = 50
 const MAX_PAGE_SIZE = 200
@@ -26,6 +27,9 @@ const schema = z.object({
   search: z.string().trim().optional(),
   sortBy: z.string().trim().optional(),
   sortDir: z.enum(['asc', 'desc']).default('desc'),
+  // Per-client / per-sensor scoping, mirroring the web-attacks filters.
+  clientSlug: z.string().trim().min(1).optional(),
+  sensorId: z.string().trim().min(1).optional(),
 })
 
 type Params = z.infer<typeof schema>
@@ -98,6 +102,22 @@ export async function credentialsRoute(fastify: FastifyInstance) {
     const endDate = p.endDate ? parseDate(p.endDate, new Date()) : undefined
     const { page, pageSize, offset } = getPagination(p)
     const search = p.search?.trim()
+
+    // Resolve the optional client/sensor scope to a concrete sensor set. sensorId
+    // wins over clientSlug; an unknown client / client with no sensors yields an
+    // empty scope (which the queries render as "match nothing"). scopeKey keeps
+    // scoped results from colliding with the global cache entry.
+    let scope: EventScope
+    let scopeKey = ''
+    if (p.sensorId) {
+      scope = { sensorIds: [p.sensorId] }
+      scopeKey = `:s=${p.sensorId}`
+    } else if (p.clientSlug) {
+      const cs = await resolveClientSensors(fastify.prismaRead, p.clientSlug)
+      scope = { sensorIds: cs?.sensorIds ?? [] }
+      scopeKey = `:c=${p.clientSlug}`
+    }
+    const recentScopeWhere = eventScopeWhere(scope)
     const activeSortBy = p.sortBy ?? defaultSortBy(p.mainTab)
     const activeSortDir = p.sortDir
     const rankingSortBy = p.mainTab === 'rankings' ? activeSortBy : defaultSortBy('rankings')
@@ -105,18 +125,20 @@ export async function credentialsRoute(fastify: FastifyInstance) {
     const recentSortBy = p.mainTab === 'recent' ? activeSortBy : 'eventTs'
     const recentSortDir: CredentialsSortDirection = p.mainTab === 'recent' ? activeSortDir : 'desc'
 
-    const cacheKey = `credentials:${JSON.stringify({ mainTab: p.mainTab, rankingType: p.rankingType, outcome: p.outcome, frequency: p.frequency, search: search ?? '', sortBy: activeSortBy, sortDir: activeSortDir, page, pageSize, startDate: p.startDate ?? '', endDate: p.endDate ?? '' })}`
+    const cacheKey = `credentials${scopeKey}:${JSON.stringify({ mainTab: p.mainTab, rankingType: p.rankingType, outcome: p.outcome, frequency: p.frequency, search: search ?? '', sortBy: activeSortBy, sortDir: activeSortDir, page, pageSize, startDate: p.startDate ?? '', endDate: p.endDate ?? '' })}`
 
     return withCache(fastify.cache, cacheKey, 600, async () => {
-    const authWhere = buildAuthWhereSql({ startDate, endDate })
-    const anyCredWhere = buildAuthWhereSql({ startDate, endDate, extra: [Prisma.sql`(username IS NOT NULL OR password IS NOT NULL)`] })
-    const userWhere = buildAuthWhereSql({ startDate, endDate, extra: [Prisma.sql`username IS NOT NULL`] })
-    const passWhere = buildAuthWhereSql({ startDate, endDate, extra: [Prisma.sql`password IS NOT NULL`] })
+    const authWhere = buildAuthWhereSql({ startDate, endDate, scope })
+    const anyCredWhere = buildAuthWhereSql({ startDate, endDate, scope, extra: [Prisma.sql`(username IS NOT NULL OR password IS NOT NULL)`] })
+    const userWhere = buildAuthWhereSql({ startDate, endDate, scope, extra: [Prisma.sql`username IS NOT NULL`] })
+    const passWhere = buildAuthWhereSql({ startDate, endDate, scope, extra: [Prisma.sql`password IS NOT NULL`] })
 
     const searchClause = buildSearchClause(search)
+    const scopeClause = eventScopeClause(scope)
     const rankingClauses: Prisma.Sql[] = [Prisma.sql`event_type IN ('auth.success', 'auth.failed')`]
     if (startDate) rankingClauses.push(Prisma.sql`event_ts >= ${startDate}`)
     if (endDate) rankingClauses.push(Prisma.sql`event_ts <= ${endDate}`)
+    if (scopeClause) rankingClauses.push(scopeClause)
     if (searchClause) rankingClauses.push(searchClause)
     if (p.rankingType === 'pairs') rankingClauses.push(Prisma.sql`(username IS NOT NULL OR password IS NOT NULL)`)
     else if (p.rankingType === 'passwords') rankingClauses.push(Prisma.sql`password IS NOT NULL`)
@@ -130,7 +152,7 @@ export async function credentialsRoute(fastify: FastifyInstance) {
       else if (p.frequency === 'single') havingClauses.push(Prisma.sql`COUNT(*) = 1`)
     }
 
-    const recentWhere = buildRecentWhere(p.outcome, startDate, endDate, search)
+    const recentWhere = buildRecentWhere(p.outcome, startDate, endDate, search, recentScopeWhere)
     const recentOrderBy = buildRecentOrderBy(recentSortBy, recentSortDir)
 
     // Only the active tab's heavy row queries run; inactive tabs return empty
@@ -145,9 +167,9 @@ export async function credentialsRoute(fastify: FastifyInstance) {
       sprayPasswordsCountRows, targetedUsernamesCountRows,
       sprayPasswordRows, targetedUsernameRows, diversifiedAttackerRows,
       rankingCountRows, rankingRows, recentAttempts, recentAttemptsTotal] = await Promise.all([
-      countAttempts(fastify, 'all', startDate, endDate),
-      countAttempts(fastify, 'success', startDate, endDate),
-      countAttempts(fastify, 'failed', startDate, endDate),
+      countAttempts(fastify, 'all', startDate, endDate, recentScopeWhere),
+      countAttempts(fastify, 'success', startDate, endDate, recentScopeWhere),
+      countAttempts(fastify, 'failed', startDate, endDate, recentScopeWhere),
       fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`SELECT COUNT(DISTINCT username)::int AS count FROM events ${userWhere}`),
       fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`SELECT COUNT(DISTINCT password)::int AS count FROM events ${passWhere}`),
       fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`SELECT COUNT(DISTINCT (COALESCE(username, '<null>') || E'\\x1f' || COALESCE(password, '<null>')))::int AS count FROM events ${anyCredWhere}`),
@@ -196,19 +218,21 @@ export async function credentialsRoute(fastify: FastifyInstance) {
   })
 }
 
-function countAttempts(fastify: FastifyInstance, type: 'all' | 'success' | 'failed', startDate?: Date, endDate?: Date) {
-  const where = {
+function countAttempts(fastify: FastifyInstance, type: 'all' | 'success' | 'failed', startDate?: Date, endDate?: Date, scopeWhere?: Prisma.EventWhereInput) {
+  const where: Prisma.EventWhereInput = {
     eventType: type === 'all' ? { in: ['auth.success', 'auth.failed'] } : type === 'success' ? 'auth.success' : 'auth.failed',
     ...((startDate || endDate) ? { eventTs: { ...(startDate ? { gte: startDate } : {}), ...(endDate ? { lte: endDate } : {}) } } : {}),
+    ...(scopeWhere ?? {}),
   }
   return fastify.prismaRead.event.count({ where })
 }
 
-function buildRecentWhere(outcome: string, startDate?: Date, endDate?: Date, search?: string) {
+function buildRecentWhere(outcome: string, startDate?: Date, endDate?: Date, search?: string, scopeWhere?: Prisma.EventWhereInput): Prisma.EventWhereInput {
   return {
     eventType: { in: outcome === 'success' ? ['auth.success'] : outcome === 'failed' ? ['auth.failed'] : ['auth.success', 'auth.failed'] },
     ...((startDate || endDate) ? { eventTs: { ...(startDate ? { gte: startDate } : {}), ...(endDate ? { lte: endDate } : {}) } } : {}),
     ...(search ? { OR: [{ srcIp: { startsWith: search, mode: 'insensitive' as const } }, { username: { contains: search, mode: 'insensitive' as const } }, { password: { contains: search, mode: 'insensitive' as const } }] } : {}),
+    ...(scopeWhere ?? {}),
   }
 }
 

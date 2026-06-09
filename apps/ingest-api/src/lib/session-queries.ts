@@ -36,11 +36,23 @@ type SessionFilterParams = {
   endDate?: string;
   outcome?: 'all' | 'compromised' | 'blocked';
   actor?: 'all' | 'bot' | 'human' | 'unknown';
+  // Per-client / per-sensor scope. `undefined` = no scope (all sensors); an empty
+  // array = scope to nothing (unknown client / client with no sensors), which must
+  // yield zero rows rather than silently falling through to the global view.
+  sensorIds?: string[];
 };
 
 export function buildSessionClauses(params: SessionFilterParams): Prisma.Sql[] {
   const clauses: Prisma.Sql[] = [Prisma.sql`1 = 1`];
   const trimmedQuery = params.q?.trim();
+
+  if (params.sensorIds) {
+    clauses.push(
+      params.sensorIds.length
+        ? Prisma.sql`s.sensor_id IN (${Prisma.join(params.sensorIds)})`
+        : Prisma.sql`false`,
+    );
+  }
 
   if (trimmedQuery) {
     const wildcard = `%${trimmedQuery}%`;
