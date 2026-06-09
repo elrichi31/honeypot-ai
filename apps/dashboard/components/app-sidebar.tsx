@@ -215,7 +215,9 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
           mobile && "w-72",
         )}
       >
-        {/* Header */}
+        {/* Header — when expanded, the alerts bell and collapse toggle share this
+            row so the toggle doesn't waste a line of its own. When collapsed, just
+            the logo lives here and the toggle drops to its own compact row below. */}
         <div className={cn("flex h-14 items-center border-b border-border", collapsed ? "justify-center px-2" : "gap-2 px-4")}>
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent">
             <Bug className="h-4 w-4 text-accent-foreground" />
@@ -227,24 +229,38 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
                 <p className="text-[11px] text-muted-foreground">SOC view for the honeypot</p>
               </div>
               <AlertsBell />
+              {!mobile && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={toggle}
+                      aria-label="Collapse sidebar"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                    >
+                      <PanelLeftClose className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">Collapse</TooltipContent>
+                </Tooltip>
+              )}
             </>
           )}
         </div>
 
-        {/* Collapse toggle (desktop only) */}
-        {!mobile && (
-          <div className={cn("flex border-b border-border py-1.5", collapsed ? "justify-center px-2" : "justify-end px-3")}>
+        {/* Collapse toggle row — only when collapsed (expanded shows it in header). */}
+        {!mobile && collapsed && (
+          <div className="flex justify-center border-b border-border px-2 py-1.5">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   onClick={toggle}
-                  aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                  aria-label="Expand sidebar"
                   className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 >
-                  {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+                  <PanelLeftOpen className="h-4 w-4" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="right">{collapsed ? "Expand" : "Collapse"}</TooltipContent>
+              <TooltipContent side="right">Expand</TooltipContent>
             </Tooltip>
           </div>
         )}
@@ -336,45 +352,52 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
           })}
         </nav>
 
-        {/* Health status (hidden when collapsed to keep the rail clean) */}
-        {!collapsed && (
-          <div className="border-t border-border px-4 py-3 space-y-1">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              {health.apiOnline === null ? (
-                <span className="relative flex h-2 w-2">
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-muted-foreground/40" />
-                </span>
-              ) : health.apiOnline ? (
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
-                </span>
-              ) : (
-                <span className="relative flex h-2 w-2">
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-destructive" />
-                </span>
-              )}
-              <span>
-                {health.apiOnline === null
-                  ? "Conectando..."
-                  : health.apiOnline
-                    ? "Ingest API online"
-                    : "Ingest API offline"}
-              </span>
-            </div>
-            <div className="text-[11px] text-muted-foreground/60">
-              {health.lastEventAt
-                ? `Last event ${formatDistanceToNow(new Date(health.lastEventAt), { addSuffix: true })}`
-                : health.apiOnline === false
-                  ? "No connection to backend"
-                  : "No events yet"}
-            </div>
+        {/* Footer — user card and the ingest health status share one row so the
+            avatar and the "Ingest API online" dot sit at the same height. The
+            verbose "last event" line moves into a tooltip on the dot to keep it
+            to a single line. When collapsed, only the avatar shows (rail-clean). */}
+        <div className={cn("flex items-center gap-2 border-t border-border", collapsed ? "justify-center p-2" : "p-3")}>
+          <div className="min-w-0 flex-1">
+            <SidebarUserCard collapsed={collapsed} />
           </div>
-        )}
-
-        {/* User card with menu */}
-        <div className={cn("border-t border-border", collapsed ? "p-2" : "p-3")}>
-          <SidebarUserCard collapsed={collapsed} />
+          {!collapsed && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Ingest API status"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-background/40"
+                >
+                  {health.apiOnline === null ? (
+                    <span className="h-2 w-2 rounded-full bg-muted-foreground/40" />
+                  ) : health.apiOnline ? (
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+                    </span>
+                  ) : (
+                    <span className="h-2 w-2 rounded-full bg-destructive" />
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="flex flex-col gap-0.5">
+                <span>
+                  {health.apiOnline === null
+                    ? "Conectando..."
+                    : health.apiOnline
+                      ? "Ingest API online"
+                      : "Ingest API offline"}
+                </span>
+                <span className="text-muted-foreground">
+                  {health.lastEventAt
+                    ? `Last event ${formatDistanceToNow(new Date(health.lastEventAt), { addSuffix: true })}`
+                    : health.apiOnline === false
+                      ? "No connection to backend"
+                      : "No events yet"}
+                </span>
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
       </aside>
     </TooltipProvider>
