@@ -8,6 +8,8 @@ import { formatInTimezone } from "@/lib/timezone"
 import { LEVEL_STYLES, CMD_COLORS, CMD_LABELS } from "@/lib/attack-types"
 import { AiThreatSummary } from "@/components/ai-threat-summary"
 import { IpEnrichment } from "@/components/ip-enrichment"
+import { Surface } from "@/components/ui/surface"
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import fs from "fs"
 import path from "path"
 import type { ThreatAnalysis } from "@/app/api/ai/threat-analysis/route"
@@ -83,7 +85,7 @@ export default async function ThreatDetailPage({
 
         {/* Top factors */}
         {threat.risk.topFactors.length > 0 && (
-          <div className={`mb-6 rounded-xl border border-border ${s.bg} p-4`}>
+          <Surface padded className={`mb-6 ${s.bg}`}>
             <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">Top factors</p>
             <ul className="flex flex-wrap gap-2">
               {threat.risk.topFactors.map((f, i) => (
@@ -92,7 +94,7 @@ export default async function ThreatDetailPage({
                 </li>
               ))}
             </ul>
-          </div>
+          </Surface>
         )}
 
         {/* IP Enrichment — lazy, cached */}
@@ -115,7 +117,7 @@ export default async function ThreatDetailPage({
           <div className="space-y-6 xl:col-span-1">
 
             {/* Risk breakdown */}
-            <div className="rounded-xl border border-border bg-card">
+            <Surface>
               <div className="border-b border-border p-4">
                 <h3 className="font-semibold text-foreground">Score breakdown</h3>
               </div>
@@ -137,11 +139,11 @@ export default async function ThreatDetailPage({
                   </div>
                 ))}
               </div>
-            </div>
+            </Surface>
 
             {/* SSH info */}
             {threat.ssh && (
-              <div className="rounded-xl border border-border bg-card">
+              <Surface>
                 <div className="border-b border-border p-4 flex items-center gap-2">
                   <Activity className="h-4 w-4 text-cyan-400" />
                   <h3 className="font-semibold text-foreground">SSH</h3>
@@ -162,11 +164,11 @@ export default async function ThreatDetailPage({
                     </span>
                   </div>
                 </div>
-              </div>
+              </Surface>
             )}
 
             {threat.protocols && (
-              <div className="rounded-xl border border-border bg-card">
+              <Surface>
                 <div className="border-b border-border p-4 flex items-center gap-2">
                   <ShieldAlert className="h-4 w-4 text-emerald-400" />
                   <h3 className="font-semibold text-foreground">Service Honeypots</h3>
@@ -236,12 +238,12 @@ export default async function ThreatDetailPage({
                     </div>
                   )}
                 </div>
-              </div>
+              </Surface>
             )}
 
             {/* Web info */}
             {threat.web && (
-              <div className="rounded-xl border border-border bg-card">
+              <Surface>
                 <div className="border-b border-border p-4 flex items-center gap-2">
                   <Globe className="h-4 w-4 text-blue-400" />
                   <h3 className="font-semibold text-foreground">HTTP</h3>
@@ -265,12 +267,12 @@ export default async function ThreatDetailPage({
                     </div>
                   </div>
                 </div>
-              </div>
+              </Surface>
             )}
 
             {/* Command categories */}
             {activeCats.length > 0 && (
-              <div className="rounded-xl border border-border bg-card">
+              <Surface>
                 <div className="border-b border-border p-4 flex items-center gap-2">
                   <Terminal className="h-4 w-4 text-orange-400" />
                   <h3 className="font-semibold text-foreground">Behavioral categories</h3>
@@ -295,13 +297,13 @@ export default async function ThreatDetailPage({
                     </div>
                   ))}
                 </div>
-              </div>
+              </Surface>
             )}
           </div>
 
           {/* Right column: classified commands timeline */}
           <div className="xl:col-span-2">
-            <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <Surface className="overflow-hidden">
               <div className="border-b border-border p-4">
                 <h3 className="font-semibold text-foreground">SSH Commands timeline</h3>
                 <p className="text-xs text-muted-foreground">{threat.classifiedCommands.length} classified commands</p>
@@ -313,38 +315,38 @@ export default async function ThreatDetailPage({
                 </div>
               ) : (
                 <div className="overflow-y-auto max-h-[600px]">
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 z-10">
-                      <tr className="border-b border-border bg-card">
-                        <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Time</th>
-                        <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Category</th>
-                        <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Command</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
+                  <Table>
+                    <TableHeader className="sticky top-0 z-10">
+                      <TableRow className="bg-card">
+                        <TableHead>Time</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Command</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {threat.classifiedCommands.map((c, i) => (
-                        <tr key={i} className="hover:bg-muted/10 transition-colors">
-                          <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs text-muted-foreground">
+                        <TableRow key={i}>
+                          <TableCell className="font-mono text-xs text-muted-foreground">
                             {formatInTimezone(c.ts, tz, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                             <span className="ml-1 text-[10px] text-muted-foreground/50">
                               {formatInTimezone(c.ts, tz, { day: "2-digit", month: "2-digit" })}
                             </span>
-                          </td>
-                          <td className="px-4 py-2.5">
+                          </TableCell>
+                          <TableCell>
                             <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${CMD_COLORS[c.category] ?? CMD_COLORS.other}`}>
                               {CMD_LABELS[c.category] ?? c.category}
                             </span>
-                          </td>
-                          <td className="px-4 py-2.5 max-w-sm">
+                          </TableCell>
+                          <TableCell className="max-w-sm">
                             <code className="font-mono text-xs text-foreground break-all">{c.command}</code>
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       ))}
-                    </tbody>
-                  </table>
+                    </TableBody>
+                  </Table>
                 </div>
               )}
-            </div>
+            </Surface>
           </div>
         </div>
   </PageShell>

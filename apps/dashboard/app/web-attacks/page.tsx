@@ -11,6 +11,8 @@ import { AttackTypeFilter } from "@/components/attack-type-filter"
 import { TimeRangeFilter } from "@/components/time-range-filter"
 import { ClientSensorFilter } from "@/components/client-sensor-filter"
 import { TablePagination } from "@/components/table-pagination"
+import { Surface } from "@/components/ui/surface"
+import { StatCard } from "@/components/ui/stat-card"
 
 function SortableWebTh({
   label, column, sortBy, sortDir, q, type, range, clientSlug, sensorId, pageSize,
@@ -106,7 +108,7 @@ export default async function WebAttacksPage({
 
       <WebAttacksNav active="attackers" />
 
-      <div className="mb-6 rounded-xl border border-border bg-card p-4">
+      <Surface padded className="mb-6">
         <div className="flex flex-wrap items-center gap-3">
           <SearchInput defaultValue={q ?? ""} placeholder="Search attacker IP..." />
           <TimeRangeFilter />
@@ -118,24 +120,17 @@ export default async function WebAttacksPage({
             {attackersPage.items.length} rows on this page
           </span>
         </div>
-      </div>
+      </Surface>
 
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-sm text-muted-foreground">Total hits</p>
-          <p className="mt-1 text-2xl font-semibold">{stats.total.toLocaleString('en-US')}</p>
-        </div>
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-sm text-muted-foreground">Visible attackers</p>
-          <p className="mt-1 text-2xl font-semibold">{attackersPage.pagination.total}</p>
-        </div>
-        <div className="col-span-2 rounded-xl border border-border bg-card p-4">
-          <p className="mb-2 text-sm text-muted-foreground">Filter by attack type</p>
+        <StatCard label="Total hits" value={stats.total.toLocaleString('en-US')} />
+        <StatCard label="Visible attackers" value={attackersPage.pagination.total} />
+        <StatCard label="Filter by attack type" className="col-span-2">
           <AttackTypeFilter
             types={stats.byAttackType.map((a) => a.attackType)}
             counts={Object.fromEntries(stats.byAttackType.map((a) => [a.attackType, a.count]))}
           />
-        </div>
+        </StatCard>
       </div>
 
       <div className="flex min-h-[620px] max-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-xl border border-border bg-card">

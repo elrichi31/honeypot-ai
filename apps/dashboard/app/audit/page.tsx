@@ -8,6 +8,8 @@ import {
   MapPin, Network, ShieldAlert, Globe, Monitor, Code2,
 } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
+import { Surface } from "@/components/ui/surface"
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 
 type AuditEntry = {
   id: string
@@ -314,11 +316,11 @@ export default function AuditPage() {
           </p>
         </div>
         {data && (
-          <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3">
+          <Surface className="flex items-center gap-2 px-4 py-3">
             <ClipboardList className="h-4 w-4 text-violet-400" />
             <span className="text-sm font-medium text-foreground">{data.total.toLocaleString()}</span>
             <span className="text-sm text-muted-foreground">event{data.total !== 1 ? "s" : ""}</span>
-          </div>
+          </Surface>
         )}
       </div>
 
@@ -359,7 +361,7 @@ export default function AuditPage() {
         )}
       </div>
 
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <Surface className="overflow-hidden">
         {loading ? (
           <div className="px-6 py-16 text-center text-sm text-muted-foreground">Loading records...</div>
         ) : !data || data.entries.length === 0 ? (
@@ -369,41 +371,41 @@ export default function AuditPage() {
             <p className="text-sm text-muted-foreground">Actions performed on the platform will appear here.</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Date</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">User</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Action</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Resource</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Detail</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">IP</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/30">
+                <TableHead>Date</TableHead>
+                <TableHead>User</TableHead>
+                <TableHead>Action</TableHead>
+                <TableHead>Resource</TableHead>
+                <TableHead>Detail</TableHead>
+                <TableHead>IP</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {data.entries.map((entry) => {
                 const isExpanded = expandedId === entry.id
                 const hasDetails = Object.keys(entry.details ?? {}).length > 0
                 return (
                   <Fragment key={entry.id}>
-                    <tr
+                    <TableRow
                       onClick={() => hasDetails && setExpandedId(isExpanded ? null : entry.id)}
-                      className={`transition-colors ${hasDetails ? "cursor-pointer hover:bg-muted/20" : "hover:bg-muted/10"}`}
+                      className={hasDetails ? "cursor-pointer hover:bg-muted/20" : "hover:bg-muted/10"}
                     >
-                      <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                      <TableCell className="text-xs text-muted-foreground">
                         {formatInTimezone(entry.createdAt, tz, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
-                      </td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell>
                         <div className="text-xs font-medium text-foreground">{entry.userName || "—"}</div>
                         <div className="text-[11px] text-muted-foreground font-mono">{entry.userEmail}</div>
-                      </td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell>
                         <Badge value={entry.action} colorMap={ACTION_COLORS} labelMap={ACTION_LABELS} />
-                      </td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell>
                         <Badge value={entry.resource} colorMap={RESOURCE_COLORS} labelMap={RESOURCE_LABELS} />
-                      </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground max-w-[220px]">
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-[220px]">
                         {entry.resourceName ? (
                           <span className="truncate block">
                             {entry.resourceName}
@@ -414,8 +416,8 @@ export default function AuditPage() {
                         ) : hasDetails ? (
                           <span className="text-muted-foreground/50 italic">view detail</span>
                         ) : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground font-mono">
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground font-mono">
                         <div>{entry.ipAddress ?? "—"}</div>
                         {(() => {
                           const d = entry.details ?? {}
@@ -437,22 +439,22 @@ export default function AuditPage() {
                             </div>
                           )
                         })()}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                     {isExpanded && (
-                      <tr className="bg-muted/10">
-                        <td colSpan={6} className="px-4 py-3">
+                      <TableRow className="bg-muted/10 hover:bg-muted/10">
+                        <TableCell colSpan={6} className="whitespace-normal">
                           <AuditDetail entry={entry} />
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     )}
                   </Fragment>
                 )
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
-      </div>
+      </Surface>
 
       {/* Pagination */}
       {data && data.pages > 1 && (

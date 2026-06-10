@@ -4,6 +4,8 @@ import { fetchThreatsPage, fetchClients, fetchSensors } from "@/lib/api"
 import { ThreatsTable } from "./threats-table"
 import { SectionError } from "@/components/section-error"
 import { ClientSensorFilter } from "@/components/client-sensor-filter"
+import { Surface } from "@/components/ui/surface"
+import { StatCard } from "@/components/ui/stat-card"
 
 const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
 
@@ -95,7 +97,7 @@ export default async function ThreatsPage({
     <PageShell>
       {header}
 
-      <div className="mb-6 rounded-xl border border-border bg-card p-4">
+      <Surface padded className="mb-6">
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-xs text-muted-foreground">Filter:</span>
           <ClientSensorFilter
@@ -104,25 +106,13 @@ export default async function ThreatsPage({
             webOnly={false}
           />
         </div>
-      </div>
+      </Surface>
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Total IPs</p>
-          <p className="mt-1 font-mono text-2xl font-semibold text-foreground">{pageData.summary.total}</p>
-        </div>
-        <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4">
-          <p className="text-xs text-red-400">CRITICAL</p>
-          <p className="mt-1 font-mono text-2xl font-semibold text-red-400">{pageData.summary.critical}</p>
-        </div>
-        <div className="rounded-xl border border-orange-500/30 bg-orange-500/5 p-4">
-          <p className="text-xs text-orange-400">HIGH</p>
-          <p className="mt-1 font-mono text-2xl font-semibold text-orange-400">{pageData.summary.high}</p>
-        </div>
-        <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 p-4">
-          <p className="text-xs text-purple-400">Cross-protocol</p>
-          <p className="mt-1 font-mono text-2xl font-semibold text-purple-400">{pageData.summary.crossProtocol}</p>
-        </div>
+        <StatCard label="Total IPs" value={pageData.summary.total} mono />
+        <StatCard label="CRITICAL" value={pageData.summary.critical} tone="critical" mono />
+        <StatCard label="HIGH" value={pageData.summary.high} tone="high" mono />
+        <StatCard label="Cross-protocol" value={pageData.summary.crossProtocol} tone="accent" mono />
       </div>
 
       <ThreatsTable

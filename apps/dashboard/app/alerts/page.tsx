@@ -6,6 +6,7 @@ import { formatInTimezone } from "@/lib/timezone"
 import { Bell, Check, CheckCheck, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { PageShell } from "@/components/page-shell"
+import { Surface } from "@/components/ui/surface"
 
 type AlertField = { name: string; value: string; inline?: boolean }
 
@@ -98,11 +99,11 @@ export default function AlertsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3">
+          <Surface className="flex items-center gap-2 px-4 py-3">
             <Bell className="h-4 w-4 text-amber-400" />
             <span className="text-sm font-medium text-foreground">{unread}</span>
             <span className="text-sm text-muted-foreground">unread</span>
-          </div>
+          </Surface>
           <button
             onClick={markAllRead}
             disabled={markingAll || unread === 0}
@@ -114,7 +115,7 @@ export default function AlertsPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <Surface className="overflow-hidden">
         {loading ? (
           <div className="px-6 py-16 text-center text-sm text-muted-foreground">Loading alerts...</div>
         ) : !data || data.alerts.length === 0 ? (
@@ -165,7 +166,7 @@ export default function AlertsPage() {
             })}
           </ul>
         )}
-      </div>
+      </Surface>
     </PageShell>
   )
 }

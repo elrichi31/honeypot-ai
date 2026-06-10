@@ -3,6 +3,9 @@ import { PageShell } from "@/components/page-shell"
 import { Network, Clock, Key } from "lucide-react"
 import { ProtocolHitsTable } from "./protocol-hits-table"
 import { SectionError } from "@/components/section-error"
+import { Surface } from "@/components/ui/surface"
+import { TableCard, EmptyRow } from "@/components/ui/table-card"
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { readConfig } from "@/lib/server-config"
 import { formatInTimezone } from "@/lib/timezone"
 
@@ -70,7 +73,7 @@ export default async function ServicesPage({
         {stats.map((s) => {
           const c = PROTOCOL_COLORS[s.protocol] ?? defaultColor()
           return (
-            <div key={s.protocol} className={`rounded-xl border ${c.border} bg-card p-4`}>
+            <Surface key={s.protocol} padded className={c.border}>
               <div className="flex items-start justify-between">
                 <div>
                   <p className="mb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -93,57 +96,51 @@ export default async function ServicesPage({
                   {formatDate(s.lastSeen)}
                 </span>
               </div>
-            </div>
+            </Surface>
           )
         })}
       </div>
 
       {/* Target ports */}
-      <div className="mb-6 rounded-xl border border-border bg-card">
+      <TableCard className="mb-6">
         <div className="border-b border-border px-4 py-3">
           <h2 className="text-sm font-semibold text-foreground">Target ports</h2>
           <p className="text-xs text-muted-foreground">Destination ports currently receiving attacks</p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                <th className="px-4 py-3 font-medium">Dst Port</th>
-                <th className="px-4 py-3 font-medium">Protocol</th>
-                <th className="px-4 py-3 font-medium">Events</th>
-                <th className="px-4 py-3 font-medium">Auth Attempts</th>
-                <th className="px-4 py-3 font-medium">Last Seen</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/40">
-              {portStats.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
-                    No target ports captured yet
-                  </td>
-                </tr>
-              ) : (
-                portStats.slice(0, 12).map((s) => {
-                  const c = PROTOCOL_COLORS[s.protocol] ?? defaultColor()
-                  return (
-                    <tr key={`${s.protocol}-${s.dstPort}`} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-2 font-mono text-sm font-semibold text-foreground">{s.dstPort}</td>
-                      <td className="px-4 py-2">
-                        <span className={`rounded px-1.5 py-0.5 text-[11px] font-bold uppercase ${c.bg} ${c.text}`}>
-                          {s.protocol}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 text-xs">{s.count.toLocaleString()}</td>
-                      <td className="px-4 py-2 text-xs text-muted-foreground">{s.authAttempts.toLocaleString()}</td>
-                      <td className="px-4 py-2 text-xs text-muted-foreground">{formatDate(s.lastSeen)}</td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Dst Port</TableHead>
+              <TableHead>Protocol</TableHead>
+              <TableHead>Events</TableHead>
+              <TableHead>Auth Attempts</TableHead>
+              <TableHead>Last Seen</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {portStats.length === 0 ? (
+              <EmptyRow colSpan={5}>No target ports captured yet</EmptyRow>
+            ) : (
+              portStats.slice(0, 12).map((s) => {
+                const c = PROTOCOL_COLORS[s.protocol] ?? defaultColor()
+                return (
+                  <TableRow key={`${s.protocol}-${s.dstPort}`}>
+                    <TableCell className="font-mono text-sm font-semibold text-foreground">{s.dstPort}</TableCell>
+                    <TableCell>
+                      <span className={`rounded px-1.5 py-0.5 text-[11px] font-bold uppercase ${c.bg} ${c.text}`}>
+                        {s.protocol}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-xs">{s.count.toLocaleString()}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{s.authAttempts.toLocaleString()}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{formatDate(s.lastSeen)}</TableCell>
+                  </TableRow>
+                )
+              })
+            )}
+          </TableBody>
+        </Table>
+      </TableCard>
 
       {/* Protocol filter */}
       <div className="mb-4 flex flex-wrap items-center gap-2">

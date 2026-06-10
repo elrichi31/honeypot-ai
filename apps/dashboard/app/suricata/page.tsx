@@ -3,6 +3,10 @@
 import { useEffect, useState, useCallback } from "react"
 import { Shield, AlertTriangle, RefreshCw, Search, EyeOff, Eye } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
+import { Surface } from "@/components/ui/surface"
+import { StatCard } from "@/components/ui/stat-card"
+import { TableCardFooter } from "@/components/ui/table-card"
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 import { useTimezone } from "@/components/timezone-provider"
 import { formatInTimezone } from "@/lib/timezone"
@@ -44,18 +48,6 @@ function SeverityBadge({ severity }: { severity: number }) {
     <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${cfg.className}`}>
       {cfg.label}
     </span>
-  )
-}
-
-function StatCard({ label, value, sub, className }: { label: string; value: number; sub?: string; className?: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-2xl font-bold tabular-nums ${className ?? "text-foreground"}`}>
-        {value.toLocaleString()}
-      </p>
-      {sub && <p className="mt-0.5 text-[11px] text-muted-foreground/60">{sub}</p>}
-    </div>
   )
 }
 
@@ -207,35 +199,35 @@ export default function SuricataPage() {
       {/* Stats cards */}
       {displayed ? (
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
-          <StatCard label="Total"    value={displayed.total}    sub={`last ${RANGE_LABELS[range]}`} />
-          <StatCard label="Critical" value={displayed.critical} className="text-red-400" />
-          <StatCard label="High"     value={displayed.high}     className="text-orange-400" />
-          <StatCard label="Medium"   value={displayed.medium}   className="text-yellow-400" />
-          <StatCard label="Low"      value={displayed.low}      className="text-blue-400" />
+          <StatCard label="Total"    value={displayed.total.toLocaleString()}    sub={`last ${RANGE_LABELS[range]}`} />
+          <StatCard label="Critical" tone="critical" value={displayed.critical.toLocaleString()} />
+          <StatCard label="High"     tone="high"     value={displayed.high.toLocaleString()} />
+          <StatCard label="Medium"   value={<span className="text-yellow-400">{displayed.medium.toLocaleString()}</span>} />
+          <StatCard label="Low"      value={<span className="text-blue-400">{displayed.low.toLocaleString()}</span>} />
         </div>
       ) : (
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-20 animate-pulse rounded-xl border border-border bg-card" />
+            <Surface key={i} className="h-20 animate-pulse" />
           ))}
         </div>
       )}
 
       {/* Timeline */}
       {stats?.timeline && (
-        <div className="mb-6 rounded-xl border border-border bg-card p-4">
+        <Surface padded className="mb-6">
           <p className="mb-3 text-sm font-medium text-foreground">
             Alert Timeline
             <span className="ml-2 text-xs text-muted-foreground">— {RANGE_LABELS[range]}</span>
           </p>
           <TimelineChart data={stats.timeline} range={range} />
-        </div>
+        </Surface>
       )}
 
       {/* Top sigs + top sources */}
       {stats && (
         <div className="mb-6 grid gap-4 lg:grid-cols-2">
-          <div className="rounded-xl border border-border bg-card p-4">
+          <Surface padded>
             <p className="mb-3 text-sm font-medium text-foreground">
               Top Signatures (24h) {tab === "threats" && <span className="text-xs text-muted-foreground ml-1">— threats only</span>}
             </p>
@@ -249,9 +241,9 @@ export default function SuricataPage() {
               ))}
               {topSigs.length === 0 && <p className="text-xs text-muted-foreground">No alerts in last 24 hours</p>}
             </div>
-          </div>
+          </Surface>
 
-          <div className="rounded-xl border border-border bg-card p-4">
+          <Surface padded>
             <p className="mb-3 text-sm font-medium text-foreground">Top Attackers (24h)</p>
             <div className="space-y-2">
               {stats.topSources.slice(0, 7).map((src, i) => (
@@ -271,7 +263,7 @@ export default function SuricataPage() {
               ))}
               {stats.topSources.length === 0 && <p className="text-xs text-muted-foreground">No external alerts in last 24 hours</p>}
             </div>
-          </div>
+          </Surface>
         </div>
       )}
 
@@ -314,7 +306,7 @@ export default function SuricataPage() {
       </div>
 
       {/* Alerts table */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <Surface className="overflow-hidden">
         {loading ? (
           <div className="space-y-px">
             {Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-12 animate-pulse bg-muted/20" />)}
@@ -325,53 +317,51 @@ export default function SuricataPage() {
             <p className="text-sm">No alerts found</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/30 text-xs text-muted-foreground">
-                  <th className="px-4 py-2.5 text-left font-medium">Severity</th>
-                  <th className="px-4 py-2.5 text-left font-medium">Time</th>
-                  <th className="px-4 py-2.5 text-left font-medium">Source</th>
-                  <th className="px-4 py-2.5 text-left font-medium">Destination</th>
-                  <th className="px-4 py-2.5 text-left font-medium">Proto</th>
-                  <th className="px-4 py-2.5 text-left font-medium">Signature</th>
-                  <th className="px-4 py-2.5 text-left font-medium">Category</th>
-                </tr>
-              </thead>
-              <tbody>
+          <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Severity</TableHead>
+                  <TableHead>Time</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Destination</TableHead>
+                  <TableHead>Proto</TableHead>
+                  <TableHead>Signature</TableHead>
+                  <TableHead>Category</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {alerts.map((alert) => (
-                  <tr key={alert.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                    <td className="px-4 py-2.5"><SeverityBadge severity={alert.severity} /></td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                  <TableRow key={alert.id}>
+                    <TableCell><SeverityBadge severity={alert.severity} /></TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap">
                       {formatInTimezone(alert.timestamp, tz, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
-                    </td>
-                    <td className="px-4 py-2.5 font-mono text-xs">
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">
                       <div className="flex items-center gap-1.5">
                         {alert.country && (
                           <span className="rounded bg-muted px-1 py-0.5 text-[9px] text-muted-foreground uppercase">{alert.country}</span>
                         )}
                         {alert.src_ip}{alert.src_port ? `:${alert.src_port}` : ""}
                       </div>
-                    </td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
                       {alert.dest_ip}{alert.dest_port ? `:${alert.dest_port}` : ""}
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground uppercase">{alert.proto}</td>
-                    <td className="px-4 py-2.5 max-w-xs">
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground uppercase">{alert.proto}</TableCell>
+                    <TableCell className="max-w-xs">
                       <span className="block truncate text-xs" title={alert.signature}>{alert.signature}</span>
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
                       <span className="block truncate max-w-[180px]" title={alert.category}>{alert.category}</span>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
         )}
 
         {pagination && pagination.totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-border px-4 py-3 text-sm text-muted-foreground">
+          <TableCardFooter className="text-sm">
             <span>
               {((pagination.page - 1) * pagination.pageSize + 1).toLocaleString()}–
               {Math.min(pagination.page * pagination.pageSize, pagination.total).toLocaleString()} of {pagination.total.toLocaleString()}
@@ -382,9 +372,9 @@ export default function SuricataPage() {
               <button disabled={!pagination.hasNextPage} onClick={() => setPage(p => p + 1)}
                 className="rounded-lg border border-border px-3 py-1 text-xs disabled:opacity-40 hover:bg-muted/20">Next</button>
             </div>
-          </div>
+          </TableCardFooter>
         )}
-      </div>
+      </Surface>
     </PageShell>
   )
 }

@@ -6,6 +6,8 @@ import { useTimezone } from "@/components/timezone-provider"
 import { formatInTimezone } from "@/lib/timezone"
 import { MonitorSmartphone, Loader2, Trash2, LogOut, RefreshCw, ShieldAlert } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
+import { Surface } from "@/components/ui/surface"
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 
 type SessionRow = {
   id: string
@@ -120,7 +122,7 @@ export default function SessionsAdminPage() {
 
       {message && <p className="mb-3 text-sm text-muted-foreground">{message}</p>}
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <Surface className="overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
@@ -131,21 +133,21 @@ export default function SessionsAdminPage() {
             <p className="text-sm text-muted-foreground">No active sessions.</p>
           </div>
         ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border bg-muted/30 text-left text-xs font-medium text-muted-foreground">
-                <th className="px-4 py-3">User</th>
-                <th className="px-4 py-3">IP</th>
-                <th className="px-4 py-3">Device</th>
-                <th className="px-4 py-3">Started</th>
-                <th className="px-4 py-3">Expires</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>User</TableHead>
+                <TableHead>IP</TableHead>
+                <TableHead>Device</TableHead>
+                <TableHead>Started</TableHead>
+                <TableHead>Expires</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {sessions.map((s) => (
-                <tr key={s.id} className="hover:bg-muted/10">
-                  <td className="px-4 py-3">
+                <TableRow key={s.id}>
+                  <TableCell>
                     <div className="text-xs font-medium text-foreground">
                       {s.name || "—"}
                       {s.userId === currentUserId && (
@@ -153,16 +155,16 @@ export default function SessionsAdminPage() {
                       )}
                     </div>
                     <div className="font-mono text-[11px] text-muted-foreground">{s.email}</div>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{s.ipAddress ?? "—"}</td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{parseUserAgent(s.userAgent)}</td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                  </TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">{s.ipAddress ?? "—"}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{parseUserAgent(s.userAgent)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
                     {formatInTimezone(s.createdAt, tz, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false })}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
                     {formatInTimezone(s.expiresAt, tz, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false })}
-                  </td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell>
                     <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => revokeOne(s.id)}
@@ -181,13 +183,13 @@ export default function SessionsAdminPage() {
                         <LogOut className="h-3 w-3" /> All
                       </button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
-      </div>
+      </Surface>
     </PageShell>
   )
 }

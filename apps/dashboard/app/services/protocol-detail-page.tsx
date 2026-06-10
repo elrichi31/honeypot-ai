@@ -5,6 +5,9 @@ import { StatCard } from "@/components/stat-card"
 import { readConfig } from "@/lib/server-config"
 import { formatInTimezone } from "@/lib/timezone"
 import type { ProtocolHit, ProtocolInsights } from "@/lib/api"
+import { Surface } from "@/components/ui/surface"
+import { TableCard, EmptyRow } from "@/components/ui/table-card"
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 
 export type ProtocolKind = "ftp" | "mysql" | "port-scan" | "smb" | "mssql" | "mqtt" | "tftp" | "rpc"
 
@@ -79,7 +82,7 @@ function RankingCard({
   rows: { label: string; detail?: string; count: number }[]
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <Surface>
       <div className="border-b border-border px-4 py-3">
         <h2 className="text-sm font-semibold text-foreground">{title}</h2>
       </div>
@@ -100,7 +103,7 @@ function RankingCard({
           ))}
         </div>
       )}
-    </div>
+    </Surface>
   )
 }
 
@@ -203,46 +206,41 @@ export function ProtocolDetailPage({
         </div>
       )}
 
-      <div className="rounded-xl border border-border bg-card">
+      <TableCard>
         <div className="border-b border-border px-4 py-3">
           <h2 className="text-sm font-semibold text-foreground">Recent events</h2>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                <th className="px-4 py-3 font-medium">Source</th>
-                <th className="px-4 py-3 font-medium">Dst Port</th>
-                <th className="px-4 py-3 font-medium">Event</th>
-                <th className="px-4 py-3 font-medium">
-                  {isPortScan ? "Service / Payload" : isMysql ? "User / Database" : isMqtt ? "Topic / Message" : "User / Password"}
-                </th>
-                <th className="px-4 py-3 font-medium">Timestamp</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/40">
-              {hits.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                    No events captured yet
-                  </td>
-                </tr>
-              ) : (
-                hits.map((hit) => {
-                  const command = dataValue(hit.data, "command")
-                  const service = dataValue(hit.data, "service")
-                  const payloadHex = dataValue(hit.data, "payloadHex")
-                  return (
-                    <tr key={hit.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-2 font-mono text-xs">{hit.src_ip}:{hit.src_port ?? "-"}</td>
-                      <td className="px-4 py-2 font-mono text-xs">{hit.dst_port}</td>
-                      <td className="px-4 py-2">
-                        <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${BADGES[hit.event_type] ?? "bg-slate-400/20 text-slate-400"}`}>
-                          {hit.event_type}
-                        </span>
-                      </td>
-                      <td className="max-w-[24rem] px-4 py-2">
-                        {isPortScan ? (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Source</TableHead>
+              <TableHead>Dst Port</TableHead>
+              <TableHead>Event</TableHead>
+              <TableHead>
+                {isPortScan ? "Service / Payload" : isMysql ? "User / Database" : isMqtt ? "Topic / Message" : "User / Password"}
+              </TableHead>
+              <TableHead>Timestamp</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {hits.length === 0 ? (
+              <EmptyRow colSpan={5}>No events captured yet</EmptyRow>
+            ) : (
+              hits.map((hit) => {
+                const command = dataValue(hit.data, "command")
+                const service = dataValue(hit.data, "service")
+                const payloadHex = dataValue(hit.data, "payloadHex")
+                return (
+                  <TableRow key={hit.id}>
+                    <TableCell className="font-mono text-xs">{hit.src_ip}:{hit.src_port ?? "-"}</TableCell>
+                    <TableCell className="font-mono text-xs">{hit.dst_port}</TableCell>
+                    <TableCell>
+                      <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${BADGES[hit.event_type] ?? "bg-slate-400/20 text-slate-400"}`}>
+                        {hit.event_type}
+                      </span>
+                    </TableCell>
+                    <TableCell className="max-w-[24rem] whitespace-normal">
+                      {isPortScan ? (
                           <div className="min-w-0">
                             <p className="font-mono text-xs text-foreground">{service ?? "unknown service"}</p>
                             {payloadHex && <p className="truncate font-mono text-[11px] text-muted-foreground">{payloadHex}</p>}
@@ -265,18 +263,17 @@ export function ProtocolDetailPage({
                           <div className="min-w-0">
                             <p className="font-mono text-xs text-foreground">{hit.username ?? "-"}</p>
                             <p className="truncate font-mono text-[11px] text-muted-foreground">{hit.password ?? "-"}</p>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-2 text-xs text-muted-foreground">{formatDate(hit.timestamp)}</td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{formatDate(hit.timestamp)}</TableCell>
+                  </TableRow>
+                )
+              })
+            )}
+          </TableBody>
+        </Table>
+      </TableCard>
     </PageShell>
   )
 }

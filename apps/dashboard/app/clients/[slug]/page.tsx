@@ -11,6 +11,7 @@ import { ClientLogsViewer } from "@/components/clients/client-logs-viewer"
 import { ClientAlerts } from "@/components/clients/client-alerts"
 import { ClientStatsBar } from "@/components/clients/client-stats-bar"
 import { SectionError } from "@/components/section-error"
+import { Surface } from "@/components/ui/surface"
 import { fetchClients, fetchSensors } from "@/lib/api"
 
 export default async function ClientDetailPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -59,18 +60,18 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ s
       </div>
 
       <div className="mb-6 flex flex-wrap items-center gap-4">
-        <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3">
+        <Surface className="flex items-center gap-2 px-4 py-3">
           <Server className="h-4 w-4 text-cyan-400" />
           <span className="text-sm font-medium text-foreground">{clientSensors.length} sensors</span>
-        </div>
-        <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3">
+        </Surface>
+        <Surface className="flex items-center gap-2 px-4 py-3">
           <Wifi className="h-4 w-4 text-emerald-400" />
           <span className="text-sm font-medium text-foreground">{online} online</span>
-        </div>
-        <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3">
+        </Surface>
+        <Surface className="flex items-center gap-2 px-4 py-3">
           <span className="text-sm font-medium text-foreground">{totalEvents.toLocaleString()}</span>
           <span className="text-sm text-muted-foreground">total events</span>
-        </div>
+        </Surface>
         <ClientOVADownload client={client} />
         {hasDeception && (
           <Link

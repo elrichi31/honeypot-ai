@@ -76,7 +76,7 @@ function SortableHead({ label, column, sortBy, sortDir, searchParams, push, clas
   params.set("sortDir", nextDir)
   params.delete("page")
   return (
-    <TableHead className={cn("text-muted-foreground", className)}>
+    <TableHead className={className}>
       <button
         type="button"
         onClick={() => push(`/threats?${params}`)}
@@ -259,15 +259,15 @@ function ThreatsTableInner({
         <Table className="w-full min-w-[760px]">
           <TableHeader>
             <TableRow className="bg-muted/20">
-              <TableHead className="px-4 text-muted-foreground">#</TableHead>
-              <TableHead className="px-4 text-muted-foreground">IP</TableHead>
-              <TableHead className="px-4 text-muted-foreground">Level</TableHead>
-              <SortableHead label="Score" column="score" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} className="px-4" />
-              <SortableHead label="Sessions" column="sessions" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} className="px-4" />
-              <SortableHead label="Web hits" column="webHits" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} className="hidden px-4 lg:table-cell" />
-              <SortableHead label="Protocols" column="protocols" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} className="px-4" />
-              <TableHead className="px-4 text-muted-foreground">Detected commands</TableHead>
-              <TableHead className="hidden px-4 text-muted-foreground xl:table-cell">Top factors</TableHead>
+              <TableHead>#</TableHead>
+              <TableHead>IP</TableHead>
+              <TableHead>Level</TableHead>
+              <SortableHead label="Score" column="score" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} />
+              <SortableHead label="Sessions" column="sessions" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} />
+              <SortableHead label="Web hits" column="webHits" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} className="hidden lg:table-cell" />
+              <SortableHead label="Protocols" column="protocols" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} />
+              <TableHead>Detected commands</TableHead>
+              <TableHead className="hidden xl:table-cell">Top factors</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -298,9 +298,9 @@ function ThreatsTableInner({
                   onClick={() => push(`/threats/${encodeURIComponent(threat.ip)}`)}
                   className="cursor-pointer"
                 >
-                  <TableCell className="px-4 py-3 font-mono text-xs text-muted-foreground">{index + 1}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">{index + 1}</TableCell>
 
-                  <TableCell className="px-4 py-3">
+                  <TableCell>
                     <div className="flex items-center gap-2">
                       <span className={`h-2 w-2 shrink-0 rounded-full ${style.dot}`} />
                       <span className="font-mono text-sm font-medium text-foreground">{threat.ip}</span>
@@ -312,13 +312,13 @@ function ThreatsTableInner({
                     </div>
                   </TableCell>
 
-                  <TableCell className="px-4 py-3">
+                  <TableCell>
                     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${style.badge}`}>
                       {threat.level}
                     </span>
                   </TableCell>
 
-                  <TableCell className="w-36 px-4 py-3">
+                  <TableCell className="w-36">
                     <div className="flex items-center gap-2">
                       <div className="h-1.5 flex-1 rounded-full bg-muted">
                         <div className={`h-1.5 rounded-full ${style.bar}`} style={{ width: `${threat.score}%` }} />
@@ -327,23 +327,23 @@ function ThreatsTableInner({
                     </div>
                   </TableCell>
 
-                  <TableCell className="px-4 py-3 font-mono text-xs text-foreground">
+                  <TableCell className="font-mono text-xs text-foreground">
                     {threat.ssh?.sessions ?? 0}
                   </TableCell>
 
-                  <TableCell className="hidden px-4 py-3 font-mono text-xs text-foreground lg:table-cell">
+                  <TableCell className="hidden font-mono text-xs text-foreground lg:table-cell">
                     {threat.web?.hits ?? 0}
                   </TableCell>
 
-                  <TableCell className="px-4 py-3">
+                  <TableCell>
                     <OverflowBadges items={protocolBadges} max={3} />
                   </TableCell>
 
-                  <TableCell className="px-4 py-3">
+                  <TableCell>
                     <OverflowBadges items={commandBadges} max={3} />
                   </TableCell>
 
-                  <TableCell className="hidden max-w-xs px-4 py-3 whitespace-normal xl:table-cell">
+                  <TableCell className="hidden max-w-xs whitespace-normal xl:table-cell">
                     <ul className="space-y-0.5">
                       {threat.topFactors.map((factor, factorIndex) => (
                         <li key={factorIndex} className="truncate text-xs text-muted-foreground">
