@@ -6,6 +6,7 @@ import type { TooltipProps } from "recharts"
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
 import type { ChartConfig } from "@/components/ui/chart"
 import { useT } from "@/components/locale-provider"
+import { Surface } from "@/components/ui/surface"
 
 export interface CountrySuccessRow {
   country: string
@@ -26,13 +27,13 @@ function CountryRateTooltip({ active, payload }: TooltipProps<number, string>) {
   const row = payload[0]?.payload as CountrySuccessRow | undefined
   if (!row) return null
   return (
-    <div className="rounded-xl border border-border bg-card px-3 py-2 shadow-2xl">
+    <Surface className="px-3 py-2 shadow-2xl">
       <p className="text-sm font-medium text-foreground">
         {countryFlag(row.country)} {row.countryName}
       </p>
       <p className="mt-1 text-xs text-muted-foreground">{t("dash.country.sessionsIps", { sessions: row.sessions, ips: row.uniqueIps })}</p>
       <p className="mt-2 text-sm font-semibold text-emerald-400">{t("dash.country.success", { rate: row.successRate })}</p>
-    </div>
+    </Surface>
   )
 }
 
@@ -45,7 +46,7 @@ export function CountrySuccessChart({ rows }: Props) {
   const height = Math.max(360, data.length * 52)
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5">
+    <Surface className="p-5">
       <div className="mb-5 flex items-center gap-2">
         <Globe2 className="h-4 w-4 text-emerald-400" />
         <div>
@@ -76,6 +77,6 @@ export function CountrySuccessChart({ rows }: Props) {
           </Bar>
         </BarChart>
       </ChartContainer>
-    </section>
+    </Surface>
   )
 }

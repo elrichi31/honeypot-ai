@@ -2,6 +2,7 @@
 
 import { Server } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
+import { Surface } from "@/components/ui/surface"
 import type { DeceptionNode } from "@/lib/api/deception"
 
 function StatusDot({ online }: { online: boolean }) {
@@ -16,15 +17,15 @@ function StatusDot({ online }: { online: boolean }) {
 export function DeceptionNodesGrid({ nodes }: { nodes: DeceptionNode[] }) {
   if (nodes.length === 0) {
     return (
-      <div className="rounded-xl border border-border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
+      <Surface className="px-4 py-6 text-center text-sm text-muted-foreground">
         No deception nodes registered.
-      </div>
+      </Surface>
     )
   }
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {nodes.map(node => (
-        <div key={node.sensorId} className="rounded-xl border border-border bg-card p-4">
+        <Surface key={node.sensorId} padded>
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Server className="h-4 w-4 text-muted-foreground" />
@@ -51,7 +52,7 @@ export function DeceptionNodesGrid({ nodes }: { nodes: DeceptionNode[] }) {
           <p className="mt-2 text-[10px] text-muted-foreground/60">
             {node.lastHit ? `last hit ${formatDistanceToNow(new Date(node.lastHit), { addSuffix: true })}` : "no activity"}
           </p>
-        </div>
+        </Surface>
       ))}
     </div>
   )

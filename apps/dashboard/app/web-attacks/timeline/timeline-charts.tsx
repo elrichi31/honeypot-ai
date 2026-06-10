@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/chart"
 import type { ChartConfig } from "@/components/ui/chart"
 import { ATTACK_COLORS_HEX as ATTACK_COLORS, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack-types"
+import { Surface } from "@/components/ui/surface"
 
 const timelineChartConfig: ChartConfig = Object.fromEntries(
   Object.entries(ATTACK_COLORS).map(([key, color]) => [
@@ -34,7 +35,7 @@ export function TimelineCharts({ days, attackTypes, byAttackType }: Props) {
   return (
     <div className="space-y-6">
       {/* Stacked bar — hits por día */}
-      <div className="rounded-xl border border-border bg-card p-4">
+      <Surface padded>
         <h3 className="mb-1 font-semibold text-foreground">Hits per day</h3>
         <p className="mb-4 text-xs text-muted-foreground">Last 30 days · stacked by attack type</p>
         {days.length === 0 ? (
@@ -61,11 +62,11 @@ export function TimelineCharts({ days, attackTypes, byAttackType }: Props) {
             </BarChart>
           </ChartContainer>
         )}
-      </div>
+      </Surface>
 
       {/* Dos columnas: Pie + tabla de totales */}
       <div className="grid gap-6 xl:grid-cols-2">
-        <div className="rounded-xl border border-border bg-card p-4">
+        <Surface padded>
           <h3 className="mb-1 font-semibold text-foreground">Total distribution</h3>
           <p className="mb-4 text-xs text-muted-foreground">Percentage by attack type · all-time</p>
           <ChartContainer config={timelineChartConfig} className="aspect-auto h-[260px]">
@@ -90,10 +91,10 @@ export function TimelineCharts({ days, attackTypes, byAttackType }: Props) {
               <ChartLegend content={<ChartLegendContent nameKey="name" />} />
             </PieChart>
           </ChartContainer>
-        </div>
+        </Surface>
 
         {/* Ranking numérico */}
-        <div className="rounded-xl border border-border bg-card p-4">
+        <Surface padded>
           <h3 className="mb-1 font-semibold text-foreground">Ranking de ataques</h3>
           <p className="mb-4 text-xs text-muted-foreground">Ordenado por frecuencia · all-time</p>
           <div className="space-y-3">
@@ -121,7 +122,7 @@ export function TimelineCharts({ days, attackTypes, byAttackType }: Props) {
               )
             })}
           </div>
-        </div>
+        </Surface>
       </div>
     </div>
   )

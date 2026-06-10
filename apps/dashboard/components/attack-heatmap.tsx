@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react"
 import { Loader2, Flame } from "lucide-react"
 import { useT } from "@/components/locale-provider"
+import { Surface } from "@/components/ui/surface"
 
 interface Cell { dow: number; hour: number; count: number }
 interface HeatmapData {
@@ -44,9 +45,9 @@ export function AttackHeatmap({ days = 90 }: { days?: number }) {
   }, [days])
 
   if (loading) return (
-    <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+    <Surface className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
       <Loader2 className="h-4 w-4 animate-spin" /> {t("dash.heatmap.loading")}
-    </div>
+    </Surface>
   )
   if (!data) return null
 
@@ -64,7 +65,7 @@ export function AttackHeatmap({ days = 90 }: { days?: number }) {
   }, 0)
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <Surface className="overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
@@ -154,6 +155,6 @@ export function AttackHeatmap({ days = 90 }: { days?: number }) {
           <p className="text-muted-foreground">{t("dash.heatmap.sessions", { n: tooltip.count.toLocaleString('en-US') })}</p>
         </div>
       )}
-    </div>
+    </Surface>
   )
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { Database } from "lucide-react"
+import { Surface } from "@/components/ui/surface"
 
 type RedisStats = {
   connected: boolean
@@ -41,14 +42,14 @@ function Stat({ label, value }: { label: string; value: string }) {
 export function RedisCard({ redis }: { redis: RedisStats }) {
   if (!redis.connected) {
     return (
-      <div className="rounded-xl border border-border bg-card px-4 py-3">
+      <Surface className="px-4 py-3">
         <div className="flex items-center gap-2 mb-3">
           <Database className="h-4 w-4 text-red-400" />
           <span className="text-sm font-medium text-muted-foreground">Redis Cache</span>
           <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-red-400/10 text-red-400">offline</span>
         </div>
         <p className="text-[11px] text-muted-foreground">Cache not connected.</p>
-      </div>
+      </Surface>
     )
   }
 
@@ -57,7 +58,7 @@ export function RedisCard({ redis }: { redis: RedisStats }) {
     : 0
 
   return (
-    <div className="rounded-xl border border-border bg-card px-4 py-3">
+    <Surface className="px-4 py-3">
       <div className="flex items-center gap-2 mb-3">
         <Database className="h-4 w-4 text-red-400" />
         <span className="text-sm font-medium">Redis Cache</span>
@@ -86,6 +87,6 @@ export function RedisCard({ redis }: { redis: RedisStats }) {
           <Stat label="Uptime" value={formatUptime(redis.uptimeSeconds)} />
         )}
       </div>
-    </div>
+    </Surface>
   )
 }

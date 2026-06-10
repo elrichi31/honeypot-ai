@@ -5,6 +5,7 @@ import { Clock, Save, Loader2, Check, CheckCircle2, AlertTriangle } from "lucide
 import { formatDistanceToNow } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import { Surface } from "@/components/ui/surface"
 
 type RetentionRow = {
   id: string; tableName: string; label: string
@@ -211,7 +212,7 @@ export function RetentionSettings() {
   const isDirty = (row: RowState) => parseInt(row.draft, 10) !== row.retentionDays
 
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <Surface>
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border/60">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-yellow-400/10">
           <Clock className="h-4 w-4 text-yellow-400" />
@@ -281,6 +282,6 @@ export function RetentionSettings() {
           </div>
         ))}
       </div>
-    </div>
+    </Surface>
   )
 }

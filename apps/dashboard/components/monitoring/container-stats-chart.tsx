@@ -5,6 +5,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend,
 } from "recharts"
+import { Surface } from "@/components/ui/surface"
 
 type Range = "24h" | "7d" | "30d"
 
@@ -96,7 +97,7 @@ export default function ContainerStatsChart() {
   return (
     <div className="space-y-6">
       {/* Live table */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <Surface className="overflow-hidden">
         <div className="px-4 py-3 border-b border-border">
           <p className="text-sm font-medium text-foreground">Container Resource Usage</p>
           <p className="text-[11px] text-muted-foreground">Live — refreshes every 60s</p>
@@ -142,10 +143,10 @@ export default function ContainerStatsChart() {
             </table>
           </div>
         )}
-      </div>
+      </Surface>
 
       {/* Timeline */}
-      <div className="rounded-xl border border-border bg-card p-4 space-y-4">
+      <Surface padded className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex rounded-lg border border-border overflow-hidden">
             {(["cpu", "mem"] as const).map(t => (
@@ -190,7 +191,7 @@ export default function ContainerStatsChart() {
             </LineChart>
           </ResponsiveContainer>
         )}
-      </div>
+      </Surface>
     </div>
   )
 }

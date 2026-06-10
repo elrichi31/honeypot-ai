@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/chart"
 import type { ChartConfig } from "@/components/ui/chart"
 import { ATTACK_COLORS_HEX as ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
+import { Surface } from "@/components/ui/surface"
 
 const chartConfig = {
   count: { label: "Hits" },
@@ -32,7 +33,7 @@ export function WebAttacksSummary({ total, uniqueIps, byAttackType, topIps }: Pr
   const topThreat = byAttackType[0]
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <Surface padded>
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
@@ -99,6 +100,6 @@ export function WebAttacksSummary({ total, uniqueIps, byAttackType, topIps }: Pr
           ))}
         </div>
       )}
-    </div>
+    </Surface>
   )
 }

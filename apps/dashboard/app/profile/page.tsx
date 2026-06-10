@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Settings, Shield, Mail, User as UserIcon } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
+import { Surface } from "@/components/ui/surface"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useSession } from "@/lib/auth-client"
 import { ROLE_LABELS, type Role } from "@/lib/roles-shared"
@@ -49,7 +50,7 @@ export default function ProfilePage() {
       </div>
 
       <div className="max-w-2xl space-y-6">
-        <div className="flex items-center gap-4 rounded-xl border border-border bg-card p-5">
+        <Surface className="flex items-center gap-4 p-5">
           <Avatar className="h-16 w-16">
             {user?.image ? <AvatarImage src={user.image} alt={user.name ?? "User"} /> : null}
             <AvatarFallback className="bg-sidebar-accent text-lg text-sidebar-foreground">
@@ -66,7 +67,7 @@ export default function ProfilePage() {
               </span>
             )}
           </div>
-        </div>
+        </Surface>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Field icon={UserIcon} label="Name" value={user?.name ?? "—"} />
@@ -74,7 +75,7 @@ export default function ProfilePage() {
           <Field icon={Shield} label="Role" value={role ? (ROLE_LABELS[role] ?? role) : "—"} />
         </div>
 
-        <div className="rounded-xl border border-border bg-card p-4">
+        <Surface padded>
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-medium text-foreground">Account preferences</p>
@@ -88,7 +89,7 @@ export default function ProfilePage() {
               Settings
             </Link>
           </div>
-        </div>
+        </Surface>
       </div>
     </PageShell>
   )

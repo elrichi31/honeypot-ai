@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic"
 import Link from "next/link"
 import { Activity, Server, Wifi, Waypoints } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
+import { Surface } from "@/components/ui/surface"
 import { SensorCard } from "@/components/sensors/sensor-card"
 import { DeceptionNetworkCard } from "@/components/sensors/deception-network-card"
 import { fetchSensors } from "@/lib/api"
@@ -84,29 +85,29 @@ export default async function SensorsPage() {
       </div>
 
       <div className="mb-6 flex items-center gap-4">
-        <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3">
+        <Surface className="flex items-center gap-2 px-4 py-3">
           <Wifi className="h-4 w-4 text-emerald-400" />
           <span className="text-sm font-medium text-foreground">{online} online</span>
           <span className="text-sm text-muted-foreground">/ {total} total</span>
-        </div>
-        <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3">
+        </Surface>
+        <Surface className="flex items-center gap-2 px-4 py-3">
           <Activity className="h-4 w-4 text-cyan-400" />
           <span className="text-sm font-medium text-foreground">
             {sensors.reduce((sum, sensor) => sum + sensor.eventsTotal, 0).toLocaleString()}
           </span>
           <span className="text-sm text-muted-foreground">total events</span>
-        </div>
+        </Surface>
       </div>
 
       {sensors.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card px-6 py-16 text-center">
+        <Surface className="px-6 py-16 text-center">
           <Server className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
           <p className="text-sm font-medium text-foreground mb-1">No sensors registered yet</p>
           <p className="text-sm text-muted-foreground max-w-sm mx-auto">
             Sensors register automatically when the services start. You can later group them under
             a client from the clients page.
           </p>
-        </div>
+        </Surface>
       ) : (
         <div className="space-y-8">
           {groups.map((group) => (

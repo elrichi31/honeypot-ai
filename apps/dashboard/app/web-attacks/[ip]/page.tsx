@@ -9,6 +9,7 @@ import { RiskBadge } from "@/components/risk-badge"
 import { countryFlag } from "@/lib/formatting"
 import { ATTACK_COLORS, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack-types"
 import { StatCard } from "@/components/stat-card"
+import { Surface } from "@/components/ui/surface"
 import { AttackTypeFilter } from "@/components/attack-type-filter"
 import { RequestRow, type RequestGroup } from "./request-row"
 import { IpBursts } from "./ip-bursts"
@@ -165,7 +166,7 @@ export default async function WebAttackerDetailPage({
             <IpBursts hits={hits} />
 
             {/* Attack type breakdown */}
-            <div className="rounded-xl border border-border bg-card">
+            <Surface>
               <div className="border-b border-border p-4">
                 <h3 className="font-semibold text-foreground">Breakdown by type</h3>
               </div>
@@ -181,11 +182,11 @@ export default async function WebAttackerDetailPage({
                     </div>
                   ))}
               </div>
-            </div>
+            </Surface>
 
             {/* User agents */}
             {uniqueUAs.length > 0 && (
-              <div className="rounded-xl border border-border bg-card">
+              <Surface>
                 <div className="border-b border-border p-4">
                   <h3 className="font-semibold text-foreground">User Agents</h3>
                   <p className="text-xs text-muted-foreground">{uniqueUAs.length} detected</p>
@@ -197,11 +198,11 @@ export default async function WebAttackerDetailPage({
                     </p>
                   ))}
                 </div>
-              </div>
+              </Surface>
             )}
 
             {/* Top paths */}
-            <div className="rounded-xl border border-border bg-card">
+            <Surface>
               <div className="border-b border-border p-4">
                 <h3 className="font-semibold text-foreground">Most attacked paths</h3>
               </div>
@@ -213,12 +214,12 @@ export default async function WebAttackerDetailPage({
                   </div>
                 ))}
               </div>
-            </div>
+            </Surface>
           </div>
 
           {/* Right column: hit timeline */}
           <div className="xl:col-span-2">
-            <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <Surface className="overflow-hidden">
               <div className="border-b border-border p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -260,7 +261,7 @@ export default async function WebAttackerDetailPage({
                 </tbody>
               </table>
               </div>
-            </div>
+            </Surface>
           </div>
         </div>
   </PageShell>

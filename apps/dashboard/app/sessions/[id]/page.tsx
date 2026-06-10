@@ -23,6 +23,7 @@ import { fetchSession, fetchThreat } from "@/lib/api"
 import { RiskBadge } from "@/components/risk-badge"
 import { StatCard } from "@/components/stat-card"
 import { IpEnrichment } from "@/components/ip-enrichment"
+import { Surface } from "@/components/ui/surface"
 import type { IpEnrichment as IpEnrichmentData } from "@/app/api/enrich/[ip]/route"
 
 async function readEnrichmentCache(ip: string): Promise<IpEnrichmentData | null> {
@@ -149,7 +150,7 @@ export default async function SessionReplayPage({
           {/* Left column: metadata + credentials + commands */}
           <div className="space-y-6 xl:col-span-1">
             {/* Session metadata */}
-            <div className="rounded-xl border border-border bg-card">
+            <Surface>
               <div className="border-b border-border p-4">
                 <h3 className="font-semibold text-foreground">Session Info</h3>
               </div>
@@ -180,11 +181,11 @@ export default async function SessionReplayPage({
                   </div>
                 </div>
               </div>
-            </div>
+            </Surface>
 
             {/* Credentials attempted */}
             {authAttempts.length > 0 && (
-              <div className="rounded-xl border border-border bg-card">
+              <Surface>
                 <div className="border-b border-border p-4">
                   <h3 className="font-semibold text-foreground">Credentials Tried</h3>
                   <p className="text-xs text-muted-foreground">{authAttempts.length} attempts</p>
@@ -209,12 +210,12 @@ export default async function SessionReplayPage({
                     </div>
                   ))}
                 </div>
-              </div>
+              </Surface>
             )}
 
             {/* Commands used */}
             {commands.length > 0 && (
-              <div className="rounded-xl border border-border bg-card">
+              <Surface>
                 <div className="border-b border-border p-4">
                   <h3 className="font-semibold text-foreground">Commands Executed</h3>
                   <p className="text-xs text-muted-foreground">{commands.length} commands</p>
@@ -230,12 +231,12 @@ export default async function SessionReplayPage({
                     </code>
                   ))}
                 </div>
-              </div>
+              </Surface>
             )}
 
             {/* Files downloaded */}
             {downloads.length > 0 && (
-              <div className="rounded-xl border border-border bg-card">
+              <Surface>
                 <div className="border-b border-border p-4">
                   <h3 className="font-semibold text-foreground">Download Attempts</h3>
                   <p className="text-xs text-muted-foreground">{downloads.length} detected</p>
@@ -251,7 +252,7 @@ export default async function SessionReplayPage({
                     </code>
                   ))}
                 </div>
-              </div>
+              </Surface>
             )}
           </div>
 
@@ -260,7 +261,7 @@ export default async function SessionReplayPage({
             <IpEnrichment ip={session.srcIp} initialData={enrichmentCache} autoFetch={false} />
             <AiSummary session={session} events={events} />
 
-            <div className="rounded-xl border border-border bg-card">
+            <Surface>
               <div className="border-b border-border p-4">
                 <h3 className="font-semibold text-foreground">Event Timeline</h3>
                 <p className="text-xs text-muted-foreground">{events.length} events recorded</p>
@@ -272,7 +273,7 @@ export default async function SessionReplayPage({
                   <p className="text-sm text-muted-foreground">No events recorded.</p>
                 )}
               </div>
-            </div>
+            </Surface>
           </div>
         </div>
   </PageShell>

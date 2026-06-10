@@ -2,6 +2,7 @@
 
 import { Terminal, User, Key } from "lucide-react"
 import type { DashboardStats } from "@/lib/types"
+import { Surface } from "@/components/ui/surface"
 
 interface TopListsProps {
   stats: DashboardStats
@@ -11,7 +12,7 @@ export function TopLists({ stats }: TopListsProps) {
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       {/* Top Commands */}
-      <div className="rounded-xl border border-border bg-card">
+      <Surface>
         <div className="flex items-center gap-2 border-b border-border p-4">
           <Terminal className="h-4 w-4 text-warning" />
           <h3 className="font-semibold text-foreground">Top Commands</h3>
@@ -42,10 +43,10 @@ export function TopLists({ stats }: TopListsProps) {
             </div>
           )}
         </div>
-      </div>
+      </Surface>
 
       {/* Top Usernames */}
-      <div className="rounded-xl border border-border bg-card">
+      <Surface>
         <div className="flex items-center gap-2 border-b border-border p-4">
           <User className="h-4 w-4 text-chart-1" />
           <h3 className="font-semibold text-foreground">Top Usernames</h3>
@@ -76,10 +77,10 @@ export function TopLists({ stats }: TopListsProps) {
             </div>
           )}
         </div>
-      </div>
+      </Surface>
 
       {/* Top Passwords */}
-      <div className="rounded-xl border border-border bg-card">
+      <Surface>
         <div className="flex items-center gap-2 border-b border-border p-4">
           <Key className="h-4 w-4 text-destructive" />
           <h3 className="font-semibold text-foreground">Top Passwords</h3>
@@ -110,7 +111,7 @@ export function TopLists({ stats }: TopListsProps) {
             </div>
           )}
         </div>
-      </div>
+      </Surface>
     </div>
   )
 }

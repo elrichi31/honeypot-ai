@@ -6,6 +6,7 @@ import { formatDistanceToNow } from "date-fns"
 import { Search, Terminal, Clock, Globe } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import type { HoneypotEvent, PaginationMeta } from "@/lib/api"
+import { Surface } from "@/components/ui/surface"
 import { TablePagination } from "./table-pagination"
 
 interface CommandsViewProps {
@@ -42,7 +43,7 @@ export function CommandsView({ events, searchQuery, pagination }: CommandsViewPr
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       <div className="lg:col-span-2">
-        <div className="rounded-xl border border-border bg-card">
+        <Surface>
           <div className="border-b border-border p-4">
             <form action={pathname} className="flex flex-wrap gap-2">
               <input type="hidden" name="pageSize" value={String(pagination.pageSize)} />
@@ -99,18 +100,18 @@ export function CommandsView({ events, searchQuery, pagination }: CommandsViewPr
           </div>
 
           <TablePagination pagination={pagination} />
-        </div>
+        </Surface>
       </div>
 
       <div className="space-y-4">
-        <div className="rounded-xl border border-border bg-card p-4">
+        <Surface padded>
           <h3 className="font-semibold text-foreground">Matching Commands</h3>
           <p className="mt-2 text-4xl font-bold text-warning">
             {pagination.total.toLocaleString('en-US')}
           </p>
-        </div>
+        </Surface>
 
-        <div className="rounded-xl border border-border bg-card">
+        <Surface>
           <div className="border-b border-border p-4">
             <h3 className="font-semibold text-foreground">
               Most Used On This Page
@@ -136,7 +137,7 @@ export function CommandsView({ events, searchQuery, pagination }: CommandsViewPr
               </div>
             ))}
           </div>
-        </div>
+        </Surface>
       </div>
     </div>
   )

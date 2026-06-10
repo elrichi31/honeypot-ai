@@ -10,6 +10,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Surface } from "@/components/ui/surface"
 import type { ServiceKey } from "@/app/api/sensor/install/route"
 
 type OvaConfig = { ingestUrl: string; ip: string; port: string; ovaUrl?: string | null }
@@ -167,7 +168,7 @@ export function AddSensorButton() {
             {/* Deploy options */}
             <div className="grid grid-cols-2 gap-3 pt-1">
               {/* OVA */}
-              <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
+              <Surface padded className="flex flex-col gap-3">
                 <div className="flex items-center gap-2">
                   <div className="rounded-lg bg-violet-400/20 p-2">
                     <HardDrive className="h-4 w-4 text-violet-400" />
@@ -200,10 +201,10 @@ export function AddSensorButton() {
                     </Button>
                   )}
                 </div>
-              </div>
+              </Surface>
 
               {/* Installer script */}
-              <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
+              <Surface padded className="flex flex-col gap-3">
                 <div className="flex items-center gap-2">
                   <div className="rounded-lg bg-cyan-400/20 p-2">
                     <Terminal className="h-4 w-4 text-cyan-400" />
@@ -240,7 +241,7 @@ export function AddSensorButton() {
                     {selected.length === 0 ? "Select sensors" : "Download installer"}
                   </Button>
                 </div>
-              </div>
+              </Surface>
             </div>
           </>
         )}

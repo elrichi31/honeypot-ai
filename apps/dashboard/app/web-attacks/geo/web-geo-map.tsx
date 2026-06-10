@@ -11,6 +11,7 @@ import { Plus, Minus, Maximize2, Globe } from "lucide-react"
 import { ISO_A2_TO_NUM } from "@/lib/iso-codes"
 import type { WebCountryAttack } from "@/lib/geo"
 import { ATTACK_COLORS as ATTACK_BADGE, ATTACK_COLORS_HEX, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack-types"
+import { Surface } from "@/components/ui/surface"
 
 const GEO_URL = "/world-110m.json"
 
@@ -53,7 +54,7 @@ export function WebGeoMap({ countries, totalHits }: { countries: WebCountryAttac
   return (
     <div className="space-y-6">
       {/* Map card */}
-      <div className="rounded-xl border border-border bg-card p-4">
+      <Surface padded>
         <div className="mb-3 flex items-center justify-between gap-4">
           <div>
             <h3 className="font-semibold text-foreground">HTTP attack origins</h3>
@@ -149,11 +150,11 @@ export function WebGeoMap({ countries, totalHits }: { countries: WebCountryAttac
             </div>
           )}
         </div>
-      </div>
+      </Surface>
 
       {/* Country ranking table */}
       {countries.length > 0 && (
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <Surface className="overflow-hidden">
           <div className="border-b border-border p-4">
             <h3 className="font-semibold text-foreground">Ranking by country</h3>
             <p className="text-xs text-muted-foreground">Ordenado por total de hits · click en una IP para ver su detalle</p>
@@ -216,7 +217,7 @@ export function WebGeoMap({ countries, totalHits }: { countries: WebCountryAttac
               </tbody>
             </table>
           </div>
-        </div>
+        </Surface>
       )}
     </div>
   )

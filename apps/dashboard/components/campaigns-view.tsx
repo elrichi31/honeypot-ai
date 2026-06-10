@@ -24,6 +24,7 @@ import { detectCampaigns, type CampaignGroupBy, type Campaign } from "@/lib/camp
 import { clusterSessions, type BehaviorCluster } from "@/lib/session-similarity"
 import type { ApiSession } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { Surface } from "@/components/ui/surface"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -48,7 +49,7 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <Surface className="overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded)}
         className="flex w-full items-start gap-4 p-4 text-left hover:bg-secondary/40 transition-colors"
@@ -155,7 +156,7 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
           </div>
         </div>
       )}
-    </div>
+    </Surface>
   )
 }
 
@@ -167,7 +168,7 @@ function ClusterCard({ cluster }: { cluster: BehaviorCluster }) {
   const simPct = Math.round(cluster.similarity * 100)
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <Surface className="overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded)}
         className="flex w-full items-start gap-4 p-4 text-left hover:bg-secondary/40 transition-colors"
@@ -271,7 +272,7 @@ function ClusterCard({ cluster }: { cluster: BehaviorCluster }) {
           </div>
         </div>
       )}
-    </div>
+    </Surface>
   )
 }
 
@@ -373,14 +374,14 @@ export function CampaignsView({
       {/* ── CLUSTERS TAB ── */}
       {tab === "clusters" && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+          <Surface padded className="text-sm text-muted-foreground">
             <p className="font-medium text-foreground mb-1">How does it work?</p>
             <p>
               Jaccard similarity is computed between the command sets of each session.
               Sessions with more than <strong className="text-foreground">40% similarity</strong> are grouped into a cluster.
               Useful for detecting botnets or attackers using the same script from different IPs.
             </p>
-          </div>
+          </Surface>
 
           <p className="text-sm text-muted-foreground">
             {clusters.length > 0

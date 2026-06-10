@@ -7,6 +7,7 @@ import { formatDistanceToNow } from "date-fns"
 import { es } from "date-fns/locale"
 import { Users, UserPlus, Trash2, X, Eye, EyeOff, ShieldCheck } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
+import { Surface } from "@/components/ui/surface"
 import { useSession } from "@/lib/auth-client"
 import { ROLE_LABELS, ROLE_COLORS, ROLE_DESCRIPTIONS, type Role } from "@/lib/roles-shared"
 
@@ -242,14 +243,14 @@ export default function UsersPage() {
       {/* Role legend */}
       <div className="mb-6 flex flex-wrap items-start gap-3">
         {ROLES.map((r) => (
-          <div key={r} className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3">
+          <Surface key={r} className="flex items-center gap-2 px-4 py-3">
             <RoleBadge role={r} />
             <span className="text-xs text-muted-foreground">{ROLE_DESCRIPTIONS[r]}</span>
-          </div>
+          </Surface>
         ))}
       </div>
 
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <Surface className="overflow-hidden">
         {loading ? (
           <div className="px-6 py-16 text-center text-sm text-muted-foreground">Loading users...</div>
         ) : users.length === 0 ? (
@@ -322,7 +323,7 @@ export default function UsersPage() {
             </tbody>
           </table>
         )}
-      </div>
+      </Surface>
 
       {!isAdmin && !loading && (
         <p className="mt-4 text-xs text-muted-foreground text-center">

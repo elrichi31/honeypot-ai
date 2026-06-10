@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { ChevronDown, ChevronRight, Ghost, Wifi } from "lucide-react"
 import { formatRelative } from "@/lib/sensor-display"
+import { Surface } from "@/components/ui/surface"
 import type { Sensor } from "@/lib/api"
 
 /**
@@ -31,7 +32,7 @@ export function DeceptionNetworkCard({
   )
 
   return (
-    <div className="rounded-xl border border-border bg-card sm:col-span-2 lg:col-span-3">
+    <Surface className="sm:col-span-2 lg:col-span-3">
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-3 px-4 py-3 text-left"
@@ -89,6 +90,6 @@ export function DeceptionNetworkCard({
           ))}
         </div>
       )}
-    </div>
+    </Surface>
   )
 }

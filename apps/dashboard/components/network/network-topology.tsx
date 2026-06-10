@@ -2,6 +2,7 @@
 
 import { Network } from "lucide-react"
 import type { Sensor } from "@/lib/api"
+import { Surface } from "@/components/ui/surface"
 import { TopologyCanvas } from "./topology-canvas"
 
 interface NetworkTopologyProps {
@@ -11,19 +12,19 @@ interface NetworkTopologyProps {
 export function NetworkTopology({ sensors }: NetworkTopologyProps) {
   if (sensors.length === 0) {
     return (
-      <div className="rounded-xl border border-border bg-card flex flex-col items-center justify-center py-24 text-center">
+      <Surface className="flex flex-col items-center justify-center py-24 text-center">
         <Network className="h-10 w-10 text-muted-foreground/30 mb-3" />
         <p className="text-sm font-medium text-foreground mb-1">No sensors registered</p>
         <p className="text-xs text-muted-foreground max-w-sm">
           Sensors appear here automatically on startup and are grouped by client.
         </p>
-      </div>
+      </Surface>
     )
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden" style={{ minHeight: 660 }}>
+    <Surface className="overflow-hidden" style={{ minHeight: 660 }}>
       <TopologyCanvas sensors={sensors} />
-    </div>
+    </Surface>
   )
 }

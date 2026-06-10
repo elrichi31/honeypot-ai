@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/client-fetch"
 import { useMemo, useState } from "react"
 import { Link2, Server, Unlink2, Ghost, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Surface } from "@/components/ui/surface"
 import { SensorCard } from "@/components/sensors/sensor-card"
 import type { Client, Sensor } from "@/lib/api"
 
@@ -156,12 +157,12 @@ export function ClientSensorAssignment({
         </div>
 
         {sortedAssigned.length === 0 ? (
-          <div className="rounded-xl border border-border bg-card px-6 py-16 text-center">
+          <Surface className="px-6 py-16 text-center">
             <p className="text-sm font-medium text-foreground mb-1">No sensors assigned yet</p>
             <p className="text-sm text-muted-foreground">
               Use the unassigned sensor list below to attach sensors to this client.
             </p>
-          </div>
+          </Surface>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {sortedAssigned.map((sensor) => (
@@ -210,9 +211,9 @@ export function ClientSensorAssignment({
         </div>
 
         {sortedUnassigned.length === 0 ? (
-          <div className="rounded-xl border border-border bg-card px-6 py-12 text-center">
+          <Surface className="px-6 py-12 text-center">
             <p className="text-sm text-muted-foreground">There are no unassigned sensors right now.</p>
-          </div>
+          </Surface>
         ) : (
           <div className="space-y-3">
             {sortedUnassigned.map((sensor) => (

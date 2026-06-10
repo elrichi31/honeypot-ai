@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { ShieldCheck, AlertTriangle, Building2, MapPin, Loader2, Server, Clock, Hash, Globe, Flag, MessageSquare, ChevronDown, ChevronUp } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import type { IpEnrichment, AbuseReport } from "@/app/api/enrich/[ip]/route"
+import { Surface } from "@/components/ui/surface"
 
 const ABUSE_CATEGORIES: Record<number, string> = {
   1: "DNS Compromise", 2: "DNS Poisoning", 3: "Fraud Orders", 4: "DDoS Attack",
@@ -83,15 +84,15 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
   }, [ip])
 
   if (loading) return (
-    <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+    <Surface padded className="flex items-center gap-2 text-sm text-muted-foreground">
       <Loader2 className="h-3.5 w-3.5 animate-spin" />
       Querying intelligence feeds…
-    </div>
+    </Surface>
   )
 
   if (!data) {
     if (!autoFetch) return (
-      <div className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
+      <Surface className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <ShieldCheck className="h-4 w-4 text-cyan-400" />
           <span>IP Enrichment — no cached data</span>
@@ -99,7 +100,7 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
         <button onClick={doFetch} className="rounded-lg border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary/80 transition-colors">
           Consultar ahora
         </button>
-      </div>
+      </Surface>
     )
     return null
   }
@@ -119,7 +120,7 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
   const visibleReports = showAllReports ? (ab?.reports ?? []) : (ab?.reports ?? []).slice(0, 3)
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <Surface className="overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
@@ -283,6 +284,6 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
           </div>
         )}
       </div>
-    </div>
+    </Surface>
   )
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { HardDrive, Database, FolderOpen } from "lucide-react"
+import { Surface } from "@/components/ui/surface"
 
 type DiskStats = { totalBytes: number; usedBytes: number; freeBytes: number }
 type DbStats   = { totalBytes: number; tables: { name: string; bytes: number }[] }
@@ -29,7 +30,7 @@ export function StorageOverview({ disk, db }: { disk: DiskStats; db: DbStats }) 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       {/* Disk used */}
-      <div className="rounded-xl border border-border bg-card px-4 py-3">
+      <Surface className="px-4 py-3">
         <div className="flex items-center gap-2 mb-1">
           <HardDrive className="h-4 w-4 text-blue-400" />
           <span className="text-[11px] text-muted-foreground">Disk Used</span>
@@ -38,10 +39,10 @@ export function StorageOverview({ disk, db }: { disk: DiskStats; db: DbStats }) 
         <p className="text-[11px] text-muted-foreground">{diskPct}% of {fmt(disk.totalBytes)}</p>
         <UsageBar used={disk.usedBytes} total={disk.totalBytes}
           color={Number(diskPct) > 85 ? "bg-red-400" : Number(diskPct) > 65 ? "bg-yellow-400" : "bg-blue-400"} />
-      </div>
+      </Surface>
 
       {/* DB size */}
-      <div className="rounded-xl border border-border bg-card px-4 py-3">
+      <Surface className="px-4 py-3">
         <div className="flex items-center gap-2 mb-1">
           <Database className="h-4 w-4 text-purple-400" />
           <span className="text-[11px] text-muted-foreground">Database Size</span>
@@ -49,10 +50,10 @@ export function StorageOverview({ disk, db }: { disk: DiskStats; db: DbStats }) 
         <p className="text-xl font-semibold tabular-nums text-purple-400">{fmt(db.totalBytes)}</p>
         <p className="text-[11px] text-muted-foreground">{dbPct}% of total disk</p>
         <UsageBar used={db.totalBytes} total={disk.totalBytes} color="bg-purple-400" />
-      </div>
+      </Surface>
 
       {/* Free space */}
-      <div className="rounded-xl border border-border bg-card px-4 py-3">
+      <Surface className="px-4 py-3">
         <div className="flex items-center gap-2 mb-1">
           <FolderOpen className="h-4 w-4 text-emerald-400" />
           <span className="text-[11px] text-muted-foreground">Free Space</span>
@@ -60,10 +61,10 @@ export function StorageOverview({ disk, db }: { disk: DiskStats; db: DbStats }) 
         <p className="text-xl font-semibold tabular-nums text-emerald-400">{fmt(disk.freeBytes)}</p>
         <p className="text-[11px] text-muted-foreground">Available on disk</p>
         <UsageBar used={disk.freeBytes} total={disk.totalBytes} color="bg-emerald-400" />
-      </div>
+      </Surface>
 
       {/* Table breakdown */}
-      <div className="sm:col-span-3 rounded-xl border border-border bg-card px-4 py-3">
+      <Surface className="sm:col-span-3 px-4 py-3">
         <p className="text-[11px] font-medium text-muted-foreground mb-3">TABLE SIZES</p>
         <div className="space-y-2">
           {topTables.map(t => {
@@ -79,7 +80,7 @@ export function StorageOverview({ disk, db }: { disk: DiskStats; db: DbStats }) 
             )
           })}
         </div>
-      </div>
+      </Surface>
     </div>
   )
 }

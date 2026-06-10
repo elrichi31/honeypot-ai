@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { Server, Terminal, CheckCircle2, AlertTriangle, BookOpen, ExternalLink } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
+import { Surface } from "@/components/ui/surface"
 
 const DOCS_URL =
   process.env.NEXT_PUBLIC_DOCS_URL ??
@@ -61,7 +62,7 @@ export default function InstallGuidePage() {
         </div>
 
         {/* Steps */}
-        <section className="space-y-6 rounded-xl border border-border bg-card p-6">
+        <Surface className="space-y-6 p-6">
           <Step n={1} title="Pick the sensors and download the installer">
             <p className="text-sm text-muted-foreground">
               Open <span className="font-medium text-foreground">Sensors → Add sensor</span> (or a
@@ -120,7 +121,7 @@ sudo docker compose ps`}</Cmd>
             </p>
             <Cmd>{`sudo docker compose logs -f cowrie-beacon   # heartbeat POSTs every 30s`}</Cmd>
           </Step>
-        </section>
+        </Surface>
 
         {/* Port note */}
         <section className="flex gap-3 rounded-xl border border-amber-400/30 bg-amber-400/5 p-4">
@@ -138,7 +139,7 @@ sudo docker compose ps`}</Cmd>
         </section>
 
         {/* Troubleshooting */}
-        <section className="space-y-3 rounded-xl border border-border bg-card p-6">
+        <Surface className="space-y-3 p-6">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
             <Terminal className="h-4 w-4 text-cyan-400" />
             Troubleshooting
@@ -172,7 +173,7 @@ sudo docker compose ps`}</Cmd>
               </dd>
             </div>
           </dl>
-        </section>
+        </Surface>
 
         <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <CheckCircle2 className="h-4 w-4 text-emerald-400" />
