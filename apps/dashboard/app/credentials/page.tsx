@@ -3,6 +3,7 @@ import { CredentialsView } from "@/components/credentials-view"
 import { SectionError } from "@/components/section-error"
 import { fetchCredentialsAnalytics, fetchClients, fetchSensors } from "@/lib/api"
 import { ClientSensorFilter } from "@/components/client-sensor-filter"
+import { getServerT } from "@/lib/i18n/server"
 
 const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
 
@@ -23,6 +24,7 @@ export default async function CredentialsPage({
     sensorId?: string
   }>
 }) {
+  const t = await getServerT()
   const params = await searchParams
   const page = Number(params.page ?? "1")
   const pageSize = PAGE_SIZE_OPTIONS.has(params.pageSize ?? "") ? Number(params.pageSize) : 20
@@ -67,7 +69,7 @@ export default async function CredentialsPage({
     return (
       <PageShell>
         <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-foreground">Credentials</h1>
+          <h1 className="text-2xl font-semibold text-foreground">{t("cred.title")}</h1>
         </div>
         <SectionError />
       </PageShell>
@@ -78,15 +80,15 @@ export default async function CredentialsPage({
     <PageShell>
 
         <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-foreground">Credentials</h1>
+          <h1 className="text-2xl font-semibold text-foreground">{t("cred.title")}</h1>
           <p className="text-sm text-muted-foreground">
-            Login attempts, repeated credentials, and attacker auth patterns
+            {t("cred.subtitle")}
           </p>
         </div>
 
         <div className="mb-6 rounded-xl border border-border bg-card p-4">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-xs text-muted-foreground">Filter:</span>
+            <span className="text-xs text-muted-foreground">{t("cred.filterLabel")}</span>
             <ClientSensorFilter
               clients={clients.map((c) => ({ slug: c.slug, name: c.name }))}
               sensors={sensors.map((s) => ({ sensorId: s.sensorId, name: s.name, protocol: s.protocol, clientSlug: s.clientSlug, clientName: s.clientName }))}

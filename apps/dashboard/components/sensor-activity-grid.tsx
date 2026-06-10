@@ -5,6 +5,7 @@ import {
   Network, Wifi, Share2, Radar,
 } from "lucide-react"
 import type { HoneypotOverview } from "@/lib/api"
+import { getServerT } from "@/lib/i18n/server"
 
 const PROTOCOL_CONFIG: Record<string, {
   label: string
@@ -40,7 +41,8 @@ interface SensorItem {
   subtitle: string | null
 }
 
-export function SensorActivityGrid({ overview }: { overview: HoneypotOverview }) {
+export async function SensorActivityGrid({ overview }: { overview: HoneypotOverview }) {
+  const t = await getServerT()
   const items: SensorItem[] = []
 
   if (overview.ssh.sessions > 0) {
@@ -50,7 +52,7 @@ export function SensorActivityGrid({ overview }: { overview: HoneypotOverview })
       uniqueIps: overview.ssh.uniqueIps,
       lastSeen: overview.ssh.lastSeen,
       subtitle: overview.ssh.successfulLogins > 0
-        ? `${overview.ssh.successfulLogins.toLocaleString("en-US")} compromised`
+        ? t("dash.sensors.compromised", { n: overview.ssh.successfulLogins.toLocaleString("en-US") })
         : null,
     })
   }
@@ -61,7 +63,7 @@ export function SensorActivityGrid({ overview }: { overview: HoneypotOverview })
       count: overview.web.hits,
       uniqueIps: overview.web.uniqueIps,
       lastSeen: overview.web.lastSeen,
-      subtitle: overview.web.topAttackType ? `top: ${overview.web.topAttackType}` : null,
+      subtitle: overview.web.topAttackType ? t("dash.sensors.topType", { type: overview.web.topAttackType }) : null,
     })
   }
 
@@ -73,7 +75,7 @@ export function SensorActivityGrid({ overview }: { overview: HoneypotOverview })
         uniqueIps: p.uniqueIps,
         lastSeen: p.lastSeen,
         subtitle: p.authAttempts > 0
-          ? `${p.authAttempts.toLocaleString("en-US")} auth attempts`
+          ? t("dash.sensors.authAttempts", { n: p.authAttempts.toLocaleString("en-US") })
           : null,
       })
     }
@@ -84,7 +86,7 @@ export function SensorActivityGrid({ overview }: { overview: HoneypotOverview })
   return (
     <div className="mb-6">
       <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-        Activity by sensor
+        {t("dash.sensors.activityBySensor")}
       </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {items.map((item) => {
@@ -117,7 +119,7 @@ export function SensorActivityGrid({ overview }: { overview: HoneypotOverview })
                 {item.count.toLocaleString("en-US")}
               </p>
               <p className="text-xs text-muted-foreground">
-                {item.uniqueIps.toLocaleString("en-US")} unique IPs
+                {t("dash.sensors.uniqueIps", { n: item.uniqueIps.toLocaleString("en-US") })}
               </p>
               {(item.subtitle || when) && (
                 <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground/70">

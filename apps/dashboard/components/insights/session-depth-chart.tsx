@@ -5,13 +5,15 @@ import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart"
 import type { ChartConfig } from "@/components/ui/chart"
 import type { DashboardInsights } from "@/lib/api"
+import { useT } from "@/components/locale-provider"
 
 const DEPTH_BUCKET_ORDER = ["0", "1-3", "4-10", "11-20", "21+"]
-const chartConfig = { sessions: { label: "Sessions", color: "#f59e0b" } } satisfies ChartConfig
 
 type Props = { successfulDepth: DashboardInsights["successfulDepth"] }
 
 export function SessionDepthChart({ successfulDepth }: Props) {
+  const t = useT()
+  const chartConfig = { sessions: { label: t("dash.depth.sessions"), color: "#f59e0b" } } satisfies ChartConfig
   const depthBuckets = DEPTH_BUCKET_ORDER.map((bucket) => ({
     bucket,
     sessions: successfulDepth.buckets.find((e) => e.bucket === bucket)?.sessions ?? 0,
@@ -22,9 +24,9 @@ export function SessionDepthChart({ successfulDepth }: Props) {
       <div className="mb-5 flex items-center gap-2">
         <Layers3 className="h-4 w-4 text-amber-400" />
         <div>
-          <h2 className="font-semibold text-foreground">Successful Session Depth</h2>
+          <h2 className="font-semibold text-foreground">{t("dash.depth.title")}</h2>
           <p className="text-sm text-muted-foreground">
-            Most successful logins stay extremely shallow, which is useful signal on its own
+            {t("dash.depth.subtitle")}
           </p>
         </div>
       </div>
@@ -46,15 +48,15 @@ export function SessionDepthChart({ successfulDepth }: Props) {
 
       <div className="grid gap-3 md:grid-cols-3">
         <div className="rounded-lg border border-border bg-background/40 p-3">
-          <p className="text-xs text-muted-foreground">Average commands</p>
+          <p className="text-xs text-muted-foreground">{t("dash.depth.averageCommands")}</p>
           <p className="mt-1 text-2xl font-semibold text-foreground">{successfulDepth.averageCommands}</p>
         </div>
         <div className="rounded-lg border border-border bg-background/40 p-3">
-          <p className="text-xs text-muted-foreground">Maximum depth</p>
+          <p className="text-xs text-muted-foreground">{t("dash.depth.maximumDepth")}</p>
           <p className="mt-1 text-2xl font-semibold text-foreground">{successfulDepth.maxCommands}</p>
         </div>
         <div className="rounded-lg border border-border bg-background/40 p-3">
-          <p className="text-xs text-muted-foreground">20+ commands</p>
+          <p className="text-xs text-muted-foreground">{t("dash.depth.twentyPlus")}</p>
           <p className="mt-1 text-2xl font-semibold text-foreground">{successfulDepth.interactiveSessions}</p>
         </div>
       </div>

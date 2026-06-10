@@ -11,6 +11,7 @@ import { RankingsTab } from "@/components/credentials/rankings-tab"
 import { PatternsTab } from "@/components/credentials/patterns-tab"
 import { RecentTab } from "@/components/credentials/recent-tab"
 import { buildExportRows, downloadCsv, downloadJson, exportBaseName } from "@/components/credentials/export-utils"
+import { useT } from "@/components/locale-provider"
 import type { CredentialsAnalytics, CredentialsFrequencyFilter, CredentialsMainTab, CredentialsOutcomeFilter, CredentialsRankingType } from "@/lib/api"
 
 const DEFAULT_SORT_BY: Record<CredentialsRankingType, string> = {
@@ -28,6 +29,7 @@ export function CredentialsView({ analytics }: { analytics: CredentialsAnalytics
 }
 
 function CredentialsViewInner({ analytics }: { analytics: CredentialsAnalytics }) {
+  const t = useT()
   const { pushParams, isPending } = useNavTransition()
   const [search, setSearch] = useState(analytics.current.search)
 
@@ -95,9 +97,9 @@ function CredentialsViewInner({ analytics }: { analytics: CredentialsAnalytics }
 
       <Tabs value={mainTab} onValueChange={(v) => handleMainTabChange(v as CredentialsMainTab)} className="space-y-4">
         <TabsList className="flex h-auto w-fit flex-wrap gap-1 rounded-lg bg-secondary p-1">
-          <TabsTrigger value="rankings">Common Credentials</TabsTrigger>
-          <TabsTrigger value="patterns">Deep Analysis</TabsTrigger>
-          <TabsTrigger value="recent">Recent Attempts</TabsTrigger>
+          <TabsTrigger value="rankings">{t("cred.tab.rankings")}</TabsTrigger>
+          <TabsTrigger value="patterns">{t("cred.tab.patterns")}</TabsTrigger>
+          <TabsTrigger value="recent">{t("cred.tab.recent")}</TabsTrigger>
         </TabsList>
 
         <div className="relative">

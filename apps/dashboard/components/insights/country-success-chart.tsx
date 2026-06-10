@@ -5,6 +5,7 @@ import { Bar, BarChart, CartesianGrid, Cell, LabelList, XAxis, YAxis } from "rec
 import type { TooltipProps } from "recharts"
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
 import type { ChartConfig } from "@/components/ui/chart"
+import { useT } from "@/components/locale-provider"
 
 export interface CountrySuccessRow {
   country: string
@@ -20,6 +21,7 @@ function countryFlag(code: string) {
 }
 
 function CountryRateTooltip({ active, payload }: TooltipProps<number, string>) {
+  const t = useT()
   if (!active || !payload?.length) return null
   const row = payload[0]?.payload as CountrySuccessRow | undefined
   if (!row) return null
@@ -28,17 +30,17 @@ function CountryRateTooltip({ active, payload }: TooltipProps<number, string>) {
       <p className="text-sm font-medium text-foreground">
         {countryFlag(row.country)} {row.countryName}
       </p>
-      <p className="mt-1 text-xs text-muted-foreground">{row.sessions} sessions · {row.uniqueIps} IPs</p>
-      <p className="mt-2 text-sm font-semibold text-emerald-400">{row.successRate}% success</p>
+      <p className="mt-1 text-xs text-muted-foreground">{t("dash.country.sessionsIps", { sessions: row.sessions, ips: row.uniqueIps })}</p>
+      <p className="mt-2 text-sm font-semibold text-emerald-400">{t("dash.country.success", { rate: row.successRate })}</p>
     </div>
   )
 }
 
-const chartConfig = { successRate: { label: "Success Rate" } } satisfies ChartConfig
-
 type Props = { rows: CountrySuccessRow[] }
 
 export function CountrySuccessChart({ rows }: Props) {
+  const t = useT()
+  const chartConfig = { successRate: { label: t("dash.country.successRate") } } satisfies ChartConfig
   const data = rows.map((row) => ({ ...row, yLabel: `${countryFlag(row.country)} ${row.countryName}` }))
   const height = Math.max(360, data.length * 52)
 
@@ -47,17 +49,17 @@ export function CountrySuccessChart({ rows }: Props) {
       <div className="mb-5 flex items-center gap-2">
         <Globe2 className="h-4 w-4 text-emerald-400" />
         <div>
-          <h2 className="font-semibold text-foreground">Success Rate by Country</h2>
+          <h2 className="font-semibold text-foreground">{t("dash.country.title")}</h2>
           <p className="text-sm text-muted-foreground">
-            Filtered to countries with at least 20 sessions and 2 distinct IPs
+            {t("dash.country.subtitle")}
           </p>
         </div>
       </div>
 
       <div className="mb-3 flex items-center gap-4 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-3 rounded-sm bg-emerald-500" />Top 3</span>
-        <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-3 rounded-sm bg-sky-400" />Mid tier</span>
-        <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-3 rounded-sm bg-amber-400" />Rest</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-3 rounded-sm bg-emerald-500" />{t("dash.country.top3")}</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-3 rounded-sm bg-sky-400" />{t("dash.country.midTier")}</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-3 rounded-sm bg-amber-400" />{t("dash.country.rest")}</span>
       </div>
 
       <ChartContainer config={chartConfig} className="aspect-auto" style={{ height: `${height}px` }}>

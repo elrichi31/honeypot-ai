@@ -20,6 +20,7 @@ import {
 } from "@/lib/api"
 import { lookupIp, geolocateIps } from "@/lib/geo"
 import { readConfig } from "@/lib/server-config"
+import { getServerT } from "@/lib/i18n/server"
 
 interface CountrySuccessRow {
   country: string
@@ -126,11 +127,12 @@ function buildCampaignGeo(
 // independently instead of blocking the whole page on the slowest fetch.
 
 async function OverviewSection() {
+  const t = await getServerT()
   let overview
   try {
     overview = await fetchHoneypotOverview()
   } catch {
-    return <SectionError title="Could not load metrics" />
+    return <SectionError title={t("dash.error.metrics")} />
   }
 
   const activeSources = overview.totals.activeSources
@@ -140,31 +142,34 @@ async function OverviewSection() {
     <>
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Total events</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{t("dash.kpi.totalEvents")}</p>
           <p className="mt-2 text-3xl font-semibold text-foreground">{totalEvents.toLocaleString("en-US")}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {activeSources} sensor{activeSources !== 1 ? "s" : ""} reporting
+            {t("dash.kpi.sensorsReporting", { n: activeSources })}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">SSH sessions</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{t("dash.kpi.sshSessions")}</p>
           <p className="mt-2 text-3xl font-semibold text-foreground">{overview.ssh.sessions.toLocaleString("en-US")}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {overview.ssh.uniqueIps.toLocaleString("en-US")} IPs · {overview.ssh.successfulLogins.toLocaleString("en-US")} compromised
+            {t("dash.kpi.sshDetail", {
+              ips: overview.ssh.uniqueIps.toLocaleString("en-US"),
+              n: overview.ssh.successfulLogins.toLocaleString("en-US"),
+            })}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Web attacks</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{t("dash.kpi.webAttacks")}</p>
           <p className="mt-2 text-3xl font-semibold text-foreground">{overview.web.hits.toLocaleString("en-US")}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {overview.web.uniqueIps.toLocaleString("en-US")} IPs
-            {overview.web.topAttackType ? ` · top: ${overview.web.topAttackType}` : ""}
+            {t("dash.kpi.webIps", { ips: overview.web.uniqueIps.toLocaleString("en-US") })}
+            {overview.web.topAttackType ? t("dash.kpi.webTopSuffix", { type: overview.web.topAttackType }) : ""}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Active sources</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{t("dash.kpi.activeSources")}</p>
           <p className="mt-2 text-3xl font-semibold text-foreground">{activeSources.toLocaleString("en-US")}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Sensors reporting in the window</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t("dash.kpi.sensorsInWindow")}</p>
         </div>
       </div>
 
@@ -178,31 +183,34 @@ async function OverviewSection() {
 }
 
 async function CrossTimelineSection({ timezone }: { timezone: string }) {
+  const t = await getServerT()
   let crossTimeline
   try {
     crossTimeline = await fetchCrossSensorTimeline({ range: "day", timezone })
   } catch {
-    return <SectionError title="Could not load cross-sensor activity" />
+    return <SectionError title={t("dash.error.crossSensor")} />
   }
   return <CrossSensorActivityChart timeline={crossTimeline} range="day" />
 }
 
 async function GlobeSection() {
+  const t = await getServerT()
   let geoData
   try {
     geoData = await fetchGeoSummary()
   } catch {
-    return <SectionError title="Could not load the attack map" />
+    return <SectionError title={t("dash.error.map")} />
   }
   return <GlobeMap countryAttacks={geolocateIps(geoData)} />
 }
 
 async function InsightsSection() {
+  const t = await getServerT()
   let insights
   try {
     insights = await fetchDashboardInsights()
   } catch {
-    return <SectionError title="Could not load SSH analysis" />
+    return <SectionError title={t("dash.error.sshAnalysis")} />
   }
   return (
     <DashboardInsightsView
@@ -213,7 +221,8 @@ async function InsightsSection() {
   )
 }
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const t = await getServerT()
   const config = readConfig()
   const timezone = config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
 
@@ -221,33 +230,33 @@ export default function DashboardPage() {
     <PageShell>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Honeypot activity across all sensors</p>
+          <h1 className="text-2xl font-semibold text-foreground">{t("dash.header.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("dash.header.subtitle")}</p>
         </div>
         <Link
           href="/live"
           className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground hover:bg-muted/40"
         >
           <Radar className="h-4 w-4 text-cyan-400" />
-          Live Map
+          {t("dash.header.liveMap")}
         </Link>
       </div>
 
       {/* KPIs + per-sensor grid + protocol distribution */}
-      <Suspense fallback={<SectionLoading label="Loading metrics…" />}>
+      <Suspense fallback={<SectionLoading label={t("dash.loading.metrics")} />}>
         <OverviewSection />
       </Suspense>
 
       {/* Cross-sensor activity timeline */}
       <div className="mb-6">
-        <Suspense fallback={<SectionLoading label="Loading activity…" />}>
+        <Suspense fallback={<SectionLoading label={t("dash.loading.activity")} />}>
           <CrossTimelineSection timezone={timezone} />
         </Suspense>
       </div>
 
       {/* Globe map */}
       <div className="mb-6">
-        <Suspense fallback={<SectionLoading height="h-[400px]" label="Loading map…" />}>
+        <Suspense fallback={<SectionLoading height="h-[400px]" label={t("dash.loading.map")} />}>
           <GlobeSection />
         </Suspense>
       </div>
@@ -257,10 +266,10 @@ export default function DashboardPage() {
         <div className="mb-4 flex items-center gap-2">
           <Terminal className="h-4 w-4 text-muted-foreground" />
           <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            SSH Analysis
+            {t("dash.section.sshAnalysis")}
           </h2>
         </div>
-        <Suspense fallback={<SectionLoading label="Loading SSH analysis…" />}>
+        <Suspense fallback={<SectionLoading label={t("dash.loading.sshAnalysis")} />}>
           <InsightsSection />
         </Suspense>
       </div>

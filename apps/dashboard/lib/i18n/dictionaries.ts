@@ -212,6 +212,202 @@ const en = {
   "set.openai.keyLabel": "OpenAI API Key",
   "set.openai.keyHint": "Get your key at platform.openai.com/api-keys. Stored locally, never exposed in plain text.",
   "set.openai.howBody": "Open any session and click Analyze session. The dashboard sends session data to GPT-4o mini and returns a threat assessment.",
+
+  // ── Credentials ────────────────────────────────────────────────────────────
+  "cred.title": "Credentials",
+  "cred.subtitle": "Login attempts, repeated credentials, and attacker auth patterns",
+  "cred.filterLabel": "Filter:",
+
+  // Tabs
+  "cred.tab.rankings": "Common Credentials",
+  "cred.tab.patterns": "Deep Analysis",
+  "cred.tab.recent": "Recent Attempts",
+
+  // Summary stats
+  "cred.summary.successful": "Successful",
+  "cred.summary.successRate": "{rate} success rate",
+  "cred.summary.failed": "Failed",
+  "cred.summary.totalAttempts": "{count} total attempts",
+  "cred.summary.credentialPairs": "Credential Pairs",
+  "cred.summary.repeatedPairs": "{count} repeated pairs",
+  "cred.summary.spraySignals": "Spray Signals",
+  "cred.summary.sprayHint": "passwords reused across many accounts",
+  "cred.summary.targetedUsers": "Targeted Users",
+  "cred.summary.targetedHint": "usernames with many password guesses",
+
+  // Filter bar
+  "cred.filter.searchPlaceholder": "Search username, password, or attacker IP...",
+  "cred.filter.search": "Search",
+  "cred.filter.clear": "Clear",
+  "cred.filter.frequency": "Frequency",
+  "cred.filter.allPairs": "All pairs",
+  "cred.filter.repeatedOnly": "Repeated only",
+  "cred.filter.oneOffOnly": "One-off only",
+  "cred.filter.rankingType": "Ranking type",
+  "cred.filter.credentialPairs": "Credential pairs",
+  "cred.filter.passwords": "Passwords",
+  "cred.filter.usernames": "Usernames",
+  "cred.filter.visibleRows": "{count} visible rows",
+  "cred.outcome.all": "All",
+  "cred.outcome.success": "Success",
+  "cred.outcome.failed": "Failed",
+
+  // Table headers
+  "cred.col.credentialPair": "Credential Pair",
+  "cred.col.attempts": "Attempts",
+  "cred.col.success": "Success",
+  "cred.col.failed": "Failed",
+  "cred.col.uniqueIps": "Unique IPs",
+  "cred.col.lastSeen": "Last Seen",
+  "cred.col.password": "Password",
+  "cred.col.usernames": "Usernames",
+  "cred.col.username": "Username",
+  "cred.col.passwords": "Passwords",
+  "cred.col.status": "Status",
+  "cred.col.sourceIp": "Source IP",
+  "cred.col.when": "When",
+
+  // Table cells
+  "cred.firstSeen": "First seen",
+  "cred.unknown": "unknown",
+
+  // Empty states
+  "cred.empty.pairs": "No credential pairs match the current filters.",
+  "cred.empty.passwords": "No passwords match the current filters.",
+  "cred.empty.usernames": "No usernames match the current filters.",
+  "cred.empty.recent": "No auth attempts match the current filters.",
+
+  // Status badges
+  "cred.status.success": "Success",
+  "cred.status.failed": "Failed",
+
+  // Patterns tab
+  "cred.pattern.sprayTitle": "Password Spray Candidates",
+  "cred.pattern.spraySubtitle": "Same password tested across many usernames",
+  "cred.pattern.sprayEmpty": "No spray candidates found with the current data.",
+  "cred.pattern.targetsTitle": "Targeted Usernames",
+  "cred.pattern.targetsSubtitle": "Accounts hit with many password variations",
+  "cred.pattern.targetsEmpty": "No heavily targeted usernames found.",
+  "cred.pattern.attackersTitle": "Diversified Attackers",
+  "cred.pattern.attackersSubtitle": "IPs rotating many distinct credentials",
+  "cred.pattern.attackersEmpty": "No diversified attacker IPs found.",
+  "cred.pattern.metaSpray": "{users} usernames - {ips} IPs",
+  "cred.pattern.metaTargets": "{passwords} passwords - {ips} IPs",
+  "cred.pattern.metaAttackers": "{pairs} credential pairs - {users} users",
+  "cred.pattern.tries": "{count} tries",
+
+  // ── Dashboard (home) ───────────────────────────────────────────────────────
+  "dash.header.title": "Dashboard",
+  "dash.header.subtitle": "Honeypot activity across all sensors",
+  "dash.header.liveMap": "Live Map",
+  "dash.section.sshAnalysis": "SSH Analysis",
+
+  // Section errors
+  "dash.error.metrics": "Could not load metrics",
+  "dash.error.crossSensor": "Could not load cross-sensor activity",
+  "dash.error.map": "Could not load the attack map",
+  "dash.error.sshAnalysis": "Could not load SSH analysis",
+
+  // Suspense loading labels
+  "dash.loading.metrics": "Loading metrics…",
+  "dash.loading.activity": "Loading activity…",
+  "dash.loading.map": "Loading map…",
+  "dash.loading.sshAnalysis": "Loading SSH analysis…",
+
+  // KPI cards
+  "dash.kpi.totalEvents": "Total events",
+  "dash.kpi.sensorsReporting": "{n} sensors reporting",
+  "dash.kpi.sshSessions": "SSH sessions",
+  "dash.kpi.sshDetail": "{ips} IPs · {n} compromised",
+  "dash.kpi.webAttacks": "Web attacks",
+  "dash.kpi.webIps": "{ips} IPs",
+  "dash.kpi.webTopSuffix": " · top: {type}",
+  "dash.kpi.activeSources": "Active sources",
+  "dash.kpi.sensorsInWindow": "Sensors reporting in the window",
+
+  // Sensor activity grid
+  "dash.sensors.activityBySensor": "Activity by sensor",
+  "dash.sensors.compromised": "{n} compromised",
+  "dash.sensors.topType": "top: {type}",
+  "dash.sensors.authAttempts": "{n} auth attempts",
+  "dash.sensors.uniqueIps": "{n} unique IPs",
+
+  // Cross-sensor activity chart
+  "dash.activity.title": "Activity over time",
+  "dash.activity.subtitleHour": "Events per hour - all sensors",
+  "dash.activity.subtitleDay": "Events per day - all sensors",
+
+  // Attack heatmap
+  "dash.heatmap.title": "Attack Heatmap",
+  "dash.heatmap.loading": "Loading heatmap…",
+  "dash.heatmap.lastDays": "last {n} days",
+  "dash.heatmap.peak": "Peak:",
+  "dash.heatmap.mostActiveDay": "Most active day:",
+  "dash.heatmap.perHour": "attacks per hour of day (total)",
+  "dash.heatmap.less": "Less",
+  "dash.heatmap.more": "More",
+  "dash.heatmap.sessions": "{n} sessions",
+
+  // Country success chart
+  "dash.country.title": "Success Rate by Country",
+  "dash.country.subtitle": "Filtered to countries with at least 20 sessions and 2 distinct IPs",
+  "dash.country.top3": "Top 3",
+  "dash.country.midTier": "Mid tier",
+  "dash.country.rest": "Rest",
+  "dash.country.sessionsIps": "{sessions} sessions · {ips} IPs",
+  "dash.country.success": "{rate}% success",
+  "dash.country.successRate": "Success Rate",
+
+  // Credential campaigns
+  "dash.campaigns.title": "Credential Campaigns",
+  "dash.campaigns.subtitle": "6-hour windows where the same credential pair appears across multiple IPs",
+  "dash.campaigns.colCredential": "Credential",
+  "dash.campaigns.colWindow": "Window",
+  "dash.campaigns.colSpread": "Spread",
+  "dash.campaigns.colAttempts": "Attempts",
+  "dash.campaigns.successWithinWindow": "{rate}% success within window",
+  "dash.campaigns.spread": "{ips} IPs · {countries} countries",
+  "dash.campaigns.noPublicGeo": "No public geo",
+  "dash.campaigns.successful": "{n} successful",
+  "dash.campaigns.empty": "No coordinated credential windows crossed the current threshold.",
+
+  // Attack funnel
+  "dash.funnel.title": "Attack Depth Funnel",
+  "dash.funnel.subtitle": "Shows how much raw noise actually becomes meaningful intrusion activity",
+  "dash.funnel.explore": "Explore sessions",
+  "dash.funnel.connections": "Connections",
+  "dash.funnel.triedAuth": "Tried auth",
+  "dash.funnel.successfulLogin": "Successful login",
+  "dash.funnel.executedCommands": "Executed commands",
+  "dash.funnel.highSignal": "High-signal compromise",
+  "dash.funnel.baseline": "baseline",
+  "dash.funnel.fromPrevious": "{pct}% from previous stage",
+
+  // Recurring IPs
+  "dash.recurring.title": "Recurring IPs",
+  "dash.recurring.subtitle": "Persistent sources that return after failure and rotate credentials aggressively",
+  "dash.recurring.unknownClient": "Unknown client",
+  "dash.recurring.firstSeen": "first seen {date}",
+  "dash.recurring.sessions": "{n} sessions",
+  "dash.recurring.failures": "Failures",
+  "dash.recurring.successes": "Successes",
+  "dash.recurring.credentialPairs": "Credential pairs",
+  "dash.recurring.returnDelay": "Return delay",
+  "dash.recurring.minutes": "{n} min",
+
+  // Command paths
+  "dash.commands.title": "Post-Login Command Paths",
+  "dash.commands.subtitle": "Most frequent command sequences in successful sessions",
+  "dash.commands.pattern": "Pattern #{n}",
+  "dash.commands.sourceIps": "{n} source IPs",
+
+  // Session depth chart
+  "dash.depth.title": "Successful Session Depth",
+  "dash.depth.subtitle": "Most successful logins stay extremely shallow, which is useful signal on its own",
+  "dash.depth.sessions": "Sessions",
+  "dash.depth.averageCommands": "Average commands",
+  "dash.depth.maximumDepth": "Maximum depth",
+  "dash.depth.twentyPlus": "20+ commands",
 } as const
 
 export type TranslationKey = keyof typeof en
@@ -412,6 +608,202 @@ const es: Record<TranslationKey, string> = {
   "set.openai.keyLabel": "API Key de OpenAI",
   "set.openai.keyHint": "Obtén tu clave en platform.openai.com/api-keys. Se guarda localmente, nunca se expone en texto plano.",
   "set.openai.howBody": "Abre cualquier sesión y haz clic en Analizar sesión. El dashboard envía los datos de la sesión a GPT-4o mini y devuelve una evaluación de amenaza.",
+
+  // ── Credentials ────────────────────────────────────────────────────────────
+  "cred.title": "Credenciales",
+  "cred.subtitle": "Intentos de inicio de sesión, credenciales repetidas y patrones de autenticación de atacantes",
+  "cred.filterLabel": "Filtro:",
+
+  // Tabs
+  "cred.tab.rankings": "Credenciales comunes",
+  "cred.tab.patterns": "Análisis profundo",
+  "cred.tab.recent": "Intentos recientes",
+
+  // Summary stats
+  "cred.summary.successful": "Exitosos",
+  "cred.summary.successRate": "{rate} tasa de éxito",
+  "cred.summary.failed": "Fallidos",
+  "cred.summary.totalAttempts": "{count} intentos totales",
+  "cred.summary.credentialPairs": "Pares de credenciales",
+  "cred.summary.repeatedPairs": "{count} pares repetidos",
+  "cred.summary.spraySignals": "Señales de spray",
+  "cred.summary.sprayHint": "contraseñas reutilizadas en muchas cuentas",
+  "cred.summary.targetedUsers": "Usuarios objetivo",
+  "cred.summary.targetedHint": "usuarios con muchos intentos de contraseña",
+
+  // Filter bar
+  "cred.filter.searchPlaceholder": "Buscar usuario, contraseña o IP del atacante...",
+  "cred.filter.search": "Buscar",
+  "cred.filter.clear": "Limpiar",
+  "cred.filter.frequency": "Frecuencia",
+  "cred.filter.allPairs": "Todos los pares",
+  "cred.filter.repeatedOnly": "Solo repetidos",
+  "cred.filter.oneOffOnly": "Solo únicos",
+  "cred.filter.rankingType": "Tipo de ranking",
+  "cred.filter.credentialPairs": "Pares de credenciales",
+  "cred.filter.passwords": "Contraseñas",
+  "cred.filter.usernames": "Usuarios",
+  "cred.filter.visibleRows": "{count} filas visibles",
+  "cred.outcome.all": "Todos",
+  "cred.outcome.success": "Exitosos",
+  "cred.outcome.failed": "Fallidos",
+
+  // Table headers
+  "cred.col.credentialPair": "Par de credenciales",
+  "cred.col.attempts": "Intentos",
+  "cred.col.success": "Éxitos",
+  "cred.col.failed": "Fallidos",
+  "cred.col.uniqueIps": "IPs únicas",
+  "cred.col.lastSeen": "Visto por última vez",
+  "cred.col.password": "Contraseña",
+  "cred.col.usernames": "Usuarios",
+  "cred.col.username": "Usuario",
+  "cred.col.passwords": "Contraseñas",
+  "cred.col.status": "Estado",
+  "cred.col.sourceIp": "IP de origen",
+  "cred.col.when": "Cuándo",
+
+  // Table cells
+  "cred.firstSeen": "Visto por primera vez",
+  "cred.unknown": "desconocido",
+
+  // Empty states
+  "cred.empty.pairs": "Ningún par de credenciales coincide con los filtros actuales.",
+  "cred.empty.passwords": "Ninguna contraseña coincide con los filtros actuales.",
+  "cred.empty.usernames": "Ningún usuario coincide con los filtros actuales.",
+  "cred.empty.recent": "Ningún intento de autenticación coincide con los filtros actuales.",
+
+  // Status badges
+  "cred.status.success": "Exitoso",
+  "cred.status.failed": "Fallido",
+
+  // Patterns tab
+  "cred.pattern.sprayTitle": "Candidatos a password spray",
+  "cred.pattern.spraySubtitle": "Misma contraseña probada en muchos usuarios",
+  "cred.pattern.sprayEmpty": "No se encontraron candidatos a spray con los datos actuales.",
+  "cred.pattern.targetsTitle": "Usuarios objetivo",
+  "cred.pattern.targetsSubtitle": "Cuentas atacadas con muchas variaciones de contraseña",
+  "cred.pattern.targetsEmpty": "No se encontraron usuarios fuertemente atacados.",
+  "cred.pattern.attackersTitle": "Atacantes diversificados",
+  "cred.pattern.attackersSubtitle": "IPs que rotan muchas credenciales distintas",
+  "cred.pattern.attackersEmpty": "No se encontraron IPs de atacantes diversificados.",
+  "cred.pattern.metaSpray": "{users} usuarios - {ips} IPs",
+  "cred.pattern.metaTargets": "{passwords} contraseñas - {ips} IPs",
+  "cred.pattern.metaAttackers": "{pairs} pares de credenciales - {users} usuarios",
+  "cred.pattern.tries": "{count} intentos",
+
+  // ── Dashboard (home) ───────────────────────────────────────────────────────
+  "dash.header.title": "Panel",
+  "dash.header.subtitle": "Actividad del honeypot en todos los sensores",
+  "dash.header.liveMap": "Mapa en vivo",
+  "dash.section.sshAnalysis": "Análisis SSH",
+
+  // Section errors
+  "dash.error.metrics": "No se pudieron cargar las métricas",
+  "dash.error.crossSensor": "No se pudo cargar la actividad entre sensores",
+  "dash.error.map": "No se pudo cargar el mapa de ataques",
+  "dash.error.sshAnalysis": "No se pudo cargar el análisis SSH",
+
+  // Suspense loading labels
+  "dash.loading.metrics": "Cargando métricas…",
+  "dash.loading.activity": "Cargando actividad…",
+  "dash.loading.map": "Cargando mapa…",
+  "dash.loading.sshAnalysis": "Cargando análisis SSH…",
+
+  // KPI cards
+  "dash.kpi.totalEvents": "Eventos totales",
+  "dash.kpi.sensorsReporting": "{n} sensores reportando",
+  "dash.kpi.sshSessions": "Sesiones SSH",
+  "dash.kpi.sshDetail": "{ips} IPs · {n} comprometidas",
+  "dash.kpi.webAttacks": "Ataques web",
+  "dash.kpi.webIps": "{ips} IPs",
+  "dash.kpi.webTopSuffix": " · top: {type}",
+  "dash.kpi.activeSources": "Fuentes activas",
+  "dash.kpi.sensorsInWindow": "Sensores reportando en la ventana",
+
+  // Sensor activity grid
+  "dash.sensors.activityBySensor": "Actividad por sensor",
+  "dash.sensors.compromised": "{n} comprometidas",
+  "dash.sensors.topType": "top: {type}",
+  "dash.sensors.authAttempts": "{n} intentos de autenticación",
+  "dash.sensors.uniqueIps": "{n} IPs únicas",
+
+  // Cross-sensor activity chart
+  "dash.activity.title": "Actividad a lo largo del tiempo",
+  "dash.activity.subtitleHour": "Eventos por hora - todos los sensores",
+  "dash.activity.subtitleDay": "Eventos por día - todos los sensores",
+
+  // Attack heatmap
+  "dash.heatmap.title": "Mapa de calor de ataques",
+  "dash.heatmap.loading": "Cargando mapa de calor…",
+  "dash.heatmap.lastDays": "últimos {n} días",
+  "dash.heatmap.peak": "Pico:",
+  "dash.heatmap.mostActiveDay": "Día más activo:",
+  "dash.heatmap.perHour": "ataques por hora del día (total)",
+  "dash.heatmap.less": "Menos",
+  "dash.heatmap.more": "Más",
+  "dash.heatmap.sessions": "{n} sesiones",
+
+  // Country success chart
+  "dash.country.title": "Tasa de éxito por país",
+  "dash.country.subtitle": "Filtrado a países con al menos 20 sesiones y 2 IPs distintas",
+  "dash.country.top3": "Top 3",
+  "dash.country.midTier": "Nivel medio",
+  "dash.country.rest": "Resto",
+  "dash.country.sessionsIps": "{sessions} sesiones · {ips} IPs",
+  "dash.country.success": "{rate}% de éxito",
+  "dash.country.successRate": "Tasa de éxito",
+
+  // Credential campaigns
+  "dash.campaigns.title": "Campañas de credenciales",
+  "dash.campaigns.subtitle": "Ventanas de 6 horas donde el mismo par de credenciales aparece en varias IPs",
+  "dash.campaigns.colCredential": "Credencial",
+  "dash.campaigns.colWindow": "Ventana",
+  "dash.campaigns.colSpread": "Alcance",
+  "dash.campaigns.colAttempts": "Intentos",
+  "dash.campaigns.successWithinWindow": "{rate}% de éxito en la ventana",
+  "dash.campaigns.spread": "{ips} IPs · {countries} países",
+  "dash.campaigns.noPublicGeo": "Sin geo pública",
+  "dash.campaigns.successful": "{n} exitosos",
+  "dash.campaigns.empty": "Ninguna ventana coordinada de credenciales superó el umbral actual.",
+
+  // Attack funnel
+  "dash.funnel.title": "Embudo de profundidad de ataque",
+  "dash.funnel.subtitle": "Muestra cuánto del ruido bruto se convierte realmente en actividad de intrusión significativa",
+  "dash.funnel.explore": "Explorar sesiones",
+  "dash.funnel.connections": "Conexiones",
+  "dash.funnel.triedAuth": "Intentaron autenticarse",
+  "dash.funnel.successfulLogin": "Login exitoso",
+  "dash.funnel.executedCommands": "Ejecutaron comandos",
+  "dash.funnel.highSignal": "Compromiso de alta señal",
+  "dash.funnel.baseline": "base",
+  "dash.funnel.fromPrevious": "{pct}% desde la etapa anterior",
+
+  // Recurring IPs
+  "dash.recurring.title": "IPs recurrentes",
+  "dash.recurring.subtitle": "Fuentes persistentes que regresan tras fallar y rotan credenciales agresivamente",
+  "dash.recurring.unknownClient": "Cliente desconocido",
+  "dash.recurring.firstSeen": "visto por primera vez {date}",
+  "dash.recurring.sessions": "{n} sesiones",
+  "dash.recurring.failures": "Fallos",
+  "dash.recurring.successes": "Éxitos",
+  "dash.recurring.credentialPairs": "Pares de credenciales",
+  "dash.recurring.returnDelay": "Tiempo de retorno",
+  "dash.recurring.minutes": "{n} min",
+
+  // Command paths
+  "dash.commands.title": "Rutas de comandos post-login",
+  "dash.commands.subtitle": "Secuencias de comandos más frecuentes en sesiones exitosas",
+  "dash.commands.pattern": "Patrón #{n}",
+  "dash.commands.sourceIps": "{n} IPs de origen",
+
+  // Session depth chart
+  "dash.depth.title": "Profundidad de sesiones exitosas",
+  "dash.depth.subtitle": "La mayoría de los logins exitosos se quedan muy superficiales, lo cual es una señal útil en sí misma",
+  "dash.depth.sessions": "Sesiones",
+  "dash.depth.averageCommands": "Comandos promedio",
+  "dash.depth.maximumDepth": "Profundidad máxima",
+  "dash.depth.twentyPlus": "20+ comandos",
 }
 
 export const dictionaries: Record<Locale, Record<TranslationKey, string>> = { en, es }

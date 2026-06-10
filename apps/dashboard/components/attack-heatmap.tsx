@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react"
 import { Loader2, Flame } from "lucide-react"
+import { useT } from "@/components/locale-provider"
 
 interface Cell { dow: number; hour: number; count: number }
 interface HeatmapData {
@@ -28,6 +29,7 @@ function cellColor(count: number, max: number): string {
 const DAYS_ORDER = [1, 2, 3, 4, 5, 6, 0] // Mon→Sun
 
 export function AttackHeatmap({ days = 90 }: { days?: number }) {
+  const t = useT()
   const [data, setData] = useState<HeatmapData | null>(null)
   const [loading, setLoading] = useState(true)
   const [tooltip, setTooltip] = useState<{ dow: number; hour: number; count: number; x: number; y: number } | null>(null)
@@ -43,7 +45,7 @@ export function AttackHeatmap({ days = 90 }: { days?: number }) {
 
   if (loading) return (
     <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin" /> Loading heatmap…
+      <Loader2 className="h-4 w-4 animate-spin" /> {t("dash.heatmap.loading")}
     </div>
   )
   if (!data) return null
@@ -67,12 +69,12 @@ export function AttackHeatmap({ days = 90 }: { days?: number }) {
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <Flame className="h-4 w-4 text-orange-400" />
-          <h3 className="font-semibold text-foreground">Attack Heatmap</h3>
-          <span className="text-xs text-muted-foreground">last {data.days} days</span>
+          <h3 className="font-semibold text-foreground">{t("dash.heatmap.title")}</h3>
+          <span className="text-xs text-muted-foreground">{t("dash.heatmap.lastDays", { n: data.days })}</span>
         </div>
         <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-          <span>Peak: <strong className="text-foreground">{peakHour}:00h</strong></span>
-          <span>Most active day: <strong className="text-foreground">{DAYS[peakDowIdx]}</strong></span>
+          <span>{t("dash.heatmap.peak")} <strong className="text-foreground">{peakHour}:00h</strong></span>
+          <span>{t("dash.heatmap.mostActiveDay")} <strong className="text-foreground">{DAYS[peakDowIdx]}</strong></span>
         </div>
       </div>
 
@@ -130,15 +132,15 @@ export function AttackHeatmap({ days = 90 }: { days?: number }) {
             )
           })}
         </div>
-        <p className="mt-1 pl-9 text-[9px] text-muted-foreground">attacks per hour of day (total)</p>
+        <p className="mt-1 pl-9 text-[9px] text-muted-foreground">{t("dash.heatmap.perHour")}</p>
 
         {/* Legend */}
         <div className="mt-3 flex items-center gap-2 pl-9">
-          <span className="text-[10px] text-muted-foreground">Less</span>
+          <span className="text-[10px] text-muted-foreground">{t("dash.heatmap.less")}</span>
           {["bg-secondary/40", "bg-blue-900/60", "bg-indigo-700/70", "bg-yellow-600/80", "bg-orange-500", "bg-destructive"].map(c => (
             <div key={c} className={`h-3 w-5 rounded-[2px] ${c}`} />
           ))}
-          <span className="text-[10px] text-muted-foreground">More</span>
+          <span className="text-[10px] text-muted-foreground">{t("dash.heatmap.more")}</span>
         </div>
       </div>
 
@@ -149,7 +151,7 @@ export function AttackHeatmap({ days = 90 }: { days?: number }) {
           style={{ left: tooltip.x, top: tooltip.y, transform: "translate(-50%, -100%)" }}
         >
           <p className="font-medium text-foreground">{DAYS[tooltip.dow]} {tooltip.hour}:00–{tooltip.hour + 1}:00</p>
-          <p className="text-muted-foreground">{tooltip.count.toLocaleString('en-US')} sessions</p>
+          <p className="text-muted-foreground">{t("dash.heatmap.sessions", { n: tooltip.count.toLocaleString('en-US') })}</p>
         </div>
       )}
     </div>

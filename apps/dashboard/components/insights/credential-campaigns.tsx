@@ -2,6 +2,7 @@
 
 import { Crosshair } from "lucide-react"
 import { useTimezone } from "@/components/timezone-provider"
+import { useT } from "@/components/locale-provider"
 import { formatInTimezone } from "@/lib/timezone"
 
 export interface CampaignGeoRow {
@@ -30,14 +31,15 @@ type Props = { rows: CampaignGeoRow[] }
 
 export function CredentialCampaigns({ rows }: Props) {
   const tz = useTimezone()
+  const t = useT()
   return (
     <section className="rounded-xl border border-border bg-card p-5">
       <div className="mb-5 flex items-center gap-2">
         <Crosshair className="h-4 w-4 text-violet-400" />
         <div>
-          <h2 className="font-semibold text-foreground">Credential Campaigns</h2>
+          <h2 className="font-semibold text-foreground">{t("dash.campaigns.title")}</h2>
           <p className="text-sm text-muted-foreground">
-            6-hour windows where the same credential pair appears across multiple IPs
+            {t("dash.campaigns.subtitle")}
           </p>
         </div>
       </div>
@@ -47,10 +49,10 @@ export function CredentialCampaigns({ rows }: Props) {
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10 bg-muted/95 text-xs uppercase tracking-wide text-muted-foreground backdrop-blur">
               <tr>
-                <th className="px-4 py-3 text-left">Credential</th>
-                <th className="px-4 py-3 text-left">Window</th>
-                <th className="px-4 py-3 text-left">Spread</th>
-                <th className="px-4 py-3 text-left">Attempts</th>
+                <th className="px-4 py-3 text-left">{t("dash.campaigns.colCredential")}</th>
+                <th className="px-4 py-3 text-left">{t("dash.campaigns.colWindow")}</th>
+                <th className="px-4 py-3 text-left">{t("dash.campaigns.colSpread")}</th>
+                <th className="px-4 py-3 text-left">{t("dash.campaigns.colAttempts")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -60,27 +62,27 @@ export function CredentialCampaigns({ rows }: Props) {
                     <code className="font-mono text-foreground">
                       {formatCredential(campaign.username, campaign.password)}
                     </code>
-                    <p className="mt-1 text-xs text-muted-foreground">{campaign.successRate}% success within window</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{t("dash.campaigns.successWithinWindow", { rate: campaign.successRate })}</p>
                   </td>
                   <td className="px-4 py-3 align-top text-muted-foreground">
                     {formatDateLabel(campaign.bucketStart, tz)}
                   </td>
                   <td className="px-4 py-3 align-top">
-                    <p className="font-medium text-foreground">{campaign.uniqueIps} IPs · {campaign.countryCount} countries</p>
+                    <p className="font-medium text-foreground">{t("dash.campaigns.spread", { ips: campaign.uniqueIps, countries: campaign.countryCount })}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {campaign.countries.length > 0 ? campaign.countries.join(", ") : "No public geo"}
+                      {campaign.countries.length > 0 ? campaign.countries.join(", ") : t("dash.campaigns.noPublicGeo")}
                     </p>
                   </td>
                   <td className="px-4 py-3 align-top">
                     <p className="font-semibold text-foreground">{campaign.attempts}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{campaign.successCount} successful</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{t("dash.campaigns.successful", { n: campaign.successCount })}</p>
                   </td>
                 </tr>
               ))}
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-4 py-8 text-center text-sm text-muted-foreground">
-                    No coordinated credential windows crossed the current threshold.
+                    {t("dash.campaigns.empty")}
                   </td>
                 </tr>
               )}

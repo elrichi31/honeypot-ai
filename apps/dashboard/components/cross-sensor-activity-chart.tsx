@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/chart"
 import type { ChartConfig } from "@/components/ui/chart"
 import { useTimezone } from "@/components/timezone-provider"
+import { useT } from "@/components/locale-provider"
 
 const RANGE_LABELS: Record<TimeRange, string> = { day: "24h", week: "7d", month: "30d" }
 
@@ -44,6 +45,7 @@ interface Props {
 
 export function CrossSensorActivityChart({ timeline: initialTimeline, range: initialRange }: Props) {
   const timezone = useTimezone()
+  const t = useT()
   const [range, setRangeState]     = useState<TimeRange>(initialRange)
   const [timeline, setTimeline]    = useState<CrossSensorTimeline>(initialTimeline)
   const [loading, setLoading]      = useState(false)
@@ -78,9 +80,9 @@ export function CrossSensorActivityChart({ timeline: initialTimeline, range: ini
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h3 className="font-semibold text-foreground">Activity over time</h3>
+          <h3 className="font-semibold text-foreground">{t("dash.activity.title")}</h3>
           <p className="text-sm text-muted-foreground">
-            Events per {range === "day" ? "hour" : "day"} - all sensors
+            {range === "day" ? t("dash.activity.subtitleHour") : t("dash.activity.subtitleDay")}
           </p>
         </div>
         <div className="flex gap-1 rounded-lg border border-border p-1">

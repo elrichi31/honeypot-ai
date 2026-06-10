@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { useT } from "@/components/locale-provider"
 import type {
   CredentialsFrequencyFilter,
   CredentialsMainTab,
@@ -41,6 +42,7 @@ export function FilterBar({
   visibleRowCount, onSearchChange, onSearchSubmit, onClearSearch,
   onOutcomeChange, onFrequencyChange, onRankingTypeChange, onDownloadCsv, onDownloadJson,
 }: Props) {
+  const t = useT()
   return (
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
@@ -48,15 +50,15 @@ export function FilterBar({
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search username, password, or attacker IP..."
+              placeholder={t("cred.filter.searchPlaceholder")}
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
               className="pl-10"
             />
           </div>
-          <Button type="submit" variant="outline">Search</Button>
+          <Button type="submit" variant="outline">{t("cred.filter.search")}</Button>
           {activeSearch && (
-            <Button type="button" variant="ghost" onClick={onClearSearch}>Clear</Button>
+            <Button type="button" variant="ghost" onClick={onClearSearch}>{t("cred.filter.clear")}</Button>
           )}
         </form>
 
@@ -67,12 +69,12 @@ export function FilterBar({
             <Select value={frequencyFilter} onValueChange={(v: CredentialsFrequencyFilter) => onFrequencyChange(v)}>
               <SelectTrigger className="w-[170px]">
                 <Filter className="h-4 w-4" />
-                <SelectValue placeholder="Frequency" />
+                <SelectValue placeholder={t("cred.filter.frequency")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All pairs</SelectItem>
-                <SelectItem value="reused">Repeated only</SelectItem>
-                <SelectItem value="single">One-off only</SelectItem>
+                <SelectItem value="all">{t("cred.filter.allPairs")}</SelectItem>
+                <SelectItem value="reused">{t("cred.filter.repeatedOnly")}</SelectItem>
+                <SelectItem value="single">{t("cred.filter.oneOffOnly")}</SelectItem>
               </SelectContent>
             </Select>
           )}
@@ -80,19 +82,19 @@ export function FilterBar({
           {mainTab === "rankings" && (
             <Select value={rankingType} onValueChange={(v: CredentialsRankingType) => onRankingTypeChange(v)}>
               <SelectTrigger className="w-[170px]">
-                <SelectValue placeholder="Ranking type" />
+                <SelectValue placeholder={t("cred.filter.rankingType")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="pairs">Credential pairs</SelectItem>
-                <SelectItem value="passwords">Passwords</SelectItem>
-                <SelectItem value="usernames">Usernames</SelectItem>
+                <SelectItem value="pairs">{t("cred.filter.credentialPairs")}</SelectItem>
+                <SelectItem value="passwords">{t("cred.filter.passwords")}</SelectItem>
+                <SelectItem value="usernames">{t("cred.filter.usernames")}</SelectItem>
               </SelectContent>
             </Select>
           )}
 
           <span className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
             <Filter className="h-3.5 w-3.5" />
-            {visibleRowCount} visible rows
+            {t("cred.filter.visibleRows", { count: visibleRowCount })}
           </span>
 
           <Button variant="outline" size="sm" onClick={onDownloadCsv}>
@@ -116,6 +118,7 @@ function OutcomeButtons({
   outcomeFilter: CredentialsOutcomeFilter
   onOutcomeChange: (value: CredentialsOutcomeFilter) => void
 }) {
+  const t = useT()
   return (
     <div className="flex flex-wrap gap-2">
       {(["all", "success", "failed"] as const).map((filter) => (
@@ -129,7 +132,7 @@ function OutcomeButtons({
               : "bg-secondary text-muted-foreground hover:text-foreground",
           )}
         >
-          {filter.charAt(0).toUpperCase() + filter.slice(1)}
+          {t(`cred.outcome.${filter}`)}
         </button>
       ))}
     </div>

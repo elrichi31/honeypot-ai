@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 import { displayValue } from "@/lib/credentials"
+import { useT } from "@/components/locale-provider"
 import type {
   CredentialPairStat,
   DiversifiedAttackerStat,
@@ -80,17 +81,18 @@ export function PairsTable({
   sortDir: "asc" | "desc"
   onSort: (column: string) => void
 }) {
+  const t = useT()
   const tz = useTimezone()
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <SortableHeader label="Credential Pair" column="credentialPair" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-          <SortableHeader label="Attempts" column="attempts" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-          <SortableHeader label="Success" column="successCount" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-          <SortableHeader label="Failed" column="failedCount" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-          <SortableHeader label="Unique IPs" column="uniqueIps" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-          <SortableHeader label="Last Seen" column="lastSeen" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.credentialPair")} column="credentialPair" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.attempts")} column="attempts" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.success")} column="successCount" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.failed")} column="failedCount" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.uniqueIps")} column="uniqueIps" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.lastSeen")} column="lastSeen" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -103,10 +105,10 @@ export function PairsTable({
                     {displayValue(item.username)}:{displayValue(item.password)}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    First seen{" "}
+                    {t("cred.firstSeen")}{" "}
                     {item.firstSeen
                       ? formatDistanceToNow(new Date(item.firstSeen), { addSuffix: true })
-                      : "unknown"}
+                      : t("cred.unknown")}
                   </p>
                 </div>
               </TableCell>
@@ -120,7 +122,7 @@ export function PairsTable({
             </TableRow>
           ))
         ) : (
-          <EmptyRow colSpan={6} text="No credential pairs match the current filters." />
+          <EmptyRow colSpan={6} text={t("cred.empty.pairs")} />
         )}
       </TableBody>
     </Table>
@@ -138,16 +140,17 @@ export function PasswordsTable({
   sortDir: "asc" | "desc"
   onSort: (column: string) => void
 }) {
+  const t = useT()
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <SortableHeader label="Password" column="password" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-          <SortableHeader label="Attempts" column="attempts" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-          <SortableHeader label="Success" column="successCount" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-          <SortableHeader label="Failed" column="failedCount" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-          <SortableHeader label="Usernames" column="usernameCount" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-          <SortableHeader label="Unique IPs" column="uniqueIps" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.password")} column="password" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.attempts")} column="attempts" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.success")} column="successCount" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.failed")} column="failedCount" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.usernames")} column="usernameCount" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.uniqueIps")} column="uniqueIps" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -163,7 +166,7 @@ export function PasswordsTable({
             </TableRow>
           ))
         ) : (
-          <EmptyRow colSpan={6} text="No passwords match the current filters." />
+          <EmptyRow colSpan={6} text={t("cred.empty.passwords")} />
         )}
       </TableBody>
     </Table>
@@ -181,16 +184,17 @@ export function UsernamesTable({
   sortDir: "asc" | "desc"
   onSort: (column: string) => void
 }) {
+  const t = useT()
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <SortableHeader label="Username" column="username" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-          <SortableHeader label="Attempts" column="attempts" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-          <SortableHeader label="Success" column="successCount" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-          <SortableHeader label="Failed" column="failedCount" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-          <SortableHeader label="Passwords" column="passwordCount" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-          <SortableHeader label="Unique IPs" column="uniqueIps" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.username")} column="username" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.attempts")} column="attempts" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.success")} column="successCount" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.failed")} column="failedCount" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.passwords")} column="passwordCount" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.uniqueIps")} column="uniqueIps" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -206,7 +210,7 @@ export function UsernamesTable({
             </TableRow>
           ))
         ) : (
-          <EmptyRow colSpan={6} text="No usernames match the current filters." />
+          <EmptyRow colSpan={6} text={t("cred.empty.usernames")} />
         )}
       </TableBody>
     </Table>
@@ -281,15 +285,16 @@ export function RecentAttemptsTable({
   sortDir: "asc" | "desc"
   onSort: (column: string) => void
 }) {
+  const t = useT()
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <SortableHeader label="Status" column="status" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-          <SortableHeader label="Username" column="username" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-          <SortableHeader label="Password" column="password" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-          <SortableHeader label="Source IP" column="srcIp" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
-          <SortableHeader label="When" column="eventTs" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.status")} column="status" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.username")} column="username" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.password")} column="password" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.sourceIp")} column="srcIp" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <SortableHeader label={t("cred.col.when")} column="eventTs" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -300,12 +305,12 @@ export function RecentAttemptsTable({
                 {event.success ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-success/20 px-2 py-1 text-xs text-success">
                     <Shield className="h-3 w-3" />
-                    Success
+                    {t("cred.status.success")}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 rounded-full bg-destructive/20 px-2 py-1 text-xs text-destructive">
                     <ShieldX className="h-3 w-3" />
-                    Failed
+                    {t("cred.status.failed")}
                   </span>
                 )}
               </TableCell>
@@ -326,7 +331,7 @@ export function RecentAttemptsTable({
             </TableRow>
           ))
         ) : (
-          <EmptyRow colSpan={5} text="No auth attempts match the current filters." />
+          <EmptyRow colSpan={5} text={t("cred.empty.recent")} />
         )}
       </TableBody>
     </Table>
