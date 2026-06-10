@@ -11,6 +11,7 @@ import {
   ChartLegendContent,
 } from "@/components/ui/chart"
 import type { ChartConfig } from "@/components/ui/chart"
+import { Surface } from "@/components/ui/surface"
 
 type Range = "day" | "week" | "month"
 
@@ -64,7 +65,7 @@ export function ClientActivityChart({ clientSlug }: Props) {
   const totalEvents = data.reduce((s, b) => s + b.total, 0)
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+    <Surface className="p-5 space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-400/10">
@@ -133,6 +134,6 @@ export function ClientActivityChart({ clientSlug }: Props) {
           </AreaChart>
         </ChartContainer>
       )}
-    </div>
+    </Surface>
   )
 }

@@ -20,6 +20,7 @@ import { KillChainView } from "@/components/deception/kill-chain-view"
 import { DeceptionNodesGrid } from "@/components/deception/deception-nodes-grid"
 import { DeceptionEventsTable } from "@/components/deception/deception-events-table"
 import { DeceptionFilter } from "@/components/deception/deception-filter"
+import { Surface } from "@/components/ui/surface"
 
 export default async function DeceptionPage({
   searchParams,
@@ -83,7 +84,7 @@ export default async function DeceptionPage({
         </p>
       </div>
 
-      <div className="mb-6 rounded-xl border border-border bg-card p-4">
+      <Surface padded className="mb-6">
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-xs text-muted-foreground">Filter:</span>
           <DeceptionFilter
@@ -96,7 +97,7 @@ export default async function DeceptionPage({
             }))}
           />
         </div>
-      </div>
+      </Surface>
 
       <div className="space-y-8">
         <DeceptionOverview data={data.overview} />

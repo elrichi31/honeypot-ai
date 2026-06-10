@@ -14,6 +14,7 @@ import { IpEnrichmentPopover } from "@/components/ip-enrichment-popover"
 import { ClientSessionModal } from "@/components/clients/client-session-modal"
 import { formatTs } from "@/lib/formatting"
 import { JsonTree } from "@/components/clients/json-tree"
+import { Surface } from "@/components/ui/surface"
 
 type LogSource = "all" | "ssh" | "protocol" | "web"
 
@@ -136,7 +137,7 @@ export function ClientLogsViewer({ clientSlug, sensors = [] }: Props) {
 
   return (
     <>
-      <div className="rounded-xl border border-border bg-card flex flex-col">
+      <Surface className="flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3 border-b border-border/60">
           <div className="flex items-center gap-3">
@@ -317,7 +318,7 @@ export function ClientLogsViewer({ clientSlug, sensors = [] }: Props) {
             </div>
           </div>
         )}
-      </div>
+      </Surface>
 
       <ClientSessionModal sessionId={sessionId} onClose={() => setSessionId(null)} />
     </>

@@ -18,6 +18,7 @@ import type {
   CredentialsOutcomeFilter,
   CredentialsRankingType,
 } from "@/lib/api"
+import { Surface } from "@/components/ui/surface"
 
 interface Props {
   search: string
@@ -44,7 +45,7 @@ export function FilterBar({
 }: Props) {
   const t = useT()
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <Surface padded>
       <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
         <form onSubmit={onSearchSubmit} className="flex min-w-[320px] flex-1 items-center gap-2">
           <div className="relative flex-1">
@@ -107,7 +108,7 @@ export function FilterBar({
           </Button>
         </div>
       </div>
-    </div>
+    </Surface>
   )
 }
 

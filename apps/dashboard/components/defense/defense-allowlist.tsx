@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { ShieldCheck, Plus, Trash2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { formatTs } from "@/lib/formatting"
+import { Surface } from "@/components/ui/surface"
 
 type AllowEntry = { id: string; entry: string; label: string; createdAt: string }
 
@@ -54,7 +55,7 @@ export function DefenseAllowlist() {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <Surface>
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border/60">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-400/10">
@@ -137,6 +138,6 @@ export function DefenseAllowlist() {
           </table>
         )}
       </div>
-    </div>
+    </Surface>
   )
 }

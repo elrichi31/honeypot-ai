@@ -7,6 +7,7 @@ import { formatDistanceToNow } from "date-fns"
 import { useTimezone } from "@/components/timezone-provider"
 import { formatInTimezone } from "@/lib/timezone"
 import type { KillChain, KillChainStep } from "@/lib/api/deception"
+import { Surface } from "@/components/ui/surface"
 
 // OpenCanary logdata keys worth surfacing per step, in display order.
 const STEP_FIELD_LABELS: Record<string, string> = {
@@ -128,7 +129,7 @@ function StepTimeline({ chain }: { chain: KillChain }) {
 function ChainRow({ chain }: { chain: KillChain }) {
   const [expanded, setExpanded] = useState(false)
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <Surface padded>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           {chain.correlation === "probable" ? (
@@ -182,7 +183,7 @@ function ChainRow({ chain }: { chain: KillChain }) {
         {expanded ? "Hide path" : "View detailed path"}
       </button>
       {expanded && <StepTimeline chain={chain} />}
-    </div>
+    </Surface>
   )
 }
 

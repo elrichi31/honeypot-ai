@@ -5,6 +5,7 @@ import { ShieldAlert, ShieldCheck, Skull, AlertTriangle, ChevronLeft, ChevronRig
 import { Button } from "@/components/ui/button"
 import { IpEnrichmentPopover } from "@/components/ip-enrichment-popover"
 import { formatTs } from "@/lib/formatting"
+import { Surface } from "@/components/ui/surface"
 
 type ThreatEntry = {
   srcIp: string
@@ -77,7 +78,7 @@ export function ClientAlerts({ clientSlug }: Props) {
   const highCount = items.filter(e => riskLevel(e) === "high").length
 
   return (
-    <div className="rounded-xl border border-border bg-card flex flex-col" style={{ minHeight: 0 }}>
+    <Surface className="flex flex-col" style={{ minHeight: 0 }}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3 border-b border-border/60">
         <div className="flex items-center gap-3">
@@ -200,6 +201,6 @@ export function ClientAlerts({ clientSlug }: Props) {
           </div>
         </div>
       )}
-    </div>
+    </Surface>
   )
 }

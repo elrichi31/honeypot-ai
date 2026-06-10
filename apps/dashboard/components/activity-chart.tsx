@@ -11,6 +11,7 @@ import {
   ChartLegendContent,
 } from "@/components/ui/chart"
 import type { ChartConfig } from "@/components/ui/chart"
+import { Surface } from "@/components/ui/surface"
 
 const chartConfig = {
   Sessions: {
@@ -53,7 +54,7 @@ export function ActivityChart({ stats, range }: ActivityChartProps) {
   const xInterval = range === "day" ? 3 : range === "week" ? 0 : 4
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <Surface padded>
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h3 className="font-semibold text-foreground">Activity over time</h3>
@@ -113,6 +114,6 @@ export function ActivityChart({ stats, range }: ActivityChartProps) {
           />
         </AreaChart>
       </ChartContainer>
-    </div>
+    </Surface>
   )
 }

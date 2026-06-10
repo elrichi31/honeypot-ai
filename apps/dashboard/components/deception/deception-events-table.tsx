@@ -4,6 +4,7 @@ import { useState, Fragment } from "react"
 import { formatDistanceToNow } from "date-fns"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import type { DeceptionEvent } from "@/lib/api/deception"
+import { Surface } from "@/components/ui/surface"
 
 // OpenCanary logdata keys we know how to label nicely. Anything else still shows
 // up in the raw JSON toggle, so we never hide data — we just surface the common
@@ -92,7 +93,7 @@ export function DeceptionEventsTable({ events }: { events: DeceptionEvent[] }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <Surface>
       <div className="border-b border-border/60 px-4 py-3">
         <h2 className="text-sm font-semibold text-foreground">Raw events on trap nodes</h2>
         <p className="text-[11px] text-muted-foreground">Every interaction logged by OpenCanary on the internal network. Click a row to see the detail.</p>
@@ -150,6 +151,6 @@ export function DeceptionEventsTable({ events }: { events: DeceptionEvent[] }) {
           </tbody>
         </table>
       </div>
-    </div>
+    </Surface>
   )
 }

@@ -4,6 +4,7 @@ import { ErrorState } from "@/components/ui/data-states"
 import { fetchSessionScanGroupsPage, fetchSessionsPage, fetchClients, fetchSensors } from "@/lib/api"
 import { lookupIp } from "@/lib/geo"
 import { ClientSensorFilter } from "@/components/client-sensor-filter"
+import { Surface } from "@/components/ui/surface"
 
 const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
 
@@ -99,7 +100,7 @@ export default async function SessionsPage({
         </p>
       </div>
 
-      <div className="mb-6 rounded-xl border border-border bg-card p-4">
+      <Surface padded className="mb-6">
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-xs text-muted-foreground">Filter:</span>
           <ClientSensorFilter
@@ -108,7 +109,7 @@ export default async function SessionsPage({
             webOnly={false}
           />
         </div>
-      </div>
+      </Surface>
 
       <SessionsTable
         sessions={sessionsList}

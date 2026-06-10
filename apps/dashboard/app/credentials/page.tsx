@@ -4,6 +4,7 @@ import { SectionError } from "@/components/section-error"
 import { fetchCredentialsAnalytics, fetchClients, fetchSensors } from "@/lib/api"
 import { ClientSensorFilter } from "@/components/client-sensor-filter"
 import { getServerT } from "@/lib/i18n/server"
+import { Surface } from "@/components/ui/surface"
 
 const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
 
@@ -86,7 +87,7 @@ export default async function CredentialsPage({
           </p>
         </div>
 
-        <div className="mb-6 rounded-xl border border-border bg-card p-4">
+        <Surface padded className="mb-6">
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs text-muted-foreground">{t("cred.filterLabel")}</span>
             <ClientSensorFilter
@@ -95,7 +96,7 @@ export default async function CredentialsPage({
               webOnly={false}
             />
           </div>
-        </div>
+        </Surface>
 
         <CredentialsView analytics={analytics} />
   </PageShell>

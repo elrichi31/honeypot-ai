@@ -5,6 +5,7 @@ import { ShieldAlert, RefreshCw, ChevronLeft, ChevronRight, Search, X } from "lu
 import { Button } from "@/components/ui/button"
 import { IpEnrichmentPopover } from "@/components/ip-enrichment-popover"
 import { formatTs } from "@/lib/formatting"
+import { Surface } from "@/components/ui/surface"
 
 type DefenseEvent = {
   id: string; srcIp: string; method: string; path: string
@@ -70,7 +71,7 @@ export function DefenseEventsTable() {
   function goPage(p: number) { setPage(p); load(p, filter, debouncedIp) }
 
   return (
-    <div className="rounded-xl border border-border bg-card flex flex-col">
+    <Surface className="flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3 border-b border-border/60">
         <div className="flex items-center gap-3">
@@ -186,6 +187,6 @@ export function DefenseEventsTable() {
           </div>
         </div>
       )}
-    </div>
+    </Surface>
   )
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { ShieldAlert, Globe, Zap, Bug } from "lucide-react"
+import { Surface } from "@/components/ui/surface"
 
 type Summary = {
   totalToday: number
@@ -39,7 +40,7 @@ export function DefenseStats() {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       {metrics.map(({ icon: Icon, label, value, color, bg }) => (
-        <div key={label} className="rounded-xl border border-border bg-card px-4 py-3 flex items-center gap-3">
+        <Surface key={label} className="px-4 py-3 flex items-center gap-3">
           <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${bg}`}>
             <Icon className={`h-4 w-4 ${color}`} />
           </div>
@@ -47,7 +48,7 @@ export function DefenseStats() {
             <p className={`text-lg font-semibold tabular-nums leading-tight truncate ${color}`}>{value}</p>
             <p className="text-[11px] text-muted-foreground">{label}</p>
           </div>
-        </div>
+        </Surface>
       ))}
     </div>
   )

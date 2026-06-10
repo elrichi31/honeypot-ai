@@ -10,6 +10,7 @@ import {
 import { Plus, Minus, Maximize2, ShieldX, Globe } from "lucide-react"
 import type { CountryAttack } from "@/lib/types"
 import { ISO_A2_TO_NUM } from "@/lib/iso-codes"
+import { Surface } from "@/components/ui/surface"
 
 const GEO_URL = "/world-110m.json"
 
@@ -64,7 +65,7 @@ export function AttackMap({ countryAttacks }: AttackMapProps) {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <Surface padded>
       {/* Header */}
       <div className="mb-3 flex items-center justify-between gap-4">
         <div>
@@ -240,6 +241,6 @@ export function AttackMap({ countryAttacks }: AttackMapProps) {
           })}
         </div>
       )}
-    </div>
+    </Surface>
   )
 }

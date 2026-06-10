@@ -5,6 +5,7 @@ import { ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
 import { useTimezone } from "@/components/timezone-provider"
 import { formatInTimezone } from "@/lib/timezone"
 import type { WebHit } from "@/lib/api"
+import { Surface } from "@/components/ui/surface"
 
 const GAP_MS = 15 * 60 * 1000
 
@@ -51,7 +52,7 @@ export function IpBursts({ hits }: { hits: WebHit[] }) {
   if (bursts.length <= 1) return null // nothing gained from grouping a single burst
 
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <Surface>
       <div className="border-b border-border p-4">
         <div className="flex items-center gap-2">
           <Zap className="h-4 w-4 text-warning" />
@@ -90,7 +91,7 @@ export function IpBursts({ hits }: { hits: WebHit[] }) {
           </div>
         ))}
       </div>
-    </div>
+    </Surface>
   )
 }
 

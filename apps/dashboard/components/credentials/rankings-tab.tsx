@@ -13,9 +13,10 @@ import type {
   PasswordCredentialStat,
   UsernameCredentialStat,
 } from "@/lib/api"
+import { Surface } from "@/components/ui/surface"
 
 const TABLE_PANEL_CLASS =
-  "flex min-h-[620px] max-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-xl border border-border bg-card"
+  "flex min-h-[620px] max-h-[calc(100vh-11rem)] flex-col overflow-hidden"
 
 interface Props {
   analytics: CredentialsAnalytics
@@ -43,7 +44,7 @@ function RankingTable({ rankingType, rows, sortBy, sortDir, onSort }: {
 
 export function RankingsTab({ analytics, rankingType, sortBy, sortDir, onSort }: Props) {
   return (
-    <div className={TABLE_PANEL_CLASS}>
+    <Surface className={TABLE_PANEL_CLASS}>
       <div className="min-h-0 flex-1 overflow-auto">
         <RankingTable
           rankingType={rankingType}
@@ -54,6 +55,6 @@ export function RankingsTab({ analytics, rankingType, sortBy, sortDir, onSort }:
         />
       </div>
       <TablePagination pagination={analytics.rankingsPage.pagination} />
-    </div>
+    </Surface>
   )
 }

@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import { Surface } from "@/components/ui/surface"
 import { displayValue } from "@/lib/credentials"
 import { useT } from "@/components/locale-provider"
 import type {
@@ -231,7 +232,7 @@ export function PatternCard<T>({
   renderRow: (row: T) => React.ReactNode
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <Surface>
       <div className="border-b border-border px-4 py-3">
         <h3 className="font-semibold text-foreground">{title}</h3>
         <p className="text-sm text-muted-foreground">{subtitle}</p>
@@ -239,7 +240,7 @@ export function PatternCard<T>({
       <div className="divide-y divide-border">
         {rows.length > 0 ? rows.slice(0, 10).map(renderRow) : <div className="p-4 text-sm text-muted-foreground">{emptyText}</div>}
       </div>
-    </div>
+    </Surface>
   )
 }
 

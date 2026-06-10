@@ -8,6 +8,7 @@ import { ClientCard } from "./client-card"
 import { CreateClientDialog } from "./create-client-dialog"
 import { EditClientDialog } from "./edit-client-dialog"
 import { DeleteClientDialog } from "./delete-client-dialog"
+import { Surface } from "@/components/ui/surface"
 
 type Props = {
   initialClients: Client[]
@@ -42,7 +43,7 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border border-border bg-card p-5 space-y-4">
+      <Surface className="p-5 space-y-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-400/10">
@@ -103,7 +104,7 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
             />
           </>
         )}
-      </section>
+      </Surface>
     </div>
   )
 }

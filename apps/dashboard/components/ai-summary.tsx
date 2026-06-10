@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils"
 import type { HoneypotEvent, ApiSessionDetail } from "@/lib/api"
 import type { SessionAnalysis } from "@/app/api/ai/session-summary/route"
+import { Surface } from "@/components/ui/surface"
 
 interface AiSummaryProps {
   session: ApiSessionDetail
@@ -123,7 +124,7 @@ export function AiSummary({ session, events }: AiSummaryProps) {
   const ClassIcon = classMeta?.icon ?? Bug
 
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <Surface>
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border p-4">
         <div className="flex items-center gap-2">
@@ -263,6 +264,6 @@ export function AiSummary({ session, events }: AiSummaryProps) {
           </div>
         )}
       </div>
-    </div>
+    </Surface>
   )
 }

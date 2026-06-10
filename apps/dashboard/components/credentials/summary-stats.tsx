@@ -4,10 +4,11 @@ import { Shield, ShieldAlert, ShieldX, Target, Users } from "lucide-react"
 import { percent } from "@/lib/credentials"
 import { useT } from "@/components/locale-provider"
 import type { CredentialsAnalytics } from "@/lib/api"
+import { Surface } from "@/components/ui/surface"
 
 function StatCard({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4">{children}</div>
+    <Surface padded>{children}</Surface>
   )
 }
 

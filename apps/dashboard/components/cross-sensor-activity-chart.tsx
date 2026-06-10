@@ -14,6 +14,7 @@ import {
 import type { ChartConfig } from "@/components/ui/chart"
 import { useTimezone } from "@/components/timezone-provider"
 import { useT } from "@/components/locale-provider"
+import { Surface } from "@/components/ui/surface"
 
 const RANGE_LABELS: Record<TimeRange, string> = { day: "24h", week: "7d", month: "30d" }
 
@@ -77,7 +78,7 @@ export function CrossSensorActivityChart({ timeline: initialTimeline, range: ini
   const xInterval = range === "day" ? 3 : range === "week" ? 0 : 4
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <Surface padded>
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h3 className="font-semibold text-foreground">{t("dash.activity.title")}</h3>
@@ -135,6 +136,6 @@ export function CrossSensorActivityChart({ timeline: initialTimeline, range: ini
           </AreaChart>
         </ChartContainer>
       </div>
-    </div>
+    </Surface>
   )
 }

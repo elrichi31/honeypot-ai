@@ -5,10 +5,11 @@ import { Bot, Cpu, ShieldAlert, Sparkles, RefreshCw, Loader2 } from "lucide-reac
 import { formatDistanceToNow } from "date-fns"
 import type { ThreatDetail } from "@/lib/api"
 import type { ThreatAnalysis } from "@/app/api/ai/threat-analysis/route"
+import { Surface } from "@/components/ui/surface"
 
 const SOPHISTICATION_LABELS: Record<string, { label: string; color: string }> = {
   "script-kiddie":    { label: "Script Kiddie",    color: "bg-green-500/15 text-green-400 border-green-500/30" },
-  "organized-crime":  { label: "Crimen Organizado", color: "bg-orange-500/15 text-orange-400 border-orange-500/30" },
+  "organized-crime":  { label: "Organized Crime", color: "bg-orange-500/15 text-orange-400 border-orange-500/30" },
   "apt-like":         { label: "APT-like",          color: "bg-red-500/15 text-red-400 border-red-500/30" },
 }
 
@@ -39,7 +40,7 @@ export function AiThreatSummary({ ip, threat, initialAnalysis, autoTrigger }: Pr
       }
       setAnalysis(await res.json())
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error desconocido")
+      setError(e instanceof Error ? e.message : "Unknown error")
     } finally {
       setLoading(false)
     }
@@ -53,7 +54,7 @@ export function AiThreatSummary({ ip, threat, initialAnalysis, autoTrigger }: Pr
   const soph = analysis ? (SOPHISTICATION_LABELS[analysis.sophistication] ?? SOPHISTICATION_LABELS["script-kiddie"]) : null
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <Surface className="overflow-hidden">
       <div className="flex items-center justify-between border-b border-border p-4">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-violet-400" />
@@ -73,7 +74,7 @@ export function AiThreatSummary({ ip, threat, initialAnalysis, autoTrigger }: Pr
             {loading
               ? <Loader2 className="h-3 w-3 animate-spin" />
               : <RefreshCw className="h-3 w-3" />}
-            {analysis ? "Re-analizar" : "Analizar"}
+            {analysis ? "Re-analyze" : "Analyze"}
           </button>
         </div>
       </div>
@@ -149,6 +150,6 @@ export function AiThreatSummary({ ip, threat, initialAnalysis, autoTrigger }: Pr
           </div>
         </div>
       )}
-    </div>
+    </Surface>
   )
 }

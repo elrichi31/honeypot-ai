@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Ban, Plus, Trash2, Loader2, ShieldOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { formatTs } from "@/lib/formatting"
+import { Surface } from "@/components/ui/surface"
 
 type BlockedEntry = {
   id: string; ip: string; reason: string; autoBlocked: boolean; blockedAt: string
@@ -59,7 +60,7 @@ export function BlockedIpsTable() {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <Surface>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border/60">
         <div className="flex items-center gap-3">
@@ -147,6 +148,6 @@ export function BlockedIpsTable() {
           </table>
         )}
       </div>
-    </div>
+    </Surface>
   )
 }

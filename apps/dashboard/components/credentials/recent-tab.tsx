@@ -2,10 +2,11 @@
 
 import { RecentAttemptsTable } from "@/components/credentials/credentials-sections"
 import { TablePagination } from "@/components/table-pagination"
+import { Surface } from "@/components/ui/surface"
 import type { CredentialsAnalytics } from "@/lib/api"
 
 const TABLE_PANEL_CLASS =
-  "flex min-h-[620px] max-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-xl border border-border bg-card"
+  "flex min-h-[620px] max-h-[calc(100vh-11rem)] flex-col overflow-hidden"
 
 interface Props {
   analytics: CredentialsAnalytics
@@ -16,7 +17,7 @@ interface Props {
 
 export function RecentTab({ analytics, sortBy, sortDir, onSort }: Props) {
   return (
-    <div className={TABLE_PANEL_CLASS}>
+    <Surface className={TABLE_PANEL_CLASS}>
       <div className="min-h-0 flex-1 overflow-auto">
         <RecentAttemptsTable
           rows={analytics.recentAttemptsPage.items}
@@ -26,6 +27,6 @@ export function RecentTab({ analytics, sortBy, sortDir, onSort }: Props) {
         />
       </div>
       <TablePagination pagination={analytics.recentAttemptsPage.pagination} />
-    </div>
+    </Surface>
   )
 }
