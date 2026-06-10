@@ -1,23 +1,30 @@
 import { readConfig } from "@/lib/server-config"
 import { formatInTimezone } from "@/lib/timezone"
+import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table"
+import { TableCard, TableCardFooter, EmptyRow } from "@/components/ui/table-card"
+import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 import type { ProtocolHit } from "@/lib/api"
 
+// Per-protocol accent colors (tonal). Kept here since they're domain-specific
+// and not part of the shared Badge variants.
 const PROTOCOL_BADGE: Record<string, string> = {
-  ftp: "bg-yellow-400/20 text-yellow-400",
-  mysql: "bg-purple-400/20 text-purple-400",
-  "port-scan": "bg-blue-400/20 text-blue-400",
-  dionaea: "bg-red-400/20 text-red-400",
-  smb: "bg-orange-400/20 text-orange-400",
-  mssql: "bg-pink-400/20 text-pink-400",
-  rpc: "bg-indigo-400/20 text-indigo-400",
-  tftp: "bg-lime-400/20 text-lime-400",
-  mqtt: "bg-teal-400/20 text-teal-400",
+  ftp: "bg-yellow-400/15 text-yellow-400",
+  mysql: "bg-purple-400/15 text-purple-400",
+  "port-scan": "bg-blue-400/15 text-blue-400",
+  dionaea: "bg-red-400/15 text-red-400",
+  smb: "bg-orange-400/15 text-orange-400",
+  mssql: "bg-pink-400/15 text-pink-400",
+  rpc: "bg-indigo-400/15 text-indigo-400",
+  tftp: "bg-lime-400/15 text-lime-400",
+  mqtt: "bg-teal-400/15 text-teal-400",
 }
 
-const EVENT_BADGE: Record<string, string> = {
-  connect: "bg-slate-400/20 text-slate-400",
-  auth: "bg-orange-400/20 text-orange-400",
-  command: "bg-green-400/20 text-green-400",
+// connect → muted, auth → warning, command → success: maps to shared Badge variants.
+const EVENT_VARIANT: Record<string, "muted" | "warning" | "success"> = {
+  connect: "muted",
+  auth: "warning",
+  command: "success",
 }
 
 interface Props {
@@ -37,55 +44,47 @@ export function ProtocolHitsTable({ hits, meta, protocol }: Props) {
     `/services?page=${p}${protocol ? `&protocol=${protocol}` : ""}`
 
   return (
-    <div className="rounded-xl border border-border bg-card">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-xs text-muted-foreground">
-              <th className="px-4 py-3 font-medium">Protocol</th>
-              <th className="px-4 py-3 font-medium">Source IP</th>
-              <th className="px-4 py-3 font-medium">Src Port</th>
-              <th className="px-4 py-3 font-medium">Dst Port</th>
-              <th className="px-4 py-3 font-medium">Event</th>
-              <th className="px-4 py-3 font-medium">Username</th>
-              <th className="px-4 py-3 font-medium">Timestamp</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border/40">
-            {hits.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                  No events yet
-                </td>
-              </tr>
-            ) : (
-              hits.map((hit) => (
-                <tr key={hit.id} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-2">
-                    <span className={`rounded px-1.5 py-0.5 text-[11px] font-bold uppercase ${PROTOCOL_BADGE[hit.protocol] ?? "bg-slate-400/20 text-slate-400"}`}>
-                      {hit.protocol}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 font-mono text-xs">{hit.src_ip}</td>
-                  <td className="px-4 py-2 text-xs text-muted-foreground">{hit.src_port ?? "—"}</td>
-                  <td className="px-4 py-2 text-xs">{hit.dst_port}</td>
-                  <td className="px-4 py-2">
-                    <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${EVENT_BADGE[hit.event_type] ?? "bg-slate-400/20 text-slate-400"}`}>
-                      {hit.event_type}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{hit.username ?? "—"}</td>
-                  <td className="px-4 py-2 text-xs text-muted-foreground">
-                    {formatDate(hit.timestamp)}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+    <TableCard>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Protocol</TableHead>
+            <TableHead>Source IP</TableHead>
+            <TableHead>Src Port</TableHead>
+            <TableHead>Dst Port</TableHead>
+            <TableHead>Event</TableHead>
+            <TableHead>Username</TableHead>
+            <TableHead>Timestamp</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {hits.length === 0 ? (
+            <EmptyRow colSpan={7}>No events yet</EmptyRow>
+          ) : (
+            hits.map((hit) => (
+              <TableRow key={hit.id}>
+                <TableCell>
+                  <span className={cn("rounded px-1.5 py-0.5 text-[11px] font-bold uppercase", PROTOCOL_BADGE[hit.protocol] ?? "bg-slate-400/15 text-slate-400")}>
+                    {hit.protocol}
+                  </span>
+                </TableCell>
+                <TableCell className="font-mono text-xs">{hit.src_ip}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">{hit.src_port ?? "—"}</TableCell>
+                <TableCell className="text-xs">{hit.dst_port}</TableCell>
+                <TableCell>
+                  <Badge variant={EVENT_VARIANT[hit.event_type] ?? "muted"} className="text-[11px]">
+                    {hit.event_type}
+                  </Badge>
+                </TableCell>
+                <TableCell className="font-mono text-xs text-muted-foreground">{hit.username ?? "—"}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">{formatDate(hit.timestamp)}</TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
       {totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-border px-4 py-3 text-xs text-muted-foreground">
+        <TableCardFooter>
           <span>{meta.total.toLocaleString()} total events</span>
           <div className="flex items-center gap-2">
             {meta.page > 1 && (
@@ -100,8 +99,8 @@ export function ProtocolHitsTable({ hits, meta, protocol }: Props) {
               </a>
             )}
           </div>
-        </div>
+        </TableCardFooter>
       )}
-    </div>
+    </TableCard>
   )
 }

@@ -4,6 +4,7 @@ import { Suspense } from "react"
 import Link from "next/link"
 import { Terminal, Radar } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
+import { Surface } from "@/components/ui/surface"
 import { DashboardInsightsView } from "@/components/dashboard-insights"
 import { CrossSensorActivityChart } from "@/components/cross-sensor-activity-chart"
 import { ProtocolDistributionChart } from "@/components/protocol-distribution-chart"
@@ -141,14 +142,14 @@ async function OverviewSection() {
   return (
     <>
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-xl border border-border bg-card p-4">
+        <Surface padded>
           <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{t("dash.kpi.totalEvents")}</p>
           <p className="mt-2 text-3xl font-semibold text-foreground">{totalEvents.toLocaleString("en-US")}</p>
           <p className="mt-1 text-xs text-muted-foreground">
             {t("dash.kpi.sensorsReporting", { n: activeSources })}
           </p>
-        </div>
-        <div className="rounded-xl border border-border bg-card p-4">
+        </Surface>
+        <Surface padded>
           <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{t("dash.kpi.sshSessions")}</p>
           <p className="mt-2 text-3xl font-semibold text-foreground">{overview.ssh.sessions.toLocaleString("en-US")}</p>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -157,20 +158,20 @@ async function OverviewSection() {
               n: overview.ssh.successfulLogins.toLocaleString("en-US"),
             })}
           </p>
-        </div>
-        <div className="rounded-xl border border-border bg-card p-4">
+        </Surface>
+        <Surface padded>
           <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{t("dash.kpi.webAttacks")}</p>
           <p className="mt-2 text-3xl font-semibold text-foreground">{overview.web.hits.toLocaleString("en-US")}</p>
           <p className="mt-1 text-xs text-muted-foreground">
             {t("dash.kpi.webIps", { ips: overview.web.uniqueIps.toLocaleString("en-US") })}
             {overview.web.topAttackType ? t("dash.kpi.webTopSuffix", { type: overview.web.topAttackType }) : ""}
           </p>
-        </div>
-        <div className="rounded-xl border border-border bg-card p-4">
+        </Surface>
+        <Surface padded>
           <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{t("dash.kpi.activeSources")}</p>
           <p className="mt-2 text-3xl font-semibold text-foreground">{activeSources.toLocaleString("en-US")}</p>
           <p className="mt-1 text-xs text-muted-foreground">{t("dash.kpi.sensorsInWindow")}</p>
-        </div>
+        </Surface>
       </div>
 
       <SensorActivityGrid overview={overview} />
