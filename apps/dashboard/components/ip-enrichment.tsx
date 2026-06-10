@@ -1,9 +1,23 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ShieldCheck, AlertTriangle, Building2, MapPin, Loader2, Server, Clock, Hash, Globe, Flag, MessageSquare, ChevronDown, ChevronUp } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
-import type { IpEnrichment, AbuseReport } from "@/app/api/enrich/[ip]/route"
+import {
+  AlertTriangle,
+  Building2,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Flag,
+  Globe,
+  Hash,
+  Loader2,
+  MapPin,
+  MessageSquare,
+  Server,
+  ShieldCheck,
+} from "lucide-react"
+import type { AbuseReport, IpEnrichment } from "@/app/api/enrich/[ip]/route"
 import { Surface } from "@/components/ui/surface"
 
 const ABUSE_CATEGORIES: Record<number, string> = {
@@ -18,7 +32,7 @@ const ABUSE_CATEGORIES: Record<number, string> = {
 const ABUSE_COLOR = (score: number) => {
   if (score >= 80) return "text-destructive"
   if (score >= 40) return "text-warning"
-  if (score > 0)  return "text-yellow-400"
+  if (score > 0) return "text-yellow-400"
   return "text-success"
 }
 
@@ -28,32 +42,27 @@ function Tag({ label, variant = "neutral" }: { label: string; variant?: "danger"
     : variant === "warn"
     ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-400"
     : "border-border bg-secondary text-muted-foreground"
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${cls}`}>
-      {label}
-    </span>
-  )
+
+  return <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${cls}`}>{label}</span>
 }
 
 function ReportRow({ report }: { report: AbuseReport }) {
   return (
-    <div className="rounded-lg border border-border bg-secondary/30 p-2.5 space-y-1.5">
+    <div className="space-y-1.5 rounded-lg border border-border bg-secondary/30 p-2.5">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] text-muted-foreground">
           {formatDistanceToNow(new Date(report.reportedAt), { addSuffix: true })}
           {report.reporterCountryName ? ` · ${report.reporterCountryName}` : ""}
         </span>
-        <div className="flex flex-wrap gap-1 justify-end">
-          {report.categories.map(c => (
+        <div className="flex flex-wrap justify-end gap-1">
+          {report.categories.map((c) => (
             <span key={c} className="rounded border border-border bg-secondary px-1.5 py-0 text-[9px] text-muted-foreground">
               {ABUSE_CATEGORIES[c] ?? `Cat ${c}`}
             </span>
           ))}
         </div>
       </div>
-      {report.comment && (
-        <p className="text-[11px] text-foreground leading-relaxed line-clamp-2">{report.comment}</p>
-      )}
+      {report.comment && <p className="line-clamp-2 text-[11px] leading-relaxed text-foreground">{report.comment}</p>}
     </div>
   )
 }
@@ -72,8 +81,10 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
   function doFetch() {
     setLoading(true)
     fetch(`/api/enrich/${encodeURIComponent(ip)}`)
-      .then(r => r.json())
-      .then((d: IpEnrichment) => { if (d.abuseipdb || d.ipinfo) setData(d) })
+      .then((r) => r.json())
+      .then((d: IpEnrichment) => {
+        if (d.abuseipdb || d.ipinfo || d.spectraAnalyze) setData(d)
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }
@@ -83,45 +94,53 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ip])
 
-  if (loading) return (
-    <Surface padded className="flex items-center gap-2 text-sm text-muted-foreground">
-      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-      Querying intelligence feeds…
-    </Surface>
-  )
-
-  if (!data) {
-    if (!autoFetch) return (
-      <Surface className="flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <ShieldCheck className="h-4 w-4 text-cyan-400" />
-          <span>IP Enrichment — no cached data</span>
-        </div>
-        <button onClick={doFetch} className="rounded-lg border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary/80 transition-colors">
-          Query now
-        </button>
+  if (loading) {
+    return (
+      <Surface padded className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Querying intelligence feeds...
       </Surface>
     )
+  }
+
+  if (!data) {
+    if (!autoFetch) {
+      return (
+        <Surface className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <ShieldCheck className="h-4 w-4 text-cyan-400" />
+            <span>IP Enrichment - no cached data</span>
+          </div>
+          <button onClick={doFetch} className="rounded-lg border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/80">
+            Query now
+          </button>
+        </Surface>
+      )
+    }
     return null
   }
 
   const ab = data.abuseipdb
   const info = data.ipinfo
+  const spectra = data.spectraAnalyze
 
   const privacyFlags = [
-    ab?.isTor    && { label: "Tor Exit", v: "danger" as const },
-    ab?.isVpn    && { label: "VPN (AbuseIPDB)", v: "warn" as const },
-    info?.isTor  && !ab?.isTor && { label: "Tor", v: "danger" as const },
-    info?.isVpn  && !ab?.isVpn && { label: "VPN", v: "warn" as const },
-    info?.isProxy  && { label: "Proxy", v: "warn" as const },
+    ab?.isTor && { label: "Tor Exit", v: "danger" as const },
+    ab?.isVpn && { label: "VPN (AbuseIPDB)", v: "warn" as const },
+    info?.isTor && !ab?.isTor && { label: "Tor", v: "danger" as const },
+    info?.isVpn && !ab?.isVpn && { label: "VPN", v: "warn" as const },
+    info?.isProxy && { label: "Proxy", v: "warn" as const },
     info?.isHosting && { label: "Hosting/DC", v: "neutral" as const },
   ].filter(Boolean) as { label: string; v: "danger" | "warn" | "neutral" }[]
 
   const visibleReports = showAllReports ? (ab?.reports ?? []) : (ab?.reports ?? []).slice(0, 3)
+  const spectraStats = spectra?.third_party_reputations?.statistics
+  const spectraDownloaded = spectra?.downloaded_files_statistics
+  const spectraSources = (spectra?.third_party_reputations?.sources ?? []).slice(0, 5)
+  const spectraThreats = (spectra?.top_threats ?? []).slice(0, 5)
 
   return (
     <Surface className="overflow-hidden">
-      {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-cyan-400" />
@@ -133,12 +152,10 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
       </div>
 
       <div className="divide-y divide-border">
-        {/* ── AbuseIPDB ── */}
         {ab && (
-          <div className="p-4 space-y-4">
+          <div className="space-y-4 p-4">
             <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">AbuseIPDB</p>
 
-            {/* Score + quick stats */}
             <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
               <div>
                 <span className={`text-4xl font-bold tabular-nums ${ABUSE_COLOR(ab.abuseConfidenceScore)}`}>
@@ -148,17 +165,16 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
               </div>
               <div className="flex gap-4 text-xs">
                 <div className="text-center">
-                  <p className="text-lg font-semibold text-foreground">{ab.totalReports.toLocaleString('en-US')}</p>
+                  <p className="text-lg font-semibold text-foreground">{ab.totalReports.toLocaleString("en-US")}</p>
                   <p className="text-muted-foreground">reports</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-lg font-semibold text-foreground">{ab.numDistinctUsers.toLocaleString('en-US')}</p>
+                  <p className="text-lg font-semibold text-foreground">{ab.numDistinctUsers.toLocaleString("en-US")}</p>
                   <p className="text-muted-foreground">distinct users</p>
                 </div>
               </div>
             </div>
 
-            {/* Alert banner */}
             {ab.abuseConfidenceScore >= 80 && (
               <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
@@ -166,10 +182,9 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
               </div>
             )}
 
-            {/* Detail grid */}
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
               {ab.isp && (
-                <div className="flex items-center gap-1.5 col-span-2">
+                <div className="col-span-2 flex items-center gap-1.5">
                   <Building2 className="h-3 w-3 shrink-0 text-muted-foreground" />
                   <span className="font-medium text-foreground">{ab.isp}</span>
                 </div>
@@ -187,13 +202,13 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
                 </div>
               )}
               {ab.usageType && (
-                <div className="flex items-center gap-1.5 col-span-2">
+                <div className="col-span-2 flex items-center gap-1.5">
                   <Server className="h-3 w-3 shrink-0 text-muted-foreground" />
                   <span className="text-muted-foreground">{ab.usageType}</span>
                 </div>
               )}
               {ab.lastReportedAt && (
-                <div className="flex items-center gap-1.5 col-span-2">
+                <div className="col-span-2 flex items-center gap-1.5">
                   <Clock className="h-3 w-3 shrink-0 text-muted-foreground" />
                   <span className="text-muted-foreground">
                     Last reported {formatDistanceToNow(new Date(ab.lastReportedAt), { addSuffix: true })}
@@ -201,39 +216,34 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
                 </div>
               )}
               {ab.hostnames.length > 0 && (
-                <div className="flex items-start gap-1.5 col-span-2">
+                <div className="col-span-2 flex items-start gap-1.5">
                   <Server className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
                   <span className="font-mono text-[10px] text-muted-foreground">{ab.hostnames.join(", ")}</span>
                 </div>
               )}
             </div>
 
-            {/* Privacy/threat flags */}
             {privacyFlags.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
-                {privacyFlags.map(f => <Tag key={f.label} label={f.label} variant={f.v} />)}
+                {privacyFlags.map((f) => <Tag key={f.label} label={f.label} variant={f.v} />)}
               </div>
             )}
 
-            {/* Recent reports */}
             {ab.reports.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5">
                   <MessageSquare className="h-3 w-3 text-muted-foreground" />
                   <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
-                    Reportes recientes ({ab.reports.length})
+                    Recent reports ({ab.reports.length})
                   </p>
                 </div>
                 <div className="space-y-1.5">
                   {visibleReports.map((r, i) => <ReportRow key={i} report={r} />)}
                 </div>
                 {ab.reports.length > 3 && (
-                  <button
-                    onClick={() => setShowAllReports(p => !p)}
-                    className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-                  >
+                  <button onClick={() => setShowAllReports((p) => !p)} className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
                     {showAllReports
-                      ? <><ChevronUp className="h-3 w-3" />Ver menos</>
+                      ? <><ChevronUp className="h-3 w-3" />Show less</>
                       : <><ChevronDown className="h-3 w-3" />Show {ab.reports.length - 3} more</>}
                   </button>
                 )}
@@ -242,13 +252,79 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
           </div>
         )}
 
-        {/* ── ipinfo ── */}
+        {spectra && (
+          <div className="space-y-4 p-4">
+            <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Spectra Analyze</p>
+
+            {(spectraStats || spectraDownloaded) && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {spectraStats && (
+                  <div className="rounded-lg border border-border bg-secondary/30 p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">3rd-party reputation</p>
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                      <span className="text-foreground">Total <span className="font-mono">{spectraStats.total ?? 0}</span></span>
+                      <span className="text-destructive">Malicious <span className="font-mono">{spectraStats.malicious ?? 0}</span></span>
+                      <span className="text-success">Clean <span className="font-mono">{spectraStats.clean ?? 0}</span></span>
+                    </div>
+                  </div>
+                )}
+                {spectraDownloaded && (
+                  <div className="rounded-lg border border-border bg-secondary/30 p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Downloaded files</p>
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                      <span className="text-foreground">Total <span className="font-mono">{spectraDownloaded.total ?? 0}</span></span>
+                      <span className="text-destructive">Malicious <span className="font-mono">{spectraDownloaded.malicious ?? 0}</span></span>
+                      <span className="text-warning">Suspicious <span className="font-mono">{spectraDownloaded.suspicious ?? 0}</span></span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {spectraThreats.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Top threats</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {spectraThreats.map((threat, idx) => {
+                    const label = threat.threat_name || threat.malware_family || threat.malware_type || threat.sample_type || "Unknown"
+                    return <Tag key={`${label}-${idx}`} label={label} variant="warn" />
+                  })}
+                </div>
+              </div>
+            )}
+
+            {spectraSources.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Detections</p>
+                <div className="space-y-1.5">
+                  {spectraSources.map((source, idx) => (
+                    <div key={`${source.source ?? "src"}-${idx}`} className="rounded-lg border border-border bg-secondary/20 p-2.5 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-foreground">{source.source ?? "Unknown source"}</span>
+                        <span className="text-muted-foreground">{source.detection ?? "undetected"}</span>
+                      </div>
+                      {source.category && <p className="mt-1 text-muted-foreground">{source.category}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {spectra.modified_time && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Clock className="h-3 w-3 shrink-0" />
+                <span>Report updated {formatDistanceToNow(new Date(spectra.modified_time), { addSuffix: true })}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {info && (
-          <div className="p-4 space-y-3">
+          <div className="space-y-3 p-4">
             <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">ipinfo.io</p>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
               {info.org && (
-                <div className="flex items-start gap-1.5 col-span-2">
+                <div className="col-span-2 flex items-start gap-1.5">
                   <Building2 className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
                   <span className="font-medium text-foreground">{info.org}</span>
                 </div>
@@ -275,7 +351,7 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
                 </div>
               )}
               {info.hostname && (
-                <div className="flex items-center gap-1.5 col-span-2">
+                <div className="col-span-2 flex items-center gap-1.5">
                   <Server className="h-3 w-3 shrink-0 text-muted-foreground" />
                   <span className="truncate font-mono text-[10px] text-muted-foreground">{info.hostname}</span>
                 </div>

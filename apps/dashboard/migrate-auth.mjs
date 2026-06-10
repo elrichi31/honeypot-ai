@@ -109,10 +109,18 @@ async function migrate() {
       "ip"                   TEXT        NOT NULL PRIMARY KEY,
       "abuseipdb_data"       JSONB,
       "ipinfo_data"          JSONB,
+      "spectra_analyze_data" JSONB,
       "abuseipdb_fetched_at" TIMESTAMPTZ,
       "ipinfo_fetched_at"    TIMESTAMPTZ,
+      "spectra_analyze_fetched_at" TIMESTAMPTZ,
       "cached_at"            TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+  `)
+
+  await pool.query(`
+    ALTER TABLE "ip_enrichment_cache"
+      ADD COLUMN IF NOT EXISTS "spectra_analyze_data" JSONB,
+      ADD COLUMN IF NOT EXISTS "spectra_analyze_fetched_at" TIMESTAMPTZ;
   `)
 
   await pool.query(`

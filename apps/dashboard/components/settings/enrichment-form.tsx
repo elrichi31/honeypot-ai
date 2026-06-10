@@ -1,15 +1,14 @@
 "use client"
 
+import { useEffect, useState } from "react"
+import { CheckCircle, Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react"
 import { apiFetch } from "@/lib/client-fetch"
-
-import { useState, useEffect } from "react"
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ShieldCheck, Eye, EyeOff, CheckCircle, Loader2 } from "lucide-react"
-import { SaveFeedback, CardHeader, type SaveStatus } from "./setting-card"
 import { Surface } from "@/components/ui/surface"
 import { useT } from "@/components/locale-provider"
+import { CardHeader, SaveFeedback, type SaveStatus } from "./setting-card"
 
 interface KeyRowProps {
   id: string
@@ -29,6 +28,7 @@ interface KeyRowProps {
 function KeyRow({ id, label, placeholder, hint, value, hasKey, loading, onChange, onSave, onClear, status, error }: KeyRowProps) {
   const t = useT()
   const [show, setShow] = useState(false)
+
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
@@ -56,9 +56,62 @@ function KeyRow({ id, label, placeholder, hint, value, hasKey, loading, onChange
           )}
         </div>
         <Button onClick={onSave} disabled={status === "saving" || loading} className="bg-primary text-primary-foreground hover:bg-primary/90">
-          {status === "saving" ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />{t("set.common.saving")}</> : status === "saved" ? <><CheckCircle className="mr-1.5 h-3.5 w-3.5" />{t("set.common.saved")}</> : t("set.common.save")}
+          {status === "saving"
+            ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />{t("set.common.saving")}</>
+            : status === "saved"
+            ? <><CheckCircle className="mr-1.5 h-3.5 w-3.5" />{t("set.common.saved")}</>
+            : t("set.common.save")}
         </Button>
         {hasKey && <Button variant="outline" onClick={onClear}>{t("set.common.clear")}</Button>}
+      </div>
+      <SaveFeedback status={status} error={error} />
+      <p className="text-xs text-muted-foreground">{hint}</p>
+    </div>
+  )
+}
+
+interface TextRowProps {
+  id: string
+  label: string
+  placeholder: string
+  hint: string
+  value: string
+  loading: boolean
+  onChange: (v: string) => void
+  onSave: () => void
+  status: SaveStatus
+  error: string
+}
+
+function TextRow({ id, label, placeholder, hint, value, loading, onChange, onSave, status, error }: TextRowProps) {
+  const t = useT()
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="flex gap-2">
+        {loading ? (
+          <div className="flex h-10 flex-1 items-center rounded-md border border-border bg-secondary px-3 text-sm text-muted-foreground">
+            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> {t("set.common.loading")}
+          </div>
+        ) : (
+          <Input
+            id={id}
+            type="url"
+            placeholder={placeholder}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && onSave()}
+            className="font-mono text-sm"
+          />
+        )}
+        <Button onClick={onSave} disabled={status === "saving" || loading} className="bg-primary text-primary-foreground hover:bg-primary/90">
+          {status === "saving"
+            ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />{t("set.common.saving")}</>
+            : status === "saved"
+            ? <><CheckCircle className="mr-1.5 h-3.5 w-3.5" />{t("set.common.saved")}</>
+            : t("set.common.save")}
+        </Button>
       </div>
       <SaveFeedback status={status} error={error} />
       <p className="text-xs text-muted-foreground">{hint}</p>
@@ -78,6 +131,14 @@ export function EnrichmentForm() {
   const [ipinfoStatus, setIpinfoStatus] = useState<SaveStatus>("loading")
   const [ipinfoError, setIpinfoError] = useState("")
 
+  const [spectraUrl, setSpectraUrl] = useState("")
+  const [spectraToken, setSpectraToken] = useState("")
+  const [hasSpectraToken, setHasSpectraToken] = useState(false)
+  const [spectraUrlStatus, setSpectraUrlStatus] = useState<SaveStatus>("loading")
+  const [spectraTokenStatus, setSpectraTokenStatus] = useState<SaveStatus>("loading")
+  const [spectraUrlError, setSpectraUrlError] = useState("")
+  const [spectraTokenError, setSpectraTokenError] = useState("")
+
   useEffect(() => {
     apiFetch("/api/config")
       .then((r) => r.json())
@@ -85,30 +146,57 @@ export function EnrichmentForm() {
         setHasAbuseKey(d.hasAbuseipdbKey)
         setAbuseKey(d.hasAbuseipdbKey ? d.abuseipdbApiKey : "")
         setAbuseStatus("idle")
+
         setHasIpinfoKey(d.hasIpinfoKey)
         setIpinfoKey(d.hasIpinfoKey ? d.ipinfoApiKey : "")
         setIpinfoStatus("idle")
+
+        setSpectraUrl(d.spectraAnalyzeUrl ?? "")
+        setHasSpectraToken(d.hasSpectraAnalyzeToken)
+        setSpectraToken(d.hasSpectraAnalyzeToken ? d.spectraAnalyzeToken : "")
+        setSpectraUrlStatus("idle")
+        setSpectraTokenStatus("idle")
       })
-      .catch(() => { setAbuseStatus("idle"); setIpinfoStatus("idle") })
+      .catch(() => {
+        setAbuseStatus("idle")
+        setIpinfoStatus("idle")
+        setSpectraUrlStatus("idle")
+        setSpectraTokenStatus("idle")
+      })
   }, [])
 
-  async function saveKey(field: string, value: string, setStatus: (s: SaveStatus) => void, setError: (e: string) => void, setHas: (b: boolean) => void) {
+  async function saveField(
+    body: Record<string, string>,
+    setStatus: (s: SaveStatus) => void,
+    setError: (e: string) => void,
+    afterSave?: () => void,
+  ) {
     setStatus("saving")
     setError("")
     try {
       const res = await apiFetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [field]: value }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error()
-      setHas(!!value.trim())
+      afterSave?.()
       setStatus("saved")
       setTimeout(() => setStatus("idle"), 3000)
     } catch {
       setError(t("set.common.couldNotSave"))
       setStatus("error")
     }
+  }
+
+  async function saveKey(
+    field: string,
+    value: string,
+    setStatus: (s: SaveStatus) => void,
+    setError: (e: string) => void,
+    setHas: (b: boolean) => void,
+  ) {
+    return saveField({ [field]: value }, setStatus, setError, () => setHas(!!value.trim()))
   }
 
   function clearKey(field: string, setValue: (s: string) => void, setHas: (b: boolean) => void) {
@@ -121,10 +209,10 @@ export function EnrichmentForm() {
     })
   }
 
-  const anyConfigured = hasAbuseKey || hasIpinfoKey
+  const anyConfigured = hasAbuseKey || hasIpinfoKey || hasSpectraToken
   const badge = anyConfigured ? (
     <span className="flex items-center gap-1 rounded-full bg-success/20 px-2 py-0.5 text-xs text-success">
-      <CheckCircle className="h-3 w-3" /> {[hasAbuseKey && "AbuseIPDB", hasIpinfoKey && "ipinfo"].filter(Boolean).join(" · ")}
+      <CheckCircle className="h-3 w-3" /> {[hasAbuseKey && "AbuseIPDB", hasIpinfoKey && "ipinfo", hasSpectraToken && "Spectra Analyze"].filter(Boolean).join(" · ")}
     </span>
   ) : undefined
 
@@ -163,6 +251,38 @@ export function EnrichmentForm() {
           onClear={() => clearKey("ipinfoApiKey", setIpinfoKey, setHasIpinfoKey)}
           status={ipinfoStatus}
           error={ipinfoError}
+        />
+
+        <div className="border-t border-border" />
+
+        <TextRow
+          id="spectra-url"
+          label={t("set.enrichment.spectraUrlLabel")}
+          placeholder={t("set.enrichment.spectraUrlPlaceholder")}
+          hint={t("set.enrichment.spectraUrlHint")}
+          value={spectraUrl}
+          loading={spectraUrlStatus === "loading"}
+          onChange={setSpectraUrl}
+          onSave={() => saveField({ spectraAnalyzeUrl: spectraUrl }, setSpectraUrlStatus, setSpectraUrlError)}
+          status={spectraUrlStatus}
+          error={spectraUrlError}
+        />
+
+        <div className="border-t border-border" />
+
+        <KeyRow
+          id="spectra-token"
+          label={t("set.enrichment.spectraTokenLabel")}
+          placeholder={t("set.enrichment.spectraTokenPlaceholder")}
+          hint={t("set.enrichment.spectraTokenHint")}
+          value={spectraToken}
+          hasKey={hasSpectraToken}
+          loading={spectraTokenStatus === "loading"}
+          onChange={setSpectraToken}
+          onSave={() => saveKey("spectraAnalyzeToken", spectraToken, setSpectraTokenStatus, setSpectraTokenError, setHasSpectraToken)}
+          onClear={() => clearKey("spectraAnalyzeToken", setSpectraToken, setHasSpectraToken)}
+          status={spectraTokenStatus}
+          error={spectraTokenError}
         />
 
         <div className="rounded-lg border border-border bg-secondary/50 p-3 text-xs text-muted-foreground">

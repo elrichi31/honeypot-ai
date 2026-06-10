@@ -1,6 +1,7 @@
 import { db } from "@/lib/db"
 import { readConfig } from "@/lib/server-config"
 import { sendDiscordAlert } from "@/lib/discord"
+import { fetchSpectraAnalyzeIpReport, type SpectraAnalyzeIpReport } from "@/lib/spectra-analyze"
 
 export interface AbuseReport {
   reportedAt: string
@@ -47,11 +48,13 @@ export interface IpEnrichment {
   ip: string
   abuseipdb: AbuseIpData | null
   ipinfo: IpInfoData | null
+  spectraAnalyze: SpectraAnalyzeIpReport | null
   cachedAt: string
 }
 
 const ABUSE_TTL_MS  = 7  * 24 * 60 * 60 * 1000
 const IPINFO_TTL_MS = 30 * 24 * 60 * 60 * 1000
+const SPECTRA_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 function isStale(fetchedAt: Date | null, ttl: number): boolean {
   if (!fetchedAt) return true
@@ -132,6 +135,7 @@ export async function enrichIp(ip: string): Promise<IpEnrichment> {
 
   const { rows } = await db.query(
     `SELECT abuseipdb_data, ipinfo_data, abuseipdb_fetched_at, ipinfo_fetched_at, cached_at
+            , spectra_analyze_data, spectra_analyze_fetched_at
      FROM ip_enrichment_cache WHERE ip = $1`,
     [ip]
   )
@@ -139,8 +143,10 @@ export async function enrichIp(ip: string): Promise<IpEnrichment> {
 
   let abuseipdb: AbuseIpData | null = row?.abuseipdb_data ?? null
   let ipinfo: IpInfoData | null = row?.ipinfo_data ?? null
+  let spectraAnalyze: SpectraAnalyzeIpReport | null = row?.spectra_analyze_data ?? null
   let abuseipdbFetchedAt: Date | null = row?.abuseipdb_fetched_at ?? null
   let ipinfoFetchedAt: Date | null = row?.ipinfo_fetched_at ?? null
+  let spectraAnalyzeFetchedAt: Date | null = row?.spectra_analyze_fetched_at ?? null
   let dirty = false
 
   const wasNewAbuse = !row?.abuseipdb_data
@@ -168,25 +174,36 @@ export async function enrichIp(ip: string): Promise<IpEnrichment> {
     if (data) { ipinfo = data; ipinfoFetchedAt = new Date(); dirty = true }
   }
 
+  if (config.spectraAnalyzeUrl && config.spectraAnalyzeToken && isStale(spectraAnalyzeFetchedAt, SPECTRA_TTL_MS)) {
+    const data = await fetchSpectraAnalyzeIpReport(ip, config.spectraAnalyzeUrl, config.spectraAnalyzeToken)
+    if (data) {
+      spectraAnalyze = data
+      spectraAnalyzeFetchedAt = new Date()
+      dirty = true
+    }
+  }
+
   const cachedAt = dirty ? new Date() : (row?.cached_at ?? new Date())
 
   if (dirty) {
     await db.query(
       `INSERT INTO ip_enrichment_cache
-         (ip, abuseipdb_data, ipinfo_data, abuseipdb_fetched_at, ipinfo_fetched_at, cached_at)
-       VALUES ($1, $2, $3, $4, $5, $6)
+         (ip, abuseipdb_data, ipinfo_data, spectra_analyze_data, abuseipdb_fetched_at, ipinfo_fetched_at, spectra_analyze_fetched_at, cached_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (ip) DO UPDATE SET
          abuseipdb_data        = EXCLUDED.abuseipdb_data,
          ipinfo_data           = EXCLUDED.ipinfo_data,
+         spectra_analyze_data  = EXCLUDED.spectra_analyze_data,
          abuseipdb_fetched_at  = EXCLUDED.abuseipdb_fetched_at,
          ipinfo_fetched_at     = EXCLUDED.ipinfo_fetched_at,
+         spectra_analyze_fetched_at = EXCLUDED.spectra_analyze_fetched_at,
          cached_at             = EXCLUDED.cached_at`,
-      [ip, abuseipdb, ipinfo, abuseipdbFetchedAt, ipinfoFetchedAt, cachedAt]
+      [ip, abuseipdb, ipinfo, spectraAnalyze, abuseipdbFetchedAt, ipinfoFetchedAt, spectraAnalyzeFetchedAt, cachedAt]
     )
   }
 
   return {
-    ip, abuseipdb, ipinfo,
+    ip, abuseipdb, ipinfo, spectraAnalyze,
     cachedAt: cachedAt.toISOString(),
   }
 }

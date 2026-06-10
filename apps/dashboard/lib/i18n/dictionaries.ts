@@ -204,7 +204,13 @@ const en = {
   "set.enrichment.ipinfoLabel": "ipinfo.io API Key",
   "set.enrichment.ipinfoPlaceholder": "your-ipinfo-token",
   "set.enrichment.ipinfoHint": "Free: 50,000 requests/month (works without a key, the key only raises the limit) · ipinfo.io/signup",
-  "set.enrichment.howBody": "When you open a threat or session detail, these APIs are queried. The result is cached for 7 days (AbuseIPDB) and 30 days (ipinfo) to avoid wasting quota. ipinfo works without a key.",
+  "set.enrichment.spectraUrlLabel": "Spectra Analyze URL",
+  "set.enrichment.spectraUrlPlaceholder": "https://appliance.example.com",
+  "set.enrichment.spectraUrlHint": "Base URL of your Spectra Analyze appliance, for example https://appliance.example.com.",
+  "set.enrichment.spectraTokenLabel": "Spectra Analyze Token",
+  "set.enrichment.spectraTokenPlaceholder": "your-spectra-token",
+  "set.enrichment.spectraTokenHint": "Token obtained from your Spectra Analyze appliance. IP lookups are only queried on demand and cached for 7 days.",
+  "set.enrichment.howBody": "When you open a threat or session detail, these APIs are queried on demand. The result is cached for 7 days (AbuseIPDB and Spectra Analyze) and 30 days (ipinfo) to avoid wasting quota. ipinfo works without a key.",
 
   // ── Settings: OpenAI ───────────────────────────────────────────────────────
   "set.openai.title": "AI Analysis",
@@ -600,7 +606,13 @@ const es: Record<TranslationKey, string> = {
   "set.enrichment.ipinfoLabel": "API Key de ipinfo.io",
   "set.enrichment.ipinfoPlaceholder": "tu-token-ipinfo",
   "set.enrichment.ipinfoHint": "Gratis: 50,000 peticiones/mes (funciona sin clave, la clave solo sube el límite) · ipinfo.io/signup",
-  "set.enrichment.howBody": "Cuando abres el detalle de una amenaza o sesión, se consultan estas APIs. El resultado se cachea por 7 días (AbuseIPDB) y 30 días (ipinfo) para no gastar cuota. ipinfo funciona sin clave.",
+  "set.enrichment.spectraUrlLabel": "URL de Spectra Analyze",
+  "set.enrichment.spectraUrlPlaceholder": "https://appliance.example.com",
+  "set.enrichment.spectraUrlHint": "URL base de tu appliance de Spectra Analyze, por ejemplo https://appliance.example.com.",
+  "set.enrichment.spectraTokenLabel": "Token de Spectra Analyze",
+  "set.enrichment.spectraTokenPlaceholder": "tu-token-de-spectra",
+  "set.enrichment.spectraTokenHint": "Token obtenido desde tu appliance de Spectra Analyze. Las consultas de IP se hacen bajo demanda y se cachean por 7 días.",
+  "set.enrichment.howBody": "Cuando abres el detalle de una amenaza o sesión, estas APIs se consultan bajo demanda. El resultado se cachea por 7 días (AbuseIPDB y Spectra Analyze) y 30 días (ipinfo) para no gastar cuota. ipinfo funciona sin clave.",
 
   // ── Settings: OpenAI ───────────────────────────────────────────────────────
   "set.openai.title": "Análisis con IA",

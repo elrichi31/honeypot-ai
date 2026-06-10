@@ -14,6 +14,8 @@ export interface AppConfig {
   openaiApiKey?: string
   abuseipdbApiKey?: string
   ipinfoApiKey?: string
+  spectraAnalyzeUrl?: string
+  spectraAnalyzeToken?: string
   discordWebhookUrl?: string
   // Honeypot infrastructure
   honeypotIp?: string
@@ -116,4 +118,14 @@ export async function resolveIngestUrl(): Promise<{ url: string | null; source: 
 export function getDiscordWebhookUrl(): string | undefined {
   const config = readConfig()
   return config.discordWebhookUrl || process.env.DISCORD_WEBHOOK_URL || undefined
+}
+
+export function getSpectraAnalyzeUrl(): string | undefined {
+  const config = readConfig()
+  return config.spectraAnalyzeUrl || process.env.SPECTRA_ANALYZE_URL || undefined
+}
+
+export function getSpectraAnalyzeToken(): string | undefined {
+  const config = readConfig()
+  return config.spectraAnalyzeToken || process.env.SPECTRA_ANALYZE_TOKEN || undefined
 }

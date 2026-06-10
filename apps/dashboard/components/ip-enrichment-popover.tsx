@@ -40,6 +40,7 @@ export function IpEnrichmentPopover({ ip, className = "" }: Props) {
 
   const abuse  = data?.abuseipdb
   const info   = data?.ipinfo
+  const spectra = data?.spectraAnalyze
   const score  = abuse?.abuseConfidenceScore ?? 0
 
   const flags: { label: string; on: boolean; color: string }[] = [
@@ -177,6 +178,22 @@ export function IpEnrichmentPopover({ ip, className = "" }: Props) {
               <div className="px-4 py-2.5 flex items-center gap-2">
                 <Lock className="h-3 w-3 text-muted-foreground" />
                 <span className="text-[11px] text-muted-foreground">{abuse.usageType}</span>
+              </div>
+            )}
+
+            {spectra && (
+              <div className="px-4 py-3 space-y-2">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Spectra Analyze</p>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="rounded border border-border/60 bg-secondary/30 p-2">
+                    <p className="text-muted-foreground">3rd-party malicious</p>
+                    <p className="font-mono text-foreground">{spectra.third_party_reputations?.statistics?.malicious ?? 0}</p>
+                  </div>
+                  <div className="rounded border border-border/60 bg-secondary/30 p-2">
+                    <p className="text-muted-foreground">Downloaded malicious</p>
+                    <p className="font-mono text-foreground">{spectra.downloaded_files_statistics?.malicious ?? 0}</p>
+                  </div>
+                </div>
               </div>
             )}
 

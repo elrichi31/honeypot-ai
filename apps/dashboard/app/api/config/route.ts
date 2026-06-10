@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { readConfig, writeConfig, getOpenAiKey, getDiscordWebhookUrl, getIngestSecret } from "@/lib/server-config"
+import {
+  readConfig,
+  writeConfig,
+  getOpenAiKey,
+  getDiscordWebhookUrl,
+  getIngestSecret,
+  getSpectraAnalyzeToken,
+  getSpectraAnalyzeUrl,
+} from "@/lib/server-config"
 import { logAudit } from "@/lib/audit"
 import { requireRole } from "@/lib/roles"
 
@@ -21,6 +29,9 @@ export async function GET() {
     hasAbuseipdbKey: !!config.abuseipdbApiKey,
     ipinfoApiKey: config.ipinfoApiKey ? maskKey(config.ipinfoApiKey) : "",
     hasIpinfoKey: !!config.ipinfoApiKey,
+    spectraAnalyzeUrl: getSpectraAnalyzeUrl() ?? "",
+    spectraAnalyzeToken: getSpectraAnalyzeToken() ? maskKey(getSpectraAnalyzeToken()) : "",
+    hasSpectraAnalyzeToken: !!getSpectraAnalyzeToken(),
     hasDiscordWebhook: !!getDiscordWebhookUrl(),
     honeypotIp: config.honeypotIp ?? process.env.HONEYPOT_IP ?? "",
     sshPort: config.sshPort ?? (Number(process.env.HONEYPOT_SSH_PORT) || 22),
@@ -58,6 +69,13 @@ export async function POST(req: NextRequest) {
   }
   if ("abuseipdbApiKey" in body) config.abuseipdbApiKey = body.abuseipdbApiKey?.trim() || undefined
   if ("ipinfoApiKey" in body) config.ipinfoApiKey = body.ipinfoApiKey?.trim() || undefined
+  if ("spectraAnalyzeUrl" in body) config.spectraAnalyzeUrl = body.spectraAnalyzeUrl?.trim() || undefined
+  if ("spectraAnalyzeToken" in body) {
+    if (typeof body.spectraAnalyzeToken !== "string")
+      return NextResponse.json({ error: "Invalid Spectra Analyze token" }, { status: 400 })
+    const trimmed = body.spectraAnalyzeToken.trim()
+    if (!trimmed.includes("•")) config.spectraAnalyzeToken = trimmed || undefined
+  }
   if ("discordWebhookUrl" in body) config.discordWebhookUrl = body.discordWebhookUrl?.trim() || undefined
   if ("honeypotIp" in body) config.honeypotIp = body.honeypotIp?.trim() || undefined
   if ("sshPort" in body) config.sshPort = Math.max(1, Math.min(65535, Number(body.sshPort) || 22))
@@ -81,7 +99,7 @@ export async function POST(req: NextRequest) {
   writeConfig(config)
 
   const changedKeys = Object.keys(body).filter((k) =>
-    !["openaiApiKey", "abuseipdbApiKey", "ipinfoApiKey", "discordWebhookUrl", "ingestSecret"].includes(k)
+    !["openaiApiKey", "abuseipdbApiKey", "ipinfoApiKey", "spectraAnalyzeToken", "discordWebhookUrl", "ingestSecret"].includes(k)
       ? true
       : !!body[k],
   )
