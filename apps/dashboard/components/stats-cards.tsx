@@ -2,6 +2,7 @@
 
 import { Activity, Terminal, Globe, Shield, ShieldX } from "lucide-react"
 import type { DashboardStats } from "@/lib/types"
+import { Surface } from "@/components/ui/surface"
 
 interface StatsCardsProps {
   stats: DashboardStats
@@ -49,9 +50,9 @@ export function StatsCards({ stats }: StatsCardsProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
       {cards.map((card) => (
-        <div
+        <Surface
           key={card.title}
-          className="rounded-xl border border-border bg-card p-4"
+          padded
         >
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">{card.title}</span>
@@ -62,7 +63,7 @@ export function StatsCards({ stats }: StatsCardsProps) {
           <p className="mt-2 text-3xl font-semibold text-foreground">
             {card.value}
           </p>
-        </div>
+        </Surface>
       ))}
     </div>
   )

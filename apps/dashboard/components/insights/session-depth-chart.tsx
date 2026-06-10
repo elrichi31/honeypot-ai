@@ -5,6 +5,7 @@ import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart"
 import type { ChartConfig } from "@/components/ui/chart"
 import type { DashboardInsights } from "@/lib/api"
+import { Surface } from "@/components/ui/surface"
 import { useT } from "@/components/locale-provider"
 
 const DEPTH_BUCKET_ORDER = ["0", "1-3", "4-10", "11-20", "21+"]
@@ -20,7 +21,7 @@ export function SessionDepthChart({ successfulDepth }: Props) {
   }))
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5">
+    <Surface className="p-5">
       <div className="mb-5 flex items-center gap-2">
         <Layers3 className="h-4 w-4 text-amber-400" />
         <div>
@@ -60,6 +61,6 @@ export function SessionDepthChart({ successfulDepth }: Props) {
           <p className="mt-1 text-2xl font-semibold text-foreground">{successfulDepth.interactiveSessions}</p>
         </div>
       </div>
-    </section>
+    </Surface>
   )
 }

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { useT } from "@/components/locale-provider"
 import { Clock, CheckCircle, Loader2 } from "lucide-react"
 import { SaveFeedback, CardHeader, type SaveStatus } from "./setting-card"
+import { Surface } from "@/components/ui/surface"
 
 export function SessionConfigForm() {
   const t = useT()
@@ -44,7 +45,7 @@ export function SessionConfigForm() {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <Surface>
       <CardHeader
         icon={Clock}
         iconBg="bg-indigo-500/20"
@@ -85,6 +86,6 @@ export function SessionConfigForm() {
           {t("set.session.note")}
         </div>
       </div>
-    </div>
+    </Surface>
   )
 }

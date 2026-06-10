@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { ArrowRight, Workflow } from "lucide-react"
 import type { DashboardInsights } from "@/lib/api"
+import { Surface } from "@/components/ui/surface"
 import { useT } from "@/components/locale-provider"
 
 const FUNNEL_COLORS = ["#60a5fa", "#38bdf8", "#34d399", "#f59e0b", "#ef4444"]
@@ -25,7 +26,7 @@ export function AttackFunnel({ funnel }: Props) {
   ]
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5">
+    <Surface className="p-5">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -69,6 +70,6 @@ export function AttackFunnel({ funnel }: Props) {
           </div>
         ))}
       </div>
-    </section>
+    </Surface>
   )
 }

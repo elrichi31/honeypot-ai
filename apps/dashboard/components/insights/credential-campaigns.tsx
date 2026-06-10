@@ -3,6 +3,7 @@
 import { Crosshair } from "lucide-react"
 import { useTimezone } from "@/components/timezone-provider"
 import { useT } from "@/components/locale-provider"
+import { Surface } from "@/components/ui/surface"
 import { formatInTimezone } from "@/lib/timezone"
 
 export interface CampaignGeoRow {
@@ -33,7 +34,7 @@ export function CredentialCampaigns({ rows }: Props) {
   const tz = useTimezone()
   const t = useT()
   return (
-    <section className="rounded-xl border border-border bg-card p-5">
+    <Surface className="p-5">
       <div className="mb-5 flex items-center gap-2">
         <Crosshair className="h-4 w-4 text-violet-400" />
         <div>
@@ -90,6 +91,6 @@ export function CredentialCampaigns({ rows }: Props) {
           </table>
         </div>
       </div>
-    </section>
+    </Surface>
   )
 }

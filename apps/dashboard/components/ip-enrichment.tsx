@@ -98,7 +98,7 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
           <span>IP Enrichment — no cached data</span>
         </div>
         <button onClick={doFetch} className="rounded-lg border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary/80 transition-colors">
-          Consultar ahora
+          Query now
         </button>
       </Surface>
     )
@@ -128,7 +128,7 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
           <h3 className="font-semibold text-foreground">IP Enrichment</h3>
         </div>
         <span className="text-[10px] text-muted-foreground">
-          actualizado {formatDistanceToNow(new Date(data.cachedAt), { addSuffix: true })}
+          updated {formatDistanceToNow(new Date(data.cachedAt), { addSuffix: true })}
         </span>
       </div>
 
@@ -144,16 +144,16 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
                 <span className={`text-4xl font-bold tabular-nums ${ABUSE_COLOR(ab.abuseConfidenceScore)}`}>
                   {ab.abuseConfidenceScore}%
                 </span>
-                <span className="ml-2 text-xs text-muted-foreground">confianza de abuso</span>
+                <span className="ml-2 text-xs text-muted-foreground">abuse confidence</span>
               </div>
               <div className="flex gap-4 text-xs">
                 <div className="text-center">
                   <p className="text-lg font-semibold text-foreground">{ab.totalReports.toLocaleString('en-US')}</p>
-                  <p className="text-muted-foreground">reportes</p>
+                  <p className="text-muted-foreground">reports</p>
                 </div>
                 <div className="text-center">
                   <p className="text-lg font-semibold text-foreground">{ab.numDistinctUsers.toLocaleString('en-US')}</p>
-                  <p className="text-muted-foreground">usuarios distintos</p>
+                  <p className="text-muted-foreground">distinct users</p>
                 </div>
               </div>
             </div>
@@ -162,7 +162,7 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
             {ab.abuseConfidenceScore >= 80 && (
               <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
-                <span className="text-xs font-medium text-destructive">IP ampliamente reportada como maliciosa</span>
+                <span className="text-xs font-medium text-destructive">IP widely reported as malicious</span>
               </div>
             )}
 

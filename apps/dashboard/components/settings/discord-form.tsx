@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Bell, Eye, EyeOff, CheckCircle, Loader2, Send, AlertTriangle } from "lucide-react"
 import { SaveFeedback, CardHeader, type SaveStatus } from "./setting-card"
+import { Surface } from "@/components/ui/surface"
 import { useT } from "@/components/locale-provider"
 
 export function DiscordForm() {
@@ -87,7 +88,7 @@ export function DiscordForm() {
   ) : undefined
 
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <Surface>
       <CardHeader
         icon={Bell}
         iconBg="bg-indigo-500/20"
@@ -173,6 +174,6 @@ export function DiscordForm() {
           </ul>
         </div>
       </div>
-    </div>
+    </Surface>
   )
 }

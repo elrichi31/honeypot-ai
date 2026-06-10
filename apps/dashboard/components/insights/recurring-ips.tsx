@@ -6,6 +6,7 @@ import { useTimezone } from "@/components/timezone-provider"
 import { useT } from "@/components/locale-provider"
 import { formatInTimezone } from "@/lib/timezone"
 import type { DashboardInsights } from "@/lib/api"
+import { Surface } from "@/components/ui/surface"
 
 function formatDateLabel(value: string | null, tz: string) {
   if (!value) return "n/a"
@@ -18,7 +19,7 @@ export function RecurringIps({ rows }: Props) {
   const tz = useTimezone()
   const t = useT()
   return (
-    <section className="rounded-xl border border-border bg-card p-5">
+    <Surface className="p-5">
       <div className="mb-5 flex items-center gap-2">
         <Fingerprint className="h-4 w-4 text-rose-400" />
         <div>
@@ -72,6 +73,6 @@ export function RecurringIps({ rows }: Props) {
           </div>
         ))}
       </div>
-    </section>
+    </Surface>
   )
 }

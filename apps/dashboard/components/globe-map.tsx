@@ -6,6 +6,7 @@ import { ShieldX, Maximize2, Minimize2 } from "lucide-react"
 import type { CountryAttack } from "@/lib/types"
 import { useGlobePointer } from "@/hooks/use-globe-pointer"
 import { useGlobeLabels } from "@/hooks/use-globe-labels"
+import { Surface } from "@/components/ui/surface"
 
 const CENTROIDS: Record<string, [number, number]> = {
   CN: [35.86, 104.19],  US: [37.09, -95.71],  RU: [61.52, 105.31],
@@ -137,7 +138,7 @@ export function GlobeMap({ countryAttacks }: GlobeMapProps) {
   }, [countryAttacks.length])
 
   return (
-    <div ref={cardRef} className="rounded-xl border border-border bg-card p-5 [&:fullscreen]:overflow-auto [&:fullscreen]:rounded-none">
+    <Surface ref={cardRef} className="p-5 [&:fullscreen]:overflow-auto [&:fullscreen]:rounded-none">
       <GlobeHeader
         hasData={hasData}
         countryCount={countryAttacks.length}
@@ -163,7 +164,7 @@ export function GlobeMap({ countryAttacks }: GlobeMapProps) {
 
         <CountryList countryAttacks={countryAttacks} totalSessions={totalSessions} />
       </div>
-    </div>
+    </Surface>
   )
 }
 

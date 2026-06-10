@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { CardHeader } from "./setting-card"
+import { Surface } from "@/components/ui/surface"
 import { useLocale } from "@/components/locale-provider"
 import { LOCALES, LOCALE_LABELS, type Locale } from "@/lib/i18n/dictionaries"
 
@@ -22,7 +23,7 @@ export function LanguageForm() {
   const { locale, setLocale, t } = useLocale()
 
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <Surface>
       <CardHeader
         icon={Languages}
         iconBg="bg-emerald-500/20"
@@ -46,6 +47,6 @@ export function LanguageForm() {
           </SelectContent>
         </Select>
       </div>
-    </div>
+    </Surface>
   )
 }

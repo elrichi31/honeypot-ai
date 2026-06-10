@@ -2,6 +2,7 @@
 
 import { Container } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Surface } from "@/components/ui/surface"
 
 type ContainerInfo = {
   name: string
@@ -27,7 +28,7 @@ function StateBadge({ state }: { state: string }) {
 
 export function ContainersCard({ containers, error }: { containers: ContainerInfo[]; error?: string }) {
   return (
-    <div className="rounded-xl border border-border bg-card px-4 py-3">
+    <Surface className="px-4 py-3">
       <div className="flex items-center gap-2 mb-3">
         <Container className="h-4 w-4 text-blue-400" />
         <span className="text-sm font-medium">Services</span>
@@ -52,6 +53,6 @@ export function ContainersCard({ containers, error }: { containers: ContainerInf
           ))}
         </div>
       )}
-    </div>
+    </Surface>
   )
 }

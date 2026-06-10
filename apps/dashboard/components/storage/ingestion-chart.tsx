@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts"
+import { Surface } from "@/components/ui/surface"
 
 type Range   = "24h" | "7d" | "30d"
 type DayEntry = { period: string; ssh: number; web: number; protocol: number; defense: number }
@@ -73,7 +74,7 @@ export function IngestionChart() {
   const display = data.map(d => ({ ...d, label: fmtLabel(d.period, range) }))
 
   return (
-    <div className="rounded-xl border border-border bg-card px-4 pt-4 pb-2">
+    <Surface className="px-4 pt-4 pb-2">
       <div className="flex items-center justify-between mb-1">
         <p className="text-sm font-semibold text-foreground">Daily Ingestion</p>
         <div className="flex gap-0.5 rounded-md border border-border bg-muted/30 p-0.5">
@@ -134,6 +135,6 @@ export function IngestionChart() {
           </LineChart>
         </ResponsiveContainer>
       )}
-    </div>
+    </Surface>
   )
 }

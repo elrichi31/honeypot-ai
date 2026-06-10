@@ -8,6 +8,7 @@ import type { PaginationMeta, SessionsSummary } from "@/lib/api"
 import { TableShell } from "@/components/table-shell"
 import { NavTransitionProvider, useNavTransitionOptional } from "@/lib/use-nav-transition"
 import { cn } from "@/lib/utils"
+import { Surface } from "@/components/ui/surface"
 import { countryFlag } from "@/lib/formatting"
 import { classify, groupScans, type SessionItem } from "@/lib/session-classify-v2"
 import { SessionRow } from "./session-row"
@@ -134,7 +135,7 @@ function SessionsTableInner({
     const preview = activeSessions.slice(0, 5)
 
     return (
-      <div className="rounded-xl border border-border bg-card">
+      <Surface>
         <div className="border-b border-border p-4">
           <h3 className="font-semibold text-foreground">Recent sessions</h3>
           <p className="text-sm text-muted-foreground">
@@ -155,7 +156,7 @@ function SessionsTableInner({
             </Link>
           </div>
         )}
-      </div>
+      </Surface>
     )
   }
 

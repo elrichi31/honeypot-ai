@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { AlertCircle, CheckCircle2, HardDrive, Loader2, RefreshCw } from "lucide-react"
 import { CardHeader } from "./setting-card"
+import { Surface } from "@/components/ui/surface"
 import { useT } from "@/components/locale-provider"
 import type { TranslationKey } from "@/lib/i18n/dictionaries"
 
@@ -36,7 +37,7 @@ export function OvaConfigCard() {
   useEffect(() => { load() }, [])
 
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <Surface>
       <CardHeader
         icon={HardDrive}
         iconBg="bg-violet-400/20"
@@ -101,7 +102,7 @@ export function OvaConfigCard() {
           </div>
         )}
       </div>
-    </div>
+    </Surface>
   )
 }
 

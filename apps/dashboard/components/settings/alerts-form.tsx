@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SlidersHorizontal } from "lucide-react"
 import { SaveFeedback, CardHeader, type SaveStatus } from "./setting-card"
+import { Surface } from "@/components/ui/surface"
 import { useT } from "@/components/locale-provider"
 import { type TranslationKey } from "@/lib/i18n/dictionaries"
 
@@ -113,7 +114,7 @@ export function AlertsForm() {
   const loading = status === "loading"
 
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <Surface>
       <CardHeader
         icon={SlidersHorizontal}
         iconBg="bg-orange-500/20"
@@ -219,6 +220,6 @@ export function AlertsForm() {
           <SaveFeedback status={status} error={error} />
         </div>
       </div>
-    </div>
+    </Surface>
   )
 }

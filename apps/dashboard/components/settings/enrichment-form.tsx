@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { ShieldCheck, Eye, EyeOff, CheckCircle, Loader2 } from "lucide-react"
 import { SaveFeedback, CardHeader, type SaveStatus } from "./setting-card"
+import { Surface } from "@/components/ui/surface"
 import { useT } from "@/components/locale-provider"
 
 interface KeyRowProps {
@@ -128,7 +129,7 @@ export function EnrichmentForm() {
   ) : undefined
 
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <Surface>
       <CardHeader icon={ShieldCheck} iconBg="bg-cyan-500/20" iconColor="text-cyan-400" title={t("set.enrichment.title")} description={t("set.enrichment.description")} badge={badge} />
 
       <div className="space-y-5 p-4">
@@ -169,6 +170,6 @@ export function EnrichmentForm() {
           <p>{t("set.enrichment.howBody")}</p>
         </div>
       </div>
-    </div>
+    </Surface>
   )
 }

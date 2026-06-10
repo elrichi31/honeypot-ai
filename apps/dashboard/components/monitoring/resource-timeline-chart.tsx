@@ -5,6 +5,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
 } from "recharts"
+import { Surface } from "@/components/ui/surface"
 
 type Range = "24h" | "7d" | "30d"
 
@@ -102,7 +103,7 @@ export default function ResourceTimelineChart() {
   const tickCount = range === "24h" ? 12 : range === "7d" ? 7 : 10
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 space-y-5">
+    <Surface padded className="space-y-5">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-foreground">Resource History</p>
         <div className="flex rounded-lg border border-border overflow-hidden">
@@ -161,6 +162,6 @@ export default function ResourceTimelineChart() {
           </div>
         </div>
       )}
-    </div>
+    </Surface>
   )
 }

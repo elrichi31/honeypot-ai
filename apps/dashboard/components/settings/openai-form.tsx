@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Sparkles, Eye, EyeOff, CheckCircle, Loader2 } from "lucide-react"
 import { SaveFeedback, CardHeader, type SaveStatus } from "./setting-card"
+import { Surface } from "@/components/ui/surface"
 import { useT } from "@/components/locale-provider"
 
 export function OpenAiForm() {
@@ -65,7 +66,7 @@ export function OpenAiForm() {
   ) : undefined
 
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <Surface>
       <CardHeader icon={Sparkles} iconBg="bg-primary/20" iconColor="text-primary" title={t("set.openai.title")} description={t("set.openai.description")} badge={badge} />
 
       <div className="space-y-4 p-4">
@@ -108,6 +109,6 @@ export function OpenAiForm() {
           <p>{t("set.openai.howBody")}</p>
         </div>
       </div>
-    </div>
+    </Surface>
   )
 }

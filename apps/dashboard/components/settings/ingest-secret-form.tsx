@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { KeyRound, Eye, EyeOff, CheckCircle, Loader2, RefreshCw } from "lucide-react"
 import { SaveFeedback, CardHeader, type SaveStatus } from "./setting-card"
+import { Surface } from "@/components/ui/surface"
 import { useT } from "@/components/locale-provider"
 
 // Generate a strong, URL-safe random secret in the browser (64 hex chars).
@@ -80,7 +81,7 @@ export function IngestSecretForm() {
   ) : undefined
 
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <Surface>
       <CardHeader
         icon={KeyRound}
         iconBg="bg-amber-500/20"
@@ -138,6 +139,6 @@ export function IngestSecretForm() {
           <p>{t("set.ingestSecret.importantBody")}</p>
         </div>
       </div>
-    </div>
+    </Surface>
   )
 }

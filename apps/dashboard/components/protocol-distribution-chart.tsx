@@ -2,6 +2,7 @@
 
 import { Cell, Pie, PieChart, Tooltip, ResponsiveContainer, Legend } from "recharts"
 import type { HoneypotOverview } from "@/lib/api"
+import { Surface } from "@/components/ui/surface"
 
 const SOURCE_COLORS: Record<string, string> = {
   SSH:         "#8b5cf6",
@@ -62,7 +63,7 @@ export function ProtocolDistributionChart({ overview }: { overview: HoneypotOver
     .sort((a, b) => b.value - a.value)
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <Surface padded>
       <div className="mb-2">
         <h3 className="font-semibold text-foreground">Event distribution</h3>
         <p className="text-sm text-muted-foreground">By sensor type · cumulative total</p>
@@ -105,9 +106,9 @@ export function ProtocolDistributionChart({ overview }: { overview: HoneypotOver
               ? `${(total / 1_000).toFixed(1)}k`
               : total.toLocaleString("en-US")}
           </p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">eventos</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">events</p>
         </div>
       </div>
-    </div>
+    </Surface>
   )
 }

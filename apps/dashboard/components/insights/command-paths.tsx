@@ -2,6 +2,7 @@
 
 import { Route } from "lucide-react"
 import type { DashboardInsights } from "@/lib/api"
+import { Surface } from "@/components/ui/surface"
 import { useT } from "@/components/locale-provider"
 
 function truncateSequence(sequence: string, max = 96) {
@@ -14,7 +15,7 @@ type Props = { patterns: DashboardInsights["commandPatterns"] }
 export function CommandPaths({ patterns }: Props) {
   const t = useT()
   return (
-    <section className="rounded-xl border border-border bg-card p-5">
+    <Surface className="p-5">
       <div className="mb-5 flex items-center gap-2">
         <Route className="h-4 w-4 text-cyan-400" />
         <div>
@@ -43,6 +44,6 @@ export function CommandPaths({ patterns }: Props) {
           </div>
         ))}
       </div>
-    </section>
+    </Surface>
   )
 }
