@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { WebAttacksNav } from "@/components/web-attacks-nav"
 import { PageShell } from "@/components/page-shell"
+import { Surface } from "@/components/ui/surface"
 import { SectionError } from "@/components/section-error"
 import { fetchWebTimeline, fetchWebHitsStats, fetchWebHourly } from "@/lib/api"
 import { TimelineCharts } from "./timeline-charts"
@@ -40,11 +41,11 @@ export default async function WebTimelinePage() {
           <SectionError />
         ) : (
           <div className="space-y-6">
-            <div className="rounded-xl border border-border bg-card p-4">
+            <Surface padded>
               <h3 className="mb-1 font-semibold text-foreground">Activity by hour</h3>
               <p className="mb-4 text-xs text-muted-foreground">Last 14 days · hour of day (UTC) · reveals when attacks land</p>
               <HourlyHeatmap cells={hourly} />
-            </div>
+            </Surface>
             <TimelineCharts days={days} attackTypes={attackTypes!} byAttackType={stats.byAttackType} />
           </div>
         )}

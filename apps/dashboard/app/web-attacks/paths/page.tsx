@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { WebAttacksNav } from "@/components/web-attacks-nav"
 import { PageShell } from "@/components/page-shell"
+import { Surface } from "@/components/ui/surface"
 import { SectionError } from "@/components/section-error"
 import { fetchWebPaths } from "@/lib/api"
 import { ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
@@ -48,21 +49,21 @@ export default async function WebPathsPage() {
 
         {/* Summary cards */}
         <div className="mb-6 grid grid-cols-3 gap-4">
-          <div className="rounded-xl border border-border bg-card p-4">
+          <Surface padded>
             <p className="text-sm text-muted-foreground">Scanner paths</p>
             <p className="mt-1 text-2xl font-semibold text-blue-400">{scannerPaths.length}</p>
             <p className="text-xs text-muted-foreground">wp-admin, phpmyadmin, .env…</p>
-          </div>
-          <div className="rounded-xl border border-border bg-card p-4">
+          </Surface>
+          <Surface padded>
             <p className="text-sm text-muted-foreground">Attack paths</p>
             <p className="mt-1 text-2xl font-semibold text-red-400">{attackPaths.length}</p>
             <p className="text-xs text-muted-foreground">SQLi, LFI, XSS, CmdI…</p>
-          </div>
-          <div className="rounded-xl border border-border bg-card p-4">
+          </Surface>
+          <Surface padded>
             <p className="text-sm text-muted-foreground">Recon / other</p>
             <p className="mt-1 text-2xl font-semibold text-muted-foreground">{reconPaths.length}</p>
             <p className="text-xs text-muted-foreground">robots.txt, favicon, root…</p>
-          </div>
+          </Surface>
         </div>
 
         {/* Full paths table */}

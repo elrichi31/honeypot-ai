@@ -2,6 +2,7 @@ import Link from "next/link"
 import { Zap, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { fetchWebBursts, fetchClients, fetchSensors } from "@/lib/api"
 import { PageShell } from "@/components/page-shell"
+import { Surface } from "@/components/ui/surface"
 import { ErrorState } from "@/components/ui/data-states"
 import { WebAttacksNav } from "@/components/web-attacks-nav"
 import { AttackTypeFilter } from "@/components/attack-type-filter"
@@ -131,7 +132,7 @@ export default async function WebBurstsPage({
 
       <WebAttacksNav active="bursts" />
 
-      <div className="mb-6 rounded-xl border border-border bg-card p-4">
+      <Surface padded className="mb-6">
         <div className="flex flex-wrap items-center gap-4">
           <AttackTypeFilter types={[...VALID_ATTACK_TYPES]} />
           <TimeRangeFilter />
@@ -156,7 +157,7 @@ export default async function WebBurstsPage({
             </div>
           </div>
         </div>
-      </div>
+      </Surface>
 
       <div className="flex min-h-[620px] max-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-xl border border-border bg-card">
         <div className="flex items-center gap-2 border-b border-border px-4 py-3">
