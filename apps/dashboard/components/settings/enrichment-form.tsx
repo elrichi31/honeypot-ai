@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { ShieldCheck, Eye, EyeOff, CheckCircle, Loader2 } from "lucide-react"
 import { SaveFeedback, CardHeader, type SaveStatus } from "./setting-card"
+import { useT } from "@/components/locale-provider"
 
 interface KeyRowProps {
   id: string
@@ -25,6 +26,7 @@ interface KeyRowProps {
 }
 
 function KeyRow({ id, label, placeholder, hint, value, hasKey, loading, onChange, onSave, onClear, status, error }: KeyRowProps) {
+  const t = useT()
   const [show, setShow] = useState(false)
   return (
     <div className="space-y-2">
@@ -33,7 +35,7 @@ function KeyRow({ id, label, placeholder, hint, value, hasKey, loading, onChange
         <div className="relative flex-1">
           {loading ? (
             <div className="flex h-10 items-center rounded-md border border-border bg-secondary px-3 text-sm text-muted-foreground">
-              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Loading...
+              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> {t("set.common.loading")}
             </div>
           ) : (
             <Input
@@ -53,9 +55,9 @@ function KeyRow({ id, label, placeholder, hint, value, hasKey, loading, onChange
           )}
         </div>
         <Button onClick={onSave} disabled={status === "saving" || loading} className="bg-primary text-primary-foreground hover:bg-primary/90">
-          {status === "saving" ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Saving</> : status === "saved" ? <><CheckCircle className="mr-1.5 h-3.5 w-3.5" />Saved</> : "Save"}
+          {status === "saving" ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />{t("set.common.saving")}</> : status === "saved" ? <><CheckCircle className="mr-1.5 h-3.5 w-3.5" />{t("set.common.saved")}</> : t("set.common.save")}
         </Button>
-        {hasKey && <Button variant="outline" onClick={onClear}>Clear</Button>}
+        {hasKey && <Button variant="outline" onClick={onClear}>{t("set.common.clear")}</Button>}
       </div>
       <SaveFeedback status={status} error={error} />
       <p className="text-xs text-muted-foreground">{hint}</p>
@@ -64,6 +66,7 @@ function KeyRow({ id, label, placeholder, hint, value, hasKey, loading, onChange
 }
 
 export function EnrichmentForm() {
+  const t = useT()
   const [abuseKey, setAbuseKey] = useState("")
   const [hasAbuseKey, setHasAbuseKey] = useState(false)
   const [abuseStatus, setAbuseStatus] = useState<SaveStatus>("loading")
@@ -102,7 +105,7 @@ export function EnrichmentForm() {
       setStatus("saved")
       setTimeout(() => setStatus("idle"), 3000)
     } catch {
-      setError("Could not save.")
+      setError(t("set.common.couldNotSave"))
       setStatus("error")
     }
   }
@@ -126,14 +129,14 @@ export function EnrichmentForm() {
 
   return (
     <div className="rounded-xl border border-border bg-card">
-      <CardHeader icon={ShieldCheck} iconBg="bg-cyan-500/20" iconColor="text-cyan-400" title="IP Enrichment" description="Enrich attacker IPs with external threat intelligence feeds" badge={badge} />
+      <CardHeader icon={ShieldCheck} iconBg="bg-cyan-500/20" iconColor="text-cyan-400" title={t("set.enrichment.title")} description={t("set.enrichment.description")} badge={badge} />
 
       <div className="space-y-5 p-4">
         <KeyRow
           id="abuseipdb-key"
-          label="AbuseIPDB API Key"
-          placeholder="your-abuseipdb-key"
-          hint="Free: 1,000 checks/day · abuseipdb.com/account/api"
+          label={t("set.enrichment.abuseLabel")}
+          placeholder={t("set.enrichment.abusePlaceholder")}
+          hint={t("set.enrichment.abuseHint")}
           value={abuseKey}
           hasKey={hasAbuseKey}
           loading={abuseStatus === "loading"}
@@ -148,9 +151,9 @@ export function EnrichmentForm() {
 
         <KeyRow
           id="ipinfo-key"
-          label="ipinfo.io API Key"
-          placeholder="your-ipinfo-token"
-          hint="Free: 50,000 requests/month (works without a key, the key only raises the limit) · ipinfo.io/signup"
+          label={t("set.enrichment.ipinfoLabel")}
+          placeholder={t("set.enrichment.ipinfoPlaceholder")}
+          hint={t("set.enrichment.ipinfoHint")}
           value={ipinfoKey}
           hasKey={hasIpinfoKey}
           loading={ipinfoStatus === "loading"}
@@ -162,8 +165,8 @@ export function EnrichmentForm() {
         />
 
         <div className="rounded-lg border border-border bg-secondary/50 p-3 text-xs text-muted-foreground">
-          <p className="mb-1 font-medium text-foreground">How it works</p>
-          <p>When you open a threat or session detail, these APIs are queried. The result is cached for <strong>7 days</strong> (AbuseIPDB) and <strong>30 days</strong> (ipinfo) to avoid wasting quota. ipinfo works without a key.</p>
+          <p className="mb-1 font-medium text-foreground">{t("set.common.howItWorks")}</p>
+          <p>{t("set.enrichment.howBody")}</p>
         </div>
       </div>
     </div>

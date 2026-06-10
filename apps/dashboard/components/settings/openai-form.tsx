@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Sparkles, Eye, EyeOff, CheckCircle, Loader2 } from "lucide-react"
 import { SaveFeedback, CardHeader, type SaveStatus } from "./setting-card"
+import { useT } from "@/components/locale-provider"
 
 export function OpenAiForm() {
+  const t = useT()
   const [key, setKey] = useState("")
   const [showKey, setShowKey] = useState(false)
   const [hasKey, setHasKey] = useState(false)
@@ -41,7 +43,7 @@ export function OpenAiForm() {
       setStatus("saved")
       setTimeout(() => setStatus("idle"), 3000)
     } catch {
-      setError("Could not save. Is the server running?")
+      setError(t("set.common.couldNotSaveServer"))
       setStatus("error")
     }
   }
@@ -58,22 +60,22 @@ export function OpenAiForm() {
 
   const badge = hasKey ? (
     <span className="flex items-center gap-1 rounded-full bg-success/20 px-2 py-0.5 text-xs text-success">
-      <CheckCircle className="h-3 w-3" /> Configured
+      <CheckCircle className="h-3 w-3" /> {t("set.common.configured")}
     </span>
   ) : undefined
 
   return (
     <div className="rounded-xl border border-border bg-card">
-      <CardHeader icon={Sparkles} iconBg="bg-primary/20" iconColor="text-primary" title="AI Analysis" description="OpenAI key for session threat analysis" badge={badge} />
+      <CardHeader icon={Sparkles} iconBg="bg-primary/20" iconColor="text-primary" title={t("set.openai.title")} description={t("set.openai.description")} badge={badge} />
 
       <div className="space-y-4 p-4">
         <div className="space-y-2">
-          <Label htmlFor="openai-key">OpenAI API Key</Label>
+          <Label htmlFor="openai-key">{t("set.openai.keyLabel")}</Label>
           <div className="flex gap-2">
             <div className="relative flex-1">
               {status === "loading" ? (
                 <div className="flex h-10 items-center rounded-md border border-border bg-secondary px-3 text-sm text-muted-foreground">
-                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Loading...
+                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> {t("set.common.loading")}
                 </div>
               ) : (
                 <Input
@@ -93,19 +95,17 @@ export function OpenAiForm() {
               )}
             </div>
             <Button onClick={save} disabled={status === "saving" || status === "loading"} className="bg-primary text-primary-foreground hover:bg-primary/90">
-              {status === "saving" ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Saving</> : status === "saved" ? <><CheckCircle className="mr-1.5 h-3.5 w-3.5" /> Saved</> : "Save"}
+              {status === "saving" ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> {t("set.common.saving")}</> : status === "saved" ? <><CheckCircle className="mr-1.5 h-3.5 w-3.5" /> {t("set.common.saved")}</> : t("set.common.save")}
             </Button>
-            {hasKey && <Button variant="outline" onClick={clear}>Clear</Button>}
+            {hasKey && <Button variant="outline" onClick={clear}>{t("set.common.clear")}</Button>}
           </div>
           <SaveFeedback status={status} error={error} />
-          <p className="text-xs text-muted-foreground">
-            Get your key at <span className="font-mono text-foreground">platform.openai.com/api-keys</span>. Stored locally, never exposed in plain text.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("set.openai.keyHint")}</p>
         </div>
 
         <div className="rounded-lg border border-border bg-secondary/50 p-3 text-xs text-muted-foreground">
-          <p className="mb-1 font-medium text-foreground">How it works</p>
-          <p>Open any session and click <strong>Analyze session</strong>. The dashboard sends session data to GPT-4o mini and returns a threat assessment.</p>
+          <p className="mb-1 font-medium text-foreground">{t("set.common.howItWorks")}</p>
+          <p>{t("set.openai.howBody")}</p>
         </div>
       </div>
     </div>

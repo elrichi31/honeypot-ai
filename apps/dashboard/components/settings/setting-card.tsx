@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { useT } from "@/components/locale-provider"
 import { CheckCircle, AlertCircle, Loader2 } from "lucide-react"
 
 export type SaveStatus = "idle" | "loading" | "saving" | "saved" | "error"
@@ -10,6 +11,7 @@ export function Skeleton() {
 }
 
 export function SaveFeedback({ status, error }: { status: SaveStatus; error: string }) {
+  const t = useT()
   if (status === "error")
     return (
       <p className="flex items-center gap-1 text-xs text-destructive">
@@ -19,13 +21,14 @@ export function SaveFeedback({ status, error }: { status: SaveStatus; error: str
   if (status === "saved")
     return (
       <p className="flex items-center gap-1 text-xs text-success">
-        <CheckCircle className="h-3 w-3" /> Saved successfully.
+        <CheckCircle className="h-3 w-3" /> {t("set.common.savedOk")}
       </p>
     )
   return null
 }
 
 export function SaveButton({ status, loading }: { status: SaveStatus; loading: boolean }) {
+  const t = useT()
   return (
     <Button
       type="submit"
@@ -33,11 +36,11 @@ export function SaveButton({ status, loading }: { status: SaveStatus; loading: b
       className="bg-primary text-primary-foreground hover:bg-primary/90"
     >
       {status === "saving" ? (
-        <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Saving</>
+        <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> {t("set.common.saving")}</>
       ) : status === "saved" ? (
-        <><CheckCircle className="mr-1.5 h-3.5 w-3.5" /> Saved</>
+        <><CheckCircle className="mr-1.5 h-3.5 w-3.5" /> {t("set.common.saved")}</>
       ) : (
-        "Save"
+        t("set.common.save")
       )}
     </Button>
   )

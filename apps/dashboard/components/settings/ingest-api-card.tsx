@@ -3,16 +3,19 @@
 import { useEffect, useState } from "react"
 import { AlertCircle, CheckCircle2, HardDrive, Loader2, RefreshCw } from "lucide-react"
 import { CardHeader } from "./setting-card"
+import { useT } from "@/components/locale-provider"
+import type { TranslationKey } from "@/lib/i18n/dictionaries"
 
 type OvaConfig = { ingestUrl: string; ip: string; port: string; source: string }
 
-const SOURCE_LABEL: Record<string, string> = {
-  "SENSOR_INGEST_URL":   "SENSOR_INGEST_URL variable",
-  "NEXT_PUBLIC_API_URL": "NEXT_PUBLIC_API_URL variable",
-  "auto-detected":       "Auto-detected public IP",
+const SOURCE_LABEL_KEY: Record<string, string> = {
+  "SENSOR_INGEST_URL":   "set.infra.srcSensorVar",
+  "NEXT_PUBLIC_API_URL": "set.infra.srcPublicVar",
+  "auto-detected":       "set.infra.srcAuto",
 }
 
 export function OvaConfigCard() {
+  const t = useT()
   const [config, setConfig]   = useState<OvaConfig | null>(null)
   const [error, setError]     = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -26,7 +29,7 @@ export function OvaConfigCard() {
         if (d.error) setError(d.error)
         else setConfig(d)
       })
-      .catch(() => setError("Could not fetch the configuration"))
+      .catch(() => setError(t("set.ingestApi.fetchError")))
       .finally(() => setLoading(false))
   }
 
@@ -38,15 +41,15 @@ export function OvaConfigCard() {
         icon={HardDrive}
         iconBg="bg-violet-400/20"
         iconColor="text-violet-400"
-        title="Ingest API"
-        description="Automatically detected public URL — the one sensors use to connect"
+        title={t("set.ingestApi.title")}
+        description={t("set.ingestApi.description")}
       />
 
       <div className="p-4 space-y-4">
         {loading && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Detecting the server's public IP…
+            {t("set.ingestApi.detecting")}
           </div>
         )}
 
@@ -56,7 +59,7 @@ export function OvaConfigCard() {
             <div className="space-y-1">
               <p>{error}</p>
               <p className="text-xs opacity-80">
-                You can force a value with <code className="font-mono">SENSOR_INGEST_URL=http://&lt;ip&gt;:3000</code> in your .env
+                {t("set.ingestApi.forceHint")}
               </p>
             </div>
           </div>
@@ -65,15 +68,15 @@ export function OvaConfigCard() {
         {config && (
           <div className="space-y-3">
             <div className="rounded-lg border border-border divide-y divide-border">
-              <Row label="Ingest URL" value={config.ingestUrl} mono />
-              <Row label="Public IP" value={config.ip} mono />
-              <Row label="Port" value={config.port} mono />
+              <Row label={t("set.infra.rowIngestUrl")} value={config.ingestUrl} mono />
+              <Row label={t("set.infra.rowPublicIp")} value={config.ip} mono />
+              <Row label={t("set.infra.rowPort")} value={config.port} mono />
               <Row
-                label="Source"
+                label={t("set.infra.rowSource")}
                 value={
                   <span className="flex items-center gap-1.5 text-emerald-400 text-sm">
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    {SOURCE_LABEL[config.source] ?? config.source}
+                    {t((SOURCE_LABEL_KEY[config.source] ?? config.source) as TranslationKey)}
                   </span>
                 }
               />
@@ -83,8 +86,7 @@ export function OvaConfigCard() {
               <div className="flex items-start gap-2 rounded-lg border border-amber-400/20 bg-amber-400/5 px-3 py-2.5 text-xs text-amber-400">
                 <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                 <span>
-                  Port <strong>{config.port}</strong> must be open in the server firewall so the sensor can connect.
-                  Run: <code className="font-mono">ufw allow {config.port}/tcp</code>
+                  Port <strong>{config.port}</strong> {t("set.ingestApi.firewallNote")} <code className="font-mono">ufw allow {config.port}/tcp</code>
                 </span>
               </div>
             )}
@@ -94,7 +96,7 @@ export function OvaConfigCard() {
               className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               <RefreshCw className="h-3 w-3" />
-              Re-detect
+              {t("set.common.reDetect")}
             </button>
           </div>
         )}

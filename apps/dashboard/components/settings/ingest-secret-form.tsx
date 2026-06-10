@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { KeyRound, Eye, EyeOff, CheckCircle, Loader2, RefreshCw } from "lucide-react"
 import { SaveFeedback, CardHeader, type SaveStatus } from "./setting-card"
+import { useT } from "@/components/locale-provider"
 
 // Generate a strong, URL-safe random secret in the browser (64 hex chars).
 function generateSecret(): string {
@@ -17,6 +18,7 @@ function generateSecret(): string {
 }
 
 export function IngestSecretForm() {
+  const t = useT()
   const [secret, setSecret] = useState("")
   const [hasSecret, setHasSecret] = useState(false)
   const [show, setShow] = useState(false)
@@ -52,7 +54,7 @@ export function IngestSecretForm() {
       setStatus("saved")
       setTimeout(() => setStatus("idle"), 3000)
     } catch {
-      setError("Could not save.")
+      setError(t("set.common.couldNotSave"))
       setStatus("error")
     }
   }
@@ -73,7 +75,7 @@ export function IngestSecretForm() {
 
   const badge = hasSecret ? (
     <span className="flex items-center gap-1 rounded-full bg-success/20 px-2 py-0.5 text-xs text-success">
-      <CheckCircle className="h-3 w-3" /> Configured
+      <CheckCircle className="h-3 w-3" /> {t("set.common.configured")}
     </span>
   ) : undefined
 
@@ -83,8 +85,8 @@ export function IngestSecretForm() {
         icon={KeyRound}
         iconBg="bg-amber-500/20"
         iconColor="text-amber-400"
-        title="Ingest secret"
-        description="Shared key that sensors use to authenticate to the ingest. It's embedded automatically in every installer."
+        title={t("set.ingestSecret.title")}
+        description={t("set.ingestSecret.description")}
         badge={badge}
       />
 
@@ -94,13 +96,13 @@ export function IngestSecretForm() {
           <div className="relative flex-1">
             {status === "loading" ? (
               <div className="flex h-10 items-center rounded-md border border-border bg-secondary px-3 text-sm text-muted-foreground">
-                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Loading...
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> {t("set.common.loading")}
               </div>
             ) : (
               <Input
                 id="ingest-secret"
                 type={show ? "text" : "password"}
-                placeholder="generate or paste a long secret"
+                placeholder={t("set.ingestSecret.placeholder")}
                 value={secret}
                 onChange={(e) => { setSecret(e.target.value); setDirty(true) }}
                 onKeyDown={(e) => e.key === "Enter" && dirty && save(secret)}
@@ -118,26 +120,22 @@ export function IngestSecretForm() {
             )}
           </div>
           <Button variant="outline" onClick={handleGenerate} disabled={status === "loading"} className="gap-1.5">
-            <RefreshCw className="h-3.5 w-3.5" /> Generate
+            <RefreshCw className="h-3.5 w-3.5" /> {t("set.common.generate")}
           </Button>
           <Button
             onClick={() => save(secret)}
             disabled={status === "saving" || status === "loading" || !dirty}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
-            {status === "saving" ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Saving</> : status === "saved" ? <><CheckCircle className="mr-1.5 h-3.5 w-3.5" />Saved</> : "Save"}
+            {status === "saving" ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />{t("set.common.saving")}</> : status === "saved" ? <><CheckCircle className="mr-1.5 h-3.5 w-3.5" />{t("set.common.saved")}</> : t("set.common.save")}
           </Button>
-          {hasSecret && <Button variant="outline" onClick={handleClear}>Clear</Button>}
+          {hasSecret && <Button variant="outline" onClick={handleClear}>{t("set.common.clear")}</Button>}
         </div>
         <SaveFeedback status={status} error={error} />
 
         <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-muted-foreground">
-          <p className="mb-1 font-medium text-foreground">Important</p>
-          <p>
-            If you change this secret, already-deployed sensors will stop reporting (HTTP 401)
-            until you reinstall them with a new installer. The server's ingest-api must use
-            the same value (<span className="font-mono">INGEST_SHARED_SECRET</span> variable).
-          </p>
+          <p className="mb-1 font-medium text-foreground">{t("set.ingestSecret.importantTitle")}</p>
+          <p>{t("set.ingestSecret.importantBody")}</p>
         </div>
       </div>
     </div>

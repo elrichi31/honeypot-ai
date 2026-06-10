@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SlidersHorizontal } from "lucide-react"
 import { SaveFeedback, CardHeader, type SaveStatus } from "./setting-card"
+import { useT } from "@/components/locale-provider"
+import { type TranslationKey } from "@/lib/i18n/dictionaries"
 
 interface AlertEnabledTypes {
   threatScore: boolean
@@ -27,20 +29,20 @@ interface AlertConfig {
 }
 
 const ALERT_TYPE_LABELS: { key: keyof AlertEnabledTypes; label: string; description: string }[] = [
-  { key: "threatScore",   label: "Critical threat",              description: "Risk score ≥ 80/100" },
-  { key: "multiService",  label: "Multi-service",                description: "3+ distinct protocols in 10 min" },
-  { key: "authBurst",     label: "Authentication burst",         description: "12+ attempts in 5 min" },
-  { key: "postAuth",      label: "Successful login + commands",  description: "Authenticated and ran suspicious commands" },
-  { key: "attackChain",   label: "Attack chain",                 description: "Scan → exploit → auth in sequence" },
-  { key: "sensorOffline", label: "Sensor offline",               description: "Sensor with no heartbeat for over 2 min" },
+  { key: "threatScore",   label: "set.alerts.typeThreatScore",  description: "set.alerts.typeThreatScoreDesc" },
+  { key: "multiService",  label: "set.alerts.typeMultiService",  description: "set.alerts.typeMultiServiceDesc" },
+  { key: "authBurst",     label: "set.alerts.typeAuthBurst",     description: "set.alerts.typeAuthBurstDesc" },
+  { key: "postAuth",      label: "set.alerts.typePostAuth",      description: "set.alerts.typePostAuthDesc" },
+  { key: "attackChain",   label: "set.alerts.typeAttackChain",   description: "set.alerts.typeAttackChainDesc" },
+  { key: "sensorOffline", label: "set.alerts.typeSensorOffline", description: "set.alerts.typeSensorOfflineDesc" },
 ]
 
 const REPORT_INTERVAL_OPTIONS = [
-  { value: 0,  label: "Disabled" },
-  { value: 4,  label: "Every 4 hours" },
-  { value: 8,  label: "Every 8 hours" },
-  { value: 12, label: "Every 12 hours" },
-  { value: 24, label: "Once a day" },
+  { value: 0,  label: "set.alerts.reportDisabled" },
+  { value: 4,  label: "set.alerts.report4h" },
+  { value: 8,  label: "set.alerts.report8h" },
+  { value: 12, label: "set.alerts.report12h" },
+  { value: 24, label: "set.alerts.report24h" },
 ]
 
 const DEFAULT_CONFIG: AlertConfig = {
@@ -58,6 +60,7 @@ const DEFAULT_CONFIG: AlertConfig = {
 }
 
 export function AlertsForm() {
+  const t = useT()
   const [cfg, setCfg] = useState<AlertConfig>(DEFAULT_CONFIG)
   const [status, setStatus] = useState<SaveStatus>("loading")
   const [error, setError] = useState("")
@@ -102,7 +105,7 @@ export function AlertsForm() {
       setStatus("saved")
       setTimeout(() => setStatus("idle"), 3000)
     } catch {
-      setError("Could not save.")
+      setError(t("set.common.couldNotSave"))
       setStatus("error")
     }
   }
@@ -115,15 +118,15 @@ export function AlertsForm() {
         icon={SlidersHorizontal}
         iconBg="bg-orange-500/20"
         iconColor="text-orange-400"
-        title="Alert configuration"
-        description="Control which events trigger notifications and how often"
+        title={t("set.alerts.title")}
+        description={t("set.alerts.description")}
       />
 
       <div className="space-y-6 p-4">
 
         {/* Minimum level */}
         <div className="space-y-2">
-          <Label className="text-sm font-medium">Minimum alert level</Label>
+          <Label className="text-sm font-medium">{t("set.alerts.minLevel")}</Label>
           <div className="flex gap-2">
             {(["critical", "high"] as const).map((level) => (
               <button
@@ -138,24 +141,22 @@ export function AlertsForm() {
                     : "border-border bg-secondary text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {level === "critical" ? "CRITICAL only" : "HIGH and CRITICAL"}
+                {level === "critical" ? t("set.alerts.criticalOnly") : t("set.alerts.highAndCritical")}
               </button>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground">
-            CRITICAL = score ≥ 80. HIGH = score ≥ 60. Recommended: CRITICAL only for less noise.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("set.alerts.levelHint")}</p>
         </div>
 
         {/* Alert types */}
         <div className="space-y-3">
-          <Label className="text-sm font-medium">Active alert types</Label>
+          <Label className="text-sm font-medium">{t("set.alerts.activeTypes")}</Label>
           <div className="rounded-lg border border-border divide-y divide-border">
             {ALERT_TYPE_LABELS.map(({ key, label, description }) => (
               <div key={key} className="flex items-center justify-between px-3 py-2.5">
                 <div>
-                  <p className="text-sm font-medium text-foreground">{label}</p>
-                  <p className="text-xs text-muted-foreground">{description}</p>
+                  <p className="text-sm font-medium text-foreground">{t(label as TranslationKey)}</p>
+                  <p className="text-xs text-muted-foreground">{t(description as TranslationKey)}</p>
                 </div>
                 <Switch
                   checked={cfg.alertEnabledTypes[key]}
@@ -169,7 +170,7 @@ export function AlertsForm() {
 
         {/* Cooldown */}
         <div className="space-y-2">
-          <Label htmlFor="cooldown" className="text-sm font-medium">Cooldown per IP (minutes)</Label>
+          <Label htmlFor="cooldown" className="text-sm font-medium">{t("set.alerts.cooldownLabel")}</Label>
           <div className="flex items-center gap-3">
             <Input
               id="cooldown"
@@ -181,15 +182,13 @@ export function AlertsForm() {
               disabled={loading}
               className="w-28"
             />
-            <span className="text-xs text-muted-foreground">
-              Once an IP has been alerted, it won't be notified again until this time has elapsed.
-            </span>
+            <span className="text-xs text-muted-foreground">{t("set.alerts.cooldownHint")}</span>
           </div>
         </div>
 
         {/* Automatic report */}
         <div className="space-y-2">
-          <Label className="text-sm font-medium">Automatic report to Discord</Label>
+          <Label className="text-sm font-medium">{t("set.alerts.reportLabel")}</Label>
           <div className="flex flex-wrap gap-2">
             {REPORT_INTERVAL_OPTIONS.map(({ value, label }) => (
               <button
@@ -202,13 +201,11 @@ export function AlertsForm() {
                     : "border-border bg-secondary text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {label}
+                {t(label as TranslationKey)}
               </button>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground">
-            Activity summary sent to Discord. If there was no activity in the period, nothing is sent.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("set.alerts.reportHint")}</p>
         </div>
 
         <div className="flex items-center gap-3 pt-1">
@@ -217,7 +214,7 @@ export function AlertsForm() {
             disabled={status === "saving" || loading}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
-            {status === "saving" ? "Saving..." : status === "saved" ? "Saved" : "Save"}
+            {status === "saving" ? t("set.common.savingEllipsis") : status === "saved" ? t("set.common.saved") : t("set.common.save")}
           </Button>
           <SaveFeedback status={status} error={error} />
         </div>
