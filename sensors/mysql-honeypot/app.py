@@ -49,7 +49,7 @@ def _server_greeting() -> bytes:
         + b"5.7.44-log\x00"                 # server version string
         + struct.pack("<I", 1)              # connection id
         + scramble[:8] + b"\x00"           # auth-plugin-data part 1 + filler
-        + struct.pack("<H", 0xF7FF)        # capability flags (lower)
+        + struct.pack("<H", 0xF7FF & ~0x0800)  # capability flags (lower) — no CLIENT_SSL
         + bytes([33])                       # charset: utf8
         + struct.pack("<H", 0x0002)        # server status
         + struct.pack("<H", 0x0200)        # capability flags (upper) — CLIENT_PLUGIN_AUTH
@@ -62,8 +62,8 @@ def _server_greeting() -> bytes:
     return header + payload
 
 
-def _error_packet(code: int, msg: bytes) -> bytes:
-    payload = b"\xff" + struct.pack("<H", code) + b"#28000" + msg
+def _error_packet(code: int, msg: bytes, sql_state: bytes = b"#28000") -> bytes:
+    payload = b"\xff" + struct.pack("<H", code) + sql_state + msg
     header = struct.pack("<I", len(payload))[:3] + bytes([2])  # seq = 2
     return header + payload
 
@@ -87,6 +87,10 @@ def _parse_database(auth_data: bytes, username_end: int) -> str | None:
     elif first_byte == 0xFC and offset + 3 <= len(auth_data):
         auth_len = struct.unpack("<H", auth_data[offset + 1:offset + 3])[0]
         offset += 3 + auth_len
+    elif first_byte == 0xFD and offset + 4 <= len(auth_data):
+        # 3-byte length encoding (valid in older MySQL wire protocol)
+        auth_len = struct.unpack("<I", auth_data[offset + 1:offset + 4] + b"\x00")[0]
+        offset += 4 + auth_len
     elif first_byte == 0xFE and offset + 9 <= len(auth_data):
         auth_len = struct.unpack("<Q", auth_data[offset + 1:offset + 9])[0]
         offset += 9 + auth_len
@@ -169,29 +173,49 @@ async def handle(reader, writer):
         writer.write(_server_greeting())
         await writer.drain()
 
+        # Every TCP connection that completes the greeting is a connect event
+        await loop.run_in_executor(None, _send, "connect", src_ip, src_port)
+
         # Read client auth packet (4-byte header first)
         hdr = await asyncio.wait_for(reader.read(4), timeout=15)
         if len(hdr) < 4:
-            await loop.run_in_executor(None, _send, "connect", src_ip, src_port)
             return
 
         pkt_len = struct.unpack("<I", hdr[:3] + b"\x00")[0]
-        if pkt_len < 32 or pkt_len > 16384:
-            await loop.run_in_executor(None, _send, "connect", src_ip, src_port)
+        if pkt_len > 16384:
             return
 
         auth_data = await asyncio.wait_for(reader.read(pkt_len), timeout=15)
 
+        # SSL Request Packet: exactly 32 bytes (capabilities + max_packet_size +
+        # charset + 23 reserved). Should not happen since we cleared CLIENT_SSL from
+        # the greeting, but handle defensively in case a client ignores that.
+        if pkt_len == 32:
+            caps = struct.unpack("<I", auth_data[:4])[0] if len(auth_data) >= 4 else 0
+            if caps & 0x0800:  # CLIENT_SSL
+                err_msg = b"SSL connection error: SSL is not enabled on the server"
+                writer.write(_error_packet(2026, err_msg, sql_state=b"#HY000"))
+                await writer.drain()
+                # Read the plaintext auth packet the client sends after SSL failure
+                hdr2 = await asyncio.wait_for(reader.read(4), timeout=15)
+                if len(hdr2) < 4:
+                    return
+                pkt_len = struct.unpack("<I", hdr2[:3] + b"\x00")[0]
+                if pkt_len < 32 or pkt_len > 16384:
+                    return
+                auth_data = await asyncio.wait_for(reader.read(pkt_len), timeout=15)
+            else:
+                return
+
         # Layout: capabilities(4) + max_packet_size(4) + charset(1) + reserved(23) = 32 bytes
         # Then: username (null-terminated)
         offset = 32
-        if len(auth_data) <= offset:
-            await loop.run_in_executor(None, _send, "connect", src_ip, src_port)
+        if len(auth_data) < offset:
             return
 
         null_pos = auth_data.find(b"\x00", offset)
-        username = auth_data[offset:null_pos].decode(errors="replace") if null_pos > offset else ""
-        username_end = (null_pos + 1) if null_pos > offset else (offset + 1)
+        username = auth_data[offset:null_pos].decode(errors="replace") if null_pos >= offset else ""
+        username_end = (null_pos + 1) if null_pos >= offset else (offset + 1)
 
         database = _parse_database(auth_data, username_end)
 
