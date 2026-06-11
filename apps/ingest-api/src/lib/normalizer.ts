@@ -10,6 +10,13 @@ const EVENT_MAP: Record<string, InternalEventType> = {
   'cowrie.client.size': 'client.size',
   'cowrie.command.input': 'command.input',
   'cowrie.command.failed': 'command.failed',
+  // High-interaction payload events — previously dropped to 'unknown'. These are
+  // the most valuable Cowrie captures: malware the attacker pulled in (wget/curl),
+  // files they uploaded (scp/sftp), and tunnel/proxy attempts.
+  'cowrie.session.file_download': 'file.download',
+  'cowrie.session.file_upload': 'file.upload',
+  'cowrie.direct-tcpip.request': 'direct.tcpip',
+  'cowrie.direct-tcpip.data': 'direct.tcpip',
 };
 
 export function normalizeEventType(rawEventId: string): InternalEventType {
@@ -42,6 +49,29 @@ export function buildNormalizedJson(raw: CowrieRawEvent): Record<string, unknown
       return { ...base, duration: raw.duration };
     case 'client.size':
       return { ...base, width: (raw as any).width, height: (raw as any).height };
+    case 'file.download':
+      // Cowrie file_download: url = where the attacker fetched it from,
+      // shasum = SHA256 of the captured binary (also its filename in downloads/),
+      // outfile = path on disk, destfile = path the attacker wrote it to.
+      return {
+        ...base,
+        url: (raw as any).url,
+        shasum: (raw as any).shasum,
+        outfile: (raw as any).outfile,
+        destfile: (raw as any).destfile,
+        size: (raw as any).size,
+      };
+    case 'file.upload':
+      return {
+        ...base,
+        filename: (raw as any).filename,
+        shasum: (raw as any).shasum,
+        outfile: (raw as any).outfile,
+        size: (raw as any).size,
+      };
+    case 'direct.tcpip':
+      // Attacker using the honeypot as a proxy/tunnel toward another host.
+      return { ...base, dstIp: (raw as any).dst_ip, dstPort: (raw as any).dst_port };
     default:
       return base;
   }

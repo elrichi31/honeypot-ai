@@ -23,13 +23,23 @@ export function toNormalizedEvent(raw: CowrieRawEvent): NormalizedEvent {
   const eventType = normalizeEventType(raw.eventid);
   const message = typeof raw.message === 'string' ? raw.message : null;
 
+  // For payload events, surface the most informative value in `command` so it
+  // shows up legibly in the events/commands views (e.g. the download URL).
+  let command = raw.input ?? null;
+  if (eventType === 'file.download') command = (raw as any).url ?? message;
+  else if (eventType === 'file.upload') command = (raw as any).filename ?? message;
+  else if (eventType === 'direct.tcpip') {
+    const di = (raw as any).dst_ip, dp = (raw as any).dst_port;
+    command = di ? `tunnel → ${di}${dp ? `:${dp}` : ''}` : message;
+  }
+
   return {
     sessionId: raw.session,
     eventType,
     eventTs: new Date(raw.timestamp),
     srcIp: raw.src_ip,
     message,
-    command: raw.input ?? null,
+    command,
     username: raw.username ?? null,
     password: raw.password ?? null,
     success: eventType === 'auth.success' ? true : eventType === 'auth.failed' ? false : null,

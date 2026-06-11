@@ -30,6 +30,9 @@ export type InternalEventType =
   | 'client.size'
   | 'command.input'
   | 'command.failed'
+  | 'file.download'
+  | 'file.upload'
+  | 'direct.tcpip'
   | 'unknown';
 
 export interface NormalizedEvent {
