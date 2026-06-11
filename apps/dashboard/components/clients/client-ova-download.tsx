@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import type { Client } from "@/lib/api"
+import { useT } from "@/components/locale-provider"
 
 type ServiceKey = "ssh" | "http" | "ftp" | "mysql" | "port"
 
@@ -41,6 +42,7 @@ function timeAgo(iso: string): string {
 type Props = { client: Client }
 
 export function ClientOVADownload({ client }: Props) {
+  const t = useT()
   const [open, setOpen]           = useState(false)
   const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState<string | null>(null)
@@ -60,7 +62,7 @@ export function ClientOVADownload({ client }: Props) {
         if (data.error) setConfigError(data.error)
         else setConfig(data)
       })
-      .catch(() => setConfigError("Could not fetch server configuration"))
+      .catch(() => setConfigError(t("sensors.config.loadError")))
       .finally(() => setConfigLoading(false))
   }, [open])
 
@@ -121,7 +123,7 @@ export function ClientOVADownload({ client }: Props) {
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <HardDrive className="h-3.5 w-3.5" />
-          Download OVA Package
+          {t("clients.ova.button")}
         </Button>
       </DialogTrigger>
 
@@ -129,10 +131,10 @@ export function ClientOVADownload({ client }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Box className="h-5 w-5 text-violet-400" />
-            OVA Sensor Package — {client.name}
+            {t("clients.ova.title", { name: client.name })}
           </DialogTitle>
           <DialogDescription>
-            Select the honeypots to enable. The generated OVA already has the token embedded — just import it into VMware and boot.
+            {t("clients.ova.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -140,12 +142,12 @@ export function ClientOVADownload({ client }: Props) {
 
           {/* Server config preview */}
           <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Server configuration</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t("clients.ova.config.title")}</p>
 
             {configLoading && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Detecting public IP…
+                {t("clients.ova.config.detecting")}
               </div>
             )}
 
@@ -159,19 +161,19 @@ export function ClientOVADownload({ client }: Props) {
             {config && (
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-muted-foreground">Ingest URL</span>
+                  <span className="text-xs text-muted-foreground">{t("clients.ova.config.ingestUrl")}</span>
                   <code className="font-mono text-xs text-foreground">{config.ingestUrl}</code>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-muted-foreground">Public IP</span>
+                  <span className="text-xs text-muted-foreground">{t("clients.ova.config.publicIp")}</span>
                   <code className="font-mono text-xs text-foreground">{config.ip}</code>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-muted-foreground">Port</span>
+                  <span className="text-xs text-muted-foreground">{t("clients.ova.config.port")}</span>
                   <code className="font-mono text-xs text-foreground">{config.port}</code>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-muted-foreground">Source</span>
+                  <span className="text-xs text-muted-foreground">{t("clients.ova.config.source")}</span>
                   <span className="flex items-center gap-1 text-xs text-emerald-400">
                     <CheckCircle2 className="h-3 w-3" />
                     {sourceLabel[config.source] ?? config.source}
@@ -179,15 +181,15 @@ export function ClientOVADownload({ client }: Props) {
                 </div>
                 {config.source === "auto-detected" && (
                   <p className="text-[11px] text-amber-400/80 pt-0.5">
-                    Make sure port {config.port} is open in the server firewall.
+                    {t("clients.ova.config.firewallWarning", { port: config.port })}
                   </p>
                 )}
                 <div className="border-t border-border/50 pt-2 mt-1 flex items-center justify-between gap-2">
-                  <span className="text-xs text-muted-foreground">Base disk</span>
+                  <span className="text-xs text-muted-foreground">{t("clients.ova.config.baseDisk")}</span>
                   <span className="text-xs font-mono">
                     {config.vmdkReleasedAt
                       ? <span className="text-foreground">updated {timeAgo(config.vmdkReleasedAt)}</span>
-                      : <span className="text-amber-400/80">BASE_VMDK_URL not configured</span>
+                      : <span className="text-amber-400/80">{t("clients.ova.config.baseDiskNotConfigured")}</span>
                     }
                   </span>
                 </div>
@@ -199,7 +201,7 @@ export function ClientOVADownload({ client }: Props) {
                 onClick={() => { setConfig(null); setConfigLoading(true); apiFetch("/api/ova/config").then(r=>r.json()).then((d: OvaConfig & {error?:string})=>{ if(d.error) setConfigError(d.error); else setConfig(d) }).catch(()=>setConfigError("Error")).finally(()=>setConfigLoading(false)) }}
                 className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
               >
-                <RefreshCw className="h-3 w-3" /> Re-detect
+                <RefreshCw className="h-3 w-3" /> {t("clients.ova.config.redetect")}
               </button>
             )}
           </div>
@@ -233,7 +235,7 @@ export function ClientOVADownload({ client }: Props) {
           </div>
 
           {selected.size === 0 && (
-            <p className="text-xs text-destructive">Select at least one service.</p>
+            <p className="text-xs text-destructive">{t("clients.ova.selectAtLeastOne")}</p>
           )}
 
           {error && (
@@ -251,13 +253,13 @@ export function ClientOVADownload({ client }: Props) {
             className="w-full gap-2"
           >
             {loading
-              ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating OVA…</>
-              : <><Download className="h-4 w-4" /> Download OVA with embedded token</>}
+              ? <><Loader2 className="h-4 w-4 animate-spin" /> {t("clients.ova.generating")}</>
+              : <><Download className="h-4 w-4" /> {t("clients.ova.download")}</>}
           </Button>
 
           {loading && (
             <p className="text-center text-xs text-muted-foreground">
-              This may take a few seconds on the first download while the base disk is prepared.
+              {t("clients.ova.preparingNote")}
             </p>
           )}
         </div>

@@ -2,6 +2,7 @@
 
 import { HardDrive, Database, FolderOpen } from "lucide-react"
 import { Surface } from "@/components/ui/surface"
+import { useT } from "@/components/locale-provider"
 
 type DiskStats = { totalBytes: number; usedBytes: number; freeBytes: number }
 type DbStats   = { totalBytes: number; tables: { name: string; bytes: number }[] }
@@ -23,6 +24,7 @@ function UsageBar({ used, total, color }: { used: number; total: number; color: 
 }
 
 export function StorageOverview({ disk, db }: { disk: DiskStats; db: DbStats }) {
+  const t = useT()
   const diskPct  = disk.totalBytes > 0 ? ((disk.usedBytes / disk.totalBytes) * 100).toFixed(1) : "0"
   const dbPct    = disk.totalBytes > 0 ? ((db.totalBytes  / disk.totalBytes) * 100).toFixed(1) : "0"
   const topTables = db.tables.slice(0, 5)
@@ -33,7 +35,7 @@ export function StorageOverview({ disk, db }: { disk: DiskStats; db: DbStats }) 
       <Surface className="px-4 py-3">
         <div className="flex items-center gap-2 mb-1">
           <HardDrive className="h-4 w-4 text-blue-400" />
-          <span className="text-[11px] text-muted-foreground">Disk Used</span>
+          <span className="text-[11px] text-muted-foreground">{t("storage.disk.title")}</span>
         </div>
         <p className="text-xl font-semibold tabular-nums text-blue-400">{fmt(disk.usedBytes)}</p>
         <p className="text-[11px] text-muted-foreground">{diskPct}% of {fmt(disk.totalBytes)}</p>
@@ -45,10 +47,10 @@ export function StorageOverview({ disk, db }: { disk: DiskStats; db: DbStats }) 
       <Surface className="px-4 py-3">
         <div className="flex items-center gap-2 mb-1">
           <Database className="h-4 w-4 text-purple-400" />
-          <span className="text-[11px] text-muted-foreground">Database Size</span>
+          <span className="text-[11px] text-muted-foreground">{t("storage.db.title")}</span>
         </div>
         <p className="text-xl font-semibold tabular-nums text-purple-400">{fmt(db.totalBytes)}</p>
-        <p className="text-[11px] text-muted-foreground">{dbPct}% of total disk</p>
+        <p className="text-[11px] text-muted-foreground">{t("storage.db.ofDisk", { pct: dbPct })}</p>
         <UsageBar used={db.totalBytes} total={disk.totalBytes} color="bg-purple-400" />
       </Surface>
 
@@ -56,16 +58,16 @@ export function StorageOverview({ disk, db }: { disk: DiskStats; db: DbStats }) 
       <Surface className="px-4 py-3">
         <div className="flex items-center gap-2 mb-1">
           <FolderOpen className="h-4 w-4 text-emerald-400" />
-          <span className="text-[11px] text-muted-foreground">Free Space</span>
+          <span className="text-[11px] text-muted-foreground">{t("storage.free.title")}</span>
         </div>
         <p className="text-xl font-semibold tabular-nums text-emerald-400">{fmt(disk.freeBytes)}</p>
-        <p className="text-[11px] text-muted-foreground">Available on disk</p>
+        <p className="text-[11px] text-muted-foreground">{t("storage.free.available")}</p>
         <UsageBar used={disk.freeBytes} total={disk.totalBytes} color="bg-emerald-400" />
       </Surface>
 
       {/* Table breakdown */}
       <Surface className="sm:col-span-3 px-4 py-3">
-        <p className="text-[11px] font-medium text-muted-foreground mb-3">TABLE SIZES</p>
+        <p className="text-[11px] font-medium text-muted-foreground mb-3">{t("storage.tables.title")}</p>
         <div className="space-y-2">
           {topTables.map(t => {
             const pct = db.totalBytes > 0 ? (t.bytes / db.totalBytes) * 100 : 0

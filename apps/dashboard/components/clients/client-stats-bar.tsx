@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Activity, Globe, ShieldAlert, Zap } from "lucide-react"
 import { Surface } from "@/components/ui/surface"
+import { useT } from "@/components/locale-provider"
 
 type Stats = {
   totalEvents: number
@@ -14,6 +15,7 @@ type Stats = {
 type Props = { clientSlug: string }
 
 export function ClientStatsBar({ clientSlug }: Props) {
+  const t = useT()
   const [stats, setStats] = useState<Stats | null>(null)
 
   useEffect(() => {
@@ -28,28 +30,28 @@ export function ClientStatsBar({ clientSlug }: Props) {
   const items = [
     {
       icon: Activity,
-      label: "Events today",
+      label: t("clients.stats.eventsToday"),
       value: stats ? stats.totalEvents.toLocaleString() : "—",
       color: "text-cyan-400",
       bg: "bg-cyan-400/10",
     },
     {
       icon: Globe,
-      label: "Unique IPs",
+      label: t("clients.stats.uniqueIps"),
       value: stats ? stats.uniqueIps.toLocaleString() : "—",
       color: "text-blue-400",
       bg: "bg-blue-400/10",
     },
     {
       icon: ShieldAlert,
-      label: "Login successes",
+      label: t("clients.stats.loginSuccesses"),
       value: stats ? stats.loginSuccesses.toLocaleString() : "—",
       color: stats?.loginSuccesses ? "text-red-400" : "text-emerald-400",
       bg: stats?.loginSuccesses ? "bg-red-400/10" : "bg-emerald-400/10",
     },
     {
       icon: Zap,
-      label: "Top protocol",
+      label: t("clients.stats.topProtocol"),
       value: stats?.topProtocol ? stats.topProtocol.toUpperCase() : "—",
       color: "text-orange-400",
       bg: "bg-orange-400/10",

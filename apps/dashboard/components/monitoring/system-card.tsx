@@ -2,6 +2,7 @@
 
 import { Cpu, MemoryStick } from "lucide-react"
 import { Surface } from "@/components/ui/surface"
+import { useT } from "@/components/locale-provider"
 
 type MemoryStats = {
   totalKb: number
@@ -41,6 +42,7 @@ function UsageBar({ pct, color }: { pct: number; color: string }) {
 }
 
 export function SystemCard({ system }: { system: SystemStats }) {
+  const t = useT()
   const memColor = system.memory.usedPercent > 85 ? "bg-red-400" : system.memory.usedPercent > 65 ? "bg-yellow-400" : "bg-emerald-400"
   const load1 = system.loadAvg[0]
 
@@ -51,7 +53,7 @@ export function SystemCard({ system }: { system: SystemStats }) {
         <Surface className="px-4 py-3">
           <div className="flex items-center gap-2 mb-1">
             <MemoryStick className="h-4 w-4 text-emerald-400" />
-            <span className="text-[11px] text-muted-foreground">RAM Usage</span>
+            <span className="text-[11px] text-muted-foreground">{t("monitoring.system.ram")}</span>
           </div>
           <p className="text-xl font-semibold tabular-nums text-emerald-400">{fmt(system.memory.usedKb)}</p>
           <p className="text-[11px] text-muted-foreground">{system.memory.usedPercent}% of {fmt(system.memory.totalKb)}</p>
@@ -62,7 +64,7 @@ export function SystemCard({ system }: { system: SystemStats }) {
         <Surface className="px-4 py-3">
           <div className="flex items-center gap-2 mb-1">
             <Cpu className="h-4 w-4 text-blue-400" />
-            <span className="text-[11px] text-muted-foreground">Load Average</span>
+            <span className="text-[11px] text-muted-foreground">{t("monitoring.system.loadAvg")}</span>
           </div>
           <p className="text-xl font-semibold tabular-nums text-blue-400">{load1.toFixed(2)}</p>
           <p className="text-[11px] text-muted-foreground">1m · 5m: {system.loadAvg[1].toFixed(2)} · 15m: {system.loadAvg[2].toFixed(2)}</p>
@@ -73,10 +75,10 @@ export function SystemCard({ system }: { system: SystemStats }) {
         <Surface className="px-4 py-3">
           <div className="flex items-center gap-2 mb-1">
             <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[11px] text-muted-foreground">Server Uptime</span>
+            <span className="text-[11px] text-muted-foreground">{t("monitoring.system.uptime")}</span>
           </div>
           <p className="text-xl font-semibold tabular-nums text-foreground">{formatUptime(system.uptime)}</p>
-          <p className="text-[11px] text-muted-foreground">{system.uptime.toLocaleString()} seconds</p>
+          <p className="text-[11px] text-muted-foreground">{t("monitoring.system.seconds", { n: system.uptime.toLocaleString() })}</p>
         </Surface>
       </div>
     </div>

@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import type { Client } from "@/lib/api"
 import { normalizeClientCode } from "./client-utils"
+import { useT } from "@/components/locale-provider"
 
 type Props = {
   client: Client | null
@@ -26,6 +27,7 @@ type Props = {
 }
 
 export function EditClientDialog({ client, onClose, onSaved }: Props) {
+  const t = useT()
   const [name, setName] = useState("")
   const [code, setCode] = useState("")
   const [description, setDescription] = useState("")
@@ -66,13 +68,13 @@ export function EditClientDialog({ client, onClose, onSaved }: Props) {
       <DialogContent className="sm:max-w-xl">
         <form onSubmit={handleSubmit} className="space-y-5">
           <DialogHeader>
-            <DialogTitle>Edit Client</DialogTitle>
-            <DialogDescription>Update the client details. The slug cannot be changed.</DialogDescription>
+            <DialogTitle>{t("clients.edit.title")}</DialogTitle>
+            <DialogDescription>{t("clients.edit.description")}</DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="edit-name">Name</Label>
+              <Label htmlFor="edit-name">{t("clients.edit.name")}</Label>
               <Input
                 id="edit-name"
                 value={name}
@@ -81,7 +83,7 @@ export function EditClientDialog({ client, onClose, onSaved }: Props) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-code">Client Code</Label>
+              <Label htmlFor="edit-code">{t("clients.edit.code")}</Label>
               <Input
                 id="edit-code"
                 value={code}
@@ -93,14 +95,14 @@ export function EditClientDialog({ client, onClose, onSaved }: Props) {
           </div>
 
           <div className="space-y-2">
-            <Label>Slug</Label>
+            <Label>{t("clients.edit.slug")}</Label>
             <div className="flex h-10 items-center rounded-md border border-border bg-muted px-3 font-mono text-sm text-muted-foreground">
               {client?.slug}
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="edit-description">Description</Label>
+            <Label htmlFor="edit-description">{t("clients.edit.description.label")}</Label>
             <Textarea
               id="edit-description"
               value={description}
@@ -110,7 +112,7 @@ export function EditClientDialog({ client, onClose, onSaved }: Props) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="edit-forward-url">Forward URL</Label>
+            <Label htmlFor="edit-forward-url">{t("clients.edit.forwardUrl")}</Label>
             <Input
               id="edit-forward-url"
               value={forwardUrl}
@@ -123,11 +125,11 @@ export function EditClientDialog({ client, onClose, onSaved }: Props) {
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               <X className="h-4 w-4" />
-              Cancel
+              {t("clients.edit.cancel")}
             </Button>
             <Button type="submit" disabled={saving || !name.trim() || !code.trim()}>
               <Save className="h-4 w-4" />
-              {saving ? "Saving..." : "Save Changes"}
+              {saving ? t("clients.edit.saving") : t("clients.edit.submit")}
             </Button>
           </DialogFooter>
         </form>

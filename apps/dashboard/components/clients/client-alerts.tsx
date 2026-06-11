@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { IpEnrichmentPopover } from "@/components/ip-enrichment-popover"
 import { formatTs } from "@/lib/formatting"
 import { Surface } from "@/components/ui/surface"
+import { useT } from "@/components/locale-provider"
 
 type ThreatEntry = {
   srcIp: string
@@ -49,6 +50,7 @@ const SOURCE_PILL: Record<string, string> = {
 type Props = { clientSlug: string }
 
 export function ClientAlerts({ clientSlug }: Props) {
+  const t = useT()
   const [items, setItems]   = useState<ThreatEntry[]>([])
   const [meta, setMeta]     = useState<PaginationMeta | null>(null)
   const [page, setPage]     = useState(1)
@@ -86,13 +88,13 @@ export function ClientAlerts({ clientSlug }: Props) {
             <ShieldAlert className="h-4 w-4 text-red-400" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-foreground">Alerts</h2>
+            <h2 className="text-sm font-semibold text-foreground">{t("clients.alerts.title")}</h2>
             <p className="text-[11px] text-muted-foreground">
               {loading
-                ? "Loading…"
+                ? t("clients.logs.loading")
                 : meta
-                  ? `${meta.total.toLocaleString()} IPs${critCount > 0 ? ` · ${critCount} critical` : ""}${highCount > 0 ? ` · ${highCount} high` : ""}`
-                  : "No data"}
+                  ? `${meta.total.toLocaleString()} IPs${critCount > 0 ? ` · ${critCount} ${t("clients.alerts.critical", { n: String(critCount) })}` : ""}${highCount > 0 ? ` · ${t("clients.alerts.high", { n: String(highCount) })}` : ""}`
+                  : t("clients.alerts.noData")}
             </p>
           </div>
         </div>
@@ -114,7 +116,7 @@ export function ClientAlerts({ clientSlug }: Props) {
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-14">
             <ShieldCheck className="h-7 w-7 text-emerald-400/40" />
-            <p className="text-[11px] text-muted-foreground">No threats detected</p>
+            <p className="text-[11px] text-muted-foreground">{t("clients.alerts.noThreats")}</p>
           </div>
         ) : (
           <table className="w-full border-collapse">
@@ -123,11 +125,11 @@ export function ClientAlerts({ clientSlug }: Props) {
                 <th className="pl-3 pr-2 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60 w-6">
                   {/* dot */}
                 </th>
-                <th className="pr-3 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60 w-[70px]">RISK</th>
-                <th className="pr-3 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60">SOURCE IP</th>
-                <th className="pr-3 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60">SOURCES</th>
-                <th className="pr-3 py-1.5 text-right text-[10px] font-medium text-muted-foreground/60 w-[60px]">EVENTS</th>
-                <th className="pr-3 py-1.5 text-right text-[10px] font-medium text-muted-foreground/60 w-[130px]">LAST SEEN</th>
+                <th className="pr-3 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60 w-[70px]">{t("clients.alerts.col.risk")}</th>
+                <th className="pr-3 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60">{t("clients.alerts.col.sourceIp")}</th>
+                <th className="pr-3 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60">{t("clients.alerts.col.sources")}</th>
+                <th className="pr-3 py-1.5 text-right text-[10px] font-medium text-muted-foreground/60 w-[60px]">{t("clients.alerts.col.events")}</th>
+                <th className="pr-3 py-1.5 text-right text-[10px] font-medium text-muted-foreground/60 w-[130px]">{t("clients.alerts.col.lastSeen")}</th>
               </tr>
             </thead>
             <tbody>
@@ -189,7 +191,7 @@ export function ClientAlerts({ clientSlug }: Props) {
       {meta && meta.totalPages > 1 && (
         <div className="flex items-center justify-between px-4 py-2.5 border-t border-border/60 bg-card rounded-b-xl">
           <span className="font-mono text-[11px] text-muted-foreground">
-            Page {meta.page} of {meta.totalPages} · {meta.total.toLocaleString()} IPs
+            {t("clients.alerts.page", { page: String(meta.page), total: String(meta.totalPages), ips: meta.total.toLocaleString() })}
           </span>
           <div className="flex gap-1">
             <Button size="sm" variant="outline" onClick={() => goPage(page - 1)} disabled={!meta.hasPreviousPage || loading} className="h-6 w-6 p-0">

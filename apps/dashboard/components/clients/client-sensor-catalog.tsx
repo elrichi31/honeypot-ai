@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { apiFetchAudited } from "@/lib/client-fetch"
 import { Download, Globe, Network, Server, CheckCircle2, Terminal, ChevronRight, Loader2, Radar, AlertTriangle } from "lucide-react"
+import { useT } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -127,6 +128,7 @@ function triggerDownload(blob: Blob, filename: string) {
 }
 
 export function ClientSensorCatalog({ client, assignedSensors }: Props) {
+  const t = useT()
   // Bundled .sh download: which script services are selected.
   const [selected, setSelected] = useState<ServiceKey[]>([])
   const [downloadingBundle, setDownloadingBundle] = useState(false)
@@ -201,16 +203,16 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-base font-semibold text-foreground">Sensor Installers</h2>
+                <h2 className="text-base font-semibold text-foreground">{t("clients.catalog.trigger.title")}</h2>
                 {installedCount > 0 && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
                     <CheckCircle2 className="h-3 w-3" />
-                    {installedCount} installed
+                    {t("clients.catalog.trigger.installed", { n: String(installedCount) })}
                   </span>
                 )}
               </div>
               <p className="text-sm text-muted-foreground mt-0.5">
-                Download ready-to-run installers — telemetry and server config already embedded.
+                {t("clients.catalog.trigger.subtitle")}
               </p>
             </div>
             <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 transition-transform group-hover:translate-x-0.5" />
@@ -225,10 +227,9 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
               <Terminal className="h-4 w-4 text-cyan-400" />
             </div>
             <div>
-              <DialogTitle>Sensor Installers</DialogTitle>
+              <DialogTitle>{t("clients.catalog.dialog.title")}</DialogTitle>
               <DialogDescription className="mt-0.5">
-                Select one or more sensors to bundle into a single{" "}
-                <span className="font-mono">install-sensor-*.sh</span>, then run it on any Linux VPS.
+                {t("clients.catalog.dialog.description", { file: "install-sensor-*.sh" })}
               </DialogDescription>
             </div>
           </div>
@@ -275,7 +276,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
                         {installed && (
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
                             <CheckCircle2 className="h-3 w-3" />
-                            Installed
+                            {t("clients.catalog.badge.installed")}
                           </span>
                         )}
                       </div>
@@ -297,10 +298,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
           {selected.includes("deception") && (
             <p className="flex items-start gap-2 rounded-lg bg-amber-400/10 px-3 py-2 text-xs text-amber-300">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>
-                The deception network requires SSH (Cowrie) as its entry point and deploys 5 internal
-                trap nodes on 10.0.1.0/24. SSH is included automatically.
-              </span>
+              <span>{t("clients.catalog.deceptionWarning")}</span>
             </p>
           )}
 
@@ -312,9 +310,11 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
             className="w-full gap-2"
           >
             {downloadingBundle ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            {selected.length === 0
-              ? "Select sensors to bundle"
-              : `Download installer (${selected.length} sensor${selected.length === 1 ? "" : "s"})`}
+            {downloadingBundle
+              ? t("clients.catalog.bundle.downloading")
+              : selected.length === 0
+                ? t("clients.catalog.bundle.selectFirst")
+                : t("clients.catalog.bundle.download", { n: String(selected.length), s: selected.length === 1 ? "" : "s" })}
           </Button>
         </div>
 
@@ -322,7 +322,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
         {STANDALONE_ENTRIES.length > 0 && (
           <div className="space-y-3 border-t border-border/60 pt-4">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Standalone sensors
+              {t("clients.catalog.standalone.title")}
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
               {STANDALONE_ENTRIES.map((entry) => {
@@ -344,7 +344,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
                           {installed && (
                             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
                               <CheckCircle2 className="h-3 w-3" />
-                              Installed
+                              {t("clients.catalog.badge.installed")}
                             </span>
                           )}
                         </div>
@@ -363,7 +363,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
                       className="w-full gap-2"
                     >
                       {isDownloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                      {isDownloading ? "Generating…" : installed ? "Re-download" : "Download .env"}
+                      {isDownloading ? t("clients.catalog.bundle.downloading") : installed ? t("clients.catalog.standalone.redownload") : t("clients.catalog.standalone.download")}
                     </Button>
                   </div>
                 )

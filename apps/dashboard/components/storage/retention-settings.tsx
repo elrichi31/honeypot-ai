@@ -6,6 +6,7 @@ import { formatDistanceToNow } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Surface } from "@/components/ui/surface"
+import { useT } from "@/components/locale-provider"
 
 type RetentionRow = {
   id: string; tableName: string; label: string
@@ -25,9 +26,10 @@ function OldestBadge({ oldestDaysAgo, retentionDays, enabled, pendingRows }: {
   enabled: boolean
   pendingRows: number | null
 }) {
+  const t = useT()
   if (!enabled) return null
   if (oldestDaysAgo === null) return (
-    <span className="text-[11px] text-muted-foreground/40 w-48 text-right">no data</span>
+    <span className="text-[11px] text-muted-foreground/40 w-48 text-right">{t("storage.retention.noData")}</span>
   )
   const daysLeft = retentionDays - oldestDaysAgo
   const urgent = daysLeft <= 7
@@ -36,10 +38,10 @@ function OldestBadge({ oldestDaysAgo, retentionDays, enabled, pendingRows }: {
     <span className="text-[11px] text-right w-48 tabular-nums">
       <span className="text-muted-foreground">oldest {oldestDaysAgo}d ago · </span>
       {pending > 0 ? (
-        <span className="text-amber-400 font-medium">will delete {pending.toLocaleString()} row{pending === 1 ? "" : "s"}</span>
+        <span className="text-amber-400 font-medium">{t("storage.retention.willDelete", { n: pending.toLocaleString(), s: pending === 1 ? "" : "s" })}</span>
       ) : (
         <span className={urgent ? "text-red-400 font-medium" : "text-muted-foreground"}>
-          {daysLeft <= 0 ? "up to date" : `${daysLeft}d left`}
+          {daysLeft <= 0 ? t("storage.retention.upToDate") : t("storage.retention.daysLeft", { n: String(daysLeft) })}
         </span>
       )}
     </span>
@@ -47,13 +49,14 @@ function OldestBadge({ oldestDaysAgo, retentionDays, enabled, pendingRows }: {
 }
 
 function LastRunBadge({ run }: { run: RetentionRun | null }) {
+  const t = useT()
   if (!run) {
-    return <span className="text-[11px] text-muted-foreground/50">Not run yet</span>
+    return <span className="text-[11px] text-muted-foreground/50">{t("storage.retention.notRunYet")}</span>
   }
   const when = formatDistanceToNow(new Date(run.startedAt), { addSuffix: true })
   const tablesPurged = Object.entries(run.perTable ?? {})
     .filter(([, n]) => n > 0)
-    .map(([t, n]) => `${t}: ${n.toLocaleString()}`)
+    .map(([tbl, n]) => `${tbl}: ${n.toLocaleString()}`)
     .join(" · ")
   return (
     <div className="flex flex-col items-end gap-0.5 text-right">
@@ -63,9 +66,9 @@ function LastRunBadge({ run }: { run: RetentionRun | null }) {
         ) : (
           <AlertTriangle className="h-3.5 w-3.5 text-red-400" />
         )}
-        <span className="text-muted-foreground">Last purge {when}</span>
+        <span className="text-muted-foreground">{t("storage.retention.lastPurge", { when })}</span>
         <span className={run.ok ? "text-emerald-400" : "text-red-400"}>
-          · {run.rowsDeleted.toLocaleString()} rows
+          · {t("storage.retention.rows", { n: run.rowsDeleted.toLocaleString() })}
         </span>
       </span>
       {!run.ok && run.error && (
@@ -78,14 +81,10 @@ function LastRunBadge({ run }: { run: RetentionRun | null }) {
   )
 }
 
-const INTERVAL_OPTIONS = [
-  { value: 15,   label: "every 15 min" },
-  { value: 30,   label: "every 30 min" },
-  { value: 60,   label: "every hour" },
-  { value: 360,  label: "every 6 hours" },
-  { value: 720,  label: "every 12 hours" },
-  { value: 1440, label: "every 24 hours" },
-]
+const INTERVAL_LABELS: Record<number, string> = {
+  15: "every 15 min", 30: "every 30 min", 60: "every hour",
+  360: "every 6 hours", 720: "every 12 hours", 1440: "every 24 hours",
+}
 
 function NextRunBanner({
   nextRunAt, totalPending, intervalMinutes, onChangeInterval, savingInterval,
@@ -96,6 +95,7 @@ function NextRunBanner({
   onChangeInterval: (minutes: number) => void
   savingInterval: boolean
 }) {
+  const t = useT()
   const next = nextRunAt ? new Date(nextRunAt) : null
   const when = next
     ? (next.getTime() > Date.now() ? formatDistanceToNow(next, { addSuffix: true }) : "soon")
@@ -103,27 +103,27 @@ function NextRunBanner({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/40 bg-muted/20 px-4 py-2">
       <div className="flex items-center gap-2">
-        <span className="text-[11px] text-muted-foreground">Frequency:</span>
+        <span className="text-[11px] text-muted-foreground">{t("storage.retention.frequency")}</span>
         <select
           value={intervalMinutes}
           disabled={savingInterval}
           onChange={(e) => onChangeInterval(Number(e.target.value))}
           className="rounded-md border border-border bg-background px-2 py-1 text-[11px] text-foreground outline-none focus:border-white/20 disabled:opacity-50"
         >
-          {INTERVAL_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
+          {Object.entries(INTERVAL_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
           ))}
         </select>
         {savingInterval && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
       </div>
       <div className="flex items-center gap-3 text-[11px] tabular-nums">
         <span className="text-muted-foreground">
-          Next purge <span className="text-foreground">{when}</span>
+          {t("storage.retention.nextPurge", { when })}
         </span>
         {totalPending > 0 ? (
-          <span className="text-amber-400">~{totalPending.toLocaleString()} rows will be deleted</span>
+          <span className="text-amber-400">{t("storage.retention.willDeleteTotal", { n: totalPending.toLocaleString() })}</span>
         ) : (
-          <span className="text-muted-foreground/60">nothing to purge</span>
+          <span className="text-muted-foreground/60">{t("storage.retention.nothingToPurge")}</span>
         )}
       </div>
     </div>
@@ -140,6 +140,7 @@ async function callApi(id: string, patch: { retentionDays?: number; enabled?: bo
 }
 
 export function RetentionSettings() {
+  const t = useT()
   const [rows, setRows]       = useState<RowState[]>([])
   const [lastRun, setLastRun] = useState<RetentionRun | null>(null)
   const [nextRunAt, setNextRunAt] = useState<string | null>(null)
@@ -218,9 +219,9 @@ export function RetentionSettings() {
           <Clock className="h-4 w-4 text-yellow-400" />
         </div>
         <div className="flex-1">
-          <h2 className="text-sm font-semibold text-foreground">Data Retention</h2>
+          <h2 className="text-sm font-semibold text-foreground">{t("storage.retention.title")}</h2>
           <p className="text-[11px] text-muted-foreground">
-            Records older than the configured days are purged automatically every hour
+            {t("storage.retention.subtitle")}
           </p>
         </div>
         <LastRunBadge run={lastRun} />
@@ -262,7 +263,7 @@ export function RetentionSettings() {
                 disabled={!row.enabled || row.saving}
                 className="w-20 rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-1.5 text-center font-mono text-sm text-foreground outline-none focus:border-white/20 disabled:opacity-40"
               />
-              <span className="text-xs text-muted-foreground w-6">days</span>
+              <span className="text-xs text-muted-foreground w-6">{t("storage.retention.days")}</span>
               <Button
                 size="sm"
                 variant={isDirty(row) ? "default" : "outline"}
@@ -273,9 +274,9 @@ export function RetentionSettings() {
                 {row.saving ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
                 ) : row.saved ? (
-                  <><Check className="h-3 w-3 mr-1" />Saved</>
+                  <><Check className="h-3 w-3 mr-1" />{t("storage.retention.saved")}</>
                 ) : (
-                  <><Save className="h-3 w-3 mr-1" />Save</>
+                  <><Save className="h-3 w-3 mr-1" />{t("storage.retention.save")}</>
                 )}
               </Button>
             </div>

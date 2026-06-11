@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Surface } from "@/components/ui/surface"
 import { SensorCard } from "@/components/sensors/sensor-card"
 import type { Client, Sensor } from "@/lib/api"
+import { useT } from "@/components/locale-provider"
 
 type Props = {
   client: Client
@@ -20,6 +21,7 @@ export function ClientSensorAssignment({
   initialAssignedSensors,
   initialUnassignedSensors,
 }: Props) {
+  const t = useT()
   const [assignedSensors, setAssignedSensors] = useState(initialAssignedSensors)
   const [unassignedSensors, setUnassignedSensors] = useState(initialUnassignedSensors)
   const [pendingSensorId, setPendingSensorId] = useState<string | null>(null)
@@ -81,7 +83,7 @@ export function ClientSensorAssignment({
       setMessage(error)
     } else {
       markAssigned(sensor)
-      setMessage(`Sensor ${sensor.name} assigned to ${client.name}.`)
+      setMessage(t("clients.assignment.sensor.assigned", { name: sensor.name, client: client.name }))
     }
     setPendingSensorId(null)
   }
@@ -102,8 +104,8 @@ export function ClientSensorAssignment({
     }
     setMessage(
       firstError
-        ? `Assigned ${ok}/${unassignedDeception.length} deception nodes. ${firstError}`
-        : `Assigned all ${ok} deception nodes to ${client.name}.`,
+        ? t("clients.assignment.deception.result", { ok: String(ok), total: String(unassignedDeception.length), error: firstError })
+        : t("clients.assignment.deception.resultAll", { ok: String(ok), client: client.name }),
     )
     setAssigningDeception(false)
   }
@@ -119,7 +121,7 @@ export function ClientSensorAssignment({
         body: JSON.stringify({ clientId: null }),
       })
 
-      if (!res.ok) throw new Error("Could not unassign sensor")
+      if (!res.ok) throw new Error(t("clients.assignment.sensor.unassignError"))
 
       setAssignedSensors((current) => current.filter((item) => item.sensorId !== sensor.sensorId))
       setUnassignedSensors((current) => [
@@ -131,9 +133,9 @@ export function ClientSensorAssignment({
           clientSlug: null,
         },
       ])
-      setMessage(`Sensor ${sensor.name} unassigned from ${client.name}.`)
+      setMessage(t("clients.assignment.sensor.unassigned", { name: sensor.name, client: client.name }))
     } catch {
-      setMessage("Could not unassign the sensor.")
+      setMessage(t("clients.assignment.sensor.unassignError"))
     } finally {
       setPendingSensorId(null)
     }
@@ -149,18 +151,18 @@ export function ClientSensorAssignment({
             <Server className="h-5 w-5 text-cyan-400" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Assigned Sensors</h2>
+            <h2 className="text-lg font-semibold text-foreground">{t("clients.assignment.assigned.title")}</h2>
             <p className="text-sm text-muted-foreground">
-              Sensors currently linked to this client.
+              {t("clients.assignment.assigned.subtitle")}
             </p>
           </div>
         </div>
 
         {sortedAssigned.length === 0 ? (
           <Surface className="px-6 py-16 text-center">
-            <p className="text-sm font-medium text-foreground mb-1">No sensors assigned yet</p>
+            <p className="text-sm font-medium text-foreground mb-1">{t("clients.assignment.assigned.empty.title")}</p>
             <p className="text-sm text-muted-foreground">
-              Use the unassigned sensor list below to attach sensors to this client.
+              {t("clients.assignment.assigned.empty.desc")}
             </p>
           </Surface>
         ) : (
@@ -175,7 +177,7 @@ export function ClientSensorAssignment({
                   className="w-full gap-2 border-border bg-card text-foreground hover:bg-muted"
                 >
                   <Unlink2 className="h-4 w-4" />
-                  {pendingSensorId === sensor.sensorId ? "Unassigning..." : "Unassign"}
+                  {pendingSensorId === sensor.sensorId ? t("clients.assignment.unassigning") : t("clients.assignment.unassign")}
                 </Button>
               </div>
             ))}
@@ -190,9 +192,9 @@ export function ClientSensorAssignment({
               <Link2 className="h-5 w-5 text-amber-300" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-foreground">Unassigned Sensors</h2>
+              <h2 className="text-lg font-semibold text-foreground">{t("clients.assignment.unassigned.title")}</h2>
               <p className="text-sm text-muted-foreground">
-                Click assign to attach available sensors to this client.
+                {t("clients.assignment.unassigned.subtitle")}
               </p>
             </div>
           </div>
@@ -204,15 +206,15 @@ export function ClientSensorAssignment({
             >
               {assigningDeception ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ghost className="h-4 w-4" />}
               {assigningDeception
-                ? "Assigning…"
-                : `Assign deception network (${unassignedDeception.length})`}
+                ? t("clients.assignment.deception.assigning")
+                : t("clients.assignment.deception.assign", { n: String(unassignedDeception.length) })}
             </Button>
           )}
         </div>
 
         {sortedUnassigned.length === 0 ? (
           <Surface className="px-6 py-12 text-center">
-            <p className="text-sm text-muted-foreground">There are no unassigned sensors right now.</p>
+            <p className="text-sm text-muted-foreground">{t("clients.assignment.unassigned.empty")}</p>
           </Surface>
         ) : (
           <div className="space-y-3">
@@ -234,7 +236,7 @@ export function ClientSensorAssignment({
                   className="gap-2 self-start md:self-auto"
                 >
                   <Link2 className="h-4 w-4" />
-                  {pendingSensorId === sensor.sensorId ? "Assigning..." : "Assign"}
+                  {pendingSensorId === sensor.sensorId ? t("clients.assignment.assigning") : t("clients.assignment.assign")}
                 </Button>
               </div>
             ))}

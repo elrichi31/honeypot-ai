@@ -2,6 +2,7 @@
 
 import { Database } from "lucide-react"
 import { Surface } from "@/components/ui/surface"
+import { useT } from "@/components/locale-provider"
 
 type RedisStats = {
   connected: boolean
@@ -40,15 +41,17 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 export function RedisCard({ redis }: { redis: RedisStats }) {
+  const t = useT()
+
   if (!redis.connected) {
     return (
       <Surface className="px-4 py-3">
         <div className="flex items-center gap-2 mb-3">
           <Database className="h-4 w-4 text-red-400" />
-          <span className="text-sm font-medium text-muted-foreground">Redis Cache</span>
-          <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-red-400/10 text-red-400">offline</span>
+          <span className="text-sm font-medium text-muted-foreground">{t("monitoring.redis.title")}</span>
+          <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-red-400/10 text-red-400">{t("monitoring.redis.offline")}</span>
         </div>
-        <p className="text-[11px] text-muted-foreground">Cache not connected.</p>
+        <p className="text-[11px] text-muted-foreground">{t("monitoring.redis.notConnected")}</p>
       </Surface>
     )
   }
@@ -61,30 +64,30 @@ export function RedisCard({ redis }: { redis: RedisStats }) {
     <Surface className="px-4 py-3">
       <div className="flex items-center gap-2 mb-3">
         <Database className="h-4 w-4 text-red-400" />
-        <span className="text-sm font-medium">Redis Cache</span>
-        <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-400/10 text-emerald-400">online</span>
+        <span className="text-sm font-medium">{t("monitoring.redis.title")}</span>
+        <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-400/10 text-emerald-400">{t("monitoring.redis.online")}</span>
         {redis.version && <span className="text-[10px] text-muted-foreground/60">v{redis.version}</span>}
       </div>
 
       {/* Memory bar */}
       <div className="mb-3">
         <div className="flex justify-between text-[11px] mb-1">
-          <span className="text-muted-foreground">Memory used</span>
+          <span className="text-muted-foreground">{t("monitoring.redis.memoryUsed")}</span>
           <span className="font-mono text-red-400">{fmt(redis.memoryUsedBytes ?? 0)}</span>
         </div>
         <div className="h-1.5 w-full rounded-full bg-white/[0.06]">
           <div className="h-full rounded-full bg-red-400/70" style={{ width: `${memPct}%` }} />
         </div>
-        <p className="text-[10px] text-muted-foreground/60 mt-0.5">Peak: {fmt(redis.memoryPeakBytes ?? 0)}</p>
+        <p className="text-[10px] text-muted-foreground/60 mt-0.5">{t("monitoring.redis.peak", { value: fmt(redis.memoryPeakBytes ?? 0) })}</p>
       </div>
 
       <div className="divide-y divide-border/40">
-        <Stat label="Hit rate" value={redis.hitRate != null ? `${redis.hitRate}%` : "—"} />
-        <Stat label="Ops/sec" value={String(redis.opsPerSec ?? 0)} />
-        <Stat label="Clients" value={String(redis.connectedClients ?? 0)} />
-        <Stat label="Total commands" value={(redis.totalCommands ?? 0).toLocaleString()} />
+        <Stat label={t("monitoring.redis.hitRate")} value={redis.hitRate != null ? `${redis.hitRate}%` : "—"} />
+        <Stat label={t("monitoring.redis.opsPerSec")} value={String(redis.opsPerSec ?? 0)} />
+        <Stat label={t("monitoring.redis.clients")} value={String(redis.connectedClients ?? 0)} />
+        <Stat label={t("monitoring.redis.totalCommands")} value={(redis.totalCommands ?? 0).toLocaleString()} />
         {redis.uptimeSeconds != null && (
-          <Stat label="Uptime" value={formatUptime(redis.uptimeSeconds)} />
+          <Stat label={t("monitoring.redis.uptime")} value={formatUptime(redis.uptimeSeconds)} />
         )}
       </div>
     </Surface>

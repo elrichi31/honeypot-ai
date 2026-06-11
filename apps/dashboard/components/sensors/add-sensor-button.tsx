@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Surface } from "@/components/ui/surface"
 import type { ServiceKey } from "@/app/api/sensor/install/route"
+import { useT } from "@/components/locale-provider"
 
 type OvaConfig = { ingestUrl: string; ip: string; port: string; ovaUrl?: string | null }
 
@@ -25,6 +26,7 @@ const SENSOR_OPTIONS: { key: ServiceKey; label: string; ports: string }[] = [
 ]
 
 export function AddSensorButton() {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [config, setConfig] = useState<OvaConfig | null>(null)
   const [loadingConfig, setLoadingConfig] = useState(false)
@@ -44,7 +46,7 @@ export function AddSensorButton() {
           if (d.error) setConfigError(d.error)
           else setConfig(d)
         })
-        .catch(() => setConfigError("Could not load server config"))
+        .catch(() => setConfigError(t("sensors.config.loadError")))
         .finally(() => setLoadingConfig(false))
     }
   }
@@ -93,19 +95,19 @@ export function AddSensorButton() {
       <DialogTrigger asChild>
         <Button size="sm" variant="outline" className="gap-1.5">
           <Plus className="h-3.5 w-3.5" />
-          Add sensor
+          {t("sensors.add.button")}
         </Button>
       </DialogTrigger>
 
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Deploy a sensor</DialogTitle>
+          <DialogTitle>{t("sensors.add.title")}</DialogTitle>
         </DialogHeader>
 
         {loadingConfig && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Detecting server config…
+            {t("sensors.add.detectingConfig")}
           </div>
         )}
 
@@ -121,7 +123,7 @@ export function AddSensorButton() {
             {/* Sensor selector */}
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Select sensors
+                {t("sensors.add.selectSensors")}
               </p>
               <div className="grid grid-cols-1 gap-1.5">
                 {SENSOR_OPTIONS.map(({ key, label, ports }) => {
@@ -159,8 +161,7 @@ export function AddSensorButton() {
               </div>
               {selected.includes("deception") && (
                 <p className="rounded-lg bg-amber-400/10 px-3 py-2 text-xs text-amber-300">
-                  The deception network requires SSH (Cowrie) as its entry point and deploys 5 internal
-                  trap nodes on 10.0.1.0/24. SSH is included automatically.
+                  {t("sensors.add.deceptionWarning")}
                 </p>
               )}
             </div>
@@ -174,12 +175,12 @@ export function AddSensorButton() {
                     <HardDrive className="h-4 w-4 text-violet-400" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-foreground">OVA</p>
-                    <p className="text-xs text-muted-foreground">Virtual machine</p>
+                    <p className="text-sm font-semibold text-foreground">{t("sensors.add.ova.title")}</p>
+                    <p className="text-xs text-muted-foreground">{t("sensors.add.ova.subtitle")}</p>
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Import into VirtualBox or VMware. Auto-provisions on first boot.
+                  {t("sensors.add.ova.description")}
                 </p>
                 {config && (
                   <div className="flex items-center gap-1.5 text-xs text-emerald-400">
@@ -192,12 +193,12 @@ export function AddSensorButton() {
                     <a href={config.ovaUrl} download>
                       <Button size="sm" className="w-full gap-1.5">
                         <Download className="h-3.5 w-3.5" />
-                        Download OVA
+                        {t("sensors.add.ova.download")}
                       </Button>
                     </a>
                   ) : (
                     <Button size="sm" className="w-full" disabled variant="outline">
-                      Not configured
+                      {t("sensors.add.ova.notConfigured")}
                     </Button>
                   )}
                 </div>
@@ -210,14 +211,12 @@ export function AddSensorButton() {
                     <Terminal className="h-4 w-4 text-cyan-400" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-foreground">Installer</p>
-                    <p className="text-xs text-muted-foreground">Any Linux VPS</p>
+                    <p className="text-sm font-semibold text-foreground">{t("sensors.add.installer.title")}</p>
+                    <p className="text-xs text-muted-foreground">{t("sensors.add.installer.subtitle")}</p>
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Copy the script to any Linux machine and run{" "}
-                  <code className="font-mono">bash install-sensor.sh</code>. Installs Docker,
-                  pulls images and starts the selected sensors. IP auto-detected.
+                  {t("sensors.add.installer.description", { cmd: "bash install-sensor.sh" })}
                 </p>
                 {config && (
                   <div className="flex items-center gap-1.5 text-xs text-emerald-400">
@@ -238,7 +237,7 @@ export function AddSensorButton() {
                     ) : (
                       <Download className="h-3.5 w-3.5" />
                     )}
-                    {selected.length === 0 ? "Select sensors" : "Download installer"}
+                    {selected.length === 0 ? t("sensors.add.installer.selectFirst") : t("sensors.add.installer.download")}
                   </Button>
                 </div>
               </Surface>
@@ -247,8 +246,7 @@ export function AddSensorButton() {
         )}
 
         <p className="text-xs text-muted-foreground">
-          Sensors register in{" "}
-          <span className="font-medium text-foreground">/sensors</span> within a minute of starting.
+          {t("sensors.add.footer", { path: "/sensors" })}
         </p>
       </DialogContent>
     </Dialog>

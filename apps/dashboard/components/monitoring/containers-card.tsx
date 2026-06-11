@@ -3,6 +3,7 @@
 import { Container } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Surface } from "@/components/ui/surface"
+import { useT } from "@/components/locale-provider"
 
 type ContainerInfo = {
   name: string
@@ -27,18 +28,19 @@ function StateBadge({ state }: { state: string }) {
 }
 
 export function ContainersCard({ containers, error }: { containers: ContainerInfo[]; error?: string }) {
+  const t = useT()
   return (
     <Surface className="px-4 py-3">
       <div className="flex items-center gap-2 mb-3">
         <Container className="h-4 w-4 text-blue-400" />
-        <span className="text-sm font-medium">Services</span>
-        <span className="ml-auto text-[11px] text-muted-foreground">{containers.length} containers</span>
+        <span className="text-sm font-medium">{t("monitoring.containers.title")}</span>
+        <span className="ml-auto text-[11px] text-muted-foreground">{t("monitoring.containers.count", { n: String(containers.length) })}</span>
       </div>
 
       {error ? (
         <p className="text-[11px] text-muted-foreground py-2">
           {error === "socket_unavailable"
-            ? "Docker socket not available. Mount /var/run/docker.sock in the dashboard container."
+            ? t("monitoring.containers.socketUnavailable")
             : error}
         </p>
       ) : (

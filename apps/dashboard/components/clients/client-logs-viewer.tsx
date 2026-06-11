@@ -15,6 +15,7 @@ import { ClientSessionModal } from "@/components/clients/client-session-modal"
 import { formatTs } from "@/lib/formatting"
 import { JsonTree } from "@/components/clients/json-tree"
 import { Surface } from "@/components/ui/surface"
+import { useT } from "@/components/locale-provider"
 
 type LogSource = "all" | "ssh" | "protocol" | "web"
 
@@ -73,6 +74,7 @@ type SensorOption = { sensorId: string; name: string; protocol: string }
 type Props = { clientSlug: string; sensors?: SensorOption[] }
 
 export function ClientLogsViewer({ clientSlug, sensors = [] }: Props) {
+  const t = useT()
   const [source, setSource]         = useState<LogSource>("all")
   const [sensorId, setSensorFilter] = useState<string>("all")
   const [page, setPage]             = useState(1)
@@ -145,9 +147,9 @@ export function ClientLogsViewer({ clientSlug, sensors = [] }: Props) {
               <ScrollText className="h-4 w-4 text-cyan-400" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-foreground">Logs</h2>
+              <h2 className="text-sm font-semibold text-foreground">{t("clients.logs.title")}</h2>
               <p className="text-[11px] text-muted-foreground">
-                {meta ? `${meta.total.toLocaleString()} events` : "Loading…"}
+                {meta ? t("clients.logs.events", { n: meta.total.toLocaleString() }) : t("clients.logs.loading")}
               </p>
             </div>
           </div>
@@ -158,7 +160,7 @@ export function ClientLogsViewer({ clientSlug, sensors = [] }: Props) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All sensors ({sensors.length})</SelectItem>
+                  <SelectItem value="all">{t("clients.logs.allSensors", { n: String(sensors.length) })}</SelectItem>
                   {sensors.map((s) => (
                     <SelectItem key={s.sensorId} value={s.sensorId}>
                       {s.name} · {s.protocol}
@@ -200,7 +202,7 @@ export function ClientLogsViewer({ clientSlug, sensors = [] }: Props) {
               type="text"
               value={search}
               onChange={e => handleSearchChange(e.target.value)}
-              placeholder="Filter by IP, username, command…"
+              placeholder={t("clients.logs.searchPlaceholder")}
               className="flex-1 bg-transparent font-mono text-xs text-foreground placeholder:text-muted-foreground/40 outline-none"
             />
             {search && (
@@ -219,7 +221,7 @@ export function ClientLogsViewer({ clientSlug, sensors = [] }: Props) {
             </div>
           ) : items.length === 0 ? (
             <div className="flex items-center justify-center py-14 text-muted-foreground text-[11px]">
-              No events found
+              {t("clients.logs.noEvents")}
             </div>
           ) : (
             <table className="w-full border-collapse">
@@ -285,7 +287,7 @@ export function ClientLogsViewer({ clientSlug, sensors = [] }: Props) {
                         <tr key={`${entry.id}-exp`} className="border-b border-white/[0.06] bg-white/[0.025]">
                           <td />
                           <td className="py-2 align-top text-[11px] text-muted-foreground/50 whitespace-nowrap pr-3">
-                            full event
+                            {t("clients.logs.fullEvent")}
                           </td>
                           <td className="pr-4 py-2.5 align-top">
                             <div className="rounded-lg bg-black/40 border border-white/[0.06] px-3 py-2.5 text-[11px]">
@@ -306,7 +308,7 @@ export function ClientLogsViewer({ clientSlug, sensors = [] }: Props) {
         {meta && meta.totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-2.5 border-t border-border/60 bg-card rounded-b-xl">
             <span className="font-mono text-[11px] text-muted-foreground">
-              Page {meta.page} of {meta.totalPages} · {meta.total.toLocaleString()} total
+              {t("clients.logs.page", { page: String(meta.page), total: String(meta.totalPages), n: meta.total.toLocaleString() })}
             </span>
             <div className="flex gap-1">
               <Button size="sm" variant="outline" onClick={() => goPage(page - 1)} disabled={!meta.hasPreviousPage || loading} className="h-6 w-6 p-0">

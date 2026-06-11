@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useT } from "@/components/locale-provider"
 
 export interface CowrieConfig {
   hostname: string
@@ -63,11 +64,13 @@ function TagInput({
   onChange,
   placeholder,
   validate,
+  addLabel,
 }: {
   values: string[]
   onChange: (v: string[]) => void
   placeholder?: string
   validate?: (v: string) => string | null
+  addLabel: string
 }) {
   const [draft, setDraft] = useState("")
   const [err, setErr] = useState("")
@@ -116,7 +119,7 @@ function TagInput({
           className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/40"
         >
           <Plus className="h-3 w-3" />
-          Add
+          {addLabel}
         </button>
       </div>
       {err && <p className="text-[11px] text-red-400">{err}</p>}
@@ -133,6 +136,7 @@ export function SensorConfigDialog({
   open: boolean
   onClose: () => void
 }) {
+  const t = useT()
   const [cfg, setCfg] = useState<CowrieConfig>(DEFAULTS)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -149,7 +153,7 @@ export function SensorConfigDialog({
       .then((data) => {
         if (data?.config) setCfg({ ...DEFAULTS, ...data.config })
       })
-      .catch(() => setError("Could not load the configuration"))
+      .catch(() => setError(t("sensors.config.loadError")))
       .finally(() => setLoading(false))
   }, [open, sensorId])
 
@@ -171,7 +175,7 @@ export function SensorConfigDialog({
       if (!res.ok) throw new Error()
       setSaved(true)
     } catch {
-      setError("Failed to save. Try again.")
+      setError(t("sensors.config.saveError"))
     } finally {
       setSaving(false)
     }
@@ -182,21 +186,21 @@ export function SensorConfigDialog({
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSave} className="space-y-5">
           <DialogHeader>
-            <DialogTitle>Configure SSH Honeypot</DialogTitle>
+            <DialogTitle>{t("sensors.config.title")}</DialogTitle>
             <DialogDescription>
-              Changes are applied on the next Cowrie restart (triggered automatically within ~15s).
+              {t("sensors.config.description")}
             </DialogDescription>
           </DialogHeader>
 
           {loading ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">Loading config…</div>
+            <div className="py-8 text-center text-sm text-muted-foreground">{t("sensors.config.loading")}</div>
           ) : (
             <>
               {/* Identity */}
               <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Identity</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.identity")}</p>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Hostname" hint="Shown in the shell prompt after login">
+                  <Field label={t("sensors.config.field.hostname")} hint={t("sensors.config.field.hostname.hint")}>
                     <Input
                       value={cfg.hostname}
                       onChange={(e) => set("hostname", e.target.value)}
@@ -204,7 +208,7 @@ export function SensorConfigDialog({
                       className="font-mono text-sm"
                     />
                   </Field>
-                  <Field label="Hardware Platform" hint="Returned by uname -m">
+                  <Field label={t("sensors.config.field.hardwarePlatform")} hint={t("sensors.config.field.hardwarePlatform.hint")}>
                     <Input
                       value={cfg.hardware_platform}
                       onChange={(e) => set("hardware_platform", e.target.value)}
@@ -217,8 +221,8 @@ export function SensorConfigDialog({
 
               {/* SSH Banner */}
               <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">SSH Banner</p>
-                <Field label="SSH Version String" hint="Sent during the SSH handshake — attackers fingerprint servers by this">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.sshBanner")}</p>
+                <Field label={t("sensors.config.field.sshVersion")} hint={t("sensors.config.field.sshVersion.hint")}>
                   <Input
                     value={cfg.ssh_version}
                     onChange={(e) => set("ssh_version", e.target.value)}
@@ -230,9 +234,9 @@ export function SensorConfigDialog({
 
               {/* Kernel */}
               <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Kernel Info</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.kernel")}</p>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Kernel Version" hint="Returned by uname -r">
+                  <Field label={t("sensors.config.field.kernelVersion")} hint={t("sensors.config.field.kernelVersion.hint")}>
                     <Input
                       value={cfg.kernel_version}
                       onChange={(e) => set("kernel_version", e.target.value)}
@@ -240,7 +244,7 @@ export function SensorConfigDialog({
                       className="font-mono text-sm"
                     />
                   </Field>
-                  <Field label="Kernel Build String" hint="Returned by uname -v">
+                  <Field label={t("sensors.config.field.kernelBuild")} hint={t("sensors.config.field.kernelBuild.hint")}>
                     <Input
                       value={cfg.kernel_build_string}
                       onChange={(e) => set("kernel_build_string", e.target.value)}
@@ -253,9 +257,9 @@ export function SensorConfigDialog({
 
               {/* Timeouts */}
               <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Session Timeouts</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.timeouts")}</p>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Interactive Timeout (s)" hint="Idle session closes after this many seconds">
+                  <Field label={t("sensors.config.field.interactiveTimeout")} hint={t("sensors.config.field.interactiveTimeout.hint")}>
                     <Input
                       type="number"
                       min={30}
@@ -265,7 +269,7 @@ export function SensorConfigDialog({
                       className="font-mono text-sm"
                     />
                   </Field>
-                  <Field label="Authentication Timeout (s)" hint="Time allowed to complete authentication">
+                  <Field label={t("sensors.config.field.authTimeout")} hint={t("sensors.config.field.authTimeout.hint")}>
                     <Input
                       type="number"
                       min={10}
@@ -281,25 +285,27 @@ export function SensorConfigDialog({
               {/* Credentials */}
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Accepted Credentials</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.credentials")}</p>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Every username gets every password. Total entries: {cfg.usernames.length} × {cfg.passwords.length} = {cfg.usernames.length * cfg.passwords.length}
+                    {t("sensors.config.credentials.total", { total: String(cfg.usernames.length * cfg.passwords.length) })}
                   </p>
                 </div>
-                <Field label="Usernames" hint="Press Enter or click Add to add each username">
+                <Field label={t("sensors.config.field.usernames")} hint={t("sensors.config.field.usernames.hint")}>
                   <TagInput
                     values={cfg.usernames}
                     onChange={(v) => set("usernames", v)}
                     placeholder="e.g. root"
-                    validate={(v) => /\s/.test(v) ? "No spaces allowed" : null}
+                    validate={(v) => /\s/.test(v) ? t("sensors.config.tagInput.noSpaces") : null}
+                    addLabel={t("sensors.config.tagInput.add")}
                   />
                 </Field>
-                <Field label="Passwords" hint="Minimum 8 characters each (enforced by Cowrie)">
+                <Field label={t("sensors.config.field.passwords")} hint={t("sensors.config.field.passwords.hint")}>
                   <TagInput
                     values={cfg.passwords}
                     onChange={(v) => set("passwords", v)}
                     placeholder="e.g. MyBaitPass99!"
-                    validate={(v) => v.length < 8 ? "Minimum 8 characters" : null}
+                    validate={(v) => v.length < 8 ? t("sensors.config.tagInput.minLength") : null}
+                    addLabel={t("sensors.config.tagInput.add")}
                   />
                 </Field>
               </div>
@@ -308,9 +314,7 @@ export function SensorConfigDialog({
               {saved && (
                 <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-400">
                   <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                  <span>
-                    Config saved. Cowrie will apply it and restart automatically within ~15 seconds.
-                  </span>
+                  <span>{t("sensors.config.saved")}</span>
                 </div>
               )}
 
@@ -329,15 +333,15 @@ export function SensorConfigDialog({
               disabled={loading || saving}
             >
               <RotateCcw className="h-3.5 w-3.5" />
-              Reset defaults
+              {t("sensors.config.resetDefaults")}
             </Button>
             <Button type="button" variant="outline" size="sm" onClick={onClose}>
               <X className="h-3.5 w-3.5" />
-              Cancel
+              {t("sensors.config.cancel")}
             </Button>
             <Button type="submit" size="sm" disabled={loading || saving}>
               <Save className="h-3.5 w-3.5" />
-              {saving ? "Saving…" : "Save & Apply"}
+              {saving ? t("sensors.config.saving") : t("sensors.config.saveApply")}
             </Button>
           </DialogFooter>
         </form>

@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { formatTs, formatDuration } from "@/lib/formatting"
+import { useT } from "@/components/locale-provider"
 
 type SessionEvent = {
   id: string
@@ -54,6 +55,7 @@ const EVENT_COLOR: Record<string, string> = {
 }
 
 export function ClientSessionModal({ sessionId, onClose }: Props) {
+  const t = useT()
   const [session, setSession] = useState<SessionDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState(false)
@@ -90,7 +92,7 @@ export function ClientSessionModal({ sessionId, onClose }: Props) {
                 Session {session?.srcIp ?? "…"}
               </DialogTitle>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                {session ? `${session.protocol.toUpperCase()} · ${session.sessionType}` : "Loading…"}
+                {session ? `${session.protocol.toUpperCase()} · ${session.sessionType}` : t("clients.session.loading")}
               </p>
             </div>
             {session && (
@@ -110,7 +112,7 @@ export function ClientSessionModal({ sessionId, onClose }: Props) {
 
           {error && !loading && (
             <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
-              Could not load session details.
+              {t("clients.session.loadError")}
             </div>
           )}
 
@@ -119,12 +121,12 @@ export function ClientSessionModal({ sessionId, onClose }: Props) {
               {/* Meta grid */}
               <div className="grid grid-cols-2 gap-x-6 gap-y-3 px-5 py-4 sm:grid-cols-3">
                 {[
-                  { icon: User,  label: "Username", value: session.username ?? "—" },
-                  { icon: Key,   label: "Password",  value: session.password ?? "—" },
-                  { icon: Clock, label: "Duration",  value: session.durationSec != null ? formatDuration(session.durationSec) : "—" },
-                  { icon: Cpu,   label: "Client",    value: session.clientVersion ?? "—" },
-                  { icon: Terminal, label: "HASSH",  value: session.hassh ? session.hassh.slice(0, 16) + "…" : "—" },
-                  { icon: Clock, label: "Started",   value: formatTs(session.startedAt) },
+                  { icon: User,     label: t("clients.session.field.username"), value: session.username ?? "—" },
+                  { icon: Key,      label: t("clients.session.field.password"),  value: session.password ?? "—" },
+                  { icon: Clock,    label: t("clients.session.field.duration"),  value: session.durationSec != null ? formatDuration(session.durationSec) : "—" },
+                  { icon: Cpu,      label: t("clients.session.field.client"),    value: session.clientVersion ?? "—" },
+                  { icon: Terminal, label: t("clients.session.field.hassh"),     value: session.hassh ? session.hassh.slice(0, 16) + "…" : "—" },
+                  { icon: Clock,    label: t("clients.session.field.started"),   value: formatTs(session.startedAt) },
                 ].map(({ icon: Icon, label, value }) => (
                   <div key={label} className="flex items-start gap-2">
                     <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
@@ -140,17 +142,17 @@ export function ClientSessionModal({ sessionId, onClose }: Props) {
               <div className="flex gap-6 px-5 py-3 bg-muted/20">
                 <div className="text-center">
                   <p className="text-sm font-semibold tabular-nums text-foreground">{session.eventCount}</p>
-                  <p className="text-[10px] text-muted-foreground">events</p>
+                  <p className="text-[10px] text-muted-foreground">{t("clients.session.stats.events")}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-sm font-semibold tabular-nums text-foreground">{session.commandCount}</p>
-                  <p className="text-[10px] text-muted-foreground">commands</p>
+                  <p className="text-[10px] text-muted-foreground">{t("clients.session.stats.commands")}</p>
                 </div>
                 <div className="text-center">
                   <p className={`text-sm font-semibold ${session.loginSuccess ? "text-red-400" : "text-emerald-400"}`}>
-                    {session.loginSuccess ? "Compromised" : "Blocked"}
+                    {session.loginSuccess ? t("clients.session.stats.compromised") : t("clients.session.stats.blocked")}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">outcome</p>
+                  <p className="text-[10px] text-muted-foreground">{t("clients.session.stats.outcome")}</p>
                 </div>
               </div>
 
@@ -178,7 +180,7 @@ export function ClientSessionModal({ sessionId, onClose }: Props) {
 
               {events.length === 0 && (
                 <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">
-                  No events recorded for this session.
+                  {t("clients.session.noEvents")}
                 </div>
               )}
             </div>
