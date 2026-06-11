@@ -16,6 +16,7 @@ import {
 import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/multi-select-combobox"
 import { OverflowBadges, type BadgeItem } from "@/components/ui/overflow-badges"
 import { NavTransitionProvider, useNavTransition } from "@/lib/use-nav-transition"
+import { useT } from "@/components/locale-provider"
 import { cn } from "@/lib/utils"
 import type { PaginationMeta, RiskLevel, ThreatSummary } from "@/lib/api"
 import { LEVEL_STYLES, CMD_COLORS, CMD_LABELS, CMD_LABELS_SHORT } from "@/lib/attack-types"
@@ -118,6 +119,7 @@ function ThreatsTableInner({
   commands = [],
   crossProtocol = false,
 }: ThreatsTableProps) {
+  const t = useT()
   const searchParams = useSearchParams()
   const { push, pushParams } = useNavTransition()
 
@@ -168,7 +170,7 @@ function ThreatsTableInner({
             type="text"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search IP across all attackers…"
+            placeholder={t("threats.table.searchPlaceholder")}
             className="h-9 w-full rounded-lg border border-border bg-secondary pl-10 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
           {search && (
@@ -176,7 +178,7 @@ function ThreatsTableInner({
               type="button"
               onClick={() => setSearch("")}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label="Clear search input"
+              aria-label={t("threats.table.clearSearch")}
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -186,24 +188,24 @@ function ThreatsTableInner({
           type="submit"
           className="h-9 rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
         >
-          Search
+          {t("threats.table.search")}
         </button>
       </form>
 
       <MultiSelectCombobox
-        label="Level"
+        label={t("threats.table.level")}
         options={LEVEL_OPTIONS}
         selected={levels}
         onChange={(next) => setCsv("levels", next)}
       />
 
       <MultiSelectCombobox
-        label="Commands"
+        label={t("threats.table.commands")}
         options={COMMAND_OPTIONS}
         selected={commands}
         onChange={(next) => setCsv("commands", next)}
         searchable
-        searchPlaceholder="Filter categories…"
+        searchPlaceholder={t("threats.table.filterCategories")}
       />
 
       <button
@@ -218,7 +220,7 @@ function ThreatsTableInner({
         )}
       >
         <Network className="h-3.5 w-3.5" />
-        Cross-protocol
+        {t("threats.stat.crossProtocol")}
       </button>
 
       {hasActiveFilters && (
@@ -228,7 +230,7 @@ function ThreatsTableInner({
           className="inline-flex h-9 items-center gap-1 rounded-lg border border-border px-3 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
         >
           <X className="h-3.5 w-3.5" />
-          Clear all
+          {t("threats.table.clearAll")}
         </button>
       )}
     </div>
@@ -236,8 +238,8 @@ function ThreatsTableInner({
 
   return (
     <TableShell
-      title="Threat ranking"
-      description="Sorted by risk score · click to view detail"
+      title={t("threats.table.title")}
+      description={t("threats.table.description")}
       toolbar={toolbar}
       pagination={pagination}
     >
@@ -245,14 +247,14 @@ function ThreatsTableInner({
         hasActiveFilters ? (
           <EmptyState
             icon="shield"
-            title="No threats match these filters"
-            description="Try a different IP, risk level, or command category — or clear the active filters to see all attackers."
+            title={t("threats.table.empty.filtered.title")}
+            description={t("threats.table.empty.filtered.description")}
           />
         ) : (
           <EmptyState
             icon="shield"
-            title="No threats detected"
-            description="Threat intelligence will appear here once attackers are detected across SSH, HTTP or network protocols."
+            title={t("threats.table.empty.title")}
+            description={t("threats.table.empty.description")}
           />
         )
       ) : (
@@ -260,14 +262,14 @@ function ThreatsTableInner({
           <TableHeader>
             <TableRow className="bg-muted/20">
               <TableHead>#</TableHead>
-              <TableHead>IP</TableHead>
-              <TableHead>Level</TableHead>
-              <SortableHead label="Score" column="score" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} />
-              <SortableHead label="Sessions" column="sessions" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} />
-              <SortableHead label="Web hits" column="webHits" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} className="hidden lg:table-cell" />
-              <SortableHead label="Protocols" column="protocols" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} />
-              <TableHead>Detected commands</TableHead>
-              <TableHead className="hidden xl:table-cell">Top factors</TableHead>
+              <TableHead>{t("threats.table.col.ip")}</TableHead>
+              <TableHead>{t("threats.table.col.level")}</TableHead>
+              <SortableHead label={t("threats.table.col.score")} column="score" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} />
+              <SortableHead label={t("threats.table.col.sessions")} column="sessions" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} />
+              <SortableHead label={t("threats.table.col.webHits")} column="webHits" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} className="hidden lg:table-cell" />
+              <SortableHead label={t("threats.table.col.protocols")} column="protocols" sortBy={sortBy} sortDir={sortDir} searchParams={searchParams} push={push} />
+              <TableHead>{t("threats.table.col.detectedCommands")}</TableHead>
+              <TableHead className="hidden xl:table-cell">{t("threats.table.col.topFactors")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

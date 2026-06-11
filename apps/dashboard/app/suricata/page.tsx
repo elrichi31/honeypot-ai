@@ -10,13 +10,15 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 import { useTimezone } from "@/components/timezone-provider"
 import { formatInTimezone } from "@/lib/timezone"
+import { useT } from "@/components/locale-provider"
+import type { TranslationKey } from "@/lib/i18n/dictionaries"
 
 const SEVERITY_CONFIG = {
-  1: { label: "Critical", className: "bg-red-500/20 text-red-400 border-red-500/30" },
-  2: { label: "High",     className: "bg-orange-500/20 text-orange-400 border-orange-500/30" },
-  3: { label: "Medium",   className: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
-  4: { label: "Low",      className: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
-} as const
+  1: { labelKey: "suricata.stat.critical", className: "bg-red-500/20 text-red-400 border-red-500/30" },
+  2: { labelKey: "suricata.stat.high",     className: "bg-orange-500/20 text-orange-400 border-orange-500/30" },
+  3: { labelKey: "suricata.stat.medium",   className: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
+  4: { labelKey: "suricata.stat.low",      className: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
+} as const satisfies Record<number, { labelKey: TranslationKey; className: string }>
 type SeverityKey = keyof typeof SEVERITY_CONFIG
 
 interface Alert {
@@ -43,10 +45,11 @@ interface Pagination {
 }
 
 function SeverityBadge({ severity }: { severity: number }) {
+  const t = useT()
   const cfg = SEVERITY_CONFIG[severity as SeverityKey] ?? SEVERITY_CONFIG[4]
   return (
     <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${cfg.className}`}>
-      {cfg.label}
+      {t(cfg.labelKey)}
     </span>
   )
 }
@@ -70,7 +73,7 @@ function ToggleButton({ active, onClick, icon: Icon, label }: {
   )
 }
 
-const RANGE_LABELS: Record<Range, string> = { "24h": "24h", "7d": "7 days", "30d": "30 days" }
+const RANGE_LABEL_KEYS: Record<Range, TranslationKey | null> = { "24h": null, "7d": "suricata.range.7d", "30d": "suricata.range.30d" }
 
 function TimelineChart({ data, range }: { data: Stats["timeline"]; range: Range }) {
   const tz = useTimezone()
@@ -100,7 +103,9 @@ function TimelineChart({ data, range }: { data: Stats["timeline"]; range: Range 
 }
 
 export default function SuricataPage() {
+  const t = useT()
   const tz = useTimezone()
+  const rangeLabel = (r: Range) => { const k = RANGE_LABEL_KEYS[r]; return k ? t(k) : r }
   const [stats, setStats]           = useState<Stats | null>(null)
   const [alerts, setAlerts]         = useState<Alert[]>([])
   const [pagination, setPagination] = useState<Pagination | null>(null)
@@ -161,10 +166,10 @@ export default function SuricataPage() {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <Shield className="h-5 w-5 text-blue-400" />
-            <h1 className="text-2xl font-semibold text-foreground">Network IDS</h1>
+            <h1 className="text-2xl font-semibold text-foreground">{t("suricata.title")}</h1>
             <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-xs text-blue-400">Suricata</span>
           </div>
-          <p className="text-sm text-muted-foreground">ET Open rules · real-time intrusion detection</p>
+          <p className="text-sm text-muted-foreground">{t("suricata.subtitle")}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
           {/* Range selector */}
@@ -176,22 +181,22 @@ export default function SuricataPage() {
               </button>
             ))}
           </div>
-          <ToggleButton active={hideNoise} onClick={() => { setHideNoise(v => !v); setPage(1) }} icon={hideNoise ? EyeOff : Eye} label="Hide noise" />
-          <ToggleButton active={excludeOwn} onClick={() => { setExcludeOwn(v => !v); setPage(1) }} icon={excludeOwn ? EyeOff : Eye} label="Exclude own IPs" />
+          <ToggleButton active={hideNoise} onClick={() => { setHideNoise(v => !v); setPage(1) }} icon={hideNoise ? EyeOff : Eye} label={t("suricata.hideNoise")} />
+          <ToggleButton active={excludeOwn} onClick={() => { setExcludeOwn(v => !v); setPage(1) }} icon={excludeOwn ? EyeOff : Eye} label={t("suricata.excludeOwn")} />
         </div>
       </div>
 
       {/* Tab: threats vs all */}
       <div className="mb-4 flex gap-1 rounded-lg border border-border bg-muted/20 p-1 w-fit">
-        {(["threats", "all"] as const).map(t => (
+        {(["threats", "all"] as const).map(tabKey => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={tabKey}
+            onClick={() => setTab(tabKey)}
             className={`rounded-md px-4 py-1.5 text-xs font-medium transition-colors ${
-              tab === t ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              tab === tabKey ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            {t === "threats" ? "Real Threats" : "All (incl. noise)"}
+            {tabKey === "threats" ? t("suricata.tab.threats") : t("suricata.tab.all")}
           </button>
         ))}
       </div>
@@ -199,11 +204,11 @@ export default function SuricataPage() {
       {/* Stats cards */}
       {displayed ? (
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
-          <StatCard label="Total"    value={displayed.total.toLocaleString()}    sub={`last ${RANGE_LABELS[range]}`} />
-          <StatCard label="Critical" tone="critical" value={displayed.critical.toLocaleString()} />
-          <StatCard label="High"     tone="high"     value={displayed.high.toLocaleString()} />
-          <StatCard label="Medium"   value={<span className="text-yellow-400">{displayed.medium.toLocaleString()}</span>} />
-          <StatCard label="Low"      value={<span className="text-blue-400">{displayed.low.toLocaleString()}</span>} />
+          <StatCard label={t("suricata.stat.total")}    value={displayed.total.toLocaleString()}    sub={t("suricata.stat.last", { range: rangeLabel(range) })} />
+          <StatCard label={t("suricata.stat.critical")} tone="critical" value={displayed.critical.toLocaleString()} />
+          <StatCard label={t("suricata.stat.high")}     tone="high"     value={displayed.high.toLocaleString()} />
+          <StatCard label={t("suricata.stat.medium")}   value={<span className="text-yellow-400">{displayed.medium.toLocaleString()}</span>} />
+          <StatCard label={t("suricata.stat.low")}      value={<span className="text-blue-400">{displayed.low.toLocaleString()}</span>} />
         </div>
       ) : (
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
@@ -217,8 +222,8 @@ export default function SuricataPage() {
       {stats?.timeline && (
         <Surface padded className="mb-6">
           <p className="mb-3 text-sm font-medium text-foreground">
-            Alert Timeline
-            <span className="ml-2 text-xs text-muted-foreground">— {RANGE_LABELS[range]}</span>
+            {t("suricata.timeline")}
+            <span className="ml-2 text-xs text-muted-foreground">— {rangeLabel(range)}</span>
           </p>
           <TimelineChart data={stats.timeline} range={range} />
         </Surface>
@@ -229,7 +234,7 @@ export default function SuricataPage() {
         <div className="mb-6 grid gap-4 lg:grid-cols-2">
           <Surface padded>
             <p className="mb-3 text-sm font-medium text-foreground">
-              Top Signatures (24h) {tab === "threats" && <span className="text-xs text-muted-foreground ml-1">— threats only</span>}
+              {t("suricata.topSignatures")} {tab === "threats" && <span className="text-xs text-muted-foreground ml-1">— {t("suricata.threatsOnly")}</span>}
             </p>
             <div className="space-y-2">
               {topSigs.slice(0, 7).map((sig, i) => (
@@ -239,12 +244,12 @@ export default function SuricataPage() {
                   <span className="tabular-nums text-foreground font-medium text-xs">{sig.count.toLocaleString()}</span>
                 </div>
               ))}
-              {topSigs.length === 0 && <p className="text-xs text-muted-foreground">No alerts in last 24 hours</p>}
+              {topSigs.length === 0 && <p className="text-xs text-muted-foreground">{t("suricata.noAlerts24h")}</p>}
             </div>
           </Surface>
 
           <Surface padded>
-            <p className="mb-3 text-sm font-medium text-foreground">Top Attackers (24h)</p>
+            <p className="mb-3 text-sm font-medium text-foreground">{t("suricata.topAttackers")}</p>
             <div className="space-y-2">
               {stats.topSources.slice(0, 7).map((src, i) => (
                 <div key={i} className="flex items-center gap-2 text-sm">
@@ -261,7 +266,7 @@ export default function SuricataPage() {
                   </div>
                 </div>
               ))}
-              {stats.topSources.length === 0 && <p className="text-xs text-muted-foreground">No external alerts in last 24 hours</p>}
+              {stats.topSources.length === 0 && <p className="text-xs text-muted-foreground">{t("suricata.noExternalAlerts24h")}</p>}
             </div>
           </Surface>
         </div>
@@ -275,12 +280,12 @@ export default function SuricataPage() {
             <input
               value={qInput}
               onChange={(e) => setQInput(e.target.value)}
-              placeholder="Signature, category, IP..."
+              placeholder={t("suricata.searchPlaceholder")}
               className="h-8 rounded-lg border border-border bg-background pl-8 pr-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
           <button type="submit" className="h-8 rounded-lg border border-border bg-background px-3 text-sm text-muted-foreground hover:text-foreground">
-            Search
+            {t("suricata.search")}
           </button>
         </form>
 
@@ -289,11 +294,11 @@ export default function SuricataPage() {
           onChange={(e) => { setSeverity(e.target.value); setPage(1) }}
           className="h-8 rounded-lg border border-border bg-background px-3 text-sm text-muted-foreground"
         >
-          <option value="">All severities</option>
-          <option value="1">Critical</option>
-          <option value="2">High</option>
-          <option value="3">Medium</option>
-          <option value="4">Low</option>
+          <option value="">{t("suricata.allSeverities")}</option>
+          <option value="1">{t("suricata.stat.critical")}</option>
+          <option value="2">{t("suricata.stat.high")}</option>
+          <option value="3">{t("suricata.stat.medium")}</option>
+          <option value="4">{t("suricata.stat.low")}</option>
         </select>
 
         <button
@@ -301,7 +306,7 @@ export default function SuricataPage() {
           className="ml-auto flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-sm text-muted-foreground hover:text-foreground"
         >
           <RefreshCw className="h-3.5 w-3.5" />
-          Refresh
+          {t("suricata.refresh")}
         </button>
       </div>
 
@@ -314,19 +319,19 @@ export default function SuricataPage() {
         ) : alerts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <AlertTriangle className="mb-2 h-8 w-8 opacity-40" />
-            <p className="text-sm">No alerts found</p>
+            <p className="text-sm">{t("suricata.noAlertsFound")}</p>
           </div>
         ) : (
           <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Severity</TableHead>
-                  <TableHead>Time</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Destination</TableHead>
-                  <TableHead>Proto</TableHead>
-                  <TableHead>Signature</TableHead>
-                  <TableHead>Category</TableHead>
+                  <TableHead>{t("suricata.col.severity")}</TableHead>
+                  <TableHead>{t("suricata.col.time")}</TableHead>
+                  <TableHead>{t("suricata.col.source")}</TableHead>
+                  <TableHead>{t("suricata.col.destination")}</TableHead>
+                  <TableHead>{t("suricata.col.proto")}</TableHead>
+                  <TableHead>{t("suricata.col.signature")}</TableHead>
+                  <TableHead>{t("suricata.col.category")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -363,14 +368,17 @@ export default function SuricataPage() {
         {pagination && pagination.totalPages > 1 && (
           <TableCardFooter className="text-sm">
             <span>
-              {((pagination.page - 1) * pagination.pageSize + 1).toLocaleString()}–
-              {Math.min(pagination.page * pagination.pageSize, pagination.total).toLocaleString()} of {pagination.total.toLocaleString()}
+              {t("suricata.pageRange", {
+                from: ((pagination.page - 1) * pagination.pageSize + 1).toLocaleString(),
+                to: Math.min(pagination.page * pagination.pageSize, pagination.total).toLocaleString(),
+                total: pagination.total.toLocaleString(),
+              })}
             </span>
             <div className="flex gap-2">
               <button disabled={!pagination.hasPreviousPage} onClick={() => setPage(p => p - 1)}
-                className="rounded-lg border border-border px-3 py-1 text-xs disabled:opacity-40 hover:bg-muted/20">Previous</button>
+                className="rounded-lg border border-border px-3 py-1 text-xs disabled:opacity-40 hover:bg-muted/20">{t("suricata.previous")}</button>
               <button disabled={!pagination.hasNextPage} onClick={() => setPage(p => p + 1)}
-                className="rounded-lg border border-border px-3 py-1 text-xs disabled:opacity-40 hover:bg-muted/20">Next</button>
+                className="rounded-lg border border-border px-3 py-1 text-xs disabled:opacity-40 hover:bg-muted/20">{t("suricata.next")}</button>
             </div>
           </TableCardFooter>
         )}

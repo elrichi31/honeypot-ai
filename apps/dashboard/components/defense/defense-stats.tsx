@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 import { ShieldAlert, Globe, Zap, Bug } from "lucide-react"
 import { Surface } from "@/components/ui/surface"
+import { useT } from "@/components/locale-provider"
+import type { TranslationKey } from "@/lib/i18n/dictionaries"
 
 type Summary = {
   totalToday: number
@@ -10,14 +12,15 @@ type Summary = {
   topIps: { ip: string; count: number }[]
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  scanner:     "Scanner",
-  path_probe:  "Path Probe",
-  injection:   "Injection",
-  brute_force: "Brute Force",
+const TYPE_LABEL_KEYS: Record<string, TranslationKey> = {
+  scanner:     "defense.type.scanner",
+  path_probe:  "defense.type.pathProbe",
+  injection:   "defense.type.injection",
+  brute_force: "defense.type.bruteForce",
 }
 
 export function DefenseStats() {
+  const t = useT()
   const [data, setData] = useState<Summary | null>(null)
 
   useEffect(() => {
@@ -31,10 +34,10 @@ export function DefenseStats() {
   const topIp    = data?.topIps[0]
 
   const metrics = [
-    { icon: ShieldAlert, label: "Attacks today",  value: data ? data.totalToday.toLocaleString() : "—", color: data?.totalToday ? "text-red-400" : "text-emerald-400", bg: data?.totalToday ? "bg-red-400/10" : "bg-emerald-400/10" },
-    { icon: Globe,       label: "Unique IPs",      value: data ? (data.topIps.length >= 10 ? "10+" : String(data.topIps.length)) : "—", color: "text-blue-400",   bg: "bg-blue-400/10" },
-    { icon: Bug,         label: "Top attack type", value: topType ? (TYPE_LABELS[topType.type] ?? topType.type) : "—", color: "text-orange-400", bg: "bg-orange-400/10" },
-    { icon: Zap,         label: "Top attacker",    value: topIp ? topIp.ip : "—", color: "text-purple-400", bg: "bg-purple-400/10" },
+    { icon: ShieldAlert, label: t("defense.stat.attacksToday"),  value: data ? data.totalToday.toLocaleString() : "—", color: data?.totalToday ? "text-red-400" : "text-emerald-400", bg: data?.totalToday ? "bg-red-400/10" : "bg-emerald-400/10" },
+    { icon: Globe,       label: t("defense.stat.uniqueIps"),      value: data ? (data.topIps.length >= 10 ? "10+" : String(data.topIps.length)) : "—", color: "text-blue-400",   bg: "bg-blue-400/10" },
+    { icon: Bug,         label: t("defense.stat.topAttackType"), value: topType ? (TYPE_LABEL_KEYS[topType.type] ? t(TYPE_LABEL_KEYS[topType.type]) : topType.type) : "—", color: "text-orange-400", bg: "bg-orange-400/10" },
+    { icon: Zap,         label: t("defense.stat.topAttacker"),    value: topIp ? topIp.ip : "—", color: "text-purple-400", bg: "bg-purple-400/10" },
   ]
 
   return (

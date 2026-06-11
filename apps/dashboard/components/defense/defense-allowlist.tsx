@@ -5,12 +5,14 @@ import { ShieldCheck, Plus, Trash2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { formatTs } from "@/lib/formatting"
 import { Surface } from "@/components/ui/surface"
+import { useT } from "@/components/locale-provider"
 
 type AllowEntry = { id: string; entry: string; label: string; createdAt: string }
 
 const PLACEHOLDER_EXAMPLES = ["1.2.3.4", "203.0.113.0/24"]
 
 export function DefenseAllowlist() {
+  const t = useT()
   const [items, setItems]       = useState<AllowEntry[]>([])
   const [loading, setLoading]   = useState(true)
   const [entry, setEntry]       = useState("")
@@ -42,7 +44,7 @@ export function DefenseAllowlist() {
     })
     const data = await res.json()
     setSaving(false)
-    if (!res.ok) { setError(data.error ?? "Error adding entry"); return }
+    if (!res.ok) { setError(data.error ?? t("defense.allow.errorAdding")); return }
     setEntry(""); setLabel("")
     load()
   }
@@ -62,9 +64,9 @@ export function DefenseAllowlist() {
           <ShieldCheck className="h-4 w-4 text-emerald-400" />
         </div>
         <div>
-          <h2 className="text-sm font-semibold text-foreground">IP Allowlist</h2>
+          <h2 className="text-sm font-semibold text-foreground">{t("defense.allow.title")}</h2>
           <p className="text-[11px] text-muted-foreground">
-            IPs and CIDR ranges excluded from detection · RFC 1918 always excluded
+            {t("defense.allow.subtitle")}
           </p>
         </div>
       </div>
@@ -76,7 +78,7 @@ export function DefenseAllowlist() {
             type="text"
             value={entry}
             onChange={e => { setEntry(e.target.value); setError("") }}
-            placeholder={`IP or CIDR — e.g. ${PLACEHOLDER_EXAMPLES[0]}, ${PLACEHOLDER_EXAMPLES[1]}`}
+            placeholder={t("defense.allow.placeholder", { a: PLACEHOLDER_EXAMPLES[0], b: PLACEHOLDER_EXAMPLES[1] })}
             className="w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 font-mono text-xs text-foreground placeholder:text-muted-foreground/40 outline-none focus:border-white/20"
           />
           {error && <p className="text-[11px] text-red-400">{error}</p>}
@@ -85,12 +87,12 @@ export function DefenseAllowlist() {
           type="text"
           value={label}
           onChange={e => setLabel(e.target.value)}
-          placeholder="Label (optional)"
+          placeholder={t("defense.allow.labelPlaceholder")}
           className="w-40 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 outline-none focus:border-white/20"
         />
         <Button type="submit" size="sm" disabled={saving || !entry.trim()} className="h-[30px] gap-1.5">
           {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-          Add
+          {t("defense.allow.add")}
         </Button>
       </form>
 
@@ -103,15 +105,15 @@ export function DefenseAllowlist() {
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-10">
             <ShieldCheck className="h-6 w-6 text-muted-foreground/30" />
-            <p className="text-[11px] text-muted-foreground">No custom entries — only RFC 1918 ranges are excluded</p>
+            <p className="text-[11px] text-muted-foreground">{t("defense.allow.empty")}</p>
           </div>
         ) : (
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-white/[0.06]">
-                <th className="px-4 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60 w-[180px]">ENTRY</th>
-                <th className="px-4 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60">LABEL</th>
-                <th className="px-4 py-1.5 text-right text-[10px] font-medium text-muted-foreground/60 w-[140px]">ADDED</th>
+                <th className="px-4 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60 w-[180px]">{t("defense.allow.col.entry")}</th>
+                <th className="px-4 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60">{t("defense.allow.col.label")}</th>
+                <th className="px-4 py-1.5 text-right text-[10px] font-medium text-muted-foreground/60 w-[140px]">{t("defense.allow.col.added")}</th>
                 <th className="px-4 py-1.5 w-10" />
               </tr>
             </thead>

@@ -10,6 +10,7 @@ import { AiThreatSummary } from "@/components/ai-threat-summary"
 import { IpEnrichment } from "@/components/ip-enrichment"
 import { Surface } from "@/components/ui/surface"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
+import { getServerT } from "@/lib/i18n/server"
 import fs from "fs"
 import path from "path"
 import type { ThreatAnalysis } from "@/app/api/ai/threat-analysis/route"
@@ -30,6 +31,7 @@ export default async function ThreatDetailPage({
 }: {
   params: Promise<{ ip: string }>
 }) {
+  const t = await getServerT()
   const { ip } = await params
   const srcIp = decodeURIComponent(ip)
   const tz = readConfig().timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
@@ -48,11 +50,11 @@ export default async function ThreatDetailPage({
   const activeCats = Object.entries(threat.risk.commandCategories).filter(([, cmds]) => cmds.length > 0)
 
   const breakdownItems = [
-    { label: "SSH",           value: threat.risk.breakdown.ssh,        color: "bg-cyan-500" },
-    { label: "Web",           value: threat.risk.breakdown.web,        color: "bg-blue-500" },
-    { label: "Services",      value: threat.risk.breakdown.protocols,  color: "bg-emerald-500" },
-    { label: "Commands",      value: threat.risk.breakdown.commands,   color: "bg-orange-500" },
-    { label: "Cross-protocol",value: threat.risk.breakdown.crossProto, color: "bg-purple-500" },
+    { label: t("threats.detail.breakdown.ssh"),           value: threat.risk.breakdown.ssh,        color: "bg-cyan-500" },
+    { label: t("threats.detail.breakdown.web"),           value: threat.risk.breakdown.web,        color: "bg-blue-500" },
+    { label: t("threats.detail.breakdown.services"),      value: threat.risk.breakdown.protocols,  color: "bg-emerald-500" },
+    { label: t("threats.detail.breakdown.commands"),      value: threat.risk.breakdown.commands,   color: "bg-orange-500" },
+    { label: t("threats.detail.breakdown.crossProtocol"),value: threat.risk.breakdown.crossProto, color: "bg-purple-500" },
   ]
 
   return (
@@ -63,7 +65,7 @@ export default async function ThreatDetailPage({
             href="/threats"
             className="mb-3 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
           >
-            <ArrowLeft className="h-3.5 w-3.5" /> Back to Threats
+            <ArrowLeft className="h-3.5 w-3.5" /> {t("threats.detail.back")}
           </Link>
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -74,11 +76,11 @@ export default async function ThreatDetailPage({
                 </span>
                 {threat.crossProtocol && (
                   <span className="inline-flex items-center rounded-full bg-purple-500/15 border border-purple-500/30 px-2.5 py-1 text-xs font-medium text-purple-400">
-                    Multi-service x{threat.protocolsSeen.length}
+                    {t("threats.detail.multiService", { n: threat.protocolsSeen.length })}
                   </span>
                 )}
               </div>
-              <p className="mt-1 text-sm text-muted-foreground">Risk score: <span className="font-mono font-semibold text-foreground">{threat.risk.score}/100</span></p>
+              <p className="mt-1 text-sm text-muted-foreground">{t("threats.detail.riskScore")} <span className="font-mono font-semibold text-foreground">{threat.risk.score}/100</span></p>
             </div>
           </div>
         </div>
@@ -86,7 +88,7 @@ export default async function ThreatDetailPage({
         {/* Top factors */}
         {threat.risk.topFactors.length > 0 && (
           <Surface padded className={`mb-6 ${s.bg}`}>
-            <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">Top factors</p>
+            <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">{t("threats.detail.topFactors")}</p>
             <ul className="flex flex-wrap gap-2">
               {threat.risk.topFactors.map((f, i) => (
                 <li key={i} className="flex items-center gap-1.5 text-sm text-foreground">
@@ -119,7 +121,7 @@ export default async function ThreatDetailPage({
             {/* Risk breakdown */}
             <Surface>
               <div className="border-b border-border p-4">
-                <h3 className="font-semibold text-foreground">Score breakdown</h3>
+                <h3 className="font-semibold text-foreground">{t("threats.detail.scoreBreakdown")}</h3>
               </div>
               <div className="divide-y divide-border">
                 {breakdownItems.map(({ label, value, color }) => (
@@ -150,17 +152,17 @@ export default async function ThreatDetailPage({
                 </div>
                 <div className="divide-y divide-border text-sm">
                   <div className="flex justify-between px-4 py-2.5">
-                    <span className="text-muted-foreground">Sessions</span>
+                    <span className="text-muted-foreground">{t("threats.detail.ssh.sessions")}</span>
                     <span className="font-mono font-semibold text-foreground">{threat.ssh.sessions}</span>
                   </div>
                   <div className="flex justify-between px-4 py-2.5">
-                    <span className="text-muted-foreground">Auth attempts</span>
+                    <span className="text-muted-foreground">{t("threats.detail.ssh.authAttempts")}</span>
                     <span className="font-mono font-semibold text-foreground">{threat.ssh.authAttempts}</span>
                   </div>
                   <div className="flex justify-between px-4 py-2.5">
-                    <span className="text-muted-foreground">Successful login</span>
+                    <span className="text-muted-foreground">{t("threats.detail.ssh.successfulLogin")}</span>
                     <span className={`font-semibold ${threat.ssh.loginSuccess ? "text-destructive" : "text-success"}`}>
-                      {threat.ssh.loginSuccess ? "Yes" : "No"}
+                      {threat.ssh.loginSuccess ? t("threats.detail.yes") : t("threats.detail.no")}
                     </span>
                   </div>
                 </div>
@@ -171,44 +173,44 @@ export default async function ThreatDetailPage({
               <Surface>
                 <div className="border-b border-border p-4 flex items-center gap-2">
                   <ShieldAlert className="h-4 w-4 text-emerald-400" />
-                  <h3 className="font-semibold text-foreground">Service Honeypots</h3>
+                  <h3 className="font-semibold text-foreground">{t("threats.detail.serviceHoneypots")}</h3>
                 </div>
                 <div className="space-y-4 p-4 text-sm">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-lg border border-border bg-secondary/30 p-3">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Protocols seen</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{t("threats.detail.protocolsSeen")}</p>
                       <p className="mt-1 font-mono text-lg font-semibold text-foreground">{threat.protocols.names.length}</p>
                     </div>
                     <div className="rounded-lg border border-border bg-secondary/30 p-3">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Unique ports</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{t("threats.detail.uniquePorts")}</p>
                       <p className="mt-1 font-mono text-lg font-semibold text-foreground">{threat.protocols.uniquePorts}</p>
                     </div>
                     <div className="rounded-lg border border-border bg-secondary/30 p-3">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Service auth</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{t("threats.detail.serviceAuth")}</p>
                       <p className="mt-1 font-mono text-lg font-semibold text-foreground">{threat.protocols.authAttempts}</p>
                     </div>
                     <div className="rounded-lg border border-border bg-secondary/30 p-3">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Service commands</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{t("threats.detail.serviceCommands")}</p>
                       <p className="mt-1 font-mono text-lg font-semibold text-foreground">{threat.protocols.commandEvents}</p>
                     </div>
                   </div>
 
                   <div>
-                    <p className="mb-2 text-muted-foreground">By service</p>
+                    <p className="mb-2 text-muted-foreground">{t("threats.detail.byService")}</p>
                     <div className="space-y-2">
                       {Object.entries(threat.protocols.byService).map(([protocol, stats]) => (
                         <div key={protocol} className="rounded-lg border border-border bg-secondary/20 p-3">
                           <div className="flex items-center justify-between gap-3">
                             <span className="font-mono text-xs font-semibold uppercase tracking-wide text-foreground">{protocol}</span>
                             <span className="text-xs text-muted-foreground">
-                              {stats.ports.length > 0 ? `ports ${stats.ports.join(", ")}` : "no port data"}
+                              {stats.ports.length > 0 ? t("threats.detail.ports", { ports: stats.ports.join(", ") }) : t("threats.detail.noPortData")}
                             </span>
                           </div>
                           <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                            <span>events {stats.hits}</span>
-                            <span>auth {stats.authAttempts}</span>
-                            <span>commands {stats.commandEvents}</span>
-                            <span>connect {stats.connectEvents}</span>
+                            <span>{t("threats.detail.events", { n: stats.hits })}</span>
+                            <span>{t("threats.detail.auth", { n: stats.authAttempts })}</span>
+                            <span>{t("threats.detail.commands", { n: stats.commandEvents })}</span>
+                            <span>{t("threats.detail.connect", { n: stats.connectEvents })}</span>
                           </div>
                         </div>
                       ))}
@@ -217,21 +219,21 @@ export default async function ThreatDetailPage({
 
                   {(threat.protocols.usernames.length > 0 || threat.protocols.passwords.length > 0) && (
                     <div className="space-y-2">
-                      <p className="text-muted-foreground">Credential signal</p>
+                      <p className="text-muted-foreground">{t("threats.detail.credentialSignal")}</p>
                       <div className="flex flex-wrap gap-2">
                         {threat.protocols.credentialReuse && (
                           <span className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-400">
-                            Reused across services
+                            {t("threats.detail.reusedAcrossServices")}
                           </span>
                         )}
                         {threat.protocols.usernames.slice(0, 6).map((username) => (
                           <span key={`u-${username}`} className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs text-foreground">
-                            user {username}
+                            {t("threats.detail.user", { name: username })}
                           </span>
                         ))}
                         {threat.protocols.passwords.slice(0, 4).map((password) => (
                           <span key={`p-${password}`} className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs text-foreground">
-                            pass {password}
+                            {t("threats.detail.pass", { value: password })}
                           </span>
                         ))}
                       </div>
@@ -250,18 +252,18 @@ export default async function ThreatDetailPage({
                 </div>
                 <div className="divide-y divide-border text-sm">
                   <div className="flex justify-between px-4 py-2.5">
-                    <span className="text-muted-foreground">Total hits</span>
+                    <span className="text-muted-foreground">{t("threats.detail.totalHits")}</span>
                     <span className="font-mono font-semibold text-foreground">{threat.web.hits.toLocaleString('en-US')}</span>
                   </div>
                   <div className="px-4 py-2.5">
-                    <p className="mb-1.5 text-muted-foreground">Attack types</p>
+                    <p className="mb-1.5 text-muted-foreground">{t("threats.detail.attackTypes")}</p>
                     <div className="flex flex-wrap gap-1">
-                      {(threat.web.attackTypes ?? []).map((t) => (
+                      {(threat.web.attackTypes ?? []).map((attackType) => (
                         <span
-                          key={t}
+                          key={attackType}
                           className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium bg-blue-500/10 text-blue-400 border-blue-500/30"
                         >
-                          {t}
+                          {attackType}
                         </span>
                       ))}
                     </div>
@@ -275,7 +277,7 @@ export default async function ThreatDetailPage({
               <Surface>
                 <div className="border-b border-border p-4 flex items-center gap-2">
                   <Terminal className="h-4 w-4 text-orange-400" />
-                  <h3 className="font-semibold text-foreground">Behavioral categories</h3>
+                  <h3 className="font-semibold text-foreground">{t("threats.detail.behavioralCategories")}</h3>
                 </div>
                 <div className="divide-y divide-border">
                   {activeCats.map(([cat, cmds]) => (
@@ -284,7 +286,7 @@ export default async function ThreatDetailPage({
                         <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${CMD_COLORS[cat] ?? CMD_COLORS.other}`}>
                           {CMD_LABELS[cat] ?? cat}
                         </span>
-                        <span className="font-mono text-xs text-muted-foreground">{cmds.length} cmd{cmds.length !== 1 ? "s" : ""}</span>
+                        <span className="font-mono text-xs text-muted-foreground">{cmds.length !== 1 ? t("threats.detail.cmds", { n: cmds.length }) : t("threats.detail.cmd", { n: cmds.length })}</span>
                       </div>
                       <div className="max-h-28 overflow-y-auto space-y-0.5">
                         {cmds.map((cmd, ci) => (
@@ -305,22 +307,22 @@ export default async function ThreatDetailPage({
           <div className="xl:col-span-2">
             <Surface className="overflow-hidden">
               <div className="border-b border-border p-4">
-                <h3 className="font-semibold text-foreground">SSH Commands timeline</h3>
-                <p className="text-xs text-muted-foreground">{threat.classifiedCommands.length} classified commands</p>
+                <h3 className="font-semibold text-foreground">{t("threats.detail.commandsTimeline")}</h3>
+                <p className="text-xs text-muted-foreground">{t("threats.detail.classifiedCommands", { n: threat.classifiedCommands.length })}</p>
               </div>
               {threat.classifiedCommands.length === 0 ? (
                 <div className="p-8 text-center">
                   <Terminal className="mx-auto mb-2 h-8 w-8 text-muted-foreground/30" />
-                  <p className="text-sm text-muted-foreground">No SSH commands were executed</p>
+                  <p className="text-sm text-muted-foreground">{t("threats.detail.noCommands")}</p>
                 </div>
               ) : (
                 <div className="overflow-y-auto max-h-[600px]">
                   <Table>
                     <TableHeader className="sticky top-0 z-10">
                       <TableRow className="bg-card">
-                        <TableHead>Time</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Command</TableHead>
+                        <TableHead>{t("threats.detail.col.time")}</TableHead>
+                        <TableHead>{t("threats.detail.col.category")}</TableHead>
+                        <TableHead>{t("threats.detail.col.command")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>

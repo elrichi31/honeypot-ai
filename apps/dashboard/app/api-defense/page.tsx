@@ -4,17 +4,19 @@ import { DefenseStats } from "@/components/defense/defense-stats"
 import { DefenseEventsTable } from "@/components/defense/defense-events-table"
 import { BlockedIpsTable } from "@/components/defense/blocked-ips-table"
 import { DefenseAllowlist } from "@/components/defense/defense-allowlist"
+import { getServerT } from "@/lib/i18n/server"
 
-export default function ApiDefensePage() {
+export default async function ApiDefensePage() {
+  const t = await getServerT()
   return (
     <PageShell>
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-1">
           <ShieldAlert className="h-5 w-5 text-red-400" />
-          <h1 className="text-2xl font-semibold text-foreground">API Defense</h1>
+          <h1 className="text-2xl font-semibold text-foreground">{t("defense.title")}</h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          Perimeter visibility and active blocking for the ingest API.
+          {t("defense.subtitle")}
         </p>
       </div>
 

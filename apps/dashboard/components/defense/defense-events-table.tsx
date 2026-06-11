@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { IpEnrichmentPopover } from "@/components/ip-enrichment-popover"
 import { formatTs } from "@/lib/formatting"
 import { Surface } from "@/components/ui/surface"
+import { useT } from "@/components/locale-provider"
+import type { TranslationKey } from "@/lib/i18n/dictionaries"
 
 type DefenseEvent = {
   id: string; srcIp: string; method: string; path: string
@@ -19,12 +21,12 @@ type PaginationMeta = {
 
 type AttackFilter = "all" | "scanner" | "path_probe" | "injection" | "brute_force"
 
-const TABS: { key: AttackFilter; label: string }[] = [
-  { key: "all",         label: "All"         },
-  { key: "scanner",     label: "Scanner"     },
-  { key: "path_probe",  label: "Path Probe"  },
-  { key: "injection",   label: "Injection"   },
-  { key: "brute_force", label: "Brute Force" },
+const TABS: { key: AttackFilter; labelKey: TranslationKey }[] = [
+  { key: "all",         labelKey: "defense.events.tab.all" },
+  { key: "scanner",     labelKey: "defense.type.scanner"    },
+  { key: "path_probe",  labelKey: "defense.type.pathProbe"  },
+  { key: "injection",   labelKey: "defense.type.injection"  },
+  { key: "brute_force", labelKey: "defense.type.bruteForce" },
 ]
 
 const TYPE_STYLE: Record<string, { dot: string; text: string; label: string }> = {
@@ -35,6 +37,7 @@ const TYPE_STYLE: Record<string, { dot: string; text: string; label: string }> =
 }
 
 export function DefenseEventsTable() {
+  const t = useT()
   const [filter, setFilter]         = useState<AttackFilter>("all")
   const [page, setPage]             = useState(1)
   const [items, setItems]           = useState<DefenseEvent[]>([])
@@ -79,20 +82,20 @@ export function DefenseEventsTable() {
             <ShieldAlert className="h-4 w-4 text-red-400" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-foreground">Attack Events</h2>
+            <h2 className="text-sm font-semibold text-foreground">{t("defense.events.title")}</h2>
             <p className="text-[11px] text-muted-foreground">
-              {meta ? `${meta.total.toLocaleString()} events` : "Loading…"}
+              {meta ? t("defense.events.count", { n: meta.total.toLocaleString() }) : t("defense.events.loading")}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex gap-0.5 rounded-md border border-border bg-muted/30 p-0.5">
-            {TABS.map(t => (
-              <button key={t.key} onClick={() => setFilter(t.key)}
+            {TABS.map(tab => (
+              <button key={tab.key} onClick={() => setFilter(tab.key)}
                 className={`rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                  filter === t.key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  filter === tab.key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                 }`}>
-                {t.label}
+                {t(tab.labelKey)}
               </button>
             ))}
           </div>
@@ -108,7 +111,7 @@ export function DefenseEventsTable() {
         <div className="flex items-center gap-2 rounded-md border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5">
           <Search className="h-3 w-3 text-muted-foreground/60 shrink-0" />
           <input type="text" value={search} onChange={e => handleSearch(e.target.value)}
-            placeholder="Filter by IP address…"
+            placeholder={t("defense.events.filterByIp")}
             className="flex-1 bg-transparent font-mono text-xs text-foreground placeholder:text-muted-foreground/40 outline-none" />
           {search && (
             <button onClick={() => { setSearch(""); setDebouncedIp(""); setPage(1) }}
@@ -128,19 +131,19 @@ export function DefenseEventsTable() {
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-14">
             <ShieldAlert className="h-7 w-7 text-emerald-400/40" />
-            <p className="text-[11px] text-muted-foreground">No attacks detected</p>
+            <p className="text-[11px] text-muted-foreground">{t("defense.events.empty")}</p>
           </div>
         ) : (
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-white/[0.06]">
                 <th className="pl-3 pr-2 py-1.5 w-5" />
-                <th className="pr-3 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60 w-[65px]">TYPE</th>
-                <th className="pr-3 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60">SOURCE IP</th>
-                <th className="pr-3 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60 w-12">MTH</th>
-                <th className="pr-3 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60">PATH</th>
-                <th className="pr-3 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60">USER AGENT</th>
-                <th className="pr-3 py-1.5 text-right text-[10px] font-medium text-muted-foreground/60 w-[130px]">WHEN</th>
+                <th className="pr-3 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60 w-[65px]">{t("defense.events.col.type")}</th>
+                <th className="pr-3 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60">{t("defense.events.col.sourceIp")}</th>
+                <th className="pr-3 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60 w-12">{t("defense.events.col.method")}</th>
+                <th className="pr-3 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60">{t("defense.events.col.path")}</th>
+                <th className="pr-3 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60">{t("defense.events.col.userAgent")}</th>
+                <th className="pr-3 py-1.5 text-right text-[10px] font-medium text-muted-foreground/60 w-[130px]">{t("defense.events.col.when")}</th>
               </tr>
             </thead>
             <tbody>
@@ -175,7 +178,7 @@ export function DefenseEventsTable() {
       {meta && meta.totalPages > 1 && (
         <div className="flex items-center justify-between px-4 py-2.5 border-t border-border/60 bg-card rounded-b-xl">
           <span className="font-mono text-[11px] text-muted-foreground">
-            Page {meta.page} of {meta.totalPages} · {meta.total.toLocaleString()} total
+            {t("defense.events.pageInfo", { page: meta.page, total: meta.totalPages, count: meta.total.toLocaleString() })}
           </span>
           <div className="flex gap-1">
             <Button size="sm" variant="outline" onClick={() => goPage(page - 1)} disabled={!meta.hasPreviousPage || loading} className="h-6 w-6 p-0">

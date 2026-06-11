@@ -6,6 +6,7 @@ import { SectionError } from "@/components/section-error"
 import { ClientSensorFilter } from "@/components/client-sensor-filter"
 import { Surface } from "@/components/ui/surface"
 import { StatCard } from "@/components/ui/stat-card"
+import { getServerT } from "@/lib/i18n/server"
 
 const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
 
@@ -41,6 +42,7 @@ export default async function ThreatsPage({
     sensorId?: string
   }>
 }) {
+  const t = await getServerT()
   const params = await searchParams
   const page = Number(params.page ?? "1")
   const pageSize = PAGE_SIZE_OPTIONS.has(params.pageSize ?? "") ? Number(params.pageSize) : 20
@@ -70,11 +72,11 @@ export default async function ThreatsPage({
     <div className="mb-6">
       <div className="mb-1 flex items-center gap-2">
         <ShieldAlert className="h-5 w-5 text-destructive" />
-        <h1 className="text-2xl font-semibold text-foreground">Threat Intelligence</h1>
+        <h1 className="text-2xl font-semibold text-foreground">{t("threats.title")}</h1>
       </div>
       <p className="text-sm text-muted-foreground">
-        Cross-protocol correlation · risk scoring by IP
-        {pageData ? ` · ${pageData.summary.total.toLocaleString('en-US')} attackers visible` : ""}
+        {t("threats.subtitle")}
+        {pageData ? ` · ${t("threats.subtitle.visible", { n: pageData.summary.total.toLocaleString('en-US') })}` : ""}
       </p>
     </div>
   )
@@ -86,8 +88,8 @@ export default async function ThreatsPage({
       <PageShell>
         {header}
         <SectionError
-          title="Could not load threats"
-          message="The cross-protocol correlation took too long or the backend did not respond. This is usually temporary — retry in a few seconds."
+          title={t("threats.error.title")}
+          message={t("threats.error.message")}
         />
       </PageShell>
     )
@@ -99,7 +101,7 @@ export default async function ThreatsPage({
 
       <Surface padded className="mb-6">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-xs text-muted-foreground">Filter:</span>
+          <span className="text-xs text-muted-foreground">{t("threats.filter")}</span>
           <ClientSensorFilter
             clients={clients.map((c) => ({ slug: c.slug, name: c.name }))}
             sensors={sensors.map((s) => ({ sensorId: s.sensorId, name: s.name, protocol: s.protocol, clientSlug: s.clientSlug, clientName: s.clientName }))}
@@ -109,10 +111,10 @@ export default async function ThreatsPage({
       </Surface>
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Total IPs" value={pageData.summary.total} mono />
-        <StatCard label="CRITICAL" value={pageData.summary.critical} tone="critical" mono />
-        <StatCard label="HIGH" value={pageData.summary.high} tone="high" mono />
-        <StatCard label="Cross-protocol" value={pageData.summary.crossProtocol} tone="accent" mono />
+        <StatCard label={t("threats.stat.totalIps")} value={pageData.summary.total} mono />
+        <StatCard label={t("threats.stat.critical")} value={pageData.summary.critical} tone="critical" mono />
+        <StatCard label={t("threats.stat.high")} value={pageData.summary.high} tone="high" mono />
+        <StatCard label={t("threats.stat.crossProtocol")} value={pageData.summary.crossProtocol} tone="accent" mono />
       </div>
 
       <ThreatsTable
