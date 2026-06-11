@@ -2,6 +2,7 @@ import Link from "next/link"
 import { Server, Terminal, CheckCircle2, AlertTriangle, BookOpen, ExternalLink } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
+import { getServerT } from "@/lib/i18n/server"
 
 const DOCS_URL =
   process.env.NEXT_PUBLIC_DOCS_URL ??
@@ -29,14 +30,15 @@ function Cmd({ children }: { children: React.ReactNode }) {
   )
 }
 
-export default function InstallGuidePage() {
+export default async function InstallGuidePage() {
+  const t = await getServerT()
   return (
     <PageShell>
       <div className="mx-auto max-w-3xl space-y-8">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Installing a sensor</h1>
+          <h1 className="text-2xl font-semibold text-foreground">{t("install.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            How to deploy a honeypot sensor on a Linux VPS and confirm it is reporting correctly.
+            {t("install.subtitle")}
           </p>
         </div>
 
@@ -47,7 +49,7 @@ export default function InstallGuidePage() {
             className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted/40"
           >
             <Server className="h-4 w-4 text-cyan-400" />
-            Go to Sensors → Add sensor
+            {t("install.goToSensors")}
           </Link>
           <a
             href={DOCS_URL}
@@ -56,14 +58,14 @@ export default function InstallGuidePage() {
             className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
           >
             <BookOpen className="h-4 w-4" />
-            Full documentation
+            {t("install.fullDocs")}
             <ExternalLink className="h-3 w-3" />
           </a>
         </div>
 
         {/* Steps */}
         <Surface className="space-y-6 p-6">
-          <Step n={1} title="Pick the sensors and download the installer">
+          <Step n={1} title={t("install.step1.title")}>
             <p className="text-sm text-muted-foreground">
               Open <span className="font-medium text-foreground">Sensors → Add sensor</span> (or a
               client&apos;s <span className="font-medium text-foreground">Sensor Installers</span>).
@@ -73,7 +75,7 @@ export default function InstallGuidePage() {
             </p>
           </Step>
 
-          <Step n={2} title="Copy the script to your VPS and run it as root">
+          <Step n={2} title={t("install.step2.title")}>
             <p className="text-sm text-muted-foreground">
               The installer writes to <code className="font-mono">/opt/honeypot-sensor</code> and
               manages Docker and the host SSH daemon, so it must run as root. It re-launches itself
@@ -88,7 +90,7 @@ sudo bash install-sensor-*.sh`}</Cmd>
             </p>
           </Step>
 
-          <Step n={3} title="Confirm the containers are running">
+          <Step n={3} title={t("install.step3.title")}>
             <Cmd>{`cd /opt/honeypot-sensor
 sudo docker compose ps`}</Cmd>
             <p className="text-sm text-muted-foreground">
@@ -98,7 +100,7 @@ sudo docker compose ps`}</Cmd>
             <Cmd>{`sudo docker compose logs --tail 50 <service>   # e.g. cowrie, web-honeypot, suricata`}</Cmd>
           </Step>
 
-          <Step n={4} title="Confirm it appears in the dashboard">
+          <Step n={4} title={t("install.step4.title")}>
             <p className="text-sm text-muted-foreground">
               Each sensor sends a heartbeat every 30 seconds. Within a minute it should show up on
               the <Link href="/sensors" className="text-cyan-400 hover:underline">Sensors</Link>{" "}
@@ -108,7 +110,7 @@ sudo docker compose ps`}</Cmd>
             </p>
           </Step>
 
-          <Step n={5} title="Verify telemetry is flowing">
+          <Step n={5} title={t("install.step5.title")}>
             <p className="text-sm text-muted-foreground">
               Generate a test hit and confirm it lands. For SSH, a failed login is enough:
             </p>
@@ -127,7 +129,7 @@ sudo docker compose ps`}</Cmd>
         <section className="flex gap-3 rounded-xl border border-amber-400/30 bg-amber-400/5 p-4">
           <AlertTriangle className="h-5 w-5 shrink-0 text-amber-400" />
           <div className="space-y-1 text-sm">
-            <p className="font-medium text-foreground">Heads up about port 22 (SSH sensor)</p>
+            <p className="font-medium text-foreground">{t("install.portNote.title")}</p>
             <p className="text-muted-foreground">
               When you install the SSH honeypot, the installer moves the real{" "}
               <code className="font-mono">sshd</code> to port <code className="font-mono">8022</code>{" "}
@@ -142,7 +144,7 @@ sudo docker compose ps`}</Cmd>
         <Surface className="space-y-3 p-6">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
             <Terminal className="h-4 w-4 text-cyan-400" />
-            Troubleshooting
+            {t("install.troubleshooting")}
           </h2>
           <dl className="space-y-3 text-sm">
             <div>
@@ -177,7 +179,7 @@ sudo docker compose ps`}</Cmd>
 
         <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-          Once it shows up Online with events flowing, the sensor is fully deployed.
+          {t("install.done")}
         </p>
       </div>
     </PageShell>

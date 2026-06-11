@@ -8,6 +8,7 @@ import { RedisCard } from "@/components/monitoring/redis-card"
 import { ContainersCard } from "@/components/monitoring/containers-card"
 import { ResourceTimeline } from "@/components/monitoring/resource-timeline"
 import { ContainerStats } from "@/components/monitoring/container-stats"
+import { useT } from "@/components/locale-provider"
 
 type SystemData = {
   system: {
@@ -37,6 +38,7 @@ type ContainerInfo = {
 }
 
 export default function MonitoringPage() {
+  const t = useT()
   const [systemData, setSystemData]       = useState<SystemData | null>(null)
   const [containers, setContainers]       = useState<ContainerInfo[]>([])
   const [containerError, setContainerError] = useState<string | undefined>()
@@ -81,12 +83,12 @@ export default function MonitoringPage() {
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-3">
             <Activity className="h-5 w-5 text-emerald-400" />
-            <h1 className="text-2xl font-semibold text-foreground">Monitoring</h1>
+            <h1 className="text-2xl font-semibold text-foreground">{t("monitoring.title")}</h1>
           </div>
           <div className="flex items-center gap-3">
             {lastUpdated && (
               <span className="text-[11px] text-muted-foreground">
-                Updated {lastUpdated.toLocaleTimeString()}
+                {t("monitoring.updated", { time: lastUpdated.toLocaleTimeString() })}
               </span>
             )}
             <button
@@ -94,12 +96,12 @@ export default function MonitoringPage() {
               className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors"
             >
               <RefreshCw className="h-3 w-3" />
-              Refresh
+              {t("monitoring.refresh")}
             </button>
           </div>
         </div>
         <p className="text-sm text-muted-foreground">
-          Server resources, cache stats and container health. Refreshes every 60s.
+          {t("monitoring.subtitle")}
         </p>
       </div>
 
@@ -112,7 +114,7 @@ export default function MonitoringPage() {
           {/* System resources */}
           {systemData && (
             <div>
-              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-3">System Resources</p>
+              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-3">{t("monitoring.section.systemResources")}</p>
               <SystemCard system={systemData.system} />
             </div>
           )}
@@ -124,7 +126,7 @@ export default function MonitoringPage() {
 
           {/* Container CPU/RAM table + timeline */}
           <div>
-            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-3">Container Processes</p>
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-3">{t("monitoring.section.containerProcesses")}</p>
             <ContainerStats />
           </div>
 
@@ -132,12 +134,12 @@ export default function MonitoringPage() {
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {systemData && (
               <div>
-                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-3">Redis Cache</p>
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-3">{t("monitoring.section.redisCache")}</p>
                 <RedisCard redis={systemData.redis} />
               </div>
             )}
             <div>
-              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-3">Containers</p>
+              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-3">{t("monitoring.section.containers")}</p>
               <ContainersCard containers={containers} error={containerError} />
             </div>
           </div>
