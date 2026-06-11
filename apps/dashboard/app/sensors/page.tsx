@@ -8,6 +8,7 @@ import { SensorCard } from "@/components/sensors/sensor-card"
 import { DeceptionNetworkCard } from "@/components/sensors/deception-network-card"
 import { fetchSensors } from "@/lib/api"
 import { readConfig } from "@/lib/server-config"
+import { getServerT } from "@/lib/i18n/server"
 import type { Sensor } from "@/lib/api"
 
 function groupSensorsByClient(sensors: Sensor[]) {
@@ -22,7 +23,7 @@ function groupSensorsByClient(sensors: Sensor[]) {
     }
 
     groups.set(key, {
-      label: sensor.clientName ?? "Unassigned",
+      label: sensor.clientName ?? "",
       slug: sensor.clientSlug,
       sensors: [sensor],
     })
@@ -36,6 +37,7 @@ function groupSensorsByClient(sensors: Sensor[]) {
 }
 
 export default async function SensorsPage() {
+  const t = await getServerT()
   let sensors: Sensor[] = []
 
   try {
@@ -70,9 +72,9 @@ export default async function SensorsPage() {
     <PageShell>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Sensors</h1>
+          <h1 className="text-2xl font-semibold text-foreground">{t("sensors.title")}</h1>
           <p className="text-sm text-muted-foreground">
-            Honeypot sensors grouped by client, with heartbeat updates every 30 seconds.
+            {t("sensors.subtitle")}
           </p>
         </div>
         <Link
@@ -80,32 +82,31 @@ export default async function SensorsPage() {
           className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground hover:bg-muted/40"
         >
           <Waypoints className="h-4 w-4" />
-          Network Map
+          {t("sensors.networkMap")}
         </Link>
       </div>
 
       <div className="mb-6 flex items-center gap-4">
         <Surface className="flex items-center gap-2 px-4 py-3">
           <Wifi className="h-4 w-4 text-emerald-400" />
-          <span className="text-sm font-medium text-foreground">{online} online</span>
-          <span className="text-sm text-muted-foreground">/ {total} total</span>
+          <span className="text-sm font-medium text-foreground">{t("sensors.online", { n: online })}</span>
+          <span className="text-sm text-muted-foreground">{t("sensors.total", { n: total })}</span>
         </Surface>
         <Surface className="flex items-center gap-2 px-4 py-3">
           <Activity className="h-4 w-4 text-cyan-400" />
           <span className="text-sm font-medium text-foreground">
             {sensors.reduce((sum, sensor) => sum + sensor.eventsTotal, 0).toLocaleString()}
           </span>
-          <span className="text-sm text-muted-foreground">total events</span>
+          <span className="text-sm text-muted-foreground">{t("sensors.totalEvents")}</span>
         </Surface>
       </div>
 
       {sensors.length === 0 ? (
         <Surface className="px-6 py-16 text-center">
           <Server className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
-          <p className="text-sm font-medium text-foreground mb-1">No sensors registered yet</p>
+          <p className="text-sm font-medium text-foreground mb-1">{t("sensors.empty.title")}</p>
           <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-            Sensors register automatically when the services start. You can later group them under
-            a client from the clients page.
+            {t("sensors.empty.description")}
           </p>
         </Surface>
       ) : (
@@ -120,11 +121,13 @@ export default async function SensorsPage() {
                         {group.label}
                       </Link>
                     ) : (
-                      group.label
+                      t("sensors.unassigned")
                     )}
                   </h2>
                   <p className="text-sm text-muted-foreground">
-                    {group.sensors.length} sensor{group.sensors.length === 1 ? "" : "s"}
+                    {group.sensors.length === 1
+                      ? t("sensors.count", { n: group.sensors.length })
+                      : t("sensors.countPlural", { n: group.sensors.length })}
                   </p>
                 </div>
                 {group.slug ? (
@@ -132,7 +135,7 @@ export default async function SensorsPage() {
                     href={`/clients/${group.slug}`}
                     className="text-xs font-medium text-cyan-400 hover:text-cyan-300"
                   >
-                    Open client
+                    {t("sensors.openClient")}
                   </Link>
                 ) : null}
               </div>

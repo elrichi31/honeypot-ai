@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import type { Client } from "@/lib/api"
+import { useT } from "@/components/locale-provider"
 
 type Props = {
   client: Client | null
@@ -22,6 +23,7 @@ type Props = {
 }
 
 export function DeleteClientDialog({ client, onClose, onDeleted }: Props) {
+  const t = useT()
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -38,13 +40,13 @@ export function DeleteClientDialog({ client, onClose, onDeleted }: Props) {
       const res = await apiFetch(`/api/clients/${encodeURIComponent(client.id)}`, { method: "DELETE" })
       if (!res.ok) {
         const data = await res.json().catch(() => null)
-        setError(data?.error ?? `Error ${res.status}: could not delete client`)
+        setError(data?.error ?? t("clients.delete.error", { status: res.status }))
         return
       }
       onDeleted(client.id)
       handleClose()
     } catch {
-      setError("Network error while trying to delete the client")
+      setError(t("clients.delete.netError"))
     } finally {
       setDeleting(false)
     }
@@ -54,11 +56,11 @@ export function DeleteClientDialog({ client, onClose, onDeleted }: Props) {
     <Dialog open={!!client} onOpenChange={(open) => { if (!open) handleClose() }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Delete Client</DialogTitle>
+          <DialogTitle>{t("clients.delete.title")}</DialogTitle>
           <DialogDescription>
-            This will permanently delete{" "}
-            <span className="font-semibold text-foreground">{client?.name}</span> and unassign all its
-            sensors. This action cannot be undone.
+            {t("clients.delete.descPrefix")}
+            <span className="font-semibold text-foreground">{client?.name}</span>
+            {t("clients.delete.descSuffix")}
           </DialogDescription>
         </DialogHeader>
 
@@ -69,11 +71,11 @@ export function DeleteClientDialog({ client, onClose, onDeleted }: Props) {
         <DialogFooter>
           <Button variant="outline" onClick={handleClose} disabled={deleting}>
             <X className="h-4 w-4" />
-            Cancel
+            {t("clients.delete.cancel")}
           </Button>
           <Button variant="destructive" onClick={handleDelete} disabled={deleting} className="gap-2">
             <Trash2 className="h-4 w-4" />
-            {deleting ? "Deleting..." : "Delete Client"}
+            {deleting ? t("clients.delete.deleting") : t("clients.delete.submit")}
           </Button>
         </DialogFooter>
       </DialogContent>

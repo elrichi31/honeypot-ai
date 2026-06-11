@@ -9,6 +9,7 @@ import { CreateClientDialog } from "./create-client-dialog"
 import { EditClientDialog } from "./edit-client-dialog"
 import { DeleteClientDialog } from "./delete-client-dialog"
 import { Surface } from "@/components/ui/surface"
+import { useT } from "@/components/locale-provider"
 
 type Props = {
   initialClients: Client[]
@@ -16,6 +17,7 @@ type Props = {
 }
 
 export function ClientManager({ initialClients, initialSensors }: Props) {
+  const t = useT()
   const [clients, setClients] = useState(initialClients)
   const [editClient, setEditClient] = useState<Client | null>(null)
   const [deleteClient, setDeleteClient] = useState<Client | null>(null)
@@ -50,9 +52,9 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
               <Building2 className="h-5 w-5 text-emerald-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-foreground">Client Inventory</h2>
+              <h2 className="text-lg font-semibold text-foreground">{t("clients.inventory.title")}</h2>
               <p className="text-sm text-muted-foreground">
-                Create clients first, then open each one to assign unassigned sensors.
+                {t("clients.inventory.subtitle")}
               </p>
             </div>
           </div>
@@ -61,12 +63,12 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
             trigger={
               <Button className="gap-2 self-start md:self-auto">
                 <Plus className="h-4 w-4" />
-                Add Client
+                {t("clients.add")}
               </Button>
             }
             onCreated={(client) => {
               setClients((prev) => sortedInsert(prev, client))
-              setMessage(`Client ${client.name} created.`)
+              setMessage(t("clients.created", { name: client.name }))
             }}
           />
         </div>
@@ -74,7 +76,7 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
         {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
 
         {clients.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No clients created yet.</p>
+          <p className="text-sm text-muted-foreground">{t("clients.none")}</p>
         ) : (
           <>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

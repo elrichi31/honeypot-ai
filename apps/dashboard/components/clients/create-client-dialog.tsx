@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import type { Client } from "@/lib/api"
 import { slugify, normalizeClientCode, deriveClientCode } from "./client-utils"
+import { useT } from "@/components/locale-provider"
 
 type Props = {
   trigger: React.ReactNode
@@ -26,6 +27,7 @@ type Props = {
 }
 
 export function CreateClientDialog({ trigger, onCreated }: Props) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
   const [slug, setSlug] = useState("")
@@ -64,7 +66,7 @@ export function CreateClientDialog({ trigger, onCreated }: Props) {
         // Surface the server's validation message (e.g. invalid slug/code/URL)
         // instead of silently leaving the dialog open with no feedback.
         const data = await res.json().catch(() => ({}))
-        setError(data?.error ?? `Could not create client (error ${res.status})`)
+        setError(data?.error ?? t("clients.create.error", { status: res.status }))
         return
       }
       const client = (await res.json()) as Client
@@ -72,7 +74,7 @@ export function CreateClientDialog({ trigger, onCreated }: Props) {
       reset()
       setOpen(false)
     } catch {
-      setError("Could not connect to the server")
+      setError(t("clients.create.connError"))
     } finally {
       setCreating(false)
     }
@@ -84,15 +86,15 @@ export function CreateClientDialog({ trigger, onCreated }: Props) {
       <DialogContent className="sm:max-w-xl">
         <form onSubmit={handleSubmit} className="space-y-5">
           <DialogHeader>
-            <DialogTitle>Create Client</DialogTitle>
+            <DialogTitle>{t("clients.create.title")}</DialogTitle>
             <DialogDescription>
-              Create the tenant first. Sensor assignment happens inside the client detail.
+              {t("clients.create.description")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="client-name">Name</Label>
+              <Label htmlFor="client-name">{t("clients.create.name")}</Label>
               <Input
                 id="client-name"
                 value={name}
@@ -101,7 +103,7 @@ export function CreateClientDialog({ trigger, onCreated }: Props) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="client-slug">Slug</Label>
+              <Label htmlFor="client-slug">{t("clients.create.slug")}</Label>
               <Input
                 id="client-slug"
                 value={slug}
@@ -112,7 +114,7 @@ export function CreateClientDialog({ trigger, onCreated }: Props) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="client-code">Client Code</Label>
+            <Label htmlFor="client-code">{t("clients.create.code")}</Label>
             <Input
               id="client-code"
               value={code}
@@ -123,17 +125,17 @@ export function CreateClientDialog({ trigger, onCreated }: Props) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="client-description">Description</Label>
+            <Label htmlFor="client-description">{t("clients.create.descriptionLabel")}</Label>
             <Textarea
               id="client-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Optional notes about this customer or deployment."
+              placeholder={t("clients.create.descriptionPlaceholder")}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="client-forward-url">Forward URL</Label>
+            <Label htmlFor="client-forward-url">{t("clients.create.forwardUrl")}</Label>
             <Input
               id="client-forward-url"
               value={forwardUrl}
@@ -152,11 +154,11 @@ export function CreateClientDialog({ trigger, onCreated }: Props) {
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => { reset(); setOpen(false) }}>
               <X className="h-4 w-4" />
-              Cancel
+              {t("clients.create.cancel")}
             </Button>
             <Button type="submit" disabled={creating || !name.trim()}>
               <Save className="h-4 w-4" />
-              {creating ? "Creating..." : "Create Client"}
+              {creating ? t("clients.create.creating") : t("clients.create.submit")}
             </Button>
           </DialogFooter>
         </form>

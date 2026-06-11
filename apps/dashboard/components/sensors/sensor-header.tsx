@@ -8,42 +8,47 @@ import {
 } from "@/components/ui/alert-dialog"
 import { getProtocolMeta } from "@/lib/sensor-display"
 import type { Sensor } from "@/lib/api"
+import { useT } from "@/components/locale-provider"
+import type { TranslationKey } from "@/lib/i18n/dictionaries"
 
 function OnlineBadge() {
+  const t = useT()
   return (
     <div className="flex items-center gap-1.5">
       <span className="relative flex h-2 w-2">
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
         <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
       </span>
-      <span className="text-xs font-medium text-emerald-400">Online</span>
+      <span className="text-xs font-medium text-emerald-400">{t("sensors.badge.online")}</span>
     </div>
   )
 }
 
 function OfflineBadge() {
+  const t = useT()
   return (
     <div className="flex items-center gap-1.5">
       <WifiOff className="h-3 w-3 text-muted-foreground" />
-      <span className="text-xs text-muted-foreground">Offline</span>
+      <span className="text-xs text-muted-foreground">{t("sensors.badge.offline")}</span>
     </div>
   )
 }
 
-const DOCKER_BADGE_CONFIG: Record<string, { dot: string; pulse: boolean; label: string; text: string }> = {
-  running:    { dot: "bg-emerald-400", pulse: true,  label: "Running",       text: "text-emerald-400" },
-  restarting: { dot: "bg-amber-400",   pulse: true,  label: "Restarting",    text: "text-amber-400"   },
-  exited:     { dot: "bg-red-500",     pulse: false, label: "Stopped",       text: "text-red-400"     },
-  dead:       { dot: "bg-red-500",     pulse: false, label: "Stopped",       text: "text-red-400"     },
-  paused:     { dot: "bg-slate-400",   pulse: false, label: "Paused",        text: "text-slate-400"   },
-  not_found:  { dot: "bg-muted-foreground/50", pulse: false, label: "Not found", text: "text-muted-foreground" },
+const DOCKER_BADGE_CONFIG: Record<string, { dot: string; pulse: boolean; labelKey: TranslationKey; text: string }> = {
+  running:    { dot: "bg-emerald-400", pulse: true,  labelKey: "sensors.badge.running",    text: "text-emerald-400" },
+  restarting: { dot: "bg-amber-400",   pulse: true,  labelKey: "sensors.badge.restarting", text: "text-amber-400"   },
+  exited:     { dot: "bg-red-500",     pulse: false, labelKey: "sensors.badge.stopped",    text: "text-red-400"     },
+  dead:       { dot: "bg-red-500",     pulse: false, labelKey: "sensors.badge.stopped",    text: "text-red-400"     },
+  paused:     { dot: "bg-slate-400",   pulse: false, labelKey: "sensors.badge.paused",     text: "text-slate-400"   },
+  not_found:  { dot: "bg-muted-foreground/50", pulse: false, labelKey: "sensors.badge.notFound", text: "text-muted-foreground" },
 }
 
 function DockerStatusBadge({ status }: { status: string }) {
+  const t = useT()
   const cfg = DOCKER_BADGE_CONFIG[status]
   const dot = cfg?.dot ?? "bg-muted-foreground/30"
   const text = cfg?.text ?? "text-muted-foreground"
-  const label = cfg?.label ?? status
+  const label = cfg ? t(cfg.labelKey) : status
   const pulse = cfg?.pulse ?? false
   return (
     <div className="flex items-center gap-1.5">
@@ -57,33 +62,34 @@ function DockerStatusBadge({ status }: { status: string }) {
 }
 
 function DeleteSensorDialog({ sensor, deleting, onDelete }: { sensor: Sensor; deleting: boolean; onDelete: () => void }) {
+  const t = useT()
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <button
           className="rounded p-1 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors"
-          title="Delete sensor"
+          title={t("sensors.delete.button")}
         >
           {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
         </button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete sensor?</AlertDialogTitle>
+          <AlertDialogTitle>{t("sensors.delete.title")}</AlertDialogTitle>
           <AlertDialogDescription>
-            This will remove <span className="font-medium text-foreground">{sensor.name}</span>{" "}
-            (<code className="font-mono text-xs">{sensor.sensorId}</code>) from the dashboard.
+            {t("sensors.delete.descPrefix")}<span className="font-medium text-foreground">{sensor.name}</span>{" "}
+            (<code className="font-mono text-xs">{sensor.sensorId}</code>).
             <br /><br />
             <span className="text-muted-foreground">
-              Events already collected from this sensor are kept and stay searchable.
-            </span>{" "}
-            If the sensor is still running it will re-register on the next heartbeat.
+              {t("sensors.delete.descKept")}
+            </span>
+            {t("sensors.delete.descReregister")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>{t("sensors.delete.cancel")}</AlertDialogCancel>
           <AlertDialogAction onClick={onDelete} className="bg-destructive text-white hover:bg-destructive/90">
-            Delete sensor
+            {t("sensors.delete.button")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -92,21 +98,22 @@ function DeleteSensorDialog({ sensor, deleting, onDelete }: { sensor: Sensor; de
 }
 
 function RemoteBadge({ online }: { online: boolean }) {
+  const t = useT()
   if (online) {
     return (
-      <div className="flex items-center gap-1.5" title="Sensor on another host — reporting heartbeats. Its container is not managed from here.">
+      <div className="flex items-center gap-1.5" title={t("sensors.remote.activeTitle")}>
         <span className="relative flex h-2 w-2">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
           <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
         </span>
-        <span className="text-xs font-medium text-emerald-400">Remote · active</span>
+        <span className="text-xs font-medium text-emerald-400">{t("sensors.badge.remoteActive")}</span>
       </div>
     )
   }
   return (
-    <div className="flex items-center gap-1.5" title="Sensor on another host — no recent heartbeats.">
+    <div className="flex items-center gap-1.5" title={t("sensors.remote.noSignalTitle")}>
       <span className="relative inline-flex h-2 w-2 rounded-full bg-muted-foreground/50" />
-      <span className="text-xs font-medium text-muted-foreground">Remote · no signal</span>
+      <span className="text-xs font-medium text-muted-foreground">{t("sensors.badge.remoteNoSignal")}</span>
     </div>
   )
 }

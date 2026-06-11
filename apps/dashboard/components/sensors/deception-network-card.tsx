@@ -5,6 +5,7 @@ import Link from "next/link"
 import { ChevronDown, ChevronRight, Ghost, Wifi } from "lucide-react"
 import { formatRelative } from "@/lib/sensor-display"
 import { Surface } from "@/components/ui/surface"
+import { useT } from "@/components/locale-provider"
 import type { Sensor } from "@/lib/api"
 
 /**
@@ -22,6 +23,7 @@ export function DeceptionNetworkCard({
   sensors: Sensor[]
   clientSlug: string | null
 }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const online = sensors.filter((s) => s.online).length
   const total = sensors.length
@@ -44,17 +46,17 @@ export function DeceptionNetworkCard({
         )}
         <Ghost className="h-4 w-4 text-violet-400" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-foreground">Deception Network</p>
+          <p className="text-sm font-medium text-foreground">{t("sensors.deception.title")}</p>
           <p className="truncate font-mono text-[11px] text-muted-foreground">
             {nodes.map((n) => n.ip).join(" · ")}
           </p>
         </div>
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Wifi className="h-3.5 w-3.5 text-emerald-400" />
-          <span className="text-foreground">{online}</span>/{total} nodes
+          <span className="text-foreground">{online}</span>/{total} {t("sensors.deception.nodes")}
         </div>
         <span className="hidden text-xs text-muted-foreground sm:inline">
-          {events.toLocaleString()} events
+          {t("sensors.deception.events", { n: events.toLocaleString() })}
         </span>
         {clientSlug && (
           <Link
@@ -62,7 +64,7 @@ export function DeceptionNetworkCard({
             onClick={(e) => e.stopPropagation()}
             className="text-xs font-medium text-cyan-400 hover:text-cyan-300"
           >
-            View network
+            {t("sensors.deception.viewNetwork")}
           </Link>
         )}
       </button>
@@ -77,14 +79,14 @@ export function DeceptionNetworkCard({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-medium text-foreground">{node.name}</p>
                 <p className="font-mono text-[10px] text-muted-foreground">
-                  {node.ip} · ports {node.ports.join(", ") || "—"}
+                  {node.ip} · {t("sensors.deception.ports", { ports: node.ports.join(", ") || "—" })}
                 </p>
               </div>
               <span className="text-[11px] tabular-nums text-muted-foreground">
                 {node.eventsTotal.toLocaleString()} ev.
               </span>
               <span className="w-16 text-right text-[10px] text-muted-foreground/70">
-                {node.online ? "online" : formatRelative(node.lastSeen)}
+                {node.online ? t("sensors.deception.online") : formatRelative(node.lastSeen)}
               </span>
             </div>
           ))}

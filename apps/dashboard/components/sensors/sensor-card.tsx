@@ -13,6 +13,8 @@ import { SensorActions } from "./sensor-actions"
 import { SensorConfigDialog } from "./sensor-config-dialog"
 import type { ControlAction, ControlState } from "./sensor-actions"
 import type { Sensor } from "@/lib/api"
+import { useT } from "@/components/locale-provider"
+import type { TranslationKey } from "@/lib/i18n/dictionaries"
 
 const CONTROL_RESET_DELAY = 3000
 const CONTROL_ERROR_DELAY = 4000
@@ -24,10 +26,10 @@ function optimisticDockerStatus(action: ControlAction): string {
   return "running"
 }
 
-function controlLabel(action: ControlAction): string {
-  if (action === "stop") return "Stopped"
-  if (action === "start") return "Started"
-  return "Restarted"
+function controlLabelKey(action: ControlAction): TranslationKey {
+  if (action === "stop") return "sensors.card.control.stopped"
+  if (action === "start") return "sensors.card.control.started"
+  return "sensors.card.control.restarted"
 }
 
 export function SensorCard({
@@ -40,6 +42,7 @@ export function SensorCard({
   honeypotPublicIp?: string
 }) {
   const router = useRouter()
+  const t = useT()
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState("")
   const [removed, setRemoved] = useState(false)
@@ -101,7 +104,7 @@ export function SensorCard({
       const res = await apiFetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}`, { method: "DELETE" })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        setDeleteError(data.error ?? `Error ${res.status}`)
+        setDeleteError(data.error ?? t("sensors.card.error", { status: res.status }))
         setRemoved(false)
         setDeleting(false)
         return
@@ -110,7 +113,7 @@ export function SensorCard({
       // list; the card is already hidden, so the user doesn't wait on it.
       router.refresh()
     } catch {
-      setDeleteError("Could not connect")
+      setDeleteError(t("sensors.card.couldNotConnect"))
       setRemoved(false)
       setDeleting(false)
     }
@@ -128,18 +131,18 @@ export function SensorCard({
       const data = await res.json()
       if (res.ok) {
         setControlState("ok")
-        setControlMsg(controlLabel(action))
+        setControlMsg(t(controlLabelKey(action)))
         setDockerStatus(optimisticDockerStatus(action))
         setTimeout(() => fetchDockerStatus(), DOCKER_CONFIRM_DELAY)
         setTimeout(() => { setControlState("idle"); router.refresh() }, CONTROL_RESET_DELAY)
       } else {
         setControlState("error")
-        setControlMsg(data.error ?? "Error")
+        setControlMsg(data.error ?? t("sensors.card.control.error"))
         setTimeout(() => setControlState("idle"), CONTROL_ERROR_DELAY)
       }
     } catch {
       setControlState("error")
-      setControlMsg("Could not connect")
+      setControlMsg(t("sensors.card.couldNotConnect"))
       setTimeout(() => setControlState("idle"), CONTROL_ERROR_DELAY)
     }
   }
@@ -151,7 +154,7 @@ export function SensorCard({
       <SensorHeader sensor={sensor} dockerStatus={dockerStatus} isRemote={isRemote} deleting={deleting} onDelete={handleDelete} />
       {deleteError && (
         <p className="rounded-md bg-destructive/10 px-2.5 py-1.5 text-[11px] font-medium text-destructive">
-          Could not delete: {deleteError}
+          {t("sensors.card.couldNotDelete", { error: deleteError })}
         </p>
       )}
       <SensorStats sensor={sensor} isInternal={isInternal} honeypotPublicIp={honeypotPublicIp} clientCode={clientCode} />
@@ -167,7 +170,7 @@ export function SensorCard({
           className="flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground w-full justify-center"
         >
           <Settings2 className="h-3.5 w-3.5" />
-          Configure
+          {t("sensors.card.configure")}
         </button>
       )}
       {hasContainer && !isRemote && (

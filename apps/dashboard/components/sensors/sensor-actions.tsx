@@ -1,6 +1,7 @@
 "use client"
 
 import { Loader2, Play, RotateCcw, Square } from "lucide-react"
+import { useT } from "@/components/locale-provider"
 
 export type ControlAction = "start" | "stop" | "restart"
 export type ControlState = "idle" | "loading" | "ok" | "error"
@@ -41,27 +42,28 @@ export function SensorActions({
   controlMsg: string
   onControl: (action: ControlAction) => void
 }) {
+  const t = useT()
   const loading = controlState === "loading"
   return (
     <div className="border-t border-border/50 pt-2.5 flex items-center justify-between gap-2">
       <div className="flex items-center gap-1">
         <ControlButton
           icon={Play}
-          label="Start"
+          label={t("sensors.action.start")}
           color="text-emerald-400 hover:bg-emerald-400/15"
           disabled={loading}
           onClick={() => onControl("start")}
         />
         <ControlButton
           icon={Square}
-          label="Stop"
+          label={t("sensors.action.stop")}
           color="text-red-400 hover:bg-red-400/15"
           disabled={loading}
           onClick={() => onControl("stop")}
         />
         <ControlButton
           icon={loading ? Loader2 : RotateCcw}
-          label="Restart"
+          label={t("sensors.action.restart")}
           color="text-amber-400 hover:bg-amber-400/15"
           disabled={loading}
           spinning={loading}

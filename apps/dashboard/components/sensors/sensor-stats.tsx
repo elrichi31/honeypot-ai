@@ -2,6 +2,7 @@
 
 import { formatRelative } from "@/lib/sensor-display"
 import type { Sensor } from "@/lib/api"
+import { useT } from "@/components/locale-provider"
 
 function StatCell({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -21,13 +22,14 @@ function IpSection({
   isInternal: boolean
   honeypotPublicIp?: string
 }) {
+  const t = useT()
   if (isInternal) {
     return (
       <div className="col-span-2 grid grid-cols-2 gap-2">
-        <StatCell label="IP Interna">
+        <StatCell label={t("sensors.stats.ipInternal")}>
           <p className="font-mono text-xs text-violet-400">{sensor.ip}</p>
         </StatCell>
-        <StatCell label="IP Externa">
+        <StatCell label={t("sensors.stats.ipExternal")}>
           <p className="font-mono text-xs text-foreground">{honeypotPublicIp || "-"}</p>
         </StatCell>
       </div>
@@ -35,7 +37,7 @@ function IpSection({
   }
   return (
     <div className="col-span-2 grid grid-cols-2 gap-2">
-      <StatCell label="IP">
+      <StatCell label={t("sensors.stats.ip")}>
         <p className="font-mono text-xs text-foreground">{sensor.ip || "-"}</p>
       </StatCell>
     </div>
@@ -53,18 +55,19 @@ export function SensorStats({
   honeypotPublicIp?: string
   clientCode?: string
 }) {
+  const t = useT()
   const sensorIdDisplay = clientCode ? `${sensor.sensorId}-${clientCode}` : sensor.sensorId
   return (
     <div className="grid grid-cols-2 gap-2">
       <IpSection sensor={sensor} isInternal={isInternal} honeypotPublicIp={honeypotPublicIp} />
-      <StatCell label="Events">
+      <StatCell label={t("sensors.stats.events")}>
         <p className="font-semibold text-sm text-foreground">{sensor.eventsTotal.toLocaleString()}</p>
       </StatCell>
-      <StatCell label="Last seen">
+      <StatCell label={t("sensors.stats.lastSeen")}>
         <p className="text-xs text-foreground">{formatRelative(sensor.lastSeen)}</p>
       </StatCell>
       <div className="col-span-2">
-        <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Sensor ID</p>
+        <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">{t("sensors.stats.sensorId")}</p>
         <p className="font-mono text-[10px] text-muted-foreground truncate">{sensorIdDisplay}</p>
       </div>
     </div>
