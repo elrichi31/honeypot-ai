@@ -367,13 +367,20 @@ services:
       - "1433:1433"
       - "1723:1723"
       - "1883:1883"
-      - "3306:3306"
     volumes:
       - dionaea_var:/opt/dionaea/var/lib/dionaea
       - ./sensors/dionaea/dionaea.cfg:/opt/dionaea/etc/dionaea/dionaea.cfg:ro
       - ./sensors/dionaea/log_json.yaml:/opt/dionaea/etc/dionaea/ihandlers/log_json.yaml:ro
       - ./sensors/dionaea/emu_scripts.yaml:/opt/dionaea/etc/dionaea/ihandlers/emu_scripts.yaml:ro
-      - ./sensors/dionaea/services-enabled:/opt/dionaea/etc/dionaea/services-enabled:ro
+      - ./sensors/dionaea/services-enabled/epmap.yaml:/opt/dionaea/etc/dionaea/services-enabled/epmap.yaml:ro
+      - ./sensors/dionaea/services-enabled/ftp.yaml:/opt/dionaea/etc/dionaea/services-enabled/ftp.yaml:ro
+      - ./sensors/dionaea/services-enabled/http.yaml:/opt/dionaea/etc/dionaea/services-enabled/http.yaml:ro
+      - ./sensors/dionaea/services-enabled/mirror.yaml:/opt/dionaea/etc/dionaea/services-enabled/mirror.yaml:ro
+      - ./sensors/dionaea/services-enabled/mqtt.yaml:/opt/dionaea/etc/dionaea/services-enabled/mqtt.yaml:ro
+      - ./sensors/dionaea/services-enabled/mssql.yaml:/opt/dionaea/etc/dionaea/services-enabled/mssql.yaml:ro
+      - ./sensors/dionaea/services-enabled/pptp.yaml:/opt/dionaea/etc/dionaea/services-enabled/pptp.yaml:ro
+      - ./sensors/dionaea/services-enabled/smb.yaml:/opt/dionaea/etc/dionaea/services-enabled/smb.yaml:ro
+      - ./sensors/dionaea/services-enabled/tftp.yaml:/opt/dionaea/etc/dionaea/services-enabled/tftp.yaml:ro
       - ./sensors/dionaea/util.py:/opt/dionaea/lib/dionaea/python/dionaea/util.py:ro
     networks:
       - edge
@@ -424,6 +431,37 @@ services:
         limits:
           cpus: "0.3"
           pids: 64
+
+  mysql-honeypot:
+    <<: *service-defaults
+    logging: *json-logging
+    build:
+      context: ./sensors/mysql-honeypot
+    container_name: mysql-honeypot
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+    environment:
+      INGEST_API_URL: http://ingest-api:3000
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      PORT: "3306"
+      DST_PORT: "3306"
+      SENSOR_ID: ${SENSOR_ID_MYSQL:-mysql-01}
+      SENSOR_NAME: ${SENSOR_NAME_MYSQL:-MySQL Honeypot}
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
+      SENSOR_IP: ${HONEYPOT_IP:-}
+      SENSOR_HOST: mysql-honeypot
+    ports:
+      - "3306:3306"
+    networks:
+      - edge
+      - honeypot_ingest
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          pids: 128
 
   port-honeypot:
     <<: *service-defaults
