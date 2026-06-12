@@ -79,7 +79,7 @@ PATTERNS: list[tuple[str, list[re.Pattern]]] = [
         re.compile(r"#\{.*\}|<%=.*%>"),
         # Spring Expression Language (SpEL) and OGNL (Struts)
         re.compile(r"T\s*\(\s*java\.lang\.Runtime\s*\)", re.I),
-        re.compile(r"\(#\w+\s*=\s*@[a-z])", re.I),                 # OGNL gadget pattern
+        re.compile(r"\(#\w+\s*=\s*@[a-z]", re.I),                  # OGNL gadget pattern
     ]),
     ("deserialization", [
         # Java/PHP/.NET/Python insecure deserialization gadget markers
