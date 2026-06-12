@@ -163,43 +163,58 @@ async def handle_vnc(reader, writer, src_ip, src_port, port):
     password = None
     event_type = "connect"
     raw = b""
+
+    async def read_challenge_response():
+        """Read the 16-byte DES response and record it as a (crackable) password."""
+        nonlocal event_type, username, password, raw
+        resp = await asyncio.wait_for(reader.read(16), timeout=5)
+        raw += resp
+        if len(resp) == 16:
+            event_type = "auth"
+            username = ""  # VNC has no username, only a password
+            # Encrypted response; crackable offline against the fixed VNC_CHALLENGE.
+            password = resp.hex()
+            extra["vncChallengeResponseHex"] = resp.hex()
+            extra["vncChallengeHex"] = VNC_CHALLENGE.hex()
+
     try:
-        # 1. Server sends its RFB version first.
+        # 1. Server sends its version. We offer 3.8 but adapt to whatever the
+        #    client downgrades to — most scanners speak the older RFB 3.3.
         writer.write(b"RFB 003.008\n")
         await writer.drain()
 
-        # 2. Client replies with its version (12 bytes like "RFB 003.008\n").
+        # 2. Client replies with its version (e.g. "RFB 003.003\n").
         client_ver = await asyncio.wait_for(reader.read(12), timeout=5)
         raw += client_ver
-        if client_ver:
-            extra["clientVersion"] = client_ver.decode("latin-1", "replace").strip()
+        ver_str = client_ver.decode("latin-1", "replace").strip()
+        if ver_str:
+            extra["clientVersion"] = ver_str
 
-        # 3. Offer exactly one security type: 2 = VNC Authentication.
-        writer.write(b"\x01\x02")
-        await writer.drain()
+        # The security handshake differs by protocol version:
+        is_33 = "003.003" in ver_str or "003.005" in ver_str
 
-        # 4. Client picks a security type (1 byte). 2 = VNC auth, 1 = none.
-        sec = await asyncio.wait_for(reader.read(1), timeout=5)
-        raw += sec
-        if sec == b"\x02":
+        if is_33:
+            # RFB 3.3: the SERVER dictates the security type as a single U32.
+            # Send 2 (VNC Authentication), then the challenge directly.
             extra["authType"] = "vnc-auth"
-            # 5. Send the fixed 16-byte challenge.
+            writer.write(b"\x00\x00\x00\x02")  # security-type = 2 (U32, big-endian)
+            await writer.drain()
             writer.write(VNC_CHALLENGE)
             await writer.drain()
-            # 6. Client returns the 16-byte DES response (the encrypted password).
-            resp = await asyncio.wait_for(reader.read(16), timeout=5)
-            raw += resp
-            if len(resp) == 16:
-                event_type = "auth"
-                username = ""  # VNC has no username, only a password
-                # Store the encrypted response; it's crackable offline against
-                # VNC_CHALLENGE. Surface it as the "password" value so the attempt
-                # shows up in Credentials, and keep the raw hex for cracking.
-                password = resp.hex()
-                extra["vncChallengeResponseHex"] = resp.hex()
-                extra["vncChallengeHex"] = VNC_CHALLENGE.hex()
-        elif sec == b"\x01":
-            extra["authType"] = "none"  # they wanted an unauthenticated desktop
+            await read_challenge_response()
+        else:
+            # RFB 3.7 / 3.8: server offers a LIST of types; client picks one.
+            writer.write(b"\x01\x02")  # count=1, type=2 (VNC auth)
+            await writer.drain()
+            sec = await asyncio.wait_for(reader.read(1), timeout=5)
+            raw += sec
+            if sec == b"\x02":
+                extra["authType"] = "vnc-auth"
+                writer.write(VNC_CHALLENGE)
+                await writer.drain()
+                await read_challenge_response()
+            elif sec == b"\x01":
+                extra["authType"] = "none"  # they wanted an unauthenticated desktop
     except (asyncio.TimeoutError, Exception):
         pass
     await asyncio.get_event_loop().run_in_executor(
