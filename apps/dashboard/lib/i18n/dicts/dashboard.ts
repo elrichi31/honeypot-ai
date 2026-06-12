@@ -13,14 +13,22 @@ export const en = {
   "dash.error.crossSensor": "Could not load cross-sensor activity",
   "dash.error.map": "Could not load the attack map",
   "dash.error.sshAnalysis": "Could not load SSH analysis",
+  "dash.error.mitre": "Could not load the ATT&CK matrix",
 
   // Suspense loading labels
   "dash.loading.metrics": "Loading metrics…",
   "dash.loading.activity": "Loading activity…",
   "dash.loading.map": "Loading map…",
   "dash.loading.sshAnalysis": "Loading SSH analysis…",
+  "dash.loading.mitre": "Loading ATT&CK matrix…",
+
+  // MITRE ATT&CK matrix
+  "dash.mitre.title": "MITRE ATT&CK coverage",
+  "dash.mitre.subtitle": "Observed techniques mapped from honeypot activity",
+  "dash.mitre.empty": "No mappable activity in the window",
 
   // KPI cards
+  "dash.kpi.vsPrev24h": "vs previous 24h",
   "dash.kpi.totalEvents": "Total events",
   "dash.kpi.sensorsReporting": "{n} sensors reporting",
   "dash.kpi.sshSessions": "SSH sessions",
@@ -128,14 +136,22 @@ export const es: Record<keyof typeof en, string> = {
   "dash.error.crossSensor": "No se pudo cargar la actividad entre sensores",
   "dash.error.map": "No se pudo cargar el mapa de ataques",
   "dash.error.sshAnalysis": "No se pudo cargar el análisis SSH",
+  "dash.error.mitre": "No se pudo cargar la matriz ATT&CK",
 
   // Suspense loading labels
   "dash.loading.metrics": "Cargando métricas…",
   "dash.loading.activity": "Cargando actividad…",
   "dash.loading.map": "Cargando mapa…",
   "dash.loading.sshAnalysis": "Cargando análisis SSH…",
+  "dash.loading.mitre": "Cargando matriz ATT&CK…",
+
+  // MITRE ATT&CK matrix
+  "dash.mitre.title": "Cobertura MITRE ATT&CK",
+  "dash.mitre.subtitle": "Técnicas observadas mapeadas desde la actividad del honeypot",
+  "dash.mitre.empty": "Sin actividad mapeable en el período",
 
   // KPI cards
+  "dash.kpi.vsPrev24h": "vs 24h previas",
   "dash.kpi.totalEvents": "Eventos totales",
   "dash.kpi.sensorsReporting": "{n} sensores reportando",
   "dash.kpi.sshSessions": "Sesiones SSH",

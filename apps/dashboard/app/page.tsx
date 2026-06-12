@@ -4,8 +4,9 @@ import { Suspense } from "react"
 import Link from "next/link"
 import { Terminal, Radar } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
-import { Surface } from "@/components/ui/surface"
 import { DashboardInsightsView } from "@/components/dashboard-insights"
+import { KpiCard } from "@/components/kpi-card"
+import { MitreMatrixView } from "@/components/insights/mitre-matrix"
 import { CrossSensorActivityChart } from "@/components/cross-sensor-activity-chart"
 import { ProtocolDistributionChart } from "@/components/protocol-distribution-chart"
 import { GlobeMap } from "@/components/globe-map"
@@ -18,7 +19,10 @@ import {
   fetchGeoSummary,
   fetchHoneypotOverview,
   fetchCrossSensorTimeline,
+  fetchKpiTrends,
+  fetchMitreMatrix,
 } from "@/lib/api"
+import type { KpiTrends } from "@/lib/api"
 import { lookupIp, geolocateIps } from "@/lib/geo"
 import { readConfig } from "@/lib/server-config"
 import { getServerT } from "@/lib/i18n/server"
@@ -136,42 +140,56 @@ async function OverviewSection() {
     return <SectionError title={t("dash.error.metrics")} />
   }
 
+  // Trends are a 24h-vs-prev-24h enrichment layer. If the endpoint fails the
+  // KPIs still render with the 90d overview totals and null deltas (no spark).
+  const empty = { current: 0, previous: 0, deltaPct: null, spark: [] as number[] }
+  let trends: KpiTrends = { events: empty, sshSessions: empty, webHits: empty, uniqueIps: empty }
+  try {
+    trends = await fetchKpiTrends()
+  } catch {
+    // degrade silently — deltas show "—"
+  }
+
   const activeSources = overview.totals.activeSources
   const totalEvents = overview.totals.events
 
   return (
     <>
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Surface padded>
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{t("dash.kpi.totalEvents")}</p>
-          <p className="mt-2 text-3xl font-semibold text-foreground">{totalEvents.toLocaleString("en-US")}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {t("dash.kpi.sensorsReporting", { n: activeSources })}
-          </p>
-        </Surface>
-        <Surface padded>
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{t("dash.kpi.sshSessions")}</p>
-          <p className="mt-2 text-3xl font-semibold text-foreground">{overview.ssh.sessions.toLocaleString("en-US")}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {t("dash.kpi.sshDetail", {
-              ips: overview.ssh.uniqueIps.toLocaleString("en-US"),
-              n: overview.ssh.successfulLogins.toLocaleString("en-US"),
-            })}
-          </p>
-        </Surface>
-        <Surface padded>
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{t("dash.kpi.webAttacks")}</p>
-          <p className="mt-2 text-3xl font-semibold text-foreground">{overview.web.hits.toLocaleString("en-US")}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {t("dash.kpi.webIps", { ips: overview.web.uniqueIps.toLocaleString("en-US") })}
-            {overview.web.topAttackType ? t("dash.kpi.webTopSuffix", { type: overview.web.topAttackType }) : ""}
-          </p>
-        </Surface>
-        <Surface padded>
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{t("dash.kpi.activeSources")}</p>
-          <p className="mt-2 text-3xl font-semibold text-foreground">{activeSources.toLocaleString("en-US")}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{t("dash.kpi.sensorsInWindow")}</p>
-        </Surface>
+        <KpiCard
+          label={t("dash.kpi.totalEvents")}
+          value={totalEvents}
+          detail={t("dash.kpi.sensorsReporting", { n: activeSources })}
+          deltaPct={trends.events.deltaPct}
+          spark={trends.events.spark}
+        />
+        <KpiCard
+          label={t("dash.kpi.sshSessions")}
+          value={overview.ssh.sessions}
+          detail={t("dash.kpi.sshDetail", {
+            ips: overview.ssh.uniqueIps.toLocaleString("en-US"),
+            n: overview.ssh.successfulLogins.toLocaleString("en-US"),
+          })}
+          deltaPct={trends.sshSessions.deltaPct}
+          spark={trends.sshSessions.spark}
+        />
+        <KpiCard
+          label={t("dash.kpi.webAttacks")}
+          value={overview.web.hits}
+          detail={
+            t("dash.kpi.webIps", { ips: overview.web.uniqueIps.toLocaleString("en-US") }) +
+            (overview.web.topAttackType ? t("dash.kpi.webTopSuffix", { type: overview.web.topAttackType }) : "")
+          }
+          deltaPct={trends.webHits.deltaPct}
+          spark={trends.webHits.spark}
+        />
+        <KpiCard
+          label={t("dash.kpi.activeSources")}
+          value={activeSources}
+          detail={t("dash.kpi.sensorsInWindow")}
+          deltaPct={trends.uniqueIps.deltaPct}
+          spark={trends.uniqueIps.spark}
+        />
       </div>
 
       <SensorActivityGrid overview={overview} />
@@ -203,6 +221,17 @@ async function GlobeSection() {
     return <SectionError title={t("dash.error.map")} />
   }
   return <GlobeMap countryAttacks={geolocateIps(geoData)} />
+}
+
+async function MitreSection() {
+  const t = await getServerT()
+  let matrix
+  try {
+    matrix = await fetchMitreMatrix()
+  } catch {
+    return <SectionError title={t("dash.error.mitre")} />
+  }
+  return <MitreMatrixView matrix={matrix} />
 }
 
 async function InsightsSection() {
@@ -272,6 +301,13 @@ export default async function DashboardPage() {
         </div>
         <Suspense fallback={<SectionLoading label={t("dash.loading.sshAnalysis")} />}>
           <InsightsSection />
+        </Suspense>
+      </div>
+
+      {/* MITRE ATT&CK technique matrix */}
+      <div className="mb-6">
+        <Suspense fallback={<SectionLoading label={t("dash.loading.mitre")} />}>
+          <MitreSection />
         </Suspense>
       </div>
 

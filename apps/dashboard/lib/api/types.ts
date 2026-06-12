@@ -29,6 +29,28 @@ export interface HoneypotOverview {
   }
 }
 
+export interface MetricTrend {
+  current: number
+  previous: number
+  deltaPct: number | null
+  spark: number[]
+}
+
+export interface KpiTrends {
+  events: MetricTrend
+  sshSessions: MetricTrend
+  webHits: MetricTrend
+  uniqueIps: MetricTrend
+}
+
+export interface MitreMatrix {
+  tactics: Array<{
+    tactic: string
+    techniques: Array<{ id: string; name: string; count: number }>
+  }>
+  total: number
+}
+
 export interface PaginationMeta {
   page: number
   pageSize: number

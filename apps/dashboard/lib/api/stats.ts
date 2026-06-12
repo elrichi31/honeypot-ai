@@ -1,5 +1,5 @@
 import { getApiUrl, apiFetch, buildSearchParams } from "./client"
-import type { DashboardStats, DashboardInsights, HoneypotOverview, CrossSensorTimeline } from "./types"
+import type { DashboardStats, DashboardInsights, HoneypotOverview, CrossSensorTimeline, KpiTrends, MitreMatrix } from "./types"
 
 export async function fetchOverviewStats(params: {
   startDate: string; endDate: string
@@ -25,6 +25,14 @@ export async function fetchDashboardInsights(): Promise<DashboardInsights> {
 
 export async function fetchHoneypotOverview(): Promise<HoneypotOverview> {
   return apiFetch(`${getApiUrl()}/stats/honeypot-overview`, 300, 30000)
+}
+
+export async function fetchKpiTrends(): Promise<KpiTrends> {
+  return apiFetch(`${getApiUrl()}/stats/kpi-trends`, 300, 30000)
+}
+
+export async function fetchMitreMatrix(): Promise<MitreMatrix> {
+  return apiFetch(`${getApiUrl()}/stats/mitre-matrix`, 300, 30000)
 }
 
 export async function fetchCrossSensorTimeline(params: {
