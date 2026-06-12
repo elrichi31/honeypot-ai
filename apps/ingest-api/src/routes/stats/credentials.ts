@@ -6,7 +6,7 @@ import type {
   CredentialPairRow, UsernameAggregateRow, PasswordAggregateRow,
   SprayPasswordRow, TargetedUsernameRow, DiversifiedAttackerRow, CountOnlyRow,
 } from './types.js'
-import { parseDate, toNumber, toOffsetISOString, buildAuthWhereSql, buildClauseBlock, eventScopeClause, eventScopeWhere, type EventScope } from './utils.js'
+import { parseDate, toNumber, toOffsetISOString, buildAuthWhereSql, buildClauseBlock, eventScopeClause, eventScopeWhere, protocolClause, type EventScope } from './utils.js'
 import { withCache } from '../../lib/cache-helper.js'
 import { resolveClientSensors } from '../../lib/client-helpers.js'
 
@@ -30,6 +30,8 @@ const schema = z.object({
   // Per-client / per-sensor scoping, mirroring the web-attacks filters.
   clientSlug: z.string().trim().min(1).optional(),
   sensorId: z.string().trim().min(1).optional(),
+  // Filter to one honeypot protocol (ssh | mysql | mssql | ftp | vnc | rdp | ...).
+  protocol: z.string().trim().min(1).optional(),
 })
 
 type Params = z.infer<typeof schema>
@@ -128,17 +130,21 @@ export async function credentialsRoute(fastify: FastifyInstance) {
     const cacheKey = `credentials${scopeKey}:${JSON.stringify({ mainTab: p.mainTab, rankingType: p.rankingType, outcome: p.outcome, frequency: p.frequency, search: search ?? '', sortBy: activeSortBy, sortDir: activeSortDir, page, pageSize, startDate: p.startDate ?? '', endDate: p.endDate ?? '' })}`
 
     return withCache(fastify.cache, cacheKey, 600, async () => {
-    const authWhere = buildAuthWhereSql({ startDate, endDate, scope })
-    const anyCredWhere = buildAuthWhereSql({ startDate, endDate, scope, extra: [Prisma.sql`(username IS NOT NULL OR password IS NOT NULL)`] })
-    const userWhere = buildAuthWhereSql({ startDate, endDate, scope, extra: [Prisma.sql`username IS NOT NULL`] })
-    const passWhere = buildAuthWhereSql({ startDate, endDate, scope, extra: [Prisma.sql`password IS NOT NULL`] })
+    const proto = p.protocol
+    const authWhere = buildAuthWhereSql({ startDate, endDate, scope, protocol: proto })
+    const anyCredWhere = buildAuthWhereSql({ startDate, endDate, scope, protocol: proto, extra: [Prisma.sql`(username IS NOT NULL OR password IS NOT NULL)`] })
+    const userWhere = buildAuthWhereSql({ startDate, endDate, scope, protocol: proto, extra: [Prisma.sql`username IS NOT NULL`] })
+    const passWhere = buildAuthWhereSql({ startDate, endDate, scope, protocol: proto, extra: [Prisma.sql`password IS NOT NULL`] })
 
     const searchClause = buildSearchClause(search)
     const scopeClause = eventScopeClause(scope)
-    const rankingClauses: Prisma.Sql[] = [Prisma.sql`event_type IN ('auth.success', 'auth.failed')`]
+    const protoClause = protocolClause(proto)
+    // The credential_attempts view is already restricted to auth attempts.
+    const rankingClauses: Prisma.Sql[] = [Prisma.sql`1 = 1`]
     if (startDate) rankingClauses.push(Prisma.sql`event_ts >= ${startDate}`)
     if (endDate) rankingClauses.push(Prisma.sql`event_ts <= ${endDate}`)
     if (scopeClause) rankingClauses.push(scopeClause)
+    if (protoClause) rankingClauses.push(protoClause)
     if (searchClause) rankingClauses.push(searchClause)
     if (p.rankingType === 'pairs') rankingClauses.push(Prisma.sql`(username IS NOT NULL OR password IS NOT NULL)`)
     else if (p.rankingType === 'passwords') rankingClauses.push(Prisma.sql`password IS NOT NULL`)
@@ -152,7 +158,7 @@ export async function credentialsRoute(fastify: FastifyInstance) {
       else if (p.frequency === 'single') havingClauses.push(Prisma.sql`COUNT(*) = 1`)
     }
 
-    const recentWhere = buildRecentWhere(p.outcome, startDate, endDate, search, recentScopeWhere)
+    const recentWhere = buildRecentWhere(p.outcome, startDate, endDate, search, recentScopeWhere, proto)
     const recentOrderBy = buildRecentOrderBy(recentSortBy, recentSortDir)
 
     // Only the active tab's heavy row queries run; inactive tabs return empty
@@ -167,23 +173,23 @@ export async function credentialsRoute(fastify: FastifyInstance) {
       sprayPasswordsCountRows, targetedUsernamesCountRows,
       sprayPasswordRows, targetedUsernameRows, diversifiedAttackerRows,
       rankingCountRows, rankingRows, recentAttempts, recentAttemptsTotal] = await Promise.all([
-      countAttempts(fastify, 'all', startDate, endDate, recentScopeWhere),
-      countAttempts(fastify, 'success', startDate, endDate, recentScopeWhere),
-      countAttempts(fastify, 'failed', startDate, endDate, recentScopeWhere),
-      fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`SELECT COUNT(DISTINCT username)::int AS count FROM events ${userWhere}`),
-      fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`SELECT COUNT(DISTINCT password)::int AS count FROM events ${passWhere}`),
-      fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`SELECT COUNT(DISTINCT (COALESCE(username, '<null>') || E'\\x1f' || COALESCE(password, '<null>')))::int AS count FROM events ${anyCredWhere}`),
-      fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`SELECT COUNT(*)::int AS count FROM (SELECT 1 FROM events ${anyCredWhere} GROUP BY username, password HAVING COUNT(*) > 1) t`),
-      fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`SELECT COUNT(*)::int AS count FROM (SELECT password FROM events ${passWhere} GROUP BY password HAVING COUNT(DISTINCT username) >= 3) t`),
-      fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`SELECT COUNT(*)::int AS count FROM (SELECT username FROM events ${userWhere} GROUP BY username HAVING COUNT(DISTINCT password) >= 3) t`),
+      countAttempts(fastify, 'all', authWhere),
+      countAttempts(fastify, 'success', authWhere),
+      countAttempts(fastify, 'failed', authWhere),
+      fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`SELECT COUNT(DISTINCT username)::int AS count FROM credential_attempts ${userWhere}`),
+      fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`SELECT COUNT(DISTINCT password)::int AS count FROM credential_attempts ${passWhere}`),
+      fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`SELECT COUNT(DISTINCT (COALESCE(username, '<null>') || E'\\x1f' || COALESCE(password, '<null>')))::int AS count FROM credential_attempts ${anyCredWhere}`),
+      fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`SELECT COUNT(*)::int AS count FROM (SELECT 1 FROM credential_attempts ${anyCredWhere} GROUP BY username, password HAVING COUNT(*) > 1) t`),
+      fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`SELECT COUNT(*)::int AS count FROM (SELECT password FROM credential_attempts ${passWhere} GROUP BY password HAVING COUNT(DISTINCT username) >= 3) t`),
+      fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`SELECT COUNT(*)::int AS count FROM (SELECT username FROM credential_attempts ${userWhere} GROUP BY username HAVING COUNT(DISTINCT password) >= 3) t`),
       wantPatterns
-        ? fastify.prismaRead.$queryRaw<SprayPasswordRow[]>(Prisma.sql`SELECT password, COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(DISTINCT username)::int AS "usernameCount", COUNT(DISTINCT src_ip)::int AS "ipCount" FROM events ${passWhere} GROUP BY password HAVING COUNT(DISTINCT username) >= 2 ORDER BY "usernameCount" DESC, attempts DESC, "successCount" DESC LIMIT 20`)
+        ? fastify.prismaRead.$queryRaw<SprayPasswordRow[]>(Prisma.sql`SELECT password, COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(DISTINCT username)::int AS "usernameCount", COUNT(DISTINCT src_ip)::int AS "ipCount" FROM credential_attempts ${passWhere} GROUP BY password HAVING COUNT(DISTINCT username) >= 2 ORDER BY "usernameCount" DESC, attempts DESC, "successCount" DESC LIMIT 20`)
         : Promise.resolve([] as SprayPasswordRow[]),
       wantPatterns
-        ? fastify.prismaRead.$queryRaw<TargetedUsernameRow[]>(Prisma.sql`SELECT username, COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(DISTINCT password)::int AS "passwordCount", COUNT(DISTINCT src_ip)::int AS "ipCount" FROM events ${userWhere} GROUP BY username HAVING COUNT(DISTINCT password) >= 2 ORDER BY "passwordCount" DESC, attempts DESC, "successCount" DESC LIMIT 20`)
+        ? fastify.prismaRead.$queryRaw<TargetedUsernameRow[]>(Prisma.sql`SELECT username, COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(DISTINCT password)::int AS "passwordCount", COUNT(DISTINCT src_ip)::int AS "ipCount" FROM credential_attempts ${userWhere} GROUP BY username HAVING COUNT(DISTINCT password) >= 2 ORDER BY "passwordCount" DESC, attempts DESC, "successCount" DESC LIMIT 20`)
         : Promise.resolve([] as TargetedUsernameRow[]),
       wantPatterns
-        ? fastify.prismaRead.$queryRaw<DiversifiedAttackerRow[]>(Prisma.sql`SELECT src_ip AS "srcIp", COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(DISTINCT (COALESCE(username, '<null>') || E'\\x1f' || COALESCE(password, '<null>')))::int AS "credentialCount", COUNT(DISTINCT username)::int AS "usernameCount", COUNT(DISTINCT password)::int AS "passwordCount", MAX(event_ts) AS "lastSeen" FROM events ${authWhere} GROUP BY src_ip HAVING COUNT(*) >= 2 ORDER BY "credentialCount" DESC, attempts DESC, "successCount" DESC LIMIT 20`)
+        ? fastify.prismaRead.$queryRaw<DiversifiedAttackerRow[]>(Prisma.sql`SELECT src_ip AS "srcIp", COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(DISTINCT (COALESCE(username, '<null>') || E'\\x1f' || COALESCE(password, '<null>')))::int AS "credentialCount", COUNT(DISTINCT username)::int AS "usernameCount", COUNT(DISTINCT password)::int AS "passwordCount", MAX(event_ts) AS "lastSeen" FROM credential_attempts ${authWhere} GROUP BY src_ip HAVING COUNT(*) >= 2 ORDER BY "credentialCount" DESC, attempts DESC, "successCount" DESC LIMIT 20`)
         : Promise.resolve([] as DiversifiedAttackerRow[]),
       wantRankings
         ? buildCountQuery(fastify, p.rankingType, rankingClauses, havingClauses)
@@ -192,10 +198,13 @@ export async function credentialsRoute(fastify: FastifyInstance) {
         ? buildRankingQuery(fastify, p.rankingType, rankingClauses, havingClauses, rankingSortBy, rankingSortDir, pageSize, offset)
         : Promise.resolve([] as CredentialPairRow[]),
       wantRecent
-        ? fastify.prismaRead.event.findMany({ where: recentWhere, orderBy: recentOrderBy, take: pageSize, skip: offset })
-        : Promise.resolve([]),
+        ? fastify.prismaRead.$queryRaw<RecentRow[]>(Prisma.sql`
+            SELECT event_ts, src_ip, username, password, success, protocol
+            FROM credential_attempts ${recentWhere} ${recentOrderBy}
+            LIMIT ${pageSize} OFFSET ${offset}`)
+        : Promise.resolve([] as RecentRow[]),
       wantRecent
-        ? fastify.prismaRead.event.count({ where: recentWhere })
+        ? fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`SELECT COUNT(*)::int AS count FROM credential_attempts ${recentWhere}`).then(r => toNumber(r[0]?.count))
         : Promise.resolve(0),
     ])
 
@@ -209,7 +218,14 @@ export async function credentialsRoute(fastify: FastifyInstance) {
       targetedUsernames: targetedUsernameRows.map(r => ({ username: r.username, attempts: toNumber(r.attempts), successCount: toNumber(r.successCount), passwordCount: toNumber(r.passwordCount), ipCount: toNumber(r.ipCount) })),
       diversifiedAttackers: diversifiedAttackerRows.map(r => ({ srcIp: r.srcIp, attempts: toNumber(r.attempts), successCount: toNumber(r.successCount), credentialCount: toNumber(r.credentialCount), usernameCount: toNumber(r.usernameCount), passwordCount: toNumber(r.passwordCount), lastSeen: toOffsetISOString(r.lastSeen) })),
       rankingsPage: { items: mapRankingItems(p.rankingType, rankingRows), pagination: { page, pageSize, total: rankingTotal, totalPages: rankingTotalPages, hasNextPage: page < rankingTotalPages, hasPreviousPage: page > 1 }, sortBy: rankingSortBy, sortDir: rankingSortDir },
-      recentAttemptsPage: { items: recentAttempts.map(e => ({ ...e, eventTs: toOffsetISOString(e.eventTs), createdAt: toOffsetISOString(e.createdAt), cowrieTs: toOffsetISOString(new Date(e.cowrieTs as string)) })), pagination: { page, pageSize, total: recentAttemptsTotal, totalPages: recentTotalPages, hasNextPage: page < recentTotalPages, hasPreviousPage: page > 1 }, sortBy: recentSortBy, sortDir: recentSortDir },
+      recentAttemptsPage: { items: recentAttempts.map(e => ({
+        srcIp: e.src_ip,
+        username: e.username,
+        password: e.password,
+        success: e.success,
+        protocol: e.protocol,
+        eventTs: toOffsetISOString(e.event_ts),
+      })), pagination: { page, pageSize, total: recentAttemptsTotal, totalPages: recentTotalPages, hasNextPage: page < recentTotalPages, hasPreviousPage: page > 1 }, sortBy: recentSortBy, sortDir: recentSortDir },
       current: { mainTab: p.mainTab, rankingType: p.rankingType, outcome: p.outcome, frequency: p.frequency, search: search ?? '', sortBy: activeSortBy, sortDir: activeSortDir },
     }
 
@@ -218,48 +234,73 @@ export async function credentialsRoute(fastify: FastifyInstance) {
   })
 }
 
-function countAttempts(fastify: FastifyInstance, type: 'all' | 'success' | 'failed', startDate?: Date, endDate?: Date, scopeWhere?: Prisma.EventWhereInput) {
-  const where: Prisma.EventWhereInput = {
-    eventType: type === 'all' ? { in: ['auth.success', 'auth.failed'] } : type === 'success' ? 'auth.success' : 'auth.failed',
-    ...((startDate || endDate) ? { eventTs: { ...(startDate ? { gte: startDate } : {}), ...(endDate ? { lte: endDate } : {}) } } : {}),
-    ...(scopeWhere ?? {}),
-  }
-  return fastify.prismaRead.event.count({ where })
+// Total/success/failed attempt counts over the unified view. success is true
+// only for SSH logins that actually succeeded; protocol-honeypot rows are always
+// false, so 'failed' includes them.
+async function countAttempts(
+  fastify: FastifyInstance,
+  type: 'all' | 'success' | 'failed',
+  where: Prisma.Sql,
+): Promise<number> {
+  const outcome = type === 'success'
+    ? Prisma.sql` AND success IS TRUE`
+    : type === 'failed'
+      ? Prisma.sql` AND success IS DISTINCT FROM TRUE`
+      : Prisma.empty
+  const rows = await fastify.prismaRead.$queryRaw<CountOnlyRow[]>(
+    Prisma.sql`SELECT COUNT(*)::int AS count FROM credential_attempts ${where}${outcome}`,
+  )
+  return toNumber(rows[0]?.count)
 }
 
-function buildRecentWhere(outcome: string, startDate?: Date, endDate?: Date, search?: string, scopeWhere?: Prisma.EventWhereInput): Prisma.EventWhereInput {
-  return {
-    eventType: { in: outcome === 'success' ? ['auth.success'] : outcome === 'failed' ? ['auth.failed'] : ['auth.success', 'auth.failed'] },
-    ...((startDate || endDate) ? { eventTs: { ...(startDate ? { gte: startDate } : {}), ...(endDate ? { lte: endDate } : {}) } } : {}),
-    ...(search ? { OR: [{ srcIp: { startsWith: search, mode: 'insensitive' as const } }, { username: { contains: search, mode: 'insensitive' as const } }, { password: { contains: search, mode: 'insensitive' as const } }] } : {}),
-    ...(scopeWhere ?? {}),
-  }
+type RecentRow = {
+  event_ts: Date; src_ip: string; username: string | null
+  password: string | null; success: boolean | null; protocol: string
 }
 
-function buildRecentOrderBy(sortBy: string, sortDir: CredentialsSortDirection) {
-  const d = sortDir as 'asc' | 'desc'
-  return sortBy === 'status' ? [{ success: d }, { eventTs: 'desc' as const }]
-    : sortBy === 'username' ? [{ username: d }, { eventTs: 'desc' as const }]
-    : sortBy === 'password' ? [{ password: d }, { eventTs: 'desc' as const }]
-    : sortBy === 'srcIp' ? [{ srcIp: d }, { eventTs: 'desc' as const }]
-    : [{ eventTs: d }]
+function buildRecentWhere(
+  outcome: string, startDate?: Date, endDate?: Date, search?: string,
+  scope?: Prisma.Sql | null, protocol?: string,
+): Prisma.Sql {
+  const clauses: Prisma.Sql[] = [Prisma.sql`1 = 1`]
+  if (outcome === 'success') clauses.push(Prisma.sql`success IS TRUE`)
+  else if (outcome === 'failed') clauses.push(Prisma.sql`success IS DISTINCT FROM TRUE`)
+  if (startDate) clauses.push(Prisma.sql`event_ts >= ${startDate}`)
+  if (endDate) clauses.push(Prisma.sql`event_ts <= ${endDate}`)
+  if (scope) clauses.push(scope)
+  if (protocol) clauses.push(Prisma.sql`protocol = ${protocol}`)
+  if (search) {
+    const wildcard = `%${search}%`
+    clauses.push(Prisma.sql`(COALESCE(username,'') ILIKE ${wildcard} OR COALESCE(password,'') ILIKE ${wildcard} OR src_ip ILIKE ${`${search}%`})`)
+  }
+  return buildClauseBlock('WHERE', clauses)
+}
+
+function buildRecentOrderBy(sortBy: string, sortDir: CredentialsSortDirection): Prisma.Sql {
+  const d = sortDir === 'asc' ? Prisma.raw('ASC') : Prisma.raw('DESC')
+  const col = sortBy === 'status' ? Prisma.raw('success')
+    : sortBy === 'username' ? Prisma.raw('username')
+      : sortBy === 'password' ? Prisma.raw('password')
+        : sortBy === 'srcIp' ? Prisma.raw('src_ip')
+          : Prisma.raw('event_ts')
+  return Prisma.sql`ORDER BY ${col} ${d}, event_ts DESC`
 }
 
 function buildCountQuery(fastify: FastifyInstance, rankingType: CredentialsRankingType, rankingClauses: Prisma.Sql[], havingClauses: Prisma.Sql[]) {
   const w = buildClauseBlock('WHERE', rankingClauses)
   const h = buildClauseBlock('HAVING', havingClauses)
-  if (rankingType === 'pairs') return fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`WITH grouped AS (SELECT username, password, COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(*) FILTER (WHERE success IS FALSE)::int AS "failedCount", COUNT(DISTINCT src_ip)::int AS "uniqueIps", MIN(event_ts) AS "firstSeen", MAX(event_ts) AS "lastSeen" FROM events ${w} GROUP BY username, password ${h}) SELECT COUNT(*)::int AS count FROM grouped`)
-  if (rankingType === 'passwords') return fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`WITH grouped AS (SELECT password, COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(*) FILTER (WHERE success IS FALSE)::int AS "failedCount", COUNT(DISTINCT src_ip)::int AS "uniqueIps", COUNT(DISTINCT username)::int AS "usernameCount" FROM events ${w} GROUP BY password ${h}) SELECT COUNT(*)::int AS count FROM grouped`)
-  return fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`WITH grouped AS (SELECT username, COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(*) FILTER (WHERE success IS FALSE)::int AS "failedCount", COUNT(DISTINCT src_ip)::int AS "uniqueIps", COUNT(DISTINCT password)::int AS "passwordCount" FROM events ${w} GROUP BY username ${h}) SELECT COUNT(*)::int AS count FROM grouped`)
+  if (rankingType === 'pairs') return fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`WITH grouped AS (SELECT username, password, COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(*) FILTER (WHERE success IS FALSE)::int AS "failedCount", COUNT(DISTINCT src_ip)::int AS "uniqueIps", MIN(event_ts) AS "firstSeen", MAX(event_ts) AS "lastSeen" FROM credential_attempts ${w} GROUP BY username, password ${h}) SELECT COUNT(*)::int AS count FROM grouped`)
+  if (rankingType === 'passwords') return fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`WITH grouped AS (SELECT password, COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(*) FILTER (WHERE success IS FALSE)::int AS "failedCount", COUNT(DISTINCT src_ip)::int AS "uniqueIps", COUNT(DISTINCT username)::int AS "usernameCount" FROM credential_attempts ${w} GROUP BY password ${h}) SELECT COUNT(*)::int AS count FROM grouped`)
+  return fastify.prismaRead.$queryRaw<CountOnlyRow[]>(Prisma.sql`WITH grouped AS (SELECT username, COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(*) FILTER (WHERE success IS FALSE)::int AS "failedCount", COUNT(DISTINCT src_ip)::int AS "uniqueIps", COUNT(DISTINCT password)::int AS "passwordCount" FROM credential_attempts ${w} GROUP BY username ${h}) SELECT COUNT(*)::int AS count FROM grouped`)
 }
 
 function buildRankingQuery(fastify: FastifyInstance, rankingType: CredentialsRankingType, rankingClauses: Prisma.Sql[], havingClauses: Prisma.Sql[], sortBy: string, sortDir: CredentialsSortDirection, pageSize: number, offset: number) {
   const w = buildClauseBlock('WHERE', rankingClauses)
   const h = buildClauseBlock('HAVING', havingClauses)
   const o = getRankingOrderSql(rankingType, sortBy, sortDir)
-  if (rankingType === 'pairs') return fastify.prismaRead.$queryRaw<CredentialPairRow[]>(Prisma.sql`WITH grouped AS (SELECT username, password, COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(*) FILTER (WHERE success IS FALSE)::int AS "failedCount", COUNT(DISTINCT src_ip)::int AS "uniqueIps", MIN(event_ts) AS "firstSeen", MAX(event_ts) AS "lastSeen" FROM events ${w} GROUP BY username, password ${h}) SELECT * FROM grouped ${o} LIMIT ${pageSize} OFFSET ${offset}`)
-  if (rankingType === 'passwords') return fastify.prismaRead.$queryRaw<PasswordAggregateRow[]>(Prisma.sql`WITH grouped AS (SELECT password, COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(*) FILTER (WHERE success IS FALSE)::int AS "failedCount", COUNT(DISTINCT src_ip)::int AS "uniqueIps", COUNT(DISTINCT username)::int AS "usernameCount" FROM events ${w} GROUP BY password ${h}) SELECT * FROM grouped ${o} LIMIT ${pageSize} OFFSET ${offset}`)
-  return fastify.prismaRead.$queryRaw<UsernameAggregateRow[]>(Prisma.sql`WITH grouped AS (SELECT username, COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(*) FILTER (WHERE success IS FALSE)::int AS "failedCount", COUNT(DISTINCT src_ip)::int AS "uniqueIps", COUNT(DISTINCT password)::int AS "passwordCount" FROM events ${w} GROUP BY username ${h}) SELECT * FROM grouped ${o} LIMIT ${pageSize} OFFSET ${offset}`)
+  if (rankingType === 'pairs') return fastify.prismaRead.$queryRaw<CredentialPairRow[]>(Prisma.sql`WITH grouped AS (SELECT username, password, COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(*) FILTER (WHERE success IS FALSE)::int AS "failedCount", COUNT(DISTINCT src_ip)::int AS "uniqueIps", MIN(event_ts) AS "firstSeen", MAX(event_ts) AS "lastSeen" FROM credential_attempts ${w} GROUP BY username, password ${h}) SELECT * FROM grouped ${o} LIMIT ${pageSize} OFFSET ${offset}`)
+  if (rankingType === 'passwords') return fastify.prismaRead.$queryRaw<PasswordAggregateRow[]>(Prisma.sql`WITH grouped AS (SELECT password, COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(*) FILTER (WHERE success IS FALSE)::int AS "failedCount", COUNT(DISTINCT src_ip)::int AS "uniqueIps", COUNT(DISTINCT username)::int AS "usernameCount" FROM credential_attempts ${w} GROUP BY password ${h}) SELECT * FROM grouped ${o} LIMIT ${pageSize} OFFSET ${offset}`)
+  return fastify.prismaRead.$queryRaw<UsernameAggregateRow[]>(Prisma.sql`WITH grouped AS (SELECT username, COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(*) FILTER (WHERE success IS FALSE)::int AS "failedCount", COUNT(DISTINCT src_ip)::int AS "uniqueIps", COUNT(DISTINCT password)::int AS "passwordCount" FROM credential_attempts ${w} GROUP BY username ${h}) SELECT * FROM grouped ${o} LIMIT ${pageSize} OFFSET ${offset}`)
 }
 
 function mapRankingItems(rankingType: CredentialsRankingType, rows: unknown) {

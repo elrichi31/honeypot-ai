@@ -10,7 +10,7 @@ export async function fetchCredentialsAnalytics(params?: {
   outcome?: CredentialsOutcomeFilter; frequency?: CredentialsFrequencyFilter
   search?: string; sortBy?: string; sortDir?: CredentialsSortDirection
   startDate?: string; endDate?: string
-  clientSlug?: string; sensorId?: string
+  clientSlug?: string; sensorId?: string; protocol?: string
 }): Promise<CredentialsAnalytics> {
   const sp = buildSearchParams({
     limit: params?.limit, recentLimit: params?.recentLimit,
@@ -19,7 +19,7 @@ export async function fetchCredentialsAnalytics(params?: {
     outcome: params?.outcome, frequency: params?.frequency,
     search: params?.search, sortBy: params?.sortBy, sortDir: params?.sortDir,
     startDate: params?.startDate, endDate: params?.endDate,
-    clientSlug: params?.clientSlug, sensorId: params?.sensorId,
+    clientSlug: params?.clientSlug, sensorId: params?.sensorId, protocol: params?.protocol,
   })
   return apiFetch(`${getApiUrl()}/stats/credentials?${sp}`, 60)
 }

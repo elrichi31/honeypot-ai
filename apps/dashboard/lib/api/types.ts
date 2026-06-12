@@ -233,7 +233,7 @@ export interface CredentialsAnalytics {
   targetedUsernames: TargetedUsernameStat[]
   diversifiedAttackers: DiversifiedAttackerStat[]
   rankingsPage: CredentialsTablePage<CredentialPairStat | PasswordCredentialStat | UsernameCredentialStat>
-  recentAttemptsPage: CredentialsTablePage<HoneypotEvent>
+  recentAttemptsPage: CredentialsTablePage<CredentialAttempt>
   current: {
     mainTab: CredentialsMainTab
     rankingType: CredentialsRankingType
@@ -261,6 +261,18 @@ export interface HoneypotEvent {
   createdAt: string
   cowrieEventId: string
   cowrieTs: string
+}
+
+// A single credential attempt in the Credentials "Recent" tab. Sourced from the
+// unified credential_attempts view (SSH + protocol honeypots), so it carries
+// `protocol` and only the fields that view exposes.
+export interface CredentialAttempt {
+  srcIp: string
+  username: string | null
+  password: string | null
+  success: boolean | null
+  eventTs: string
+  protocol: string
 }
 
 export interface ApiSession {

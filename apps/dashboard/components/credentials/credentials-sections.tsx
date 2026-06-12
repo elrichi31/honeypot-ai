@@ -19,13 +19,35 @@ import { displayValue } from "@/lib/credentials"
 import { useT } from "@/components/locale-provider"
 import type {
   CredentialPairStat,
+  CredentialAttempt,
   DiversifiedAttackerStat,
-  HoneypotEvent,
   PasswordCredentialStat,
   SprayPasswordStat,
   TargetedUsernameStat,
   UsernameCredentialStat,
 } from "@/lib/api"
+
+// Per-protocol tonal badge so each credential attempt shows which honeypot it
+// came from (SSH, MySQL, MSSQL, VNC, RDP, FTP, ...).
+const PROTOCOL_BADGE: Record<string, string> = {
+  ssh:     "bg-cyan-400/15 text-cyan-400",
+  mysql:   "bg-purple-400/15 text-purple-400",
+  mssql:   "bg-pink-400/15 text-pink-400",
+  ftp:     "bg-yellow-400/15 text-yellow-400",
+  vnc:     "bg-emerald-400/15 text-emerald-400",
+  rdp:     "bg-blue-400/15 text-blue-400",
+  smb:     "bg-orange-400/15 text-orange-400",
+  redis:   "bg-red-400/15 text-red-400",
+}
+
+function ProtocolBadge({ protocol }: { protocol: string }) {
+  const style = PROTOCOL_BADGE[protocol] ?? "bg-slate-400/15 text-slate-400"
+  return (
+    <span className={cn("rounded px-1.5 py-0.5 text-[11px] font-medium uppercase", style)}>
+      {protocol}
+    </span>
+  )
+}
 
 function SortableHeader({
   label,
@@ -281,7 +303,7 @@ export function RecentAttemptsTable({
   sortDir,
   onSort,
 }: {
-  rows: HoneypotEvent[]
+  rows: CredentialAttempt[]
   sortBy: string
   sortDir: "asc" | "desc"
   onSort: (column: string) => void
@@ -292,6 +314,7 @@ export function RecentAttemptsTable({
       <TableHeader>
         <TableRow>
           <SortableHeader label={t("cred.col.status")} column="status" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+          <TableHead>{t("cred.col.protocol")}</TableHead>
           <SortableHeader label={t("cred.col.username")} column="username" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
           <SortableHeader label={t("cred.col.password")} column="password" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
           <SortableHeader label={t("cred.col.sourceIp")} column="srcIp" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
@@ -300,8 +323,8 @@ export function RecentAttemptsTable({
       </TableHeader>
       <TableBody>
         {rows.length > 0 ? (
-          rows.map((event) => (
-            <TableRow key={event.id}>
+          rows.map((event, i) => (
+            <TableRow key={`${event.srcIp}-${event.eventTs}-${i}`}>
               <TableCell className="px-4 py-3">
                 {event.success ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-success/20 px-2 py-1 text-xs text-success">
@@ -314,6 +337,9 @@ export function RecentAttemptsTable({
                     {t("cred.status.failed")}
                   </span>
                 )}
+              </TableCell>
+              <TableCell className="px-4 py-3">
+                <ProtocolBadge protocol={event.protocol} />
               </TableCell>
               <TableCell className="px-4 py-3 font-mono text-sm">{displayValue(event.username)}</TableCell>
               <TableCell className="px-4 py-3 font-mono text-sm">{displayValue(event.password)}</TableCell>

@@ -53,6 +53,7 @@ export const en = {
   "cred.col.username": "Username",
   "cred.col.passwords": "Passwords",
   "cred.col.status": "Status",
+  "cred.col.protocol": "Protocol",
   "cred.col.sourceIp": "Source IP",
   "cred.col.when": "When",
 
@@ -138,6 +139,7 @@ export const es: Record<keyof typeof en, string> = {
   "cred.col.username": "Usuario",
   "cred.col.passwords": "Contraseñas",
   "cred.col.status": "Estado",
+  "cred.col.protocol": "Protocolo",
   "cred.col.sourceIp": "IP de origen",
   "cred.col.when": "Cuándo",
 

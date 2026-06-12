@@ -1,10 +1,10 @@
 import { toCsv, downloadTextFile } from "@/lib/credentials"
 import type {
   CredentialPairStat,
+  CredentialAttempt,
   CredentialsAnalytics,
   CredentialsMainTab,
   CredentialsRankingType,
-  HoneypotEvent,
   PasswordCredentialStat,
   UsernameCredentialStat,
 } from "@/lib/api"
@@ -76,14 +76,14 @@ function patternsExportRows(patterns: FilteredPatterns) {
   ]
 }
 
-function recentExportRows(rows: HoneypotEvent[]) {
+function recentExportRows(rows: CredentialAttempt[]) {
   return rows.map((event) => ({
     status: event.success ? "success" : "failed",
+    protocol: event.protocol,
     username: event.username,
     password: event.password,
     srcIp: event.srcIp,
     eventTs: event.eventTs,
-    sessionId: event.sessionId,
   }))
 }
 
@@ -100,7 +100,7 @@ export function buildExportRows(
     return usernamesExportRows(rows as UsernameCredentialStat[])
   }
   if (mainTab === "patterns") return patternsExportRows(patterns)
-  return recentExportRows(analytics.recentAttemptsPage.items as HoneypotEvent[])
+  return recentExportRows(analytics.recentAttemptsPage.items as CredentialAttempt[])
 }
 
 export function downloadCsv(baseName: string, rows: Record<string, unknown>[]) {

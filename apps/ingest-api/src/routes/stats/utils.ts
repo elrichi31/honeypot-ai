@@ -22,33 +22,46 @@ export function toOffsetISOString(date: Date | null | undefined): string | null 
   return local.toISOString().replace('Z', `${sign}${abs}:00`)
 }
 
-// Per-client / per-sensor scope for credential stats. `events` has no sensor_id,
-// so we scope through the parent session: `session_id IN (SELECT id FROM sessions
-// WHERE sensor_id IN (...))`. Both events(session_id) and sessions(sensor_id) are
-// indexed, so this stays cheap. `undefined` = no scope (global); an empty array =
-// match nothing (unknown client / client with no sensors), expressed as `false`.
+// Per-client / per-sensor scope for credential stats. The credential_attempts
+// view exposes a normalized `sensor_id` column for both sources, so scoping is a
+// direct `sensor_id IN (...)` (no session join needed). `undefined` = no scope
+// (global); an empty array = match nothing (unknown client / no sensors).
 export type EventScope = { sensorIds: string[] } | undefined
+
+// Optional protocol filter (e.g. 'ssh' | 'mysql' | 'mssql' | 'vnc' | 'rdp' ...).
+export type ProtocolFilter = string | undefined
 
 // SQL clause for the raw $queryRaw aggregations.
 export function eventScopeClause(scope: EventScope): Prisma.Sql | null {
   if (!scope) return null
   if (scope.sensorIds.length === 0) return Prisma.sql`false`
-  return Prisma.sql`session_id IN (SELECT id FROM sessions WHERE sensor_id IN (${Prisma.join(scope.sensorIds)}))`
+  return Prisma.sql`sensor_id IN (${Prisma.join(scope.sensorIds)})`
 }
 
-// Equivalent fragment for Prisma ORM `where` objects (recent + count queries).
-export function eventScopeWhere(scope: EventScope): Prisma.EventWhereInput | undefined {
-  if (!scope) return undefined
-  if (scope.sensorIds.length === 0) return { sessionId: { in: [] } }
-  return { session: { is: { sensorId: { in: scope.sensorIds } } } }
+export function protocolClause(protocol: ProtocolFilter): Prisma.Sql | null {
+  if (!protocol) return null
+  return Prisma.sql`protocol = ${protocol}`
 }
 
-export function buildAuthWhereSql(params?: { startDate?: Date; endDate?: Date; extra?: Prisma.Sql[]; scope?: EventScope }) {
-  const clauses: Prisma.Sql[] = [Prisma.sql`event_type IN ('auth.success', 'auth.failed')`]
+// Equivalent fragment for Prisma ORM `where` objects (recent query). The recent
+// tab queries the view via $queryRaw too now, but we keep a permissive shape for
+// any ORM callers.
+export function eventScopeWhere(scope: EventScope): Prisma.Sql | null {
+  return eventScopeClause(scope)
+}
+
+export function buildAuthWhereSql(params?: {
+  startDate?: Date; endDate?: Date; extra?: Prisma.Sql[]; scope?: EventScope; protocol?: ProtocolFilter
+}) {
+  // The credential_attempts view is already restricted to auth attempts, so no
+  // event_type clause is needed — start from an always-true base.
+  const clauses: Prisma.Sql[] = [Prisma.sql`1 = 1`]
   if (params?.startDate) clauses.push(Prisma.sql`event_ts >= ${params.startDate}`)
   if (params?.endDate) clauses.push(Prisma.sql`event_ts <= ${params.endDate}`)
   const scopeClause = eventScopeClause(params?.scope)
   if (scopeClause) clauses.push(scopeClause)
+  const protoClause = protocolClause(params?.protocol)
+  if (protoClause) clauses.push(protoClause)
   if (params?.extra?.length) clauses.push(...params.extra)
   return buildClauseBlock('WHERE', clauses)
 }

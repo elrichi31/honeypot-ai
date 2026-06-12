@@ -59,7 +59,6 @@ const navSections = [
     items: [
       { titleKey: "sidebar.item.sessions", href: "/sessions", icon: Activity },
       { titleKey: "sidebar.item.commands", href: "/commands", icon: Terminal },
-      { titleKey: "sidebar.item.credentials", href: "/credentials", icon: Shield },
       { titleKey: "sidebar.item.campaigns", href: "/campaigns", icon: Crosshair },
     ],
   },
@@ -88,9 +87,10 @@ const navSections = [
     titleKey: "sidebar.section.intelligence",
     icon: Layers3,
     items: [
-      { titleKey: "sidebar.item.alerts",     href: "/alerts",      icon: Bell        },
-      { titleKey: "sidebar.item.threats",    href: "/threats",     icon: ShieldAlert },
-      { titleKey: "sidebar.item.malware",    href: "/malware",     icon: Biohazard   },
+      { titleKey: "sidebar.item.alerts",      href: "/alerts",      icon: Bell        },
+      { titleKey: "sidebar.item.threats",     href: "/threats",     icon: ShieldAlert },
+      { titleKey: "sidebar.item.credentials", href: "/credentials", icon: Shield      },
+      { titleKey: "sidebar.item.malware",     href: "/malware",     icon: Biohazard   },
       { titleKey: "sidebar.item.networkIds", href: "/suricata",    icon: FileCode    },
       { titleKey: "sidebar.item.apiDefense", href: "/api-defense", icon: Radar       },
     ],
