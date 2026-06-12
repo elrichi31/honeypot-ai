@@ -358,7 +358,7 @@ export function RecentAttemptsTable({
             </TableRow>
           ))
         ) : (
-          <EmptyRow colSpan={5} text={t("cred.empty.recent")} />
+          <EmptyRow colSpan={6} text={t("cred.empty.recent")} />
         )}
       </TableBody>
     </Table>
