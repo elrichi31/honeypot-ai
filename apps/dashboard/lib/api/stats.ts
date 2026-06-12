@@ -1,5 +1,5 @@
 import { getApiUrl, apiFetch, buildSearchParams } from "./client"
-import type { DashboardStats, DashboardInsights, HoneypotOverview, CrossSensorTimeline, KpiTrends, MitreMatrix } from "./types"
+import type { DashboardStats, DashboardInsights, HoneypotOverview, CrossSensorTimeline, KpiTrends, MitreMatrix, NoveltyStats, AttackerIntel, BotRatio } from "./types"
 
 export async function fetchOverviewStats(params: {
   startDate: string; endDate: string
@@ -47,4 +47,12 @@ export async function fetchSessionCommands(): Promise<Record<string, string[]>> 
   const res = await fetch(`${getApiUrl()}/stats/session-commands?limit=5000`, { cache: "no-store" })
   if (!res.ok) return {}
   return res.json()
+}
+
+export async function fetchNovelty(hours = 24): Promise<NoveltyStats> {
+  return apiFetch(`${getApiUrl()}/stats/novelty?hours=${hours}`, 300)
+}
+
+export async function fetchBotRatio(): Promise<BotRatio> {
+  return apiFetch(`${getApiUrl()}/stats/bot-ratio`, 300)
 }

@@ -21,11 +21,17 @@ import {
   fetchCrossSensorTimeline,
   fetchKpiTrends,
   fetchMitreMatrix,
+  fetchNovelty,
+  fetchBotRatio,
 } from "@/lib/api"
 import type { KpiTrends } from "@/lib/api"
 import { lookupIp, geolocateIps } from "@/lib/geo"
 import { readConfig } from "@/lib/server-config"
 import { getServerT } from "@/lib/i18n/server"
+import { fetchAttackerIntel } from "@/lib/attacker-intel"
+import { NoveltyStatsView } from "@/components/insights/novelty-stats"
+import { AttackerIntelView } from "@/components/insights/attacker-intel"
+import { BotRatioView } from "@/components/insights/bot-ratio"
 
 interface CountrySuccessRow {
   country: string
@@ -251,6 +257,38 @@ async function InsightsSection() {
   )
 }
 
+async function NoveltySection() {
+  const t = await getServerT()
+  try {
+    const novelty = await fetchNovelty(24)
+    return <NoveltyStatsView novelty={novelty} />
+  } catch {
+    return <SectionError title={t("dash.error.novelty")} />
+  }
+}
+
+async function AttackerIntelSection() {
+  const t = await getServerT()
+  try {
+    const geoData = await fetchGeoSummary()
+    const activeIps = geoData.map((r) => r.srcIp).filter(Boolean)
+    const intel = await fetchAttackerIntel(activeIps)
+    return <AttackerIntelView intel={intel} />
+  } catch {
+    return <SectionError title={t("dash.error.attackerIntel")} />
+  }
+}
+
+async function BotRatioSection() {
+  const t = await getServerT()
+  try {
+    const ratio = await fetchBotRatio()
+    return <BotRatioView ratio={ratio} />
+  } catch {
+    return <SectionError title={t("dash.error.botRatio")} />
+  }
+}
+
 export default async function DashboardPage() {
   const t = await getServerT()
   const config = readConfig()
@@ -301,6 +339,19 @@ export default async function DashboardPage() {
         </div>
         <Suspense fallback={<SectionLoading label={t("dash.loading.sshAnalysis")} />}>
           <InsightsSection />
+        </Suspense>
+      </div>
+
+      {/* Threat Intelligence — novelty, attacker infrastructure, bot/human */}
+      <div className="mb-6 grid gap-4 xl:grid-cols-3">
+        <Suspense fallback={<SectionLoading label={t("dash.loading.novelty")} />}>
+          <NoveltySection />
+        </Suspense>
+        <Suspense fallback={<SectionLoading label={t("dash.loading.attackerIntel")} />}>
+          <AttackerIntelSection />
+        </Suspense>
+        <Suspense fallback={<SectionLoading label={t("dash.loading.botRatio")} />}>
+          <BotRatioSection />
         </Suspense>
       </div>
 

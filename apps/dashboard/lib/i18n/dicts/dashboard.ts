@@ -122,6 +122,14 @@ export const en = {
   "dash.depth.averageCommands": "Average commands",
   "dash.depth.maximumDepth": "Maximum depth",
   "dash.depth.twentyPlus": "20+ commands",
+
+  // Section errors / loading — threat intel trio
+  "dash.error.novelty": "Could not load novelty stats",
+  "dash.error.attackerIntel": "Could not load attacker intel",
+  "dash.error.botRatio": "Could not load bot/human ratio",
+  "dash.loading.novelty": "Loading novelty stats…",
+  "dash.loading.attackerIntel": "Loading attacker intel…",
+  "dash.loading.botRatio": "Loading bot/human ratio…",
 } as const
 
 export const es: Record<keyof typeof en, string> = {
@@ -245,4 +253,12 @@ export const es: Record<keyof typeof en, string> = {
   "dash.depth.averageCommands": "Comandos promedio",
   "dash.depth.maximumDepth": "Profundidad máxima",
   "dash.depth.twentyPlus": "20+ comandos",
+
+  // Section errors / loading — threat intel trio
+  "dash.error.novelty": "No se pudieron cargar las métricas de novedad",
+  "dash.error.attackerIntel": "No se pudo cargar la inteligencia del atacante",
+  "dash.error.botRatio": "No se pudo cargar la relación bot/humano",
+  "dash.loading.novelty": "Cargando métricas de novedad…",
+  "dash.loading.attackerIntel": "Cargando inteligencia del atacante…",
+  "dash.loading.botRatio": "Cargando relación bot/humano…",
 }

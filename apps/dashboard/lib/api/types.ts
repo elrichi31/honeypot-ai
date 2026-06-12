@@ -395,6 +395,39 @@ export interface WebHourlyCell {
   count: number
 }
 
+export interface NoveltyStats {
+  windowHours: number
+  newIps: number
+  newCredPairs: number
+  newWebPaths: number
+  newCommands: number
+  topNewIps: { srcIp: string; hits: number }[]
+}
+
+export interface AttackerIntel {
+  total: number
+  enriched: number
+  unenriched: number
+  hostingTypes: {
+    hosting: number
+    vpn: number
+    tor: number
+    proxy: number
+    residential: number
+  }
+  topAsns: { asn: string; org: string; count: number }[]
+}
+
+export interface BotRatio {
+  bot: number
+  human: number
+  unknown: number
+  total: number
+  botPct: number | null
+  humanPct: number | null
+  unknownPct: number | null
+}
+
 export type RiskLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO'
 
 export interface ThreatsSummary {

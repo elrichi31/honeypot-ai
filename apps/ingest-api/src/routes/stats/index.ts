@@ -5,6 +5,8 @@ import { credentialsRoute } from './credentials.js'
 import { miscRoutes } from './misc.js'
 import { kpiTrendsRoute } from './kpi-trends.js'
 import { mitreMatrixRoute } from './mitre-matrix.js'
+import { noveltyRoute } from './novelty.js'
+import { botRatioRoute } from './bot-ratio.js'
 
 export async function statsRoutes(fastify: FastifyInstance) {
   await overviewRoute(fastify)
@@ -13,4 +15,6 @@ export async function statsRoutes(fastify: FastifyInstance) {
   await miscRoutes(fastify)
   await kpiTrendsRoute(fastify)
   await mitreMatrixRoute(fastify)
+  await noveltyRoute(fastify)
+  await botRatioRoute(fastify)
 }
