@@ -14,11 +14,11 @@ ALTER TABLE web_hits
   ADD COLUMN IF NOT EXISTS http_version        text;
 
 -- Index fingerprint for cross-IP correlation queries
-CREATE INDEX CONCURRENTLY IF NOT EXISTS web_hits_client_fingerprint_idx
+CREATE INDEX IF NOT EXISTS web_hits_client_fingerprint_idx
   ON web_hits (client_fingerprint)
   WHERE client_fingerprint IS NOT NULL;
 
 -- Index chain attacks for quick dashboard filtering
-CREATE INDEX CONCURRENTLY IF NOT EXISTS web_hits_is_chain_attack_idx
+CREATE INDEX IF NOT EXISTS web_hits_is_chain_attack_idx
   ON web_hits (is_chain_attack, timestamp DESC)
   WHERE is_chain_attack = true;
