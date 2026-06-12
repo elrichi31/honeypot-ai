@@ -83,22 +83,41 @@ def _post(path: str, payload: dict):
         log.debug("ingest error: %s", exc)
 
 
-def _send(src_ip: str, src_port: int, dst_port: int, client_hex: str):
+def _send(
+    src_ip: str,
+    src_port: int,
+    dst_port: int,
+    client_hex: str,
+    event_type: str = "connect",
+    username: str | None = None,
+    password: str | None = None,
+    extra: dict | None = None,
+):
     service = SERVICES.get(dst_port, f"port-{dst_port}")
-    _post("/ingest/protocol/event", {
+    data = {
+        "service": service,
+        "payloadHex": client_hex[:512],
+    }
+    if extra:
+        data.update(extra)
+    # eventType 'auth' + username/password feed the Credentials view automatically,
+    # the same way the SSH/MySQL/Dionaea sensors report login attempts.
+    payload = {
         "eventId": str(uuid.uuid4()),
         "sensorId": SENSOR_ID,
         "protocol": "port-scan",
         "srcIp": src_ip,
         "srcPort": src_port,
         "dstPort": dst_port,
-        "eventType": "connect",
-        "data": {
-            "service": service,
-            "payloadHex": client_hex[:512],
-        },
+        "eventType": event_type,
+        "data": data,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-    })
+    }
+    if username is not None:
+        payload["username"] = username
+    if password is not None:
+        payload["password"] = password
+    _post("/ingest/protocol/event", payload)
 
 
 _active_ports: list[int] = []
@@ -126,34 +145,151 @@ async def heartbeat():
         await asyncio.sleep(30)
 
 
+# ── VNC / RFB handshake ──────────────────────────────────────────────────────
+# VNC is a server-speaks-first protocol: a bare TCP connect reveals nothing, so
+# we play a real RFB 3.8 server to make the attacker proceed. We then capture:
+#   - the client's RFB version string (tool fingerprint),
+#   - that they accepted VNC Authentication,
+#   - the 16-byte challenge response. Because the challenge we send is FIXED, the
+#     response can be cracked offline to recover the password they tried (VNC auth
+#     is DES(challenge, password[:8])). We ship the response hex for that.
+# Fixed challenge so every captured response is crackable against the same value.
+VNC_CHALLENGE = bytes(range(16))  # 00 01 02 ... 0f
+
+
+async def handle_vnc(reader, writer, src_ip, src_port, port):
+    extra: dict = {"protocolName": "vnc"}
+    username = None
+    password = None
+    event_type = "connect"
+    raw = b""
+    try:
+        # 1. Server sends its RFB version first.
+        writer.write(b"RFB 003.008\n")
+        await writer.drain()
+
+        # 2. Client replies with its version (12 bytes like "RFB 003.008\n").
+        client_ver = await asyncio.wait_for(reader.read(12), timeout=5)
+        raw += client_ver
+        if client_ver:
+            extra["clientVersion"] = client_ver.decode("latin-1", "replace").strip()
+
+        # 3. Offer exactly one security type: 2 = VNC Authentication.
+        writer.write(b"\x01\x02")
+        await writer.drain()
+
+        # 4. Client picks a security type (1 byte). 2 = VNC auth, 1 = none.
+        sec = await asyncio.wait_for(reader.read(1), timeout=5)
+        raw += sec
+        if sec == b"\x02":
+            extra["authType"] = "vnc-auth"
+            # 5. Send the fixed 16-byte challenge.
+            writer.write(VNC_CHALLENGE)
+            await writer.drain()
+            # 6. Client returns the 16-byte DES response (the encrypted password).
+            resp = await asyncio.wait_for(reader.read(16), timeout=5)
+            raw += resp
+            if len(resp) == 16:
+                event_type = "auth"
+                username = ""  # VNC has no username, only a password
+                # Store the encrypted response; it's crackable offline against
+                # VNC_CHALLENGE. Surface it as the "password" value so the attempt
+                # shows up in Credentials, and keep the raw hex for cracking.
+                password = resp.hex()
+                extra["vncChallengeResponseHex"] = resp.hex()
+                extra["vncChallengeHex"] = VNC_CHALLENGE.hex()
+        elif sec == b"\x01":
+            extra["authType"] = "none"  # they wanted an unauthenticated desktop
+    except (asyncio.TimeoutError, Exception):
+        pass
+    await asyncio.get_event_loop().run_in_executor(
+        None, _send, src_ip, src_port, port, raw.hex(), event_type, username, password, extra
+    )
+
+
+# ── RDP / X.224 handshake ────────────────────────────────────────────────────
+# The very first RDP packet (X.224 Connection Request) often carries the target
+# username in clear text as a routing token: "Cookie: mstshash=<user>\r\n", plus
+# the requested security protocols (RDP/TLS/CredSSP). We read that one packet and
+# extract both — no need to implement the full RDP stack.
+async def handle_rdp(reader, writer, src_ip, src_port, port):
+    extra: dict = {"protocolName": "rdp"}
+    username = None
+    event_type = "connect"
+    raw = b""
+    try:
+        raw = await asyncio.wait_for(reader.read(4096), timeout=5)
+        text = raw.decode("latin-1", "replace")
+        # Cookie: mstshash=USERNAME
+        marker = "mstshash="
+        idx = text.find(marker)
+        if idx != -1:
+            end = text.find("\r", idx)
+            if end == -1:
+                end = text.find("\n", idx)
+            if end == -1:
+                end = idx + len(marker) + 64
+            user = text[idx + len(marker):end].strip()
+            if user:
+                username = user
+                event_type = "auth"
+                extra["mstshash"] = user
+        # Requested protocol flags live in the rdpNegReq (last 4 bytes, little-endian)
+        # when present. Best-effort; decode common values.
+        if b"\x01\x00\x08\x00" in raw:  # TYPE_RDP_NEG_REQ header
+            i = raw.find(b"\x01\x00\x08\x00")
+            if i + 8 <= len(raw):
+                flags = int.from_bytes(raw[i + 4:i + 8], "little")
+                wanted = []
+                if flags == 0: wanted.append("standard-rdp")
+                if flags & 0x1: wanted.append("tls")
+                if flags & 0x2: wanted.append("credssp")
+                if flags & 0x8: wanted.append("rdstls")
+                if wanted:
+                    extra["requestedSecurity"] = ",".join(wanted)
+    except (asyncio.TimeoutError, Exception):
+        pass
+    await asyncio.get_event_loop().run_in_executor(
+        None, _send, src_ip, src_port, port, raw.hex(), event_type, username, None, extra
+    )
+
+
 def make_handler(port: int):
     async def handle(reader, writer):
         peer = writer.get_extra_info("peername")
         src_ip, src_port = (peer[0], peer[1]) if peer else ("unknown", 0)
         log.info("port %-5d | %s:%d", port, src_ip, src_port)
 
-        banner = BANNERS.get(port)
-        if banner:
+        try:
+            # Protocol-aware handlers extract real intelligence from the handshake.
+            if port == 5900:
+                await handle_vnc(reader, writer, src_ip, src_port, port)
+            elif port == 3389:
+                await handle_rdp(reader, writer, src_ip, src_port, port)
+            else:
+                # Generic: optionally send a service banner, then capture whatever
+                # the client sends.
+                banner = BANNERS.get(port)
+                if banner:
+                    try:
+                        writer.write(banner)
+                        await writer.drain()
+                    except Exception:
+                        pass
+                client_data = b""
+                try:
+                    client_data = await asyncio.wait_for(reader.read(4096), timeout=5)
+                except (asyncio.TimeoutError, Exception):
+                    pass
+                await asyncio.get_event_loop().run_in_executor(
+                    None, _send, src_ip, src_port, port, client_data.hex()
+                )
+        finally:
             try:
-                writer.write(banner)
-                await writer.drain()
+                writer.close()
+                await writer.wait_closed()
             except Exception:
                 pass
-
-        client_data = b""
-        try:
-            client_data = await asyncio.wait_for(reader.read(4096), timeout=5)
-        except (asyncio.TimeoutError, Exception):
-            pass
-
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, _send, src_ip, src_port, port, client_data.hex())
-
-        try:
-            writer.close()
-            await writer.wait_closed()
-        except Exception:
-            pass
 
     return handle
 
