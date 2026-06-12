@@ -1,5 +1,5 @@
 import { getApiUrl, apiFetch, buildSearchParams } from "./client"
-import type { WebHit, WebHitByIp, WebBurst, WebHourlyCell, PaginatedResponse } from "./types"
+import type { WebHit, WebHitByIp, WebBurst, WebHourlyCell, WebSession, PaginatedResponse } from "./types"
 
 export async function fetchWebHits(params?: {
   limit?: number; offset?: number; attackType?: string; srcIp?: string
@@ -73,6 +73,18 @@ export async function fetchWebHourly(params?: { range?: string }): Promise<{ cel
   const res = await fetch(`${getApiUrl()}/web-hits/hourly${qs ? `?${qs}` : ''}`, { next: { revalidate: 300 } })
   if (!res.ok) return { cells: [] }
   return res.json()
+}
+
+export async function fetchWebSessions(params?: {
+  page?: number; pageSize?: number; range?: string
+  clientSlug?: string; sensorId?: string; onlyChains?: boolean
+}): Promise<PaginatedResponse<WebSession>> {
+  const sp = buildSearchParams({
+    page: params?.page, pageSize: params?.pageSize,
+    range: params?.range, clientSlug: params?.clientSlug, sensorId: params?.sensorId,
+  })
+  if (params?.onlyChains) sp.set('onlyChains', 'true')
+  return apiFetch(`${getApiUrl()}/web-hits/sessions?${sp}`, 60)
 }
 
 export async function fetchWebHitsStats(params?: { range?: string; clientSlug?: string; sensorId?: string }): Promise<{

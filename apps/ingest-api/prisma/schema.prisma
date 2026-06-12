@@ -367,10 +367,21 @@ model WebHit {
   userAgent   String   @default("") @map("user_agent")
   headers     Json
   body        String   @default("")
-  attackType  String   @map("attack_type")
-  canaryTriggered Boolean @default(false) @map("canary_triggered")
-  timestamp   DateTime
-  createdAt   DateTime @default(now()) @map("created_at")
+  attackType      String   @map("attack_type")
+  canaryTriggered Boolean  @default(false) @map("canary_triggered")
+  timestamp       DateTime
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Session tracking — populated by the honeypot sensor
+  sessionHits       Int?     @map("session_hits")
+  sessionElapsedS   Float?   @map("session_elapsed_s")
+  pathsVisited      String[] @map("paths_visited")
+  attackChain       String[] @map("attack_chain")
+  isChainAttack     Boolean? @map("is_chain_attack")
+  clientFingerprint String?  @map("client_fingerprint")
+  canaryTokenType   String?  @map("canary_token_type")
+  referer           String?
+  httpVersion       String?  @map("http_version")
 
   @@index([srcIp])
   @@index([sensorId])
@@ -379,5 +390,7 @@ model WebHit {
   @@index([srcIp, timestamp(sort: Desc)])
   @@index([attackType, timestamp(sort: Desc)])
   @@index([path])
+  @@index([clientFingerprint])
+  @@index([isChainAttack, timestamp(sort: Desc)])
   @@map("web_hits")
 }

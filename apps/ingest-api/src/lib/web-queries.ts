@@ -239,6 +239,69 @@ export async function countWebBursts(
   return rows[0]?.total ?? 0;
 }
 
+// ---------------------------------------------------------------------------
+// Sessions — cross-IP fingerprint correlation + chain attack aggregation
+// ---------------------------------------------------------------------------
+
+export type WebSessionRow = {
+  client_fingerprint: string;
+  src_ips: string[];
+  total_hits: number;
+  first_seen: Date;
+  last_seen: Date;
+  chain_hits: number;
+  canary_hits: number;
+  attack_types: string[];
+  top_paths: string[];
+  is_multi_ip: boolean;
+};
+
+export async function queryWebSessions(
+  prisma: PrismaClient,
+  whereSql: Prisma.Sql,
+  onlyChains: boolean,
+  pageSize: number,
+  offset: number,
+): Promise<WebSessionRow[]> {
+  const chainFilter = onlyChains ? Prisma.sql`AND is_chain_attack = true` : Prisma.sql``;
+  return prisma.$queryRaw<WebSessionRow[]>`
+    SELECT
+      client_fingerprint,
+      ARRAY_AGG(DISTINCT src_ip)            AS src_ips,
+      COUNT(*)::int                         AS total_hits,
+      MIN(timestamp)                        AS first_seen,
+      MAX(timestamp)                        AS last_seen,
+      COUNT(*) FILTER (WHERE is_chain_attack)::int  AS chain_hits,
+      COUNT(*) FILTER (WHERE canary_triggered)::int AS canary_hits,
+      ARRAY_AGG(DISTINCT attack_type)       AS attack_types,
+      (ARRAY_AGG(path ORDER BY timestamp DESC))[1:5] AS top_paths,
+      (COUNT(DISTINCT src_ip) > 1)         AS is_multi_ip
+    FROM web_hits
+    ${whereSql}
+    ${chainFilter}
+    AND client_fingerprint IS NOT NULL
+    GROUP BY client_fingerprint
+    ORDER BY last_seen DESC
+    LIMIT ${pageSize} OFFSET ${offset}
+  `;
+}
+
+export async function countWebSessions(
+  prisma: PrismaClient,
+  whereSql: Prisma.Sql,
+  onlyChains: boolean,
+): Promise<number> {
+  const chainFilter = onlyChains ? Prisma.sql`AND is_chain_attack = true` : Prisma.sql``;
+  const rows = await prisma.$queryRaw<Array<{ total: number }>>`
+    SELECT COUNT(DISTINCT client_fingerprint)::int AS total
+    FROM web_hits
+    ${whereSql}
+    ${chainFilter}
+    AND client_fingerprint IS NOT NULL
+  `;
+  return rows[0]?.total ?? 0;
+}
+
 type InsertedWebHit = { id: string; attack_type: string };
 
 export async function insertWebHit(
@@ -246,10 +309,15 @@ export async function insertWebHit(
   d: WebHit & { headers: Record<string, string> },
   sensorId: string | null
 ): Promise<InsertedWebHit | null> {
+  const pathsJson = d.pathsVisited?.length ? JSON.stringify(d.pathsVisited) : null;
+  const chainJson = d.attackTypes?.length   ? JSON.stringify(d.attackTypes)  : null;
+
   const rows = await prisma.$queryRaw<InsertedWebHit[]>`
     INSERT INTO web_hits (
       id, event_id, src_ip, sensor_id, method, path, query,
-      user_agent, headers, body, attack_type, canary_triggered, timestamp
+      user_agent, headers, body, attack_type, canary_triggered, timestamp,
+      session_hits, session_elapsed_s, paths_visited, attack_chain,
+      is_chain_attack, client_fingerprint, canary_token_type, referer, http_version
     )
     VALUES (
       gen_random_uuid()::text,
@@ -257,7 +325,16 @@ export async function insertWebHit(
       ${d.userAgent},
       CAST(${JSON.stringify(d.headers)} AS jsonb),
       ${d.body}, ${d.attackType}, ${d.canaryTriggered},
-      ${new Date(d.timestamp)}
+      ${new Date(d.timestamp)},
+      ${d.sessionHits ?? null},
+      ${d.sessionElapsedS ?? null},
+      ${pathsJson ? Prisma.sql`CAST(${pathsJson} AS text[])` : Prisma.sql`NULL`},
+      ${chainJson ? Prisma.sql`CAST(${chainJson} AS text[])` : Prisma.sql`NULL`},
+      ${d.isChainAttack ?? null},
+      ${d.clientFingerprint ?? null},
+      ${d.canaryTokenType ?? null},
+      ${d.referer ?? null},
+      ${d.httpVersion ?? null}
     )
     ON CONFLICT (event_id) DO NOTHING
     RETURNING id, attack_type

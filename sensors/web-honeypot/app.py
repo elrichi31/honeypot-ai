@@ -8,6 +8,7 @@ Design goals (inspired by SNARE/TANNER):
   - Minimal deps: Flask only
 """
 
+import hashlib
 import logging
 import os
 import secrets
@@ -15,6 +16,7 @@ import socket
 import threading
 import time
 import uuid
+from collections import deque
 from datetime import datetime, timezone
 from email.utils import formatdate
 from urllib.request import urlopen
@@ -43,6 +45,93 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
 log = logging.getLogger("web-honeypot")
+
+
+# ---------------------------------------------------------------------------
+# Per-IP session tracker — pure in-memory, no external deps.
+#
+# Keeps a rolling window of activity per source IP so each event is enriched
+# with session context: how many hits, which paths were visited, what attack
+# types were seen, and whether this looks like recon → exploitation chain.
+#
+# Design constraints:
+#   - O(1) per request (dict lookup + deque append)
+#   - Bounded memory: max MAX_IPS entries, last MAX_PATHS_PER_IP paths kept
+#   - TTL eviction: sessions older than SESSION_TTL_S are pruned lazily on
+#     each new request from that IP (no background thread needed)
+#   - Thread-safe via a single lock (coarse but sufficient — contention is
+#     negligible compared to network I/O in the ingest thread)
+# ---------------------------------------------------------------------------
+
+_SESSION_TTL_S     = 1800        # forget IP after 30 min of inactivity
+_MAX_IPS           = 8_000       # cap total tracked IPs to bound RAM
+_MAX_PATHS_PER_IP  = 50          # keep last N paths per IP
+_SESSION_LOCK      = threading.Lock()
+_IP_SESSIONS: dict[str, dict] = {}
+
+
+def _session_get_or_create(ip: str) -> dict:
+    now = time.monotonic()
+    sess = _IP_SESSIONS.get(ip)
+    if sess is None or (now - sess["last_seen"]) > _SESSION_TTL_S:
+        sess = {
+            "first_seen":   now,
+            "last_seen":    now,
+            "hits":         0,
+            "paths":        deque(maxlen=_MAX_PATHS_PER_IP),
+            "attack_types": set(),
+            "canary_hits":  0,
+        }
+        if len(_IP_SESSIONS) >= _MAX_IPS:
+            # Evict the oldest entry to stay within the cap
+            oldest = min(_IP_SESSIONS, key=lambda k: _IP_SESSIONS[k]["last_seen"])
+            del _IP_SESSIONS[oldest]
+        _IP_SESSIONS[ip] = sess
+    return sess
+
+
+def update_session(ip: str, path: str, attack_type: str, canary: bool) -> dict:
+    """Update per-IP state and return a snapshot for the current event."""
+    with _SESSION_LOCK:
+        sess = _session_get_or_create(ip)
+        now  = time.monotonic()
+        sess["hits"]        += 1
+        sess["last_seen"]    = now
+        sess["paths"].append(path)
+        sess["attack_types"].add(attack_type)
+        if canary:
+            sess["canary_hits"] += 1
+
+        elapsed = now - sess["first_seen"]
+        return {
+            "sessionHits":      sess["hits"],
+            "sessionElapsedS":  round(elapsed, 1),
+            "pathsVisited":     list(sess["paths"]),
+            "attackTypes":      list(sess["attack_types"]),
+            "canaryHitsTotal":  sess["canary_hits"],
+            # Simple chain signal: recon paths followed by exploit attempt
+            "isChainAttack":    (
+                sess["hits"] > 1
+                and attack_type not in ("recon", "scanner", "info_disclosure")
+                and any(t in sess["attack_types"] - {attack_type}
+                        for t in ("recon", "scanner", "info_disclosure"))
+            ),
+        }
+
+
+def _passive_fingerprint() -> str:
+    """
+    Stable browser/tool fingerprint from passive HTTP headers.
+    Same client → same hash even across different IPs (VPN detection).
+    Combines UA + Accept + Accept-Encoding + Accept-Language.
+    """
+    parts = "|".join([
+        request.headers.get("User-Agent", ""),
+        request.headers.get("Accept", ""),
+        request.headers.get("Accept-Encoding", ""),
+        request.headers.get("Accept-Language", ""),
+    ])
+    return hashlib.sha256(parts.encode()).hexdigest()[:16]
 
 
 def _detect_ip() -> str:
@@ -127,25 +216,49 @@ def catch_all(path: str):
     # attacker reuses the leaked DB credentials, so render before building the event.
     resp_body, content_type, status_code = get_response(full_path, method, query, body_raw, attack_type)
 
+    canary = bool(getattr(g, "canary_triggered", False))
+    session_ctx = update_session(src_ip, full_path, attack_type, canary)
+    fingerprint = _passive_fingerprint()
+
     # Build ingest event
     event = {
-        "eventId":    str(uuid.uuid4()),
-        "sensorId":   SENSOR_ID,
-        "timestamp":  datetime.now(timezone.utc).isoformat(),
-        "srcIp":      src_ip,
-        "method":     method,
-        "path":       full_path,
-        "query":      query,
-        "userAgent":  user_agent,
-        "headers":    dict(request.headers),
-        "body":       body_raw,
-        "attackType": attack_type,
-        "canaryTriggered": bool(getattr(g, "canary_triggered", False)),
+        "eventId":     str(uuid.uuid4()),
+        "sensorId":    SENSOR_ID,
+        "timestamp":   datetime.now(timezone.utc).isoformat(),
+        "srcIp":       src_ip,
+        "method":      method,
+        "path":        full_path,
+        "query":       query,
+        "userAgent":   user_agent,
+        "headers":     dict(request.headers),
+        "body":        body_raw,
+        "attackType":  attack_type,
+        "canaryTriggered": canary,
+        # Extra context for chain analysis and geo-profiling
+        "referer":     request.headers.get("Referer", ""),
+        "cookies":     dict(request.cookies),
+        "contentType": request.content_type or "",
+        "httpVersion": request.environ.get("SERVER_PROTOCOL", ""),
+        "acceptLang":  request.headers.get("Accept-Language", ""),
+        # Passive fingerprint — stable across IPs for same tool/browser
+        "clientFingerprint": fingerprint,
+        # Session context — enriches each event with the attacker's history
+        **session_ctx,
     }
 
-    if event["canaryTriggered"]:
-        log.warning("[%s] CANARY credential reuse on %s — leaked DB creds replayed", src_ip, full_path)
-    log.info("[%s] %s %s?%s — %s", src_ip, method, full_path, query, attack_type)
+    if canary:
+        token_type = getattr(g, "canary_token_type", "unknown")
+        log.warning(
+            "[%s] CANARY reuse on %s — token=%s session hits=%d chain=%s fp=%s",
+            src_ip, full_path, token_type, session_ctx["sessionHits"],
+            session_ctx["isChainAttack"], fingerprint,
+        )
+    elif session_ctx["isChainAttack"]:
+        log.warning(
+            "[%s] CHAIN attack detected: %s after %s (hit #%d)",
+            src_ip, attack_type, session_ctx["attackTypes"], session_ctx["sessionHits"],
+        )
+    log.info("[%s] %s %s?%s — %s (session=%d)", src_ip, method, full_path, query, attack_type, session_ctx["sessionHits"])
     send_to_ingest(event)
 
     # Content-Length jitter: append an HTML comment with a random nonce so every

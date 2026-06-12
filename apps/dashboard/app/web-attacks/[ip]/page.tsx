@@ -2,7 +2,7 @@ import { notFound } from "next/navigation"
 import { PageShell } from "@/components/page-shell"
 import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
-import { ArrowLeft, Globe, Clock, MousePointerClick, Shield, Target } from "lucide-react"
+import { ArrowLeft, Globe, Clock, MousePointerClick, Shield, Target, Fingerprint, GitBranch, AlertTriangle } from "lucide-react"
 import { fetchWebHitsByIpPage, fetchWebHits, fetchThreat } from "@/lib/api"
 import { lookupIp } from "@/lib/geo"
 import { RiskBadge } from "@/components/risk-badge"
@@ -59,6 +59,15 @@ export default async function WebAttackerDetailPage({
   const uniqueUAs = [...new Set(attacker.userAgents)]
   const galahFailures = hits.filter((hit) => hit.galahResult?.includes("failedResponse")).length
   const canaryHits = hits.filter((hit) => hit.canaryTriggered).length
+
+  // Session & fingerprint data from the most recent hit that has it
+  const hitsWithSession = hits.filter((h) => h.sessionHits != null)
+  const latestSession   = hitsWithSession[0]
+  const fingerprint     = latestSession?.clientFingerprint ?? null
+  const chainHits       = hits.filter((h) => h.isChainAttack).length
+  const canaryTokenTypes = [...new Set(hits.map((h) => h.canaryTokenType).filter(Boolean))]
+  const maxSessionHits  = Math.max(0, ...hitsWithSession.map((h) => h.sessionHits ?? 0))
+  const maxElapsed      = Math.max(0, ...hitsWithSession.map((h) => h.sessionElapsedS ?? 0))
 
   // Group the request timeline by (method + path + type) so noisy scanners
   // (e.g. Nikto hitting one path hundreds of times) collapse into a single row
@@ -158,6 +167,87 @@ export default async function WebAttackerDetailPage({
             })()} />
           )}
         </div>
+
+        {/* Session intelligence panel — only shown when sensor sends session data */}
+        {(fingerprint || chainHits > 0 || canaryHits > 0) && (
+          <Surface className="mb-6 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              {/* Fingerprint */}
+              {fingerprint && (
+                <div className="flex items-start gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/15">
+                    <Fingerprint className="h-4 w-4 text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Passive fingerprint</p>
+                    <p className="font-mono text-sm text-foreground">{fingerprint}</p>
+                    <Link
+                      href={`/web-attacks/sessions?range=30d`}
+                      className="text-xs text-blue-400 hover:underline"
+                    >
+                      Find other IPs with same fingerprint →
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              {/* Chain attacks */}
+              {chainHits > 0 && (
+                <div className="flex items-start gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-500/15">
+                    <GitBranch className="h-4 w-4 text-orange-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Chain attacks detected</p>
+                    <p className="text-sm font-semibold text-orange-400">{chainHits} recon → exploit transitions</p>
+                    <p className="text-xs text-muted-foreground">Attacker did reconnaissance before escalating</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Canary token type */}
+              {canaryHits > 0 && canaryTokenTypes.length > 0 && (
+                <div className="flex items-start gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-500/15">
+                    <Target className="h-4 w-4 text-red-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Canary token type</p>
+                    {canaryTokenTypes.includes("ip_specific") ? (
+                      <>
+                        <p className="text-sm font-semibold text-red-400">IP-specific token reused</p>
+                        <p className="text-xs text-muted-foreground">Attacker read the leaked .env and replayed the unique credential assigned to their IP</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-semibold text-red-400">Static token reused</p>
+                        <p className="text-xs text-muted-foreground">Attacker replayed the default leaked credential</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Session size */}
+              {maxSessionHits > 0 && (
+                <div className="flex items-start gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Longest session</p>
+                    <p className="text-sm font-semibold text-foreground">{maxSessionHits} hits</p>
+                    <p className="text-xs text-muted-foreground">
+                      over {maxElapsed >= 60
+                        ? `${Math.floor(maxElapsed / 60)}m ${Math.round(maxElapsed % 60)}s`
+                        : `${Math.round(maxElapsed)}s`}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Surface>
+        )}
 
         <div className="grid gap-6 xl:grid-cols-3">
           {/* Left column */}

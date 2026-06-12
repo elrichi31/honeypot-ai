@@ -22,10 +22,13 @@ import {
   buildBurstSortSql,
   countWebHitsByIp,
   queryWebHitsByIp,
+  queryWebSessions,
+  countWebSessions,
   type WebHitsByIpRow,
   type WebHitRow,
   type AttackTypeStatRow,
   type IpStatRow,
+  type WebSessionRow,
 } from '../lib/web-queries.js';
 
 const webHitsQuerySchema = z.object({
@@ -404,6 +407,49 @@ async function handleHourly(fastify: FastifyInstance, request: FastifyRequest, r
   }));
 }
 
+const sessionsQuerySchema = basePaginationSchema.extend({
+  range: z.enum(RANGES).optional(),
+  clientSlug: z.string().trim().min(1).optional(),
+  sensorId: z.string().trim().min(1).optional(),
+  onlyChains: z.coerce.boolean().default(false),
+});
+
+async function handleSessions(fastify: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
+  const parsed = sessionsQuerySchema.safeParse(request.query);
+  if (!parsed.success) {
+    return reply.status(400).send({ error: 'Invalid query params', details: parsed.error.flatten().fieldErrors });
+  }
+
+  const { page, pageSize, offset } = getPagination(parsed.data);
+  const { range, onlyChains } = parsed.data;
+  const sensorIds = await resolveSensorScope(fastify, parsed.data.clientSlug, parsed.data.sensorId);
+  const scopeKey = `${parsed.data.clientSlug ?? ''}:${parsed.data.sensorId ?? ''}`;
+  const cacheKey = `web-hits:sessions:${page}:${pageSize}:${range ?? ''}:${scopeKey}:${onlyChains}`;
+
+  return reply.send(await withCache(fastify.cache, cacheKey, 60, async () => {
+    const whereSql = buildByIpWhereSql(undefined, undefined, range, sensorIds);
+    const [total, rows] = await Promise.all([
+      countWebSessions(fastify.prisma, whereSql, onlyChains),
+      queryWebSessions(fastify.prisma, whereSql, onlyChains, pageSize, offset),
+    ]);
+
+    const items = rows.map((r: WebSessionRow) => ({
+      clientFingerprint: r.client_fingerprint,
+      srcIps: r.src_ips ?? [],
+      totalHits: r.total_hits,
+      firstSeen: r.first_seen,
+      lastSeen: r.last_seen,
+      chainHits: r.chain_hits ?? 0,
+      canaryHits: r.canary_hits ?? 0,
+      attackTypes: r.attack_types ?? [],
+      topPaths: r.top_paths ?? [],
+      isMultiIp: r.is_multi_ip ?? false,
+    }));
+
+    return { items, pagination: buildPaginationResponse(total, page, pageSize) };
+  }));
+}
+
 export async function webRoutes(fastify: FastifyInstance) {
   fastify.post('/ingest/web/event', (req, rep) => handleSingleEvent(fastify, req, rep));
   fastify.post('/ingest/web/vector', (req, rep) => handleBatchEvents(fastify, req, rep));
@@ -414,4 +460,5 @@ export async function webRoutes(fastify: FastifyInstance) {
   fastify.get('/web-hits/bursts', (req, rep) => handleBursts(fastify, req, rep));
   fastify.get('/web-hits/hourly', (req, rep) => handleHourly(fastify, req, rep));
   fastify.get('/web-hits/stats', (req, rep) => handleStats(fastify, req, rep));
+  fastify.get('/web-hits/sessions', (req, rep) => handleSessions(fastify, req, rep));
 }

@@ -304,6 +304,29 @@ export interface WebHit {
   timestamp:  string
   galahResult?: string | null
   galahErrorType?: string | null
+  // Session context
+  sessionHits?:       number
+  sessionElapsedS?:   number
+  pathsVisited?:      string[]
+  attackChain?:       string[]
+  isChainAttack?:     boolean
+  clientFingerprint?: string
+  canaryTokenType?:   string
+  referer?:           string
+  httpVersion?:       string
+}
+
+export interface WebSession {
+  clientFingerprint: string
+  srcIps:      string[]
+  totalHits:   number
+  firstSeen:   string
+  lastSeen:    string
+  chainHits:   number
+  canaryHits:  number
+  attackTypes: string[]
+  topPaths:    string[]
+  isMultiIp:   boolean
 }
 
 export interface WebHitByIp {

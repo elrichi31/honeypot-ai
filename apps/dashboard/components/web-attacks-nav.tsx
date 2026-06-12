@@ -3,15 +3,17 @@ import { cn } from "@/lib/utils"
 
 const tabs = [
   { label: "Attackers", href: "/web-attacks" },
+  { label: "Sessions",  href: "/web-attacks/sessions" },
   { label: "Bursts",    href: "/web-attacks/bursts" },
   { label: "Timeline",  href: "/web-attacks/timeline" },
   { label: "Paths",     href: "/web-attacks/paths" },
   { label: "Geo",       href: "/web-attacks/geo" },
 ]
 
-export function WebAttacksNav({ active }: { active: "attackers" | "bursts" | "timeline" | "paths" | "geo" }) {
+export function WebAttacksNav({ active }: { active: "attackers" | "sessions" | "bursts" | "timeline" | "paths" | "geo" }) {
   const activeHref = {
     attackers: "/web-attacks",
+    sessions:  "/web-attacks/sessions",
     bursts:    "/web-attacks/bursts",
     timeline:  "/web-attacks/timeline",
     paths:     "/web-attacks/paths",

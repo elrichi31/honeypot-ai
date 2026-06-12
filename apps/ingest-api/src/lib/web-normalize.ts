@@ -12,9 +12,17 @@ export const webHitSchema = z.object({
   headers: z.unknown().default({}),
   body: z.string().default(''),
   attackType: z.string().min(1),
-  // Set by the web honeypot when an attacker replays the leaked DB credentials
-  // at a login form — a high-confidence compromise signal.
   canaryTriggered: z.boolean().default(false),
+  // Session tracking fields — set by the honeypot sensor
+  sessionHits: z.number().int().min(1).optional(),
+  sessionElapsedS: z.number().min(0).optional(),
+  pathsVisited: z.array(z.string()).optional(),
+  attackTypes: z.array(z.string()).optional(),
+  isChainAttack: z.boolean().optional(),
+  clientFingerprint: z.string().optional(),
+  canaryTokenType: z.string().optional(),
+  referer: z.string().optional(),
+  httpVersion: z.string().optional(),
 });
 
 export type WebHit = z.infer<typeof webHitSchema>;
