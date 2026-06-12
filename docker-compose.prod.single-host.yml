@@ -114,6 +114,11 @@ services:
     image: postgres:16-alpine
     container_name: honeypot-postgres
     restart: unless-stopped
+    # Docker defaults /dev/shm to 64MB; parallel aggregations (the credentials
+    # page groups across the credential_attempts view) need shared-memory segments
+    # bigger than that and otherwise fail with "could not resize shared memory
+    # segment … No space left on device" (SQLSTATE 53100). 256MB is plenty here.
+    shm_size: 256mb
     command: >
       postgres
       -c shared_buffers=256MB
@@ -129,6 +134,7 @@ services:
       -c max_wal_senders=10
       -c max_replication_slots=10
       -c hot_standby=on
+      -c max_parallel_workers_per_gather=2
     environment:
       POSTGRES_USER: honeypot
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -159,6 +165,10 @@ services:
       postgres:
         condition: service_healthy
     user: postgres
+    # Dashboard read queries (incl. the heavy credentials aggregations) are routed
+    # to this replica, so it needs the same enlarged /dev/shm as the primary to
+    # avoid SQLSTATE 53100 on parallel aggregations.
+    shm_size: 256mb
     entrypoint: ["sh", "/usr/local/bin/replica-entrypoint.sh"]
     command: >
       postgres
@@ -168,6 +178,7 @@ services:
       -c random_page_cost=1.1
       -c max_connections=50
       -c hot_standby=on
+      -c max_parallel_workers_per_gather=2
     environment:
       PRIMARY_HOST: postgres
       PRIMARY_PORT: "5432"
