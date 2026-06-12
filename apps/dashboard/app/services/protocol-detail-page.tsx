@@ -230,6 +230,22 @@ export function ProtocolDetailPage({
                 const command = dataValue(hit.data, "command")
                 const service = dataValue(hit.data, "service")
                 const payloadHex = dataValue(hit.data, "payloadHex")
+                // Enriched handshake fields captured by the protocol-aware port
+                // handlers (VNC/RDP). Shown legibly instead of raw hex.
+                const clientVersion = dataValue(hit.data, "clientVersion")
+                const authType = dataValue(hit.data, "authType")
+                const mstshash = dataValue(hit.data, "mstshash")
+                const requestedSecurity = dataValue(hit.data, "requestedSecurity")
+                const protocolName = dataValue(hit.data, "protocolName")
+                const portDetail = [
+                  protocolName && `${protocolName}`,
+                  clientVersion && `client: ${clientVersion}`,
+                  authType && `auth: ${authType}`,
+                  mstshash && `user: ${mstshash}`,
+                  requestedSecurity && `sec: ${requestedSecurity}`,
+                  // VNC password attempt (the DES challenge-response, crackable offline)
+                  hit.event_type === "auth" && hit.password && `pwd-resp: ${hit.password}`,
+                ].filter(Boolean).join(" · ")
                 return (
                   <TableRow key={hit.id}>
                     <TableCell className="font-mono text-xs">{hit.src_ip}:{hit.src_port ?? "-"}</TableCell>
@@ -243,7 +259,11 @@ export function ProtocolDetailPage({
                       {isPortScan ? (
                           <div className="min-w-0">
                             <p className="font-mono text-xs text-foreground">{service ?? "unknown service"}</p>
-                            {payloadHex && <p className="truncate font-mono text-[11px] text-muted-foreground">{payloadHex}</p>}
+                            {portDetail ? (
+                              <p className="truncate font-mono text-[11px] text-muted-foreground" title={portDetail}>{portDetail}</p>
+                            ) : payloadHex ? (
+                              <p className="truncate font-mono text-[11px] text-muted-foreground/60" title={payloadHex}>{payloadHex}</p>
+                            ) : null}
                           </div>
                         ) : isMysql ? (
                           <div className="min-w-0">
