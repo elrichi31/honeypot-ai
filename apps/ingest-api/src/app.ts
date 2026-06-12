@@ -24,6 +24,7 @@ import { sensorProvisionRoutes } from './routes/sensor-provision.js'
 import { malwareRoutes } from './routes/malware.js';
 import { storageRoutes } from './routes/storage.js';
 import { retentionPlugin } from './plugins/retention.js';
+import { matviewRefreshPlugin } from './plugins/matview-refresh.js';
 import { suricataRoutes } from './routes/suricata.js';
 import { monitoringRoutes } from './routes/monitoring.js';
 import { alertRoutes } from './routes/alerts.js';
@@ -102,6 +103,7 @@ export async function buildApp() {
   await app.register(alertRoutes);
   await app.register(deceptionRoutes);
   await app.register(retentionPlugin);
+  await app.register(matviewRefreshPlugin);
 
   return app;
 }

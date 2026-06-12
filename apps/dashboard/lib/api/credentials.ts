@@ -21,9 +21,7 @@ export async function fetchCredentialsAnalytics(params?: {
     startDate: params?.startDate, endDate: params?.endDate,
     clientSlug: params?.clientSlug, sensorId: params?.sensorId, protocol: params?.protocol,
   })
-  // Aggregates GROUP BY username/password across the unified credential_attempts
-  // view (SSH + protocol honeypots); give it the same generous timeout as the
-  // other heavy aggregate endpoints so a cold cache doesn't surface as a section
-  // error.
-  return apiFetch(`${getApiUrl()}/stats/credentials?${sp}`, 60, 30000)
+  // Reads from the credential_attempts materialized view (indexed), so it's fast;
+  // a modest timeout above the default covers a cold cache.
+  return apiFetch(`${getApiUrl()}/stats/credentials?${sp}`, 60, 15000)
 }
