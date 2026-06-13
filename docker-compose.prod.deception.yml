@@ -1,0 +1,139 @@
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  init: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+x-json-logging: &json-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-opencanary: &opencanary
+  <<: *service-defaults
+  logging: *json-logging
+  build:
+    context: ./sensors/opencanary
+  depends_on:
+    - opencanary-shipper
+  volumes:
+    - opencanary_logs:/var/log/opencanary
+  networks:
+    - deception_net
+
+services:
+  opencanary-fake-dc:
+    <<: *opencanary
+    container_name: opencanary-fake-dc
+    volumes:
+      - ./sensors/opencanary/configs/fake-dc.json:/etc/opencanary/opencanary.conf:ro
+      - opencanary_logs:/var/log/opencanary
+    networks:
+      deception_net:
+        ipv4_address: 10.0.1.2
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          pids: 64
+
+  opencanary-fake-intranet:
+    <<: *opencanary
+    container_name: opencanary-fake-intranet
+    volumes:
+      - ./sensors/opencanary/configs/fake-intranet.json:/etc/opencanary/opencanary.conf:ro
+      - opencanary_logs:/var/log/opencanary
+    networks:
+      deception_net:
+        ipv4_address: 10.0.1.5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          pids: 64
+
+  opencanary-fake-db:
+    <<: *opencanary
+    container_name: opencanary-fake-db
+    volumes:
+      - ./sensors/opencanary/configs/fake-db.json:/etc/opencanary/opencanary.conf:ro
+      - opencanary_logs:/var/log/opencanary
+    networks:
+      deception_net:
+        ipv4_address: 10.0.1.10
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          pids: 64
+
+  opencanary-fake-db-replica:
+    <<: *opencanary
+    container_name: opencanary-fake-db-replica
+    volumes:
+      - ./sensors/opencanary/configs/fake-db-replica.json:/etc/opencanary/opencanary.conf:ro
+      - opencanary_logs:/var/log/opencanary
+    networks:
+      deception_net:
+        ipv4_address: 10.0.1.11
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          pids: 64
+
+  opencanary-fake-cache:
+    <<: *opencanary
+    container_name: opencanary-fake-cache
+    volumes:
+      - ./sensors/opencanary/configs/fake-cache.json:/etc/opencanary/opencanary.conf:ro
+      - opencanary_logs:/var/log/opencanary
+    networks:
+      deception_net:
+        ipv4_address: 10.0.1.20
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          pids: 64
+
+  opencanary-shipper:
+    <<: *service-defaults
+    logging: *json-logging
+    image: python:3.12-slim
+    container_name: opencanary-shipper
+    environment:
+      INGEST_API_URL: ${INGEST_API_URL}
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
+      OPENCANARY_LOG_DIR: /var/log/opencanary
+      STATE_DIR: /state
+      READ_FROM_END: "1"
+    volumes:
+      - opencanary_logs:/var/log/opencanary:ro
+      - opencanary_shipper_state:/state
+      - ./sensors/opencanary/shipper.py:/shipper.py:ro
+    command: ["python3", "/shipper.py"]
+    networks:
+      - deception_net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          pids: 32
+
+volumes:
+  opencanary_logs:
+  opencanary_shipper_state:
+
+networks:
+  deception_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.1.0/24
+          gateway: 10.0.1.1
