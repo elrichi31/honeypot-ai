@@ -68,6 +68,21 @@ export type DeceptionEventsResponse = {
   meta: { page: number; limit: number; total: number }
 }
 
+export type DeceptionPortscan = {
+  id: string
+  sensor_id: string
+  timestamp: string
+  src_ip: string
+  dst_ports: number[]
+  node_id: string | null
+  scan_type: string
+}
+
+export type DeceptionPortscansResponse = {
+  data: DeceptionPortscan[]
+  meta: { page: number; limit: number; total: number }
+}
+
 export function fetchDeceptionOverview(): Promise<DeceptionOverview> {
   return apiFetch(`${getApiUrl()}/deception/overview`, 30)
 }
@@ -105,4 +120,17 @@ export function fetchClientDeceptionEvents(
 ): Promise<DeceptionEventsResponse> {
   const sp = buildSearchParams(params)
   return apiFetch(`${getApiUrl()}/clients/${encodeURIComponent(clientSlug)}/deception/events?${sp}`, 30)
+}
+
+export function fetchDeceptionPortscans(params: { page?: number; limit?: number; nodeId?: string } = {}): Promise<DeceptionPortscansResponse> {
+  const sp = buildSearchParams(params)
+  return apiFetch(`${getApiUrl()}/deception/portscans?${sp}`, 30)
+}
+
+export function fetchClientDeceptionPortscans(
+  clientSlug: string,
+  params: { page?: number; limit?: number; nodeId?: string } = {},
+): Promise<DeceptionPortscansResponse> {
+  const sp = buildSearchParams(params)
+  return apiFetch(`${getApiUrl()}/clients/${encodeURIComponent(clientSlug)}/deception/portscans?${sp}`, 30)
 }

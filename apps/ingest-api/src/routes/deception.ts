@@ -270,6 +270,70 @@ async function queryEvents(
   }
 }
 
+// ── Portscan queries ──────────────────────────────────────────────────────────
+
+const portscansIngestSchema = z.object({
+  id: z.string(),
+  sensorId: z.string(),
+  srcIp: z.string().min(1),
+  dstPorts: z.array(z.number().int()).default([]),
+  nodeId: z.string().optional(),
+  scanType: z.string().default('syn'),
+  timestamp: z.string(),
+})
+
+async function ingestPortscan(fastify: FastifyInstance, body: z.infer<typeof portscansIngestSchema>) {
+  await fastify.prisma.$executeRawUnsafe(`
+    INSERT INTO deception_portscans (id, sensor_id, timestamp, src_ip, dst_ports, node_id, scan_type)
+    VALUES ($1, $2, $3::timestamptz, $4, $5::integer[], $6, $7)
+    ON CONFLICT (id) DO NOTHING
+  `, body.id, body.sensorId, body.timestamp, body.srcIp, body.dstPorts, body.nodeId ?? null, body.scanType)
+}
+
+async function queryPortscans(
+  fastify: FastifyInstance,
+  scope: Scope,
+  page: number,
+  limit: number,
+  nodeId: string | null,
+) {
+  const offset = (page - 1) * limit
+
+  // rows query: $1=limit, $2=offset, then optional scope at $3, then optional nodeId
+  const rowsScope = sensorScopeClause(scope, 3, 'sensor_id')
+  const rowsNodeIdx = 3 + rowsScope.params.length  // next free placeholder index
+  const rowsNodeClause = nodeId ? ` AND node_id = $${rowsNodeIdx}` : ''
+  const rowParams = [limit, offset, ...rowsScope.params, ...(nodeId ? [nodeId] : [])]
+
+  // count query: $1 is the first free placeholder (no limit/offset needed)
+  const countScope = sensorScopeClause(scope, 1, 'sensor_id')
+  const countNodeIdx = 1 + countScope.params.length
+  const countNodeClause = nodeId ? ` AND node_id = $${countNodeIdx}` : ''
+  const countParams = [...countScope.params, ...(nodeId ? [nodeId] : [])]
+
+  const [rows, countRows] = await Promise.all([
+    fastify.prismaRead.$queryRawUnsafe<Array<{
+      id: string; sensor_id: string; timestamp: Date; src_ip: string;
+      dst_ports: number[]; node_id: string | null; scan_type: string;
+    }>>(`
+      SELECT id, sensor_id, timestamp, src_ip, dst_ports, node_id, scan_type
+      FROM deception_portscans
+      WHERE true${rowsScope.clause}${rowsNodeClause}
+      ORDER BY timestamp DESC
+      LIMIT $1 OFFSET $2
+    `, ...rowParams),
+    fastify.prismaRead.$queryRawUnsafe<[{ count: bigint }]>(`
+      SELECT COUNT(*) FROM deception_portscans
+      WHERE true${countScope.clause}${countNodeClause}
+    `, ...countParams),
+  ])
+
+  return {
+    data: rows,
+    meta: { page, limit, total: Number(countRows[0]?.count ?? 0) },
+  }
+}
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 export async function deceptionRoutes(fastify: FastifyInstance) {
@@ -280,6 +344,13 @@ export async function deceptionRoutes(fastify: FastifyInstance) {
     if (!cs) { reply.status(404).send({ error: 'client not found' }); return undefined }
     return cs
   }
+
+  // ── Ingest (write path, no auth beyond shared secret checked by middleware) ──
+  fastify.post('/ingest/deception/portscan', async (request, reply) => {
+    const body = portscansIngestSchema.parse(request.body)
+    await ingestPortscan(fastify, body)
+    return reply.status(201).send({ ok: true })
+  })
 
   // ── Global (all clients) ──────────────────────────────────────────────────
   fastify.get('/deception/overview', (_req, reply) =>
@@ -300,6 +371,15 @@ export async function deceptionRoutes(fastify: FastifyInstance) {
       nodeId: z.string().optional(),
     }).parse(request.query)
     return reply.send(await queryEvents(fastify, null, q.page, q.limit, q.nodeId ?? null))
+  })
+
+  fastify.get('/deception/portscans', async (request, reply) => {
+    const q = z.object({
+      page: z.coerce.number().int().min(1).default(1),
+      limit: z.coerce.number().int().min(1).max(100).default(50),
+      nodeId: z.string().optional(),
+    }).parse(request.query)
+    return reply.send(await queryPortscans(fastify, null, q.page, q.limit, q.nodeId ?? null))
   })
 
   // ── Per-client ────────────────────────────────────────────────────────────
@@ -335,5 +415,17 @@ export async function deceptionRoutes(fastify: FastifyInstance) {
     const scope = await resolveScope(clientSlug, reply)
     if (scope === undefined) return
     return reply.send(await queryEvents(fastify, scope, q.page, q.limit, q.nodeId ?? null))
+  })
+
+  fastify.get('/clients/:clientSlug/deception/portscans', async (request, reply) => {
+    const { clientSlug } = request.params as { clientSlug: string }
+    const q = z.object({
+      page: z.coerce.number().int().min(1).default(1),
+      limit: z.coerce.number().int().min(1).max(100).default(50),
+      nodeId: z.string().optional(),
+    }).parse(request.query)
+    const scope = await resolveScope(clientSlug, reply)
+    if (scope === undefined) return
+    return reply.send(await queryPortscans(fastify, scope, q.page, q.limit, q.nodeId ?? null))
   })
 }

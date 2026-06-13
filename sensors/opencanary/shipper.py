@@ -48,6 +48,10 @@ def _node_key_from_node_id(node_id: str | None) -> str | None:
         return None
     return node_id[len("opencanary-"):] if node_id.startswith("opencanary-") else node_id
 
+# OpenCanary portscan logtype. These events go to a dedicated endpoint instead
+# of the generic protocol_hit ingest, so they're excluded from LOGTYPE_PROTOCOL.
+LOGTYPE_PORTSCAN = 1000
+
 # OpenCanary logtype → protocol name
 LOGTYPE_PROTOCOL: dict[int, str] = {
     2000: "ftp",
@@ -210,6 +214,7 @@ def _to_event(raw: dict) -> dict | None:
     event_id_source = json.dumps(raw, sort_keys=True, default=str)
     event_id = str(uuid.uuid5(uuid.NAMESPACE_URL, event_id_source))
 
+
     # The event's sensorId must match the per-client heartbeat sensorId so the
     # dashboard can scope events by client (sensor_id IN client's sensors). Derive
     # it from the OpenCanary node_id rather than using node_id raw. We also set
@@ -237,6 +242,57 @@ def _to_event(raw: dict) -> dict | None:
             "logdata": logdata,
             "dst_host": raw.get("dst_host"),
         },
+        "timestamp": _parse_timestamp(raw),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Portscan event parser
+# ---------------------------------------------------------------------------
+
+def _to_portscan(raw: dict) -> dict | None:
+    """Parse an OpenCanary portscan log line (logtype 1000) into the payload
+    expected by POST /ingest/deception/portscan."""
+    if raw.get("logtype") != LOGTYPE_PORTSCAN:
+        return None
+
+    src_ip = str(raw.get("src_host") or "").strip()
+    if not src_ip:
+        return None
+
+    logdata = raw.get("logdata") or {}
+    # OpenCanary records the scanned ports as a list in logdata.PORTS_SCANNED or
+    # as a single dst_port on the top-level event depending on version. Normalise
+    # both into a list of ints.
+    ports_raw = logdata.get("PORTS_SCANNED") or logdata.get("ports_scanned") or []
+    if isinstance(ports_raw, str):
+        ports_raw = [p.strip() for p in ports_raw.split(",") if p.strip()]
+    dst_ports = []
+    for p in ports_raw:
+        try:
+            dst_ports.append(int(p))
+        except (ValueError, TypeError):
+            pass
+    # Fallback: single dst_port on the raw event
+    if not dst_ports:
+        try:
+            dst_ports = [int(raw["dst_port"])]
+        except (KeyError, TypeError, ValueError):
+            pass
+
+    node_key = _node_key_from_node_id(raw.get("node_id"))
+    sensor_id = _sensor_id(node_key) if node_key else "opencanary"
+
+    event_id_source = json.dumps(raw, sort_keys=True, default=str)
+    event_id = str(uuid.uuid5(uuid.NAMESPACE_URL, event_id_source))
+
+    return {
+        "id": event_id,
+        "sensorId": sensor_id,
+        "srcIp": src_ip,
+        "dstPorts": dst_ports,
+        "nodeId": sensor_id,
+        "scanType": "syn",
         "timestamp": _parse_timestamp(raw),
     }
 
@@ -296,25 +352,33 @@ def _tail_file(log_path: str) -> None:
                         _save_offset(log_path, offset)
                         continue
 
-                    event = _to_event(raw)
-                    if not event:
-                        offset = pending_offset
-                        _save_offset(log_path, offset)
-                        continue
+                    # Route: portscan events go to the dedicated endpoint;
+                    # protocol events go to the generic ingest endpoint.
+                    portscan = _to_portscan(raw)
+                    if portscan is not None:
+                        event_payload = portscan
+                        ingest_url = f"{INGEST_URL}/ingest/deception/portscan"
+                        log_tag = f"portscan src={portscan['srcIp']} ports={portscan['dstPorts']}"
+                    else:
+                        event_payload = _to_event(raw)
+                        if not event_payload:
+                            offset = pending_offset
+                            _save_offset(log_path, offset)
+                            continue
+                        ingest_url = f"{INGEST_URL}/ingest/protocol/event"
+                        log_tag = (
+                            f"protocol={event_payload['protocol']}"
+                            f" src={event_payload['srcIp']}:{event_payload.get('srcPort') or '-'}"
+                            f" dst={event_payload['dstPort']}"
+                            f" type={event_payload['eventType']}"
+                        )
 
                     try:
-                        status = _post_json(f"{INGEST_URL}/ingest/protocol/event", event)
+                        status = _post_json(ingest_url, event_payload)
                         if status in (200, 201):
                             offset = pending_offset
                             _save_offset(log_path, offset)
-                            print(
-                                f"[opencanary-shipper] {name}: shipped"
-                                f" protocol={event['protocol']}"
-                                f" src={event['srcIp']}:{event.get('srcPort') or '-'}"
-                                f" dst={event['dstPort']}"
-                                f" type={event['eventType']}",
-                                flush=True,
-                            )
+                            print(f"[opencanary-shipper] {name}: shipped {log_tag}", flush=True)
                         else:
                             print(f"[opencanary-shipper] {name}: ingest returned {status}, will retry", flush=True)
                             time.sleep(2)

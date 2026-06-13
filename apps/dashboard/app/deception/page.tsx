@@ -8,10 +8,12 @@ import {
   fetchDeceptionNodes,
   fetchDeceptionKillchain,
   fetchDeceptionEvents,
+  fetchDeceptionPortscans,
   fetchClientDeceptionOverview,
   fetchClientDeceptionNodes,
   fetchClientDeceptionKillchain,
   fetchClientDeceptionEvents,
+  fetchClientDeceptionPortscans,
   fetchClients,
   fetchSensors,
 } from "@/lib/api"
@@ -19,6 +21,7 @@ import { DeceptionOverview } from "@/components/deception/deception-overview"
 import { KillChainView } from "@/components/deception/kill-chain-view"
 import { DeceptionNodesGrid } from "@/components/deception/deception-nodes-grid"
 import { DeceptionEventsTable } from "@/components/deception/deception-events-table"
+import { DeceptionPortscansTable } from "@/components/deception/deception-portscans-table"
 import { DeceptionFilter } from "@/components/deception/deception-filter"
 import { Surface } from "@/components/ui/surface"
 
@@ -35,7 +38,7 @@ export default async function DeceptionPage({
   let clients: Awaited<ReturnType<typeof fetchClients>> = []
   let sensors: Awaited<ReturnType<typeof fetchSensors>> = []
   try {
-    const [overview, nodes, chains, events, clientList, sensorList] = await Promise.all([
+    const [overview, nodes, chains, events, portscans, clientList, sensorList] = await Promise.all([
       // Scope the overview/nodes/killchain/events to the selected client's network
       // (its OpenCanary trap nodes) when a client is picked; otherwise aggregate.
       clientSlug ? fetchClientDeceptionOverview(clientSlug) : fetchDeceptionOverview(),
@@ -44,10 +47,13 @@ export default async function DeceptionPage({
       clientSlug
         ? fetchClientDeceptionEvents(clientSlug, { limit: 50, nodeId })
         : fetchDeceptionEvents({ limit: 50, nodeId }),
+      clientSlug
+        ? fetchClientDeceptionPortscans(clientSlug, { limit: 50, nodeId })
+        : fetchDeceptionPortscans({ limit: 50, nodeId }),
       fetchClients().catch(() => []),
       fetchSensors().catch(() => []),
     ])
-    data = { overview, nodes, chains, events: events.data }
+    data = { overview, nodes, chains, events: events.data, portscans: portscans.data }
     clients = clientList
     sensors = sensorList
   } catch {
@@ -111,6 +117,8 @@ export default async function DeceptionPage({
           <h2 className="mb-3 text-sm font-semibold text-foreground">Trap nodes</h2>
           <DeceptionNodesGrid nodes={visibleNodes} />
         </section>
+
+        <DeceptionPortscansTable portscans={data.portscans} />
 
         <DeceptionEventsTable events={data.events} />
       </div>
