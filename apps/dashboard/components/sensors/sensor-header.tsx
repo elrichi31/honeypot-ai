@@ -160,13 +160,17 @@ export function SensorHeader({
       <div className="flex items-center gap-2 shrink-0">
         {isRemote
           ? <RemoteBadge online={sensor.online} />
-          : hasContainer && dockerStatus
+          // Docker status is only authoritative when the heartbeat agrees the
+          // sensor is alive. If the heartbeat is stale (online=false) but Docker
+          // reports "running", the container is a zombie — show Offline so the
+          // operator knows the honeypot isn't actually sending data.
+          : hasContainer && dockerStatus && sensor.online
             ? <DockerStatusBadge status={dockerStatus} />
-            : sensor.online && sensor.degraded
-              ? <DegradedBadge />
-              : sensor.online
-                ? <OnlineBadge />
-                : <OfflineBadge />
+            : !sensor.online
+              ? <OfflineBadge />
+              : sensor.degraded
+                ? <DegradedBadge />
+                : <OnlineBadge />
         }
         <DeleteSensorDialog sensor={sensor} deleting={deleting} onDelete={onDelete} />
       </div>

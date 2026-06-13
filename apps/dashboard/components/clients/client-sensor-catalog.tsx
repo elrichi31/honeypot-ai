@@ -97,7 +97,7 @@ const CATALOG: CatalogEntry[] = [
   },
   {
     serviceKey: "internal-canary",
-    protocol: "ssh",
+    protocol: "internal-canary",
     name: "Internal Canary",
     description: "LAN honeypot for corporate networks. Any interaction signals insider threat or lateral movement. Deploy on a dedicated VM with a corporate IP.",
     sensorPrefix: "ic",
