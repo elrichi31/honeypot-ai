@@ -103,7 +103,7 @@ async function handleListSensors(fastify: FastifyInstance, _request: FastifyRequ
         clientCode: '', name: 'SSH Honeypot (Cowrie)', protocol: 'ssh', ip: '-',
         version: '', ports: [], probeHost: '', eventsTotal: Number(ssh.count),
         lastSeen: ssh.last_seen ?? new Date(0), createdAt: new Date(0),
-        online: ssh.last_seen ? ssh.last_seen > twoMinutesAgo : false, portStatus: {},
+        online: ssh.last_seen ? ssh.last_seen > twoMinutesAgo : false, degraded: false, portStatus: {},
       })
     }
   }

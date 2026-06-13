@@ -66,6 +66,7 @@ export interface Sensor {
   createdAt: string
   eventsTotal: number
   online: boolean
+  degraded: boolean
   portStatus: Record<number, boolean>
 }
 

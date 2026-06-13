@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { apiFetchAudited } from "@/lib/client-fetch"
-import { Download, Globe, Network, Server, CheckCircle2, Terminal, ChevronRight, Loader2, Radar, AlertTriangle } from "lucide-react"
+import { Download, Globe, Network, Server, CheckCircle2, Terminal, ChevronRight, Loader2, Radar, AlertTriangle, Building2 } from "lucide-react"
 import { useT } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
 import {
@@ -96,6 +96,17 @@ const CATALOG: CatalogEntry[] = [
     iconBg: "bg-fuchsia-400/10",
   },
   {
+    serviceKey: "internal-canary",
+    protocol: "ssh",
+    name: "Internal Canary",
+    description: "LAN honeypot for corporate networks. Any interaction signals insider threat or lateral movement. Deploy on a dedicated VM with a corporate IP.",
+    sensorPrefix: "ic",
+    ports: "LAN · SSH + SMB + DB + HTTP",
+    icon: Building2,
+    iconColor: "text-violet-400",
+    iconBg: "bg-violet-400/10",
+  },
+  {
     serviceKey: null,
     protocol: "dionaea",
     name: "Dionaea Multi-Protocol",
@@ -141,12 +152,15 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
   function toggle(key: ServiceKey) {
     setError(null)
     setSelected((prev) => {
-      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-      // Deception needs cowrie as its entry point: turning it on forces ssh on.
-      if (key === "deception" && next.includes("deception") && !next.includes("ssh")) {
-        next.push("ssh")
+      if (key === "internal-canary") {
+        return prev.includes(key) ? [] : ["internal-canary"]
       }
-      return next
+      const next = prev.filter((k) => k !== "internal-canary")
+      const toggled = next.includes(key) ? next.filter((k) => k !== key) : [...next, key]
+      if (key === "deception" && toggled.includes("deception") && !toggled.includes("ssh")) {
+        toggled.push("ssh")
+      }
+      return toggled
     })
   }
 
@@ -299,6 +313,12 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
             <p className="flex items-start gap-2 rounded-lg bg-amber-400/10 px-3 py-2 text-xs text-amber-300">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>{t("clients.catalog.deceptionWarning")}</span>
+            </p>
+          )}
+          {selected.includes("internal-canary") && (
+            <p className="flex items-start gap-2 rounded-lg bg-violet-400/10 px-3 py-2 text-xs text-violet-300">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>Internal Canary deploys on a dedicated VM inside the corporate LAN. Set <span className="font-mono">HTTPS_PROXY</span> in the environment if the VM has no direct internet access.</span>
             </p>
           )}
 

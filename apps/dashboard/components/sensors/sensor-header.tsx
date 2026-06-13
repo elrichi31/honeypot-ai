@@ -34,6 +34,18 @@ function OfflineBadge() {
   )
 }
 
+function DegradedBadge() {
+  return (
+    <div className="flex items-center gap-1.5" title="Heartbeat active but all ports are unreachable — service may have crashed">
+      <span className="relative flex h-2 w-2">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-400" />
+      </span>
+      <span className="text-xs font-medium text-amber-400">Degraded</span>
+    </div>
+  )
+}
+
 const DOCKER_BADGE_CONFIG: Record<string, { dot: string; pulse: boolean; labelKey: TranslationKey; text: string }> = {
   running:    { dot: "bg-emerald-400", pulse: true,  labelKey: "sensors.badge.running",    text: "text-emerald-400" },
   restarting: { dot: "bg-amber-400",   pulse: true,  labelKey: "sensors.badge.restarting", text: "text-amber-400"   },
@@ -146,7 +158,16 @@ export function SensorHeader({
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        {isRemote ? <RemoteBadge online={sensor.online} /> : hasContainer && dockerStatus ? <DockerStatusBadge status={dockerStatus} /> : sensor.online ? <OnlineBadge /> : <OfflineBadge />}
+        {isRemote
+          ? <RemoteBadge online={sensor.online} />
+          : hasContainer && dockerStatus
+            ? <DockerStatusBadge status={dockerStatus} />
+            : sensor.online && sensor.degraded
+              ? <DegradedBadge />
+              : sensor.online
+                ? <OnlineBadge />
+                : <OfflineBadge />
+        }
         <DeleteSensorDialog sensor={sensor} deleting={deleting} onDelete={onDelete} />
       </div>
     </div>

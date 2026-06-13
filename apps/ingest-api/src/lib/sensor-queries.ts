@@ -16,7 +16,7 @@ export type SensorResult = {
   clientSlug: string | null; clientCode: string; name: string
   protocol: string; ip: string; version: string; ports: number[]
   probeHost: string; lastSeen: Date; createdAt: Date
-  eventsTotal: number; online: boolean; portStatus: Record<number, boolean>
+  eventsTotal: number; online: boolean; degraded: boolean; portStatus: Record<number, boolean>
 }
 
 export async function resolveClientId(
@@ -109,6 +109,11 @@ export async function probeSensorPorts(sensor: SensorRow): Promise<Record<number
 }
 
 export function formatSensor(sensor: SensorRow, portStatus: Record<number, boolean>, online: boolean): SensorResult {
+  // A sensor is degraded when the heartbeat is active (online) but the TCP probe
+  // finds all monitored ports closed — the container is up but the process crashed.
+  // Only applies when we actually have probe results (portStatus not empty).
+  const probeValues = Object.values(portStatus)
+  const degraded = online && probeValues.length > 0 && probeValues.every((up) => !up)
   return {
     sensorId:   sensor.sensor_id,
     clientId:   sensor.client_id,
@@ -125,6 +130,7 @@ export function formatSensor(sensor: SensorRow, portStatus: Record<number, boole
     createdAt:  sensor.created_at,
     eventsTotal: Number(sensor.event_count),
     online,
+    degraded,
     portStatus,
   }
 }

@@ -150,7 +150,7 @@ export function SensorCard({
   if (removed) return null
 
   return (
-    <div className={`rounded-xl border bg-card p-4 flex flex-col gap-3 transition-colors ${sensor.online ? "border-border" : "border-border/40 opacity-70"}`}>
+    <div className={`rounded-xl border bg-card p-4 flex flex-col gap-3 transition-colors ${sensor.degraded ? "border-amber-400/30" : sensor.online ? "border-border" : "border-border/40 opacity-70"}`}>
       <SensorHeader sensor={sensor} dockerStatus={dockerStatus} isRemote={isRemote} deleting={deleting} onDelete={handleDelete} />
       {deleteError && (
         <p className="rounded-md bg-destructive/10 px-2.5 py-1.5 text-[11px] font-medium text-destructive">
