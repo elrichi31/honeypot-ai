@@ -569,6 +569,150 @@ services:
           cpus: "1.0"
           pids: 256
 
+  opencanary-fake-dc:
+    <<: *service-defaults
+    logging: *json-logging
+    build:
+      context: ./sensors/opencanary
+    container_name: opencanary-fake-dc
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+    volumes:
+      - ./sensors/opencanary/configs/fake-dc.json:/etc/opencanary/opencanary.conf:ro
+      - opencanary_logs:/var/log/opencanary
+    networks:
+      deception_net:
+        ipv4_address: 10.0.1.2
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          pids: 64
+
+  opencanary-fake-intranet:
+    <<: *service-defaults
+    logging: *json-logging
+    build:
+      context: ./sensors/opencanary
+    container_name: opencanary-fake-intranet
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+    volumes:
+      - ./sensors/opencanary/configs/fake-intranet.json:/etc/opencanary/opencanary.conf:ro
+      - opencanary_logs:/var/log/opencanary
+    networks:
+      deception_net:
+        ipv4_address: 10.0.1.5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          pids: 64
+
+  opencanary-fake-db:
+    <<: *service-defaults
+    logging: *json-logging
+    build:
+      context: ./sensors/opencanary
+    container_name: opencanary-fake-db
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+    volumes:
+      - ./sensors/opencanary/configs/fake-db.json:/etc/opencanary/opencanary.conf:ro
+      - opencanary_logs:/var/log/opencanary
+    networks:
+      deception_net:
+        ipv4_address: 10.0.1.10
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          pids: 64
+
+  opencanary-fake-db-replica:
+    <<: *service-defaults
+    logging: *json-logging
+    build:
+      context: ./sensors/opencanary
+    container_name: opencanary-fake-db-replica
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+    volumes:
+      - ./sensors/opencanary/configs/fake-db-replica.json:/etc/opencanary/opencanary.conf:ro
+      - opencanary_logs:/var/log/opencanary
+    networks:
+      deception_net:
+        ipv4_address: 10.0.1.11
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          pids: 64
+
+  opencanary-fake-cache:
+    <<: *service-defaults
+    logging: *json-logging
+    build:
+      context: ./sensors/opencanary
+    container_name: opencanary-fake-cache
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+    volumes:
+      - ./sensors/opencanary/configs/fake-cache.json:/etc/opencanary/opencanary.conf:ro
+      - opencanary_logs:/var/log/opencanary
+    networks:
+      deception_net:
+        ipv4_address: 10.0.1.20
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          pids: 64
+
+  opencanary-shipper:
+    <<: *service-defaults
+    logging: *json-logging
+    image: python:3.12-slim
+    container_name: opencanary-shipper
+    depends_on:
+      opencanary-fake-dc:
+        condition: service_started
+      opencanary-fake-intranet:
+        condition: service_started
+      opencanary-fake-db:
+        condition: service_started
+      opencanary-fake-db-replica:
+        condition: service_started
+      opencanary-fake-cache:
+        condition: service_started
+      ingest-api:
+        condition: service_healthy
+    environment:
+      INGEST_API_URL: http://ingest-api:3000
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
+      OPENCANARY_LOG_DIR: /var/log/opencanary
+      STATE_DIR: /state
+      READ_FROM_END: "1"
+    volumes:
+      - opencanary_logs:/var/log/opencanary:ro
+      - opencanary_shipper_state:/state
+      - ./sensors/opencanary/shipper.py:/shipper.py:ro
+    command: ["python3", "/shipper.py"]
+    networks:
+      - honeypot_ingest
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          pids: 32
+
   maintenance:
     <<: *service-defaults
     logging: *json-logging
@@ -609,6 +753,8 @@ volumes:
   dashboard_data:
   vector_data:
   suricata_logs:
+  opencanary_logs:
+  opencanary_shipper_state:
 
 networks:
   edge:
