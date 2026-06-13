@@ -16,13 +16,14 @@ import { useT } from "@/components/locale-provider"
 
 type OvaConfig = { ingestUrl: string; ip: string; port: string; ovaUrl?: string | null }
 
-const SENSOR_OPTIONS: { key: ServiceKey; label: string; ports: string }[] = [
+const SENSOR_OPTIONS: { key: ServiceKey; label: string; ports: string; group?: string }[] = [
   { key: "ssh",   label: "SSH (Cowrie)",  ports: ":22"             },
   { key: "http",  label: "HTTP",          ports: ":80 :8443"       },
   { key: "ftp",   label: "FTP",           ports: ":21"             },
   { key: "mysql", label: "MySQL",         ports: ":3306"           },
   { key: "port",  label: "Port scanner",  ports: ":1433 :6379 …"  },
   { key: "deception", label: "Deception (OpenCanary)", ports: "internal 10.0.1.0/24" },
+  { key: "internal-canary", label: "Internal Canary", ports: "LAN · SSH + SMB + DB + HTTP", group: "internal" },
 ]
 
 export function AddSensorButton() {
@@ -32,6 +33,7 @@ export function AddSensorButton() {
   const [loadingConfig, setLoadingConfig] = useState(false)
   const [configError, setConfigError] = useState<string | null>(null)
   const [selected, setSelected] = useState<ServiceKey[]>(["ssh", "http", "ftp", "mysql", "port"])
+  const isInternalCanary = selected.includes("internal-canary")
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
@@ -53,12 +55,18 @@ export function AddSensorButton() {
 
   function toggleService(key: ServiceKey) {
     setSelected((prev) => {
-      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-      // Deception needs cowrie as its entry point: turning it on forces ssh on.
-      if (key === "deception" && next.includes("deception") && !next.includes("ssh")) {
-        next.push("ssh")
+      // Internal canary is standalone — selecting it deselects everything else
+      // and vice versa: selecting any other service deselects internal-canary.
+      if (key === "internal-canary") {
+        return prev.includes(key) ? ["ssh", "http", "ftp", "mysql", "port"] : ["internal-canary"]
       }
-      return next
+      const next = prev.filter((k) => k !== "internal-canary")
+      const toggled = next.includes(key) ? next.filter((k) => k !== key) : [...next, key]
+      // Deception needs cowrie as its entry point: turning it on forces ssh on.
+      if (key === "deception" && toggled.includes("deception") && !toggled.includes("ssh")) {
+        toggled.push("ssh")
+      }
+      return toggled
     })
   }
 
@@ -162,6 +170,11 @@ export function AddSensorButton() {
               {selected.includes("deception") && (
                 <p className="rounded-lg bg-amber-400/10 px-3 py-2 text-xs text-amber-300">
                   {t("sensors.add.deceptionWarning")}
+                </p>
+              )}
+              {isInternalCanary && (
+                <p className="rounded-lg bg-violet-400/10 px-3 py-2 text-xs text-violet-300">
+                  Internal Canary deploys inside the corporate LAN on a dedicated VM. Set <span className="font-mono">HTTPS_PROXY</span> if the VM has no direct internet access.
                 </p>
               )}
             </div>

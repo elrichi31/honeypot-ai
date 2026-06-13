@@ -1,0 +1,31 @@
+{
+    "device.node_id": "opencanary-ic-db",
+    "ip.ignorelist": [],
+    "logtype.ignorelist": [],
+    "logger": {
+        "class": "PyLogger",
+        "kwargs": {
+            "formatters": {
+                "plain": {"format": "%(message)s"}
+            },
+            "handlers": {
+                "file": {
+                    "class": "logging.FileHandler",
+                    "filename": "/var/log/opencanary/ic-db.json",
+                    "formatter": "plain"
+                }
+            }
+        }
+    },
+    "portscan.enabled": true,
+    "portscan.logfile": "/var/log/opencanary/portscan.log",
+    "portscan.synrate": 5,
+    "portscan.lorate": 3,
+    "portscan.nmaposrate": 5,
+    "mysql.enabled": true,
+    "mysql.port": 3306,
+    "mysql.banner": "5.7.35-log",
+    "mssql.enabled": true,
+    "mssql.port": 1433,
+    "mssql.version": "2019"
+}

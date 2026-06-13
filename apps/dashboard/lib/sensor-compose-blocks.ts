@@ -1,4 +1,4 @@
-export type ServiceKey = "ssh" | "http" | "ftp" | "mysql" | "port" | "deception"
+export type ServiceKey = "ssh" | "http" | "ftp" | "mysql" | "port" | "deception" | "internal-canary"
 
 export const ALL_SERVICES: ServiceKey[] = ["ssh", "http", "ftp", "mysql", "port", "deception"]
 
@@ -48,6 +48,10 @@ export function suricataBlock(registry: string) {
 
 export function deceptionBlock(deployId: string, registry: string) {
   return fill(DECEPTION_TEMPLATE, { deployId, registry })
+}
+
+export function internalCanaryBlock(deployId: string, registry: string) {
+  return fill(INTERNAL_CANARY_TEMPLATE, { deployId, registry })
 }
 
 const HEADER_TEMPLATE = `x-service-defaults: &service-defaults
@@ -348,6 +352,139 @@ const DECEPTION_TEMPLATE = `  fake-dc:
     networks:
       - edge
       - deception_net
+    pids_limit: 32`
+
+// Internal Canary: a honeypot that lives inside the corporate LAN.
+// Any interaction is a high-severity signal (insider threat / lateral movement).
+// Services: Cowrie SSH + OpenCanary (SMB, MySQL, HTTP/intranet, RDP) + shipper.
+// No internet-facing ports — the VM gets an internal corporate IP and all traffic
+// stays inside the LAN. Reports to ingest-api over HTTPS via HTTPS_PROXY if set.
+const INTERNAL_CANARY_TEMPLATE = `  ic-cowrie:
+    <<: *service-defaults
+    logging: *json-logging
+    image: {{registry}}/cowrie:latest
+    container_name: ic-cowrie
+    cap_add:
+      - SETUID
+      - SETGID
+    ports:
+      - "22:2222"
+    volumes:
+      - ic_cowrie_var:/cowrie/cowrie-git/var
+      - ./internal-canary/cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
+      - ./internal-canary/userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
+    networks:
+      - ic_net
+    pids_limit: 256
+
+  ic-cowrie-beacon:
+    <<: *service-defaults
+    logging: *json-logging
+    image: python:3.12-alpine
+    container_name: ic-cowrie-beacon
+    environment:
+      <<: *ingest
+      SENSOR_ID: ic-ssh-{{deployId}}
+      SENSOR_NAME: "Internal Canary · SSH"
+      SENSOR_IP: ""
+      SENSOR_PROTOCOL: ssh
+      SENSOR_VERSION: cowrie
+      SENSOR_PORTS: "22"
+      SENSOR_PROBE_PORTS: "2222"
+      SENSOR_HOST: ic-cowrie
+      HTTPS_PROXY: "\${HTTPS_PROXY:-}"
+      HTTP_PROXY: "\${HTTP_PROXY:-}"
+    volumes:
+      - ./internal-canary/heartbeat.py:/heartbeat.py:ro
+    command: ["python3", "/heartbeat.py"]
+    networks:
+      - ic_net
+    pids_limit: 16
+
+  ic-vector:
+    <<: *service-defaults
+    logging: *json-logging
+    image: timberio/vector:0.40.0-alpine
+    container_name: ic-vector
+    depends_on:
+      - ic-cowrie
+    volumes:
+      - ic_cowrie_var:/cowrie/cowrie-git/var:ro
+      - ./internal-canary/cowrie.toml:/etc/vector/cowrie.toml:ro
+      - ic_vector_data:/var/lib/vector
+    command: ["--config", "/etc/vector/cowrie.toml"]
+    environment:
+      <<: *ingest
+      COWRIE_LOG_PATH: /cowrie/cowrie-git/var/log/cowrie/cowrie.json
+      SENSOR_ID: ic-ssh-{{deployId}}
+      HTTPS_PROXY: "\${HTTPS_PROXY:-}"
+      HTTP_PROXY: "\${HTTP_PROXY:-}"
+    networks:
+      - ic_net
+    pids_limit: 128
+
+  ic-opencanary-smb:
+    <<: *service-defaults
+    logging: *json-logging
+    image: {{registry}}/opencanary:latest
+    container_name: ic-opencanary-smb
+    volumes:
+      - ./internal-canary/opencanary-smb.json:/etc/opencanary/opencanary.conf:ro
+      - ic_opencanary_logs:/var/log/opencanary
+    networks:
+      - ic_net
+    mem_limit: 128m
+    pids_limit: 64
+
+  ic-opencanary-db:
+    <<: *service-defaults
+    logging: *json-logging
+    image: {{registry}}/opencanary:latest
+    container_name: ic-opencanary-db
+    volumes:
+      - ./internal-canary/opencanary-db.json:/etc/opencanary/opencanary.conf:ro
+      - ic_opencanary_logs:/var/log/opencanary
+    networks:
+      - ic_net
+    mem_limit: 128m
+    pids_limit: 64
+
+  ic-opencanary-web:
+    <<: *service-defaults
+    logging: *json-logging
+    image: {{registry}}/opencanary:latest
+    container_name: ic-opencanary-web
+    volumes:
+      - ./internal-canary/opencanary-web.json:/etc/opencanary/opencanary.conf:ro
+      - ic_opencanary_logs:/var/log/opencanary
+    networks:
+      - ic_net
+    mem_limit: 128m
+    pids_limit: 64
+
+  ic-opencanary-shipper:
+    <<: *service-defaults
+    logging: *json-logging
+    image: python:3.12-slim
+    container_name: ic-opencanary-shipper
+    depends_on:
+      - ic-opencanary-smb
+      - ic-opencanary-db
+      - ic-opencanary-web
+    environment:
+      <<: *ingest
+      OPENCANARY_LOG_DIR: /var/log/opencanary
+      STATE_DIR: /state
+      READ_FROM_END: "1"
+      HTTPS_PROXY: "\${HTTPS_PROXY:-}"
+      HTTP_PROXY: "\${HTTP_PROXY:-}"
+    volumes:
+      - ic_opencanary_logs:/var/log/opencanary:ro
+      - ic_opencanary_shipper_state:/state
+      - ./internal-canary/shipper.py:/shipper.py:ro
+    command: ["python3", "/shipper.py"]
+    networks:
+      - ic_net
     pids_limit: 32`
 
 const VECTOR_ONLY_TEMPLATE = `  vector:

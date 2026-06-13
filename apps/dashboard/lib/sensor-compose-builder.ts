@@ -4,6 +4,7 @@ import {
   ftpBlock,
   headerBlock,
   httpBlock,
+  internalCanaryBlock,
   mysqlBlock,
   portBlock,
   sshBlock,
@@ -29,19 +30,27 @@ export function buildCompose(
   clientSlug = "",
   clientName = "",
 ): string {
+  const isInternalCanary = services.includes("internal-canary")
   const blocks = selectedServiceBlocks(services, deployId, registry)
   const volumeLines = buildVolumeLines(services)
+  // Internal canary is a standalone LAN deploy — no Suricata (no internet iface)
+  // and no standard edge network.
+  const extraBlocks = isInternalCanary ? [] : [suricataBlock(registry), ...standaloneVectorBlock(services, deployId)]
   return [
     headerBlock(ingestUrl, secret, clientSlug, clientName),
     ...blocks,
-    suricataBlock(registry),
-    ...standaloneVectorBlock(services, deployId),
+    ...extraBlocks,
     volumeLines,
     buildNetworks(services),
   ].join("\n\n")
 }
 
 function selectedServiceBlocks(services: ServiceKey[], deployId: string, registry: string) {
+  // Internal canary is a fully standalone compose — mutually exclusive with all
+  // other services which are internet-facing DMZ sensors.
+  if (services.includes("internal-canary")) {
+    return [internalCanaryBlock(deployId, registry)]
+  }
   const withDeception = services.includes("deception")
   const blocks: string[] = []
   // When deception is on, cowrie must also join deception_net at 10.0.1.100 so
@@ -77,6 +86,15 @@ function standaloneVectorBlock(services: ServiceKey[], deployId: string) {
 }
 
 function buildVolumeLines(services: ServiceKey[]) {
+  if (services.includes("internal-canary")) {
+    return [
+      "volumes:",
+      "  ic_cowrie_var:",
+      "  ic_vector_data:",
+      "  ic_opencanary_logs:",
+      "  ic_opencanary_shipper_state:",
+    ].join("\n")
+  }
   const volumes = ["volumes:"]
   if (services.includes("ssh")) volumes.push("  cowrie_var:")
   volumes.push("  vector_data:", "  suricata_logs:")
@@ -85,6 +103,11 @@ function buildVolumeLines(services: ServiceKey[]) {
 }
 
 function buildNetworks(services: ServiceKey[]) {
+  if (services.includes("internal-canary")) {
+    return `networks:
+  ic_net:
+    driver: bridge`
+  }
   const base = `networks:
   edge:
     driver: bridge`

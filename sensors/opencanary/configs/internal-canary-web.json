@@ -1,0 +1,31 @@
+{
+    "device.node_id": "opencanary-ic-web",
+    "ip.ignorelist": [],
+    "logtype.ignorelist": [],
+    "logger": {
+        "class": "PyLogger",
+        "kwargs": {
+            "formatters": {
+                "plain": {"format": "%(message)s"}
+            },
+            "handlers": {
+                "file": {
+                    "class": "logging.FileHandler",
+                    "filename": "/var/log/opencanary/ic-web.json",
+                    "formatter": "plain"
+                }
+            }
+        }
+    },
+    "portscan.enabled": true,
+    "portscan.logfile": "/var/log/opencanary/portscan.log",
+    "portscan.synrate": 5,
+    "portscan.lorate": 3,
+    "portscan.nmaposrate": 5,
+    "http.enabled": true,
+    "http.port": 80,
+    "http.banner": "Apache/2.4.41 (Ubuntu)",
+    "http.skin": "nasLogin",
+    "vnc.enabled": true,
+    "vnc.port": 5900
+}

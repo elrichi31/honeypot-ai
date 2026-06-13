@@ -25,10 +25,25 @@ function clientLine(clientSlug: string, clientName: string) {
 }
 
 function configDownloadLines(services: ServiceKey[]) {
+  if (services.includes("internal-canary")) return internalCanaryDownloadLines()
   return [
     ...cowrieDownloadLines(services),
     `curl -fsSL "$RAW/vector/suricata.toml"            -o suricata.toml`,
     ...deceptionDownloadLines(services),
+  ].join("\n")
+}
+
+function internalCanaryDownloadLines() {
+  return [
+    `mkdir -p internal-canary`,
+    `curl -fsSL "$RAW/sensors/cowrie/heartbeat.py"                              -o internal-canary/heartbeat.py`,
+    `curl -fsSL "$RAW/sensors/cowrie/cowrie.cfg"                                -o internal-canary/cowrie.cfg`,
+    `curl -fsSL "$RAW/sensors/cowrie/userdb.txt"                                -o internal-canary/userdb.txt`,
+    `curl -fsSL "$RAW/vector/cowrie.toml"                                       -o internal-canary/cowrie.toml`,
+    `curl -fsSL "$RAW/sensors/opencanary/configs/internal-canary-smb.json"      -o internal-canary/opencanary-smb.json`,
+    `curl -fsSL "$RAW/sensors/opencanary/configs/internal-canary-db.json"       -o internal-canary/opencanary-db.json`,
+    `curl -fsSL "$RAW/sensors/opencanary/configs/internal-canary-web.json"      -o internal-canary/opencanary-web.json`,
+    `curl -fsSL "$RAW/sensors/opencanary/shipper.py"                            -o internal-canary/shipper.py`,
   ].join("\n")
 }
 
@@ -53,6 +68,8 @@ function cowrieDownloadLines(services: ServiceKey[]) {
 }
 
 function sshPortStep(services: ServiceKey[]) {
+  // Internal canary: cowrie claims port 22 on a dedicated VM — no real sshd to move.
+  if (services.includes("internal-canary")) return ""
   return services.includes("ssh") ? SSH_PORT_STEP : ""
 }
 

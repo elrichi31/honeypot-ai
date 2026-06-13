@@ -1,0 +1,31 @@
+{
+    "device.node_id": "opencanary-ic-smb",
+    "ip.ignorelist": [],
+    "logtype.ignorelist": [],
+    "logger": {
+        "class": "PyLogger",
+        "kwargs": {
+            "formatters": {
+                "plain": {"format": "%(message)s"}
+            },
+            "handlers": {
+                "file": {
+                    "class": "logging.FileHandler",
+                    "filename": "/var/log/opencanary/ic-smb.json",
+                    "formatter": "plain"
+                }
+            }
+        }
+    },
+    "portscan.enabled": true,
+    "portscan.logfile": "/var/log/opencanary/portscan.log",
+    "portscan.synrate": 5,
+    "portscan.lorate": 3,
+    "portscan.nmaposrate": 5,
+    "smb.enabled": true,
+    "smb.filelist": [
+        {"mime": "application/vnd.ms-excel", "name": "Q4-2024-Budget-Draft.xlsx"},
+        {"mime": "application/pdf", "name": "Employee-Salaries-Confidential.pdf"},
+        {"mime": "application/vnd.ms-excel", "name": "VPN-Credentials-Backup.xlsx"}
+    ]
+}
