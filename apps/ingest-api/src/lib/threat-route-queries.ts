@@ -12,17 +12,7 @@ export type CommandDetailRow = {
   eventTs: Date
 }
 
-// When ipFilter is provided the query returns only matching IPs (for search pushdown).
-// Without filter the query returns the top 500 IPs by activity. The threats page
-// ranks by risk score, which tracks activity (sessions/hits) closely, and the rows
-// are already ordered by activity DESC — so the highest-risk IPs are always within
-// the top 500. This keeps us from loading + risk-scoring tens of thousands of IPs in
-// memory just to render one page.
-const UNFILTERED_IP_LIMIT = 500
-
-// Default lookback for the threats list. Scanning all-time grows unbounded; the
-// retention window already caps most tables at ~90 days, so a 90-day cutoff barely
-// changes results while letting the planner prune by the timestamp indexes.
+// Default lookback for the threats list.
 export const THREATS_WINDOW_DAYS = 90
 
 function cutoff(days: number): Date {
@@ -30,9 +20,7 @@ function cutoff(days: number): Date {
 }
 
 // Optional per-client scope: when set, restrict to these sensors. An empty array
-// is the caller's signal for "client has no sensors" and must match nothing —
-// callers should short-circuit before querying, but we guard with `IN (NULL)`-style
-// false just in case. `sensorCol` is the (possibly aliased) sensor_id column.
+// is the caller's signal for "client has no sensors" and must match nothing.
 export type ThreatScope = { sensorIds: string[] } | undefined
 
 function sensorScope(scope: ThreatScope, sensorCol: Prisma.Sql): Prisma.Sql | null {
@@ -41,51 +29,78 @@ function sensorScope(scope: ThreatScope, sensorCol: Prisma.Sql): Prisma.Sql | nu
   return Prisma.sql`${sensorCol} IN (${Prisma.join(scope.sensorIds)})`
 }
 
-// Builds the WHERE (ip filter + time cutoff + optional sensor scope) and LIMIT.
-// `tsCol` is the timestamp column for this table (started_at / timestamp); when
-// null no time filter applies.
-function buildIpFilter(
-  ipFilter: string | undefined,
-  col: Prisma.Sql = Prisma.raw('src_ip'),
-  tsCol: Prisma.Sql | null = Prisma.raw('timestamp'),
-  windowDays = THREATS_WINDOW_DAYS,
-  scopeCond: Prisma.Sql | null = null,
-) {
-  const conds: Prisma.Sql[] = []
-  if (ipFilter) conds.push(Prisma.sql`${col} ILIKE ${`%${ipFilter}%`}`)
-  if (tsCol) conds.push(Prisma.sql`${tsCol} >= ${cutoff(windowDays)}`)
-  if (scopeCond) conds.push(scopeCond)
-  return {
-    where: conds.length ? Prisma.sql`WHERE ${Prisma.join(conds, ' AND ')}` : Prisma.empty,
-    limit: ipFilter ? Prisma.sql`LIMIT 200` : Prisma.sql`LIMIT ${UNFILTERED_IP_LIMIT}`,
-  }
+// Row returned by the threat_ip_summary view query.
+export type ThreatSummaryRow = {
+  src_ip: string
+  // SSH
+  ssh_sessions: bigint
+  ssh_auth_attempts: bigint
+  ssh_had_success: boolean
+  ssh_first_seen: Date | null
+  ssh_last_seen: Date | null
+  // Web
+  web_total_hits: bigint
+  web_attack_types: string[]
+  web_first_seen: Date | null
+  web_last_seen: Date | null
+  web_hits_24h: bigint
+  // Protocol
+  protocols_seen: string[]
+  proto_total_hits: bigint
+  proto_auth_attempts: bigint
+  proto_command_events: bigint
+  proto_connect_events: bigint
+  proto_first_seen: Date | null
+  proto_last_seen: Date | null
+  proto_hits_24h: bigint
+  // Derived
+  first_seen: Date | null
+  last_seen: Date | null
+  burst_score: number
 }
 
-export async function queryThreatSshRows(prisma: PrismaClient, ipFilter?: string, scope?: ThreatScope) {
-  const { where, limit } = buildIpFilter(
-    ipFilter, Prisma.raw('s.src_ip'), Prisma.raw('s.started_at'),
-    THREATS_WINDOW_DAYS, sensorScope(scope, Prisma.raw('s.sensor_id')),
-  )
-  return prisma.$queryRaw<Array<SshAggRow>>`
-    SELECT
-      s.src_ip,
-      COUNT(DISTINCT s.id)                                                        AS sessions,
-      COUNT(e.id) FILTER (WHERE e.event_type IN ('auth.success','auth.failed'))   AS auth_attempts,
-      BOOL_OR(s.login_success)                                                    AS had_success,
-      MIN(s.started_at)                                                           AS first_seen,
-      MAX(COALESCE(s.ended_at, s.started_at))                                     AS last_seen
-    FROM sessions s
-    LEFT JOIN events e ON e.session_id = s.id
+/**
+ * Queries the threat_ip_summary view — a single SQL pass over all honeypot sources
+ * with no per-source row limit. Replaces the old 4×LIMIT-500 fan-out that silently
+ * dropped IPs present only in protocol_hits (e.g. MSSQL-only burst attackers).
+ */
+export async function queryThreatSummaryRows(
+  prisma: PrismaClient,
+  ipFilter?: string,
+  scope?: ThreatScope,
+  windowDays = THREATS_WINDOW_DAYS,
+): Promise<ThreatSummaryRow[]> {
+  // Short-circuit: a scope with zero sensors must match nothing.
+  if (scope && scope.sensorIds.length === 0) return []
+
+  const conds: Prisma.Sql[] = []
+  if (ipFilter) conds.push(Prisma.sql`t.src_ip ILIKE ${`%${ipFilter}%`}`)
+  conds.push(Prisma.sql`t.last_seen >= ${cutoff(windowDays)}`)
+
+  // Sensor scope: the view aggregates across all sensors, so we push down an
+  // EXISTS check against the base tables to keep per-sensor filtering accurate.
+  if (scope) {
+    const ids = Prisma.join(scope.sensorIds)
+    conds.push(Prisma.sql`(
+      EXISTS (SELECT 1 FROM sessions     s2 WHERE s2.src_ip = t.src_ip AND s2.sensor_id IN (${ids}))
+      OR
+      EXISTS (SELECT 1 FROM web_hits     wh WHERE wh.src_ip = t.src_ip AND wh.sensor_id IN (${ids}))
+      OR
+      EXISTS (SELECT 1 FROM protocol_hits ph WHERE ph.src_ip = t.src_ip AND ph.sensor_id IN (${ids}))
+    )`)
+  }
+
+  const where = Prisma.sql`WHERE ${Prisma.join(conds, ' AND ')}`
+  return prisma.$queryRaw<ThreatSummaryRow[]>`
+    SELECT *
+    FROM threat_ip_summary t
     ${where}
-    GROUP BY s.src_ip
-    ORDER BY COUNT(DISTINCT s.id) DESC
-    ${limit}
+    ORDER BY (t.ssh_sessions + t.web_total_hits + t.proto_total_hits) DESC
   `
 }
 
 export async function queryThreatCommandRows(prisma: PrismaClient, ipFilter?: string, scope?: ThreatScope) {
   const ipClause = ipFilter ? Prisma.sql`AND e.src_ip ILIKE ${`%${ipFilter}%`}` : Prisma.empty
-  // events has no sensor_id; scope via the parent session's sensor_id.
   const scopeCond = sensorScope(scope, Prisma.raw('s.sensor_id'))
   const scopeJoin = scopeCond ? Prisma.sql`JOIN sessions s ON s.id = e.session_id` : Prisma.empty
   const scopeClause = scopeCond ? Prisma.sql`AND ${scopeCond}` : Prisma.empty
@@ -100,11 +115,38 @@ export async function queryThreatCommandRows(prisma: PrismaClient, ipFilter?: st
   `
 }
 
+// Per-source queries used only by the single-IP detail endpoint (/threats/:ip).
+
+export async function queryThreatSshRows(prisma: PrismaClient, ipFilter?: string, scope?: ThreatScope) {
+  const conds: Prisma.Sql[] = []
+  if (ipFilter) conds.push(Prisma.sql`s.src_ip ILIKE ${`%${ipFilter}%`}`)
+  conds.push(Prisma.sql`s.started_at >= ${cutoff(THREATS_WINDOW_DAYS)}`)
+  const scopeCond = sensorScope(scope, Prisma.raw('s.sensor_id'))
+  if (scopeCond) conds.push(scopeCond)
+  const where = Prisma.sql`WHERE ${Prisma.join(conds, ' AND ')}`
+  return prisma.$queryRaw<Array<SshAggRow>>`
+    SELECT
+      s.src_ip,
+      COUNT(DISTINCT s.id)                                                        AS sessions,
+      COUNT(e.id) FILTER (WHERE e.event_type IN ('auth.success','auth.failed'))   AS auth_attempts,
+      BOOL_OR(s.login_success)                                                    AS had_success,
+      MIN(s.started_at)                                                           AS first_seen,
+      MAX(COALESCE(s.ended_at, s.started_at))                                     AS last_seen
+    FROM sessions s
+    LEFT JOIN events e ON e.session_id = s.id
+    ${where}
+    GROUP BY s.src_ip
+    ORDER BY COUNT(DISTINCT s.id) DESC
+  `
+}
+
 export async function queryThreatWebRows(prisma: PrismaClient, ipFilter?: string, scope?: ThreatScope) {
-  const { where, limit } = buildIpFilter(
-    ipFilter, Prisma.raw('src_ip'), Prisma.raw('timestamp'),
-    THREATS_WINDOW_DAYS, sensorScope(scope, Prisma.raw('sensor_id')),
-  )
+  const conds: Prisma.Sql[] = []
+  if (ipFilter) conds.push(Prisma.sql`src_ip ILIKE ${`%${ipFilter}%`}`)
+  conds.push(Prisma.sql`timestamp >= ${cutoff(THREATS_WINDOW_DAYS)}`)
+  const scopeCond = sensorScope(scope, Prisma.raw('sensor_id'))
+  if (scopeCond) conds.push(scopeCond)
+  const where = Prisma.sql`WHERE ${Prisma.join(conds, ' AND ')}`
   return prisma.$queryRaw<Array<WebAggRow>>`
     SELECT
       src_ip,
@@ -116,15 +158,16 @@ export async function queryThreatWebRows(prisma: PrismaClient, ipFilter?: string
     ${where}
     GROUP BY src_ip
     ORDER BY COUNT(*) DESC
-    ${limit}
   `
 }
 
 export async function queryThreatProtocolRows(prisma: PrismaClient, ipFilter?: string, scope?: ThreatScope) {
-  const { where, limit } = buildIpFilter(
-    ipFilter, Prisma.raw('src_ip'), Prisma.raw('timestamp'),
-    THREATS_WINDOW_DAYS, sensorScope(scope, Prisma.raw('sensor_id')),
-  )
+  const conds: Prisma.Sql[] = []
+  if (ipFilter) conds.push(Prisma.sql`src_ip ILIKE ${`%${ipFilter}%`}`)
+  conds.push(Prisma.sql`timestamp >= ${cutoff(THREATS_WINDOW_DAYS)}`)
+  const scopeCond = sensorScope(scope, Prisma.raw('sensor_id'))
+  if (scopeCond) conds.push(scopeCond)
+  const where = Prisma.sql`WHERE ${Prisma.join(conds, ' AND ')}`
   return prisma.$queryRaw<Array<ProtocolAggRow>>`
     SELECT
       src_ip,
@@ -142,7 +185,6 @@ export async function queryThreatProtocolRows(prisma: PrismaClient, ipFilter?: s
     ${where}
     GROUP BY src_ip, protocol
     ORDER BY COUNT(*) DESC
-    ${limit}
   `
 }
 

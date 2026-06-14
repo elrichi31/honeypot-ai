@@ -14,12 +14,11 @@ import {
 import {
   queryThreatCommandRows,
   queryThreatCommandsByIp,
-  queryThreatProtocolRows,
   queryThreatProtocolRowsByIp,
   queryThreatSshRow,
-  queryThreatSshRows,
   queryThreatWebRow,
-  queryThreatWebRows,
+  queryThreatSummaryRows,
+  type ThreatSummaryRow,
   type ThreatScope,
 } from '../lib/threat-route-queries.js'
 import { resolveClientSensors } from '../lib/client-helpers.js'
@@ -76,14 +75,6 @@ function groupCommands(rows: Array<{ src_ip: string; command: string }>) {
   return groups
 }
 
-function groupProtocols(rows: ProtocolAggRow[]) {
-  const groups = new Map<string, ProtocolAggRow[]>()
-  for (const row of rows) {
-    groups.set(row.src_ip, [...(groups.get(row.src_ip) ?? []), row])
-  }
-  return groups
-}
-
 function buildThreat(ip: string, ssh: SshAggRow | undefined, web: WebAggRow | undefined, cmds: string[], protocols: ProtocolAggRow[]) {
   const agg = buildThreatAggregates(ip, ssh, web, cmds, protocols)
   const risk = computeRiskScore({
@@ -108,20 +99,66 @@ const THREATS_CACHE_KEY = 'threats:list'
 const THREATS_CACHE_TTL = 180 // 3 minutes
 const THREATS_FILTERED_TTL = 300 // 5 minutes for filtered/search results
 
+function summaryRowToSshRow(row: ThreatSummaryRow): SshAggRow | undefined {
+  if (!row.ssh_sessions) return undefined
+  return {
+    src_ip: row.src_ip,
+    sessions: row.ssh_sessions,
+    auth_attempts: row.ssh_auth_attempts,
+    had_success: row.ssh_had_success,
+    first_seen: row.ssh_first_seen,
+    last_seen: row.ssh_last_seen,
+  }
+}
+
+function summaryRowToWebRow(row: ThreatSummaryRow): WebAggRow | undefined {
+  if (!row.web_total_hits) return undefined
+  return {
+    src_ip: row.src_ip,
+    total_hits: row.web_total_hits,
+    attack_types: row.web_attack_types ?? [],
+    first_seen: row.web_first_seen,
+    last_seen: row.web_last_seen,
+  }
+}
+
+function summaryRowToProtocolRows(row: ThreatSummaryRow): ProtocolAggRow[] {
+  if (!row.proto_total_hits) return []
+  // The view aggregates protocol_hits per-IP. For risk scoring we only need the
+  // combined numbers; the per-protocol breakdown is only shown on the detail page.
+  // We synthesize a single "aggregate" row using a sentinel protocol list so the
+  // threat format layer can compute protocolsSeen and protocolSummary correctly.
+  return (row.protocols_seen ?? []).map((protocol) => ({
+    src_ip: row.src_ip,
+    protocol,
+    total_hits: row.proto_total_hits,
+    auth_attempts: row.proto_auth_attempts,
+    command_events: row.proto_command_events,
+    connect_events: row.proto_connect_events,
+    dst_ports: null,
+    usernames: null,
+    passwords: null,
+    first_seen: row.proto_first_seen,
+    last_seen: row.proto_last_seen,
+  }))
+}
+
 async function fetchThreats(fastify: FastifyInstance, ipFilter?: string, scope?: ThreatScope) {
   const db = fastify.prismaRead
-  const [sshRows, cmdRows, webRows, protocolRows] = await Promise.all([
-    queryThreatSshRows(db, ipFilter, scope),
+  const [summaryRows, cmdRows] = await Promise.all([
+    queryThreatSummaryRows(db, ipFilter, scope),
     queryThreatCommandRows(db, ipFilter, scope),
-    queryThreatWebRows(db, ipFilter, scope),
-    queryThreatProtocolRows(db, ipFilter, scope),
   ])
-  const sshMap = new Map(sshRows.map((row) => [row.src_ip, row]))
-  const webMap = new Map(webRows.map((row) => [row.src_ip, row]))
   const cmdsByIp = groupCommands(cmdRows)
-  const protocolsByIp = groupProtocols(protocolRows)
-  const ips = new Set([...sshMap.keys(), ...webMap.keys(), ...protocolsByIp.keys()])
-  return [...ips].map((ip) => buildThreat(ip, sshMap.get(ip), webMap.get(ip), cmdsByIp.get(ip) ?? [], protocolsByIp.get(ip) ?? []))
+  return summaryRows.map((row) =>
+    buildThreat(
+      row.src_ip,
+      summaryRowToSshRow(row),
+      summaryRowToWebRow(row),
+      cmdsByIp.get(row.src_ip) ?? [],
+      summaryRowToProtocolRows(row),
+    )
+  )
 }
 
 function filterThreats(threats: ThreatItem[], query: ThreatListQuery) {
