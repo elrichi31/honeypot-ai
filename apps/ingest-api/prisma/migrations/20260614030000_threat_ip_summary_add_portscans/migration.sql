@@ -10,7 +10,9 @@
 -- src_ip (not the real attacker IP), so they already aggregate per internal IP
 -- in the existing proto_agg CTE — we don't attempt to de-anonymize them here.
 
-CREATE OR REPLACE MATERIALIZED VIEW threat_ip_summary AS
+DROP MATERIALIZED VIEW IF EXISTS threat_ip_summary;
+
+CREATE MATERIALIZED VIEW threat_ip_summary AS
 WITH
   ssh_agg AS (
     SELECT
