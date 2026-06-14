@@ -23,6 +23,7 @@ import {
 import type { AbuseReport, IpEnrichment } from "@/app/api/enrich/[ip]/route"
 import type { VtIpData } from "@/lib/virustotal"
 import { Surface } from "@/components/ui/surface"
+import { countryFlag } from "@/lib/formatting"
 
 const ABUSE_CATEGORIES: Record<number, string> = {
   1: "DNS Compromise", 2: "DNS Poisoning", 3: "Fraud Orders", 4: "DDoS Attack",
@@ -164,7 +165,7 @@ function VtIpSection({ vt }: { vt: VtIpData }) {
         )}
         {vt.country && (
           <div className="flex items-center gap-1.5">
-            <Flag className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <span className="text-base leading-none">{countryFlag(vt.country)}</span>
             <span className="text-muted-foreground">{vt.country}{vt.continent ? ` · ${vt.continent}` : ""}</span>
           </div>
         )}
@@ -373,8 +374,8 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
               )}
               {ab.countryName && (
                 <div className="flex items-center gap-1.5">
-                  <Flag className="h-3 w-3 shrink-0 text-muted-foreground" />
-                  <span className="text-muted-foreground">{ab.countryName} ({ab.countryCode})</span>
+                  <span className="text-base leading-none">{countryFlag(ab.countryCode ?? "")}</span>
+                  <span className="text-muted-foreground">{ab.countryName}</span>
                 </div>
               )}
               {ab.usageType && (
@@ -517,7 +518,7 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
               )}
               {(info.city || info.region || info.country) && (
                 <div className="flex items-center gap-1.5">
-                  <MapPin className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  {info.country && <span className="text-base leading-none">{countryFlag(info.country)}</span>}
                   <span className="text-muted-foreground">
                     {[info.city, info.region, info.country].filter(Boolean).join(", ")}
                     {info.postal ? ` (${info.postal})` : ""}
