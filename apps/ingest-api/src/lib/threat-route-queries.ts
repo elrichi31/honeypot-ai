@@ -44,7 +44,7 @@ export type ThreatSummaryRow = {
   web_first_seen: Date | null
   web_last_seen: Date | null
   web_hits_24h: bigint
-  // Protocol
+  // Protocol (Dionaea, MSSQL, FTP, etc. via protocol_hits)
   protocols_seen: string[]
   proto_total_hits: bigint
   proto_auth_attempts: bigint
@@ -53,6 +53,12 @@ export type ThreatSummaryRow = {
   proto_first_seen: Date | null
   proto_last_seen: Date | null
   proto_hits_24h: bigint
+  // Port scans (deception honeynodes / OpenCanary network scans)
+  scan_events: bigint
+  scanned_ports: number[]
+  ps_first_seen: Date | null
+  ps_last_seen: Date | null
+  scan_events_24h: bigint
   // Derived
   first_seen: Date | null
   last_seen: Date | null
@@ -82,11 +88,13 @@ export async function queryThreatSummaryRows(
   if (scope) {
     const ids = Prisma.join(scope.sensorIds)
     conds.push(Prisma.sql`(
-      EXISTS (SELECT 1 FROM sessions     s2 WHERE s2.src_ip = t.src_ip AND s2.sensor_id IN (${ids}))
+      EXISTS (SELECT 1 FROM sessions          s2 WHERE s2.src_ip = t.src_ip AND s2.sensor_id IN (${ids}))
       OR
-      EXISTS (SELECT 1 FROM web_hits     wh WHERE wh.src_ip = t.src_ip AND wh.sensor_id IN (${ids}))
+      EXISTS (SELECT 1 FROM web_hits          wh WHERE wh.src_ip = t.src_ip AND wh.sensor_id IN (${ids}))
       OR
-      EXISTS (SELECT 1 FROM protocol_hits ph WHERE ph.src_ip = t.src_ip AND ph.sensor_id IN (${ids}))
+      EXISTS (SELECT 1 FROM protocol_hits     ph WHERE ph.src_ip = t.src_ip AND ph.sensor_id IN (${ids}))
+      OR
+      EXISTS (SELECT 1 FROM deception_portscans dp WHERE dp.src_ip = t.src_ip AND dp.sensor_id IN (${ids}))
     )`)
   }
 

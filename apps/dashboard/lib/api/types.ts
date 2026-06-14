@@ -496,6 +496,7 @@ export interface ThreatDetail {
     usernames: string[]
     passwords: string[]
   } | null
+  portScans: { events: number; uniquePorts: number; ports: number[] } | null
   risk: {
     score:      number
     level:      RiskLevel

@@ -75,7 +75,15 @@ function groupCommands(rows: Array<{ src_ip: string; command: string }>) {
   return groups
 }
 
-function buildThreat(ip: string, ssh: SshAggRow | undefined, web: WebAggRow | undefined, cmds: string[], protocols: ProtocolAggRow[]) {
+function buildThreat(
+  ip: string,
+  ssh: SshAggRow | undefined,
+  web: WebAggRow | undefined,
+  cmds: string[],
+  protocols: ProtocolAggRow[],
+  portScanEvents = 0,
+  portScanUniquePorts = 0,
+) {
   const agg = buildThreatAggregates(ip, ssh, web, cmds, protocols)
   const risk = computeRiskScore({
     sshSessions: Number(ssh?.sessions ?? 0),
@@ -91,6 +99,8 @@ function buildThreat(ip: string, ssh: SshAggRow | undefined, web: WebAggRow | un
     protocolUniquePorts: agg.protocolSummary?.uniquePorts ?? 0,
     credentialReuse: agg.protocolSummary?.credentialReuse ?? false,
     timeWindowMinutes: agg.timeWindowMinutes,
+    portScanEvents,
+    portScanUniquePorts,
   })
   return formatThreatResponse(agg, risk)
 }
@@ -157,6 +167,8 @@ async function fetchThreats(fastify: FastifyInstance, ipFilter?: string, scope?:
       summaryRowToWebRow(row),
       cmdsByIp.get(row.src_ip) ?? [],
       summaryRowToProtocolRows(row),
+      Number(row.scan_events ?? 0),
+      (row.scanned_ports ?? []).length,
     )
   )
 }
@@ -267,19 +279,33 @@ function commandCategory(command: string | null) {
 
 async function fetchThreatByIp(fastify: FastifyInstance, ip: string) {
   const db = fastify.prismaRead
-  const [sshRows, cmdRows, webRows, protocolRows] = await Promise.all([
+  const [sshRows, cmdRows, webRows, protocolRows, portscanRows] = await Promise.all([
     queryThreatSshRow(db, ip),
     queryThreatCommandsByIp(db, ip),
     queryThreatWebRow(db, ip),
     queryThreatProtocolRowsByIp(db, ip),
+    db.$queryRaw<Array<{ scan_events: bigint; scanned_ports: number[] }>>`
+      SELECT COUNT(*) AS scan_events, ARRAY_AGG(DISTINCT UNNEST(dst_ports)) AS scanned_ports
+      FROM deception_portscans WHERE src_ip = ${ip}
+    `,
   ])
   const cmds = cmdRows.flatMap((row) => row.command ? [row.command] : [])
-  return { threat: buildThreat(ip, sshRows[0], webRows[0], cmds, protocolRows), cmdRows, cmds }
+  const ps = portscanRows[0]
+  const portScanEvents = Number(ps?.scan_events ?? 0)
+  const portScanUniquePorts = (ps?.scanned_ports ?? []).length
+  return {
+    threat: buildThreat(ip, sshRows[0], webRows[0], cmds, protocolRows, portScanEvents, portScanUniquePorts),
+    cmdRows,
+    cmds,
+    portScanEvents,
+    portScanUniquePorts,
+    scannedPorts: ps?.scanned_ports ?? [],
+  }
 }
 
 async function handleGetThreat(fastify: FastifyInstance, params: unknown, reply: FastifyReply) {
   const { ip } = params as { ip: string }
-  const { threat, cmdRows, cmds } = await fetchThreatByIp(fastify, ip)
+  const { threat, cmdRows, cmds, portScanEvents, portScanUniquePorts, scannedPorts } = await fetchThreatByIp(fastify, ip)
   return reply.send({
     ip,
     protocolsSeen: threat.protocolsSeen,
@@ -287,6 +313,7 @@ async function handleGetThreat(fastify: FastifyInstance, params: unknown, reply:
     ssh: threat.ssh ? stripCommandCount(threat.ssh) : null,
     web: threat.web,
     protocols: threat.protocols,
+    portScans: portScanEvents > 0 ? { events: portScanEvents, uniquePorts: portScanUniquePorts, ports: scannedPorts } : null,
     risk: buildRiskResponse(threat, cmds),
     classifiedCommands: cmdRows.map((row) => ({
       command: row.command,

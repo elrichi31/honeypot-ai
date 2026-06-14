@@ -109,6 +109,7 @@ export function scoreProtocolsFactor(input: RiskInput, hasPortScan: boolean): Fa
   const factors: string[] = []
   let points = 0
 
+  // Port scan signal from protocol_hits (legacy path: protocol = 'port-scan')
   if (hasPortScan) {
     const portScanPts = Math.min(PORT_SCAN_PTS_MAX, Math.max(PORT_SCAN_PTS_MIN, Math.ceil(input.protocolUniquePorts / PORT_SCAN_PORTS_DIVISOR)))
     points += portScanPts
@@ -116,6 +117,15 @@ export function scoreProtocolsFactor(input: RiskInput, hasPortScan: boolean): Fa
       const plural = input.protocolUniquePorts === 1 ? "" : "s"
       factors.push(`Port scan across ${input.protocolUniquePorts} port${plural}`)
     }
+  }
+
+  // Port scan signal from deception_portscans (real attacker IPs probing honeynodes)
+  if (!hasPortScan && (input.portScanEvents ?? 0) > 0) {
+    const uniquePorts = input.portScanUniquePorts ?? 0
+    const portScanPts = Math.min(PORT_SCAN_PTS_MAX, Math.max(PORT_SCAN_PTS_MIN, Math.ceil(uniquePorts / PORT_SCAN_PORTS_DIVISOR)))
+    points += portScanPts
+    const plural = uniquePorts === 1 ? "" : "s"
+    factors.push(`Deception node port scan across ${uniquePorts} port${plural}`)
   }
 
   if (input.protocolAuthAttempts > 0) {
