@@ -285,8 +285,8 @@ async function fetchThreatByIp(fastify: FastifyInstance, ip: string) {
     queryThreatWebRow(db, ip),
     queryThreatProtocolRowsByIp(db, ip),
     db.$queryRaw<Array<{ scan_events: bigint; scanned_ports: number[] }>>`
-      SELECT COUNT(*) AS scan_events, ARRAY_AGG(DISTINCT UNNEST(dst_ports)) AS scanned_ports
-      FROM deception_portscans WHERE src_ip = ${ip}
+      SELECT COUNT(DISTINCT id) AS scan_events, ARRAY_AGG(DISTINCT port) AS scanned_ports
+      FROM (SELECT id, UNNEST(dst_ports) AS port FROM deception_portscans WHERE src_ip = ${ip}) flat
     `,
   ])
   const cmds = cmdRows.flatMap((row) => row.command ? [row.command] : [])
