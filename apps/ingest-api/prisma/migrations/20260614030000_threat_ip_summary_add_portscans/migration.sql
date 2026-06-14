@@ -62,15 +62,20 @@ WITH
     ) ph_by_proto
     GROUP BY src_ip
   ),
+  -- UNNEST dst_ports array first, then aggregate unique port values per IP.
+  -- ARRAY_AGG(DISTINCT UNNEST(...)) is not valid Postgres syntax.
   portscan_agg AS (
     SELECT
       src_ip,
-      COUNT(*)                                                                        AS scan_events,
-      ARRAY_AGG(DISTINCT UNNEST(dst_ports))                                           AS scanned_ports,
+      COUNT(DISTINCT id)                                                              AS scan_events,
+      ARRAY_AGG(DISTINCT port)                                                        AS scanned_ports,
       MIN(timestamp)                                                                  AS ps_first_seen,
       MAX(timestamp)                                                                  AS ps_last_seen,
-      COUNT(*) FILTER (WHERE timestamp >= NOW() - INTERVAL '24 hours')               AS scan_events_24h
-    FROM deception_portscans
+      COUNT(DISTINCT id) FILTER (WHERE timestamp >= NOW() - INTERVAL '24 hours')     AS scan_events_24h
+    FROM (
+      SELECT id, src_ip, timestamp, UNNEST(dst_ports) AS port
+      FROM deception_portscans
+    ) ps_flat
     GROUP BY src_ip
   ),
   all_ips AS (
@@ -109,8 +114,8 @@ SELECT
   ps.ps_last_seen,
   COALESCE(ps.scan_events_24h, 0)    AS scan_events_24h,
   -- Derived: earliest / latest across ALL sources
-  LEAST(s.ssh_first_seen, w.web_first_seen, p.proto_first_seen, ps.ps_first_seen)      AS first_seen,
-  GREATEST(s.ssh_last_seen, w.web_last_seen, p.proto_last_seen, ps.ps_last_seen)       AS last_seen,
+  LEAST(s.ssh_first_seen, w.web_first_seen, p.proto_first_seen, ps.ps_first_seen)    AS first_seen,
+  GREATEST(s.ssh_last_seen, w.web_last_seen, p.proto_last_seen, ps.ps_last_seen)     AS last_seen,
   -- Recency burst score: fraction of total non-SSH hits in the last 24h.
   CASE
     WHEN (COALESCE(w.web_total_hits,0) + COALESCE(p.proto_total_hits,0) + COALESCE(ps.scan_events,0)) = 0 THEN 0.0
