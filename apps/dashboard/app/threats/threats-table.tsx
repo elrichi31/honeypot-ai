@@ -20,6 +20,7 @@ import { useT } from "@/components/locale-provider"
 import { cn } from "@/lib/utils"
 import type { PaginationMeta, RiskLevel, ThreatSummary } from "@/lib/api"
 import { LEVEL_STYLES, CMD_COLORS, CMD_LABELS, CMD_LABELS_SHORT } from "@/lib/attack-types"
+import { Flag } from "@/components/ui/flag"
 
 const RISK_LEVELS: RiskLevel[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
 
@@ -92,6 +93,7 @@ function SortableHead({ label, column, sortBy, sortDir, searchParams, push, clas
 
 interface ThreatsTableProps {
   threats: ThreatSummary[]
+  geo?: Record<string, { country: string; countryName: string } | null>
   pagination?: PaginationMeta
   sortBy?: string
   sortDir?: string
@@ -109,8 +111,10 @@ export function ThreatsTable(props: ThreatsTableProps) {
   )
 }
 
+
 function ThreatsTableInner({
   threats,
+  geo = {},
   pagination,
   sortBy = "score",
   sortDir = "desc",
@@ -294,6 +298,7 @@ function ThreatsTableInner({
                 className: CMD_COLORS[category] ?? CMD_COLORS.recon,
               }))
 
+              const location = geo[threat.ip] ?? null
               return (
                 <TableRow
                   key={threat.ip}
@@ -305,7 +310,13 @@ function ThreatsTableInner({
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <span className={`h-2 w-2 shrink-0 rounded-full ${style.dot}`} />
-                      <span className="font-mono text-sm font-medium text-foreground">{threat.ip}</span>
+                      {location?.country && <Flag code={location.country} />}
+                      <div>
+                        <span className="font-mono text-sm font-medium text-foreground">{threat.ip}</span>
+                        {location?.countryName && (
+                          <p className="text-xs text-muted-foreground">{location.countryName}</p>
+                        )}
+                      </div>
                       {threat.crossProtocol && (
                         <span className="inline-flex items-center rounded-full border border-purple-500/30 bg-purple-500/15 px-1.5 py-0.5 text-[10px] font-medium text-purple-400">
                           MULTI {threat.protocolsSeen.length}
