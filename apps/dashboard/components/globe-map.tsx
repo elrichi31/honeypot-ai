@@ -7,6 +7,7 @@ import type { CountryAttack } from "@/lib/types"
 import { useGlobePointer } from "@/hooks/use-globe-pointer"
 import { useGlobeLabels } from "@/hooks/use-globe-labels"
 import { Surface } from "@/components/ui/surface"
+import { Flag } from "@/components/ui/flag"
 
 const CENTROIDS: Record<string, [number, number]> = {
   CN: [35.86, 104.19],  US: [37.09, -95.71],  RU: [61.52, 105.31],
@@ -36,11 +37,6 @@ const THETA = 0.3
 const MIN_MARKER_SIZE = 0.018
 const MAX_MARKER_SIZE = 0.052
 
-function countryFlag(code: string): string {
-  return [...code.toUpperCase()]
-    .map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65))
-    .join("")
-}
 
 function buildMarkers(countryAttacks: CountryAttack[], maxSessions: number) {
   return countryAttacks
@@ -245,7 +241,7 @@ function CountryRow({ ca, rank, totalSessions }: CountryRowProps) {
   return (
     <div className="flex items-center gap-2 rounded-lg border border-border bg-background/40 px-3 py-2">
       <span className="w-4 shrink-0 text-right font-mono text-xs text-muted-foreground/50">{rank}</span>
-      <span className="shrink-0 text-sm">{countryFlag(ca.country)}</span>
+      <Flag code={ca.country} className="shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs font-medium text-foreground">{ca.name}</p>
         <div className="mt-0.5 h-1 w-full overflow-hidden rounded-full bg-muted">

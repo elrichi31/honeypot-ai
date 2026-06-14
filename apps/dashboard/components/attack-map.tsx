@@ -11,17 +11,12 @@ import { Plus, Minus, Maximize2, ShieldX, Globe } from "lucide-react"
 import type { CountryAttack } from "@/lib/types"
 import { ISO_A2_TO_NUM } from "@/lib/iso-codes"
 import { Surface } from "@/components/ui/surface"
+import { Flag } from "@/components/ui/flag"
 
 const GEO_URL = "/world-110m.json"
 
 interface AttackMapProps {
   countryAttacks: CountryAttack[]
-}
-
-function countryFlag(code: string): string {
-  return [...code.toUpperCase()]
-    .map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65))
-    .join("")
 }
 
 function getColor(count: number, max: number): string {
@@ -80,7 +75,7 @@ export function AttackMap({ countryAttacks }: AttackMapProps) {
         {/* Hover tooltip */}
         {tooltip && (
           <div className="flex items-center gap-3 rounded-lg border border-border bg-secondary px-3 py-1.5 text-sm shrink-0">
-            <span className="text-lg">{countryFlag(tooltip.country)}</span>
+            <Flag code={tooltip.country} className="text-lg" />
             <span className="font-semibold text-foreground">{tooltip.name}</span>
             <span className="text-muted-foreground">{tooltip.sessions} sessions</span>
             {tooltip.successfulLogins > 0 && (
@@ -217,7 +212,7 @@ export function AttackMap({ countryAttacks }: AttackMapProps) {
                 </span>
 
                 {/* Flag + name */}
-                <span className="text-base shrink-0">{countryFlag(ca.country)}</span>
+                <Flag code={ca.country} className="shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="truncate text-xs font-medium text-foreground">{ca.name}</p>
                   <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">

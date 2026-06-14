@@ -10,7 +10,7 @@ import { TimeRangeFilter } from "@/components/time-range-filter"
 import { ClientSensorFilter } from "@/components/client-sensor-filter"
 import { TablePagination } from "@/components/table-pagination"
 import { lookupIp } from "@/lib/geo"
-import { countryFlag } from "@/lib/formatting"
+import { Flag } from "@/components/ui/flag"
 import { ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
 import { readConfig } from "@/lib/server-config"
 import { formatInTimezone } from "@/lib/timezone"
@@ -187,7 +187,7 @@ export default async function WebBurstsPage({
                   <tr key={`${b.srcIp}-${b.startedAt}-${i}`} className="hover:bg-muted/10 transition-colors">
                     <td className="whitespace-nowrap px-4 py-3">
                       <Link href={`/web-attacks/${encodeURIComponent(b.srcIp)}`} className="flex items-center gap-2 hover:text-foreground">
-                        {location?.country && <span title={location.countryName}>{countryFlag(location.country)}</span>}
+                        {location?.country && <Flag code={location.country} />}
                         <span className="font-mono text-sm text-foreground">{b.srcIp}</span>
                         {b.canaryHits > 0 && (
                           <span className="inline-flex items-center rounded-full border border-red-500/40 bg-red-500/15 px-1.5 py-0 text-[10px] font-semibold text-red-400">🎯</span>

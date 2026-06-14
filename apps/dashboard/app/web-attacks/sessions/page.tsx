@@ -8,7 +8,7 @@ import { WebAttacksNav } from "@/components/web-attacks-nav"
 import { TimeRangeFilter } from "@/components/time-range-filter"
 import { TablePagination } from "@/components/table-pagination"
 import { lookupIp } from "@/lib/geo"
-import { countryFlag } from "@/lib/formatting"
+import { Flag } from "@/components/ui/flag"
 import { ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
 import { readConfig } from "@/lib/server-config"
 import { formatInTimezone } from "@/lib/timezone"
@@ -170,7 +170,7 @@ function SessionRow({ session: s, timezone }: { session: WebSession; timezone: s
                 href={`/web-attacks/${encodeURIComponent(ip)}`}
                 className="inline-flex items-center gap-1 font-mono text-xs text-blue-400 hover:underline"
               >
-                {loc?.country && <span>{countryFlag(loc.country)}</span>}
+                {loc?.country && <Flag code={loc.country} />}
                 {ip}
               </Link>
             )
