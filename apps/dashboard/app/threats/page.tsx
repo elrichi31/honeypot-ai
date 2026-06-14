@@ -66,15 +66,14 @@ export default async function ThreatsPage({
       fetchClients().catch(() => []),
       fetchSensors().catch(() => []),
     ])
-    if (pageData) {
-      const geoResults = await Promise.all(pageData.items.map((t) => lookupIp(t.ip).catch(() => null)))
-      pageData.items.forEach((t, i) => {
-        const g = geoResults[i]
-        geo[t.ip] = g ? { country: g.country, countryName: g.countryName } : null
-      })
-    }
   } catch {
     pageData = null
+  }
+
+  if (pageData) {
+    for (const item of pageData.items) {
+      try { geo[item.ip] = lookupIp(item.ip) } catch { geo[item.ip] = null }
+    }
   }
 
   const header = (
