@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { formatDistanceToNow } from "date-fns"
 import { useTimezone } from "@/components/timezone-provider"
 import { formatInTimezone } from "@/lib/timezone"
@@ -19,16 +20,24 @@ import {
   Clock,
   Cpu,
   Layers,
+  CalendarDays,
 } from "lucide-react"
 import { detectCampaigns, type CampaignGroupBy, type Campaign } from "@/lib/campaigns"
-import { clusterSessions, type BehaviorCluster } from "@/lib/session-similarity"
+import { clusterSessions, clusterByHashsh, clusterByCredentials, type BehaviorCluster } from "@/lib/session-similarity"
 import type { ApiSession } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { Surface } from "@/components/ui/surface"
 
+const RANGE_OPTIONS = [
+  { value: "7d",  label: "7 days" },
+  { value: "30d", label: "30 days" },
+  { value: "90d", label: "90 days" },
+  { value: "all", label: "All time" },
+]
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type ActiveTab = "campaigns" | "clusters"
+type ActiveTab = "campaigns" | "clusters" | "hassh" | "credentials"
 
 const GROUP_OPTIONS: {
   value: CampaignGroupBy
@@ -281,20 +290,57 @@ function ClusterCard({ cluster }: { cluster: BehaviorCluster }) {
 export function CampaignsView({
   sessions,
   commandsMap,
+  range = "30d",
 }: {
   sessions: ApiSession[]
   commandsMap: Record<string, string[]>
+  range?: string
 }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [tab, setTab] = useState<ActiveTab>("campaigns")
   const [groupBy, setGroupBy] = useState<CampaignGroupBy>("ip")
 
+  function setRange(r: string) {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("range", r)
+    router.push(`${pathname}?${params.toString()}`)
+  }
+
   const campaigns = detectCampaigns(sessions, groupBy)
   const clusters = clusterSessions(sessions, commandsMap, 0.4)
+  const hasshClusters = clusterByHashsh(sessions)
+  const credClusters = clusterByCredentials(sessions)
 
   return (
     <div className="space-y-6">
+      {/* Range + tab switcher row */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Range selector */}
+        <div className="flex items-center gap-1.5 rounded-lg border border-border bg-card p-1">
+          <CalendarDays className="ml-1.5 h-3.5 w-3.5 text-muted-foreground" />
+          {RANGE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setRange(opt.value)}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                range === opt.value
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        <span className="text-xs text-muted-foreground">{sessions.length} sessions loaded</span>
+      </div>
+
       {/* Tab switcher */}
-      <div className="flex gap-1 rounded-lg border border-border bg-card p-1 w-fit">
+      <div className="flex flex-wrap gap-1 rounded-lg border border-border bg-card p-1 w-fit">
         <button
           onClick={() => setTab("campaigns")}
           className={cn(
@@ -306,6 +352,9 @@ export function CampaignsView({
         >
           <Globe className="h-3.5 w-3.5" />
           Repeat by origin
+          {campaigns.length > 0 && (
+            <span className="rounded-full bg-primary/20 px-1.5 text-xs">{campaigns.length}</span>
+          )}
         </button>
         <button
           onClick={() => setTab("clusters")}
@@ -317,11 +366,39 @@ export function CampaignsView({
           )}
         >
           <Cpu className="h-3.5 w-3.5" />
-          Behavioral clusters
+          Behavioral
           {clusters.length > 0 && (
-            <span className="rounded-full bg-primary/20 px-1.5 text-xs">
-              {clusters.length}
-            </span>
+            <span className="rounded-full bg-primary/20 px-1.5 text-xs">{clusters.length}</span>
+          )}
+        </button>
+        <button
+          onClick={() => setTab("hassh")}
+          className={cn(
+            "flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
+            tab === "hassh"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Fingerprint className="h-3.5 w-3.5" />
+          SSH Fingerprint
+          {hasshClusters.length > 0 && (
+            <span className="rounded-full bg-primary/20 px-1.5 text-xs">{hasshClusters.length}</span>
+          )}
+        </button>
+        <button
+          onClick={() => setTab("credentials")}
+          className={cn(
+            "flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
+            tab === "credentials"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Key className="h-3.5 w-3.5" />
+          Credentials
+          {credClusters.length > 0 && (
+            <span className="rounded-full bg-primary/20 px-1.5 text-xs">{credClusters.length}</span>
           )}
         </button>
       </div>
@@ -379,18 +456,71 @@ export function CampaignsView({
             <p>
               Jaccard similarity is computed between the command sets of each session.
               Sessions with more than <strong className="text-foreground">40% similarity</strong> are grouped into a cluster.
-              Useful for detecting botnets or attackers using the same script from different IPs.
+              Requires sessions where commands were executed — use the SSH Fingerprint or Credentials tabs
+              if attackers only attempted login without running commands.
             </p>
           </Surface>
 
           <p className="text-sm text-muted-foreground">
             {clusters.length > 0
               ? `${clusters.length} behavioral cluster${clusters.length > 1 ? "s" : ""} detected`
-              : "No sessions with similar behavior found. Sessions with commands in common are needed."}
+              : "No sessions with similar commands found. Try the SSH Fingerprint or Credentials tabs instead."}
           </p>
 
           <div className="space-y-3">
             {clusters.map((c) => (
+              <ClusterCard key={c.id} cluster={c} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── HASSH TAB ── */}
+      {tab === "hassh" && (
+        <div className="space-y-4">
+          <Surface padded className="text-sm text-muted-foreground">
+            <p className="font-medium text-foreground mb-1">SSH client fingerprint clustering</p>
+            <p>
+              Sessions sharing the same HASSH (SSH client fingerprint) are grouped together.
+              The same fingerprint from different IPs is a strong signal of a <strong className="text-foreground">distributed scan</strong> using the same tool or script.
+              Works even when attackers don&apos;t run any commands.
+            </p>
+          </Surface>
+
+          <p className="text-sm text-muted-foreground">
+            {hasshClusters.length > 0
+              ? `${hasshClusters.length} SSH client fingerprint group${hasshClusters.length > 1 ? "s" : ""} detected`
+              : "No shared SSH fingerprints across different IPs. All sessions used distinct SSH clients."}
+          </p>
+
+          <div className="space-y-3">
+            {hasshClusters.map((c) => (
+              <ClusterCard key={c.id} cluster={c} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── CREDENTIALS TAB ── */}
+      {tab === "credentials" && (
+        <div className="space-y-4">
+          <Surface padded className="text-sm text-muted-foreground">
+            <p className="font-medium text-foreground mb-1">Credential reuse across IPs</p>
+            <p>
+              Groups sessions that used the exact same <strong className="text-foreground">username:password</strong> pair from multiple distinct IPs.
+              Indicates credential stuffing or botnets sharing a common wordlist.
+              Only shows pairs used from 2+ different source IPs.
+            </p>
+          </Surface>
+
+          <p className="text-sm text-muted-foreground">
+            {credClusters.length > 0
+              ? `${credClusters.length} credential pair${credClusters.length > 1 ? "s" : ""} reused across multiple IPs`
+              : "No credentials reused across different IPs in this time range."}
+          </p>
+
+          <div className="space-y-3">
+            {credClusters.map((c) => (
               <ClusterCard key={c.id} cluster={c} />
             ))}
           </div>

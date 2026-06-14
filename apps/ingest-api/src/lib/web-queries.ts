@@ -264,9 +264,11 @@ export async function queryWebSessions(
   offset: number,
 ): Promise<WebSessionRow[]> {
   const chainFilter = onlyChains ? Prisma.sql`AND is_chain_attack = true` : Prisma.sql``;
+  // Group by fingerprint when available; fall back to src_ip so the table is
+  // never empty just because the sensor didn't send clientFingerprint.
   return prisma.$queryRaw<WebSessionRow[]>`
     SELECT
-      client_fingerprint,
+      COALESCE(client_fingerprint, src_ip)  AS client_fingerprint,
       ARRAY_AGG(DISTINCT src_ip)            AS src_ips,
       COUNT(*)::int                         AS total_hits,
       MIN(timestamp)                        AS first_seen,
@@ -279,8 +281,7 @@ export async function queryWebSessions(
     FROM web_hits
     ${whereSql}
     ${chainFilter}
-    AND client_fingerprint IS NOT NULL
-    GROUP BY client_fingerprint
+    GROUP BY COALESCE(client_fingerprint, src_ip)
     ORDER BY last_seen DESC
     LIMIT ${pageSize} OFFSET ${offset}
   `;
@@ -293,11 +294,10 @@ export async function countWebSessions(
 ): Promise<number> {
   const chainFilter = onlyChains ? Prisma.sql`AND is_chain_attack = true` : Prisma.sql``;
   const rows = await prisma.$queryRaw<Array<{ total: number }>>`
-    SELECT COUNT(DISTINCT client_fingerprint)::int AS total
+    SELECT COUNT(DISTINCT COALESCE(client_fingerprint, src_ip))::int AS total
     FROM web_hits
     ${whereSql}
     ${chainFilter}
-    AND client_fingerprint IS NOT NULL
   `;
   return rows[0]?.total ?? 0;
 }

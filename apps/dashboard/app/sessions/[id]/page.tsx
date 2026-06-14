@@ -29,16 +29,17 @@ import type { IpEnrichment as IpEnrichmentData } from "@/app/api/enrich/[ip]/rou
 async function readEnrichmentCache(ip: string): Promise<IpEnrichmentData | null> {
   try {
     const { rows } = await db.query(
-      `SELECT abuseipdb_data, ipinfo_data, spectra_analyze_data, cached_at FROM ip_enrichment_cache WHERE ip = $1`,
+      `SELECT abuseipdb_data, ipinfo_data, spectra_analyze_data, virustotal_data, cached_at FROM ip_enrichment_cache WHERE ip = $1`,
       [ip]
     )
     const row = rows[0]
-    if (!row || (!row.abuseipdb_data && !row.ipinfo_data && !row.spectra_analyze_data)) return null
+    if (!row || (!row.abuseipdb_data && !row.ipinfo_data && !row.spectra_analyze_data && !row.virustotal_data)) return null
     return {
       ip,
       abuseipdb: row.abuseipdb_data,
       ipinfo: row.ipinfo_data,
       spectraAnalyze: row.spectra_analyze_data,
+      virustotal: row.virustotal_data ?? null,
       cachedAt: row.cached_at.toISOString(),
     }
   } catch { return null }

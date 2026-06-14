@@ -16,6 +16,7 @@ export interface AppConfig {
   ipinfoApiKey?: string
   spectraAnalyzeUrl?: string
   spectraAnalyzeToken?: string
+  virustotalApiKey?: string
   discordWebhookUrl?: string
   // Honeypot infrastructure
   honeypotIp?: string
@@ -128,4 +129,9 @@ export function getSpectraAnalyzeUrl(): string | undefined {
 export function getSpectraAnalyzeToken(): string | undefined {
   const config = readConfig()
   return config.spectraAnalyzeToken || process.env.SPECTRA_ANALYZE_TOKEN || undefined
+}
+
+export function getVirusTotalKey(): string | undefined {
+  const config = readConfig()
+  return config.virustotalApiKey || process.env.VIRUSTOTAL_API_KEY || undefined
 }

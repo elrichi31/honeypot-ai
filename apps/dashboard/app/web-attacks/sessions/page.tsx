@@ -109,8 +109,11 @@ export default async function WebSessionsPage({
               {sessionsPage.items.length === 0 && !error && (
                 <tr>
                   <td colSpan={8} className="px-4 py-10 text-center text-sm text-muted-foreground">
-                    No sessions found.{" "}
-                    {onlyChains ? "Try removing the chain filter." : "Data appears once the honeypot receives traffic with session tracking enabled."}
+                    {onlyChains
+                      ? "No chain attacks found. Try removing the chain filter."
+                      : range
+                        ? `No web hits in the selected time range. Try a wider range or "All time".`
+                        : "No web hits yet. Sessions appear once the web honeypot receives traffic."}
                   </td>
                 </tr>
               )}
@@ -128,6 +131,11 @@ export default async function WebSessionsPage({
   )
 }
 
+const IP_RE = /^(\d{1,3}\.){3}\d{1,3}$|^[0-9a-fA-F:]+:[0-9a-fA-F:]+$/
+function isIpFallback(fp: string): boolean {
+  return IP_RE.test(fp)
+}
+
 function SessionRow({ session: s, timezone }: { session: WebSession; timezone: string }) {
   const isChain   = s.chainHits > 0
   const isCanary  = s.canaryHits > 0
@@ -142,6 +150,9 @@ function SessionRow({ session: s, timezone }: { session: WebSession; timezone: s
           {isChain && !isCanary && <GitBranch className="h-3.5 w-3.5 shrink-0 text-orange-400" />}
           {isMultiIp && !isCanary && !isChain && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-yellow-400" />}
           <span className="font-mono text-xs text-foreground">{s.clientFingerprint}</span>
+          {isIpFallback(s.clientFingerprint) && (
+            <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">IP</span>
+          )}
         </div>
         {isMultiIp && (
           <p className="mt-0.5 text-xs text-yellow-400">Multi-IP · possible VPN hopper</p>

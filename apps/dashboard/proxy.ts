@@ -18,7 +18,7 @@ function hasSessionCookie(request: NextRequest) {
   return SESSION_COOKIE_NAMES.some((cookieName) => request.cookies.has(cookieName))
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (PUBLIC_PATHS.some((publicPath) => pathname.startsWith(publicPath))) {
