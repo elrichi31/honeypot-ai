@@ -4,7 +4,7 @@ import { apiFetch } from "@/lib/client-fetch"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { FileText, Save, Send, Settings2, CheckCircle2 } from "lucide-react"
+import { FileText, Save, Send, Settings2, CheckCircle2, Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -24,12 +24,14 @@ type Props = { client: Client }
 export function ClientForwardingSettings({ client }: Props) {
   const router = useRouter()
   const [open, setOpen]               = useState(false)
-  const [name, setName]               = useState(client.name)
-  const [code, setCode]               = useState(client.code)
-  const [description, setDescription] = useState(client.description || "")
-  const [forwardUrl, setForwardUrl]   = useState(client.forwardUrl || "")
-  const [saving, setSaving]           = useState(false)
-  const [message, setMessage]         = useState<string | null>(null)
+  const [name, setName]                       = useState(client.name)
+  const [code, setCode]                       = useState(client.code)
+  const [description, setDescription]         = useState(client.description || "")
+  const [forwardUrl, setForwardUrl]           = useState(client.forwardUrl || "")
+  const [crowdstrikeHecUrl, setCrowdstrikeHecUrl] = useState(client.crowdstrikeHecUrl || "")
+  const [crowdstrikeApiKey, setCrowdstrikeApiKey] = useState(client.crowdstrikeApiKey || "")
+  const [saving, setSaving]                   = useState(false)
+  const [message, setMessage]                 = useState<string | null>(null)
 
   function normalizeClientCode(value: string) {
     return value
@@ -47,7 +49,7 @@ export function ClientForwardingSettings({ client }: Props) {
       const res = await apiFetch(`/api/clients/${encodeURIComponent(client.id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, code, description, forwardUrl }),
+        body: JSON.stringify({ name, code, description, forwardUrl, crowdstrikeHecUrl, crowdstrikeApiKey }),
       })
       if (!res.ok) throw new Error()
       router.refresh()
@@ -60,6 +62,7 @@ export function ClientForwardingSettings({ client }: Props) {
   }
 
   const hasForwarding = !!client.forwardUrl
+  const hasCrowdStrike = !!(client.crowdstrikeHecUrl && client.crowdstrikeApiKey)
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -78,9 +81,15 @@ export function ClientForwardingSettings({ client }: Props) {
                     Forwarding active
                   </span>
                 )}
+                {hasCrowdStrike && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-400/10 px-2 py-0.5 text-[10px] font-medium text-blue-400">
+                    <Shield className="h-3 w-3" />
+                    CrowdStrike
+                  </span>
+                )}
               </div>
               <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                {hasForwarding ? client.forwardUrl : "Name, code, description and event forwarding"}
+                {hasForwarding ? client.forwardUrl : hasCrowdStrike ? "CrowdStrike SIEM active" : "Name, code, description and event forwarding"}
               </p>
             </div>
             <Settings2 className="h-4 w-4 text-muted-foreground shrink-0 transition-transform group-hover:rotate-45 duration-300" />
@@ -160,6 +169,43 @@ export function ClientForwardingSettings({ client }: Props) {
             />
             <p className="text-xs text-muted-foreground">
               Leave empty to disable. Every new event will be POSTed here as JSON.
+            </p>
+          </div>
+
+          <div className="space-y-3 rounded-xl border border-border/70 bg-muted/30 p-4">
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-foreground/70" />
+              <p className="text-sm font-medium text-foreground">CrowdStrike Next-Gen SIEM</p>
+              {(crowdstrikeHecUrl && crowdstrikeApiKey) && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Active
+                </span>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cs-hec-url">API URL</Label>
+              <Input
+                id="cs-hec-url"
+                value={crowdstrikeHecUrl}
+                onChange={e => setCrowdstrikeHecUrl(e.target.value)}
+                placeholder="https://<id>.ingest.<region>.crowdstrike.com/services/collector"
+                className="font-mono text-sm"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cs-api-key">API Key</Label>
+              <Input
+                id="cs-api-key"
+                type="password"
+                value={crowdstrikeApiKey}
+                onChange={e => setCrowdstrikeApiKey(e.target.value)}
+                placeholder="••••••••••••••••••••••••••••••••"
+                className="font-mono text-sm"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Alerts for this client will be forwarded to CrowdStrike Next-Gen SIEM via HEC. Leave both fields empty to disable.
             </p>
           </div>
 

@@ -1,0 +1,2 @@
+ALTER TABLE "clients" ADD COLUMN IF NOT EXISTS "crowdstrike_hec_url" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "clients" ADD COLUMN IF NOT EXISTS "crowdstrike_api_key" TEXT NOT NULL DEFAULT '';
