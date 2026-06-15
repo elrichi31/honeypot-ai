@@ -97,8 +97,10 @@ export async function SensorActivityGrid({ overview, trends }: Props) {
     })
   }
 
+  const usedKeys = new Set(items.map((i) => i.key))
+
   for (const p of overview.protocols) {
-    if (p.count > 0) {
+    if (p.count > 0 && !usedKeys.has(p.protocol)) {
       items.push({
         key: p.protocol,
         count: p.count,

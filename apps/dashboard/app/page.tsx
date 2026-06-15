@@ -167,6 +167,7 @@ async function OverviewSection() {
           value={totalEvents}
           detail={t("dash.kpi.sensorsReporting", { n: activeSources })}
           deltaPct={trends.events.deltaPct}
+          previous={trends.events.previous}
           spark={trends.events.spark}
         />
         <KpiCard
@@ -177,6 +178,7 @@ async function OverviewSection() {
             n: overview.ssh.successfulLogins.toLocaleString("en-US"),
           })}
           deltaPct={trends.sshSessions.deltaPct}
+          previous={trends.sshSessions.previous}
           spark={trends.sshSessions.spark}
         />
         <KpiCard
@@ -187,6 +189,7 @@ async function OverviewSection() {
             (overview.web.topAttackType ? t("dash.kpi.webTopSuffix", { type: overview.web.topAttackType }) : "")
           }
           deltaPct={trends.webHits.deltaPct}
+          previous={trends.webHits.previous}
           spark={trends.webHits.spark}
         />
         <KpiCard
@@ -194,6 +197,7 @@ async function OverviewSection() {
           value={activeSources}
           detail={t("dash.kpi.sensorsInWindow")}
           deltaPct={trends.uniqueIps.deltaPct}
+          previous={trends.uniqueIps.previous}
           spark={trends.uniqueIps.spark}
         />
       </div>
