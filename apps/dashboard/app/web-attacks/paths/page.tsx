@@ -74,8 +74,8 @@ export default async function WebPathsPage() {
           </div>
           <div className="max-h-[600px] overflow-y-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10">
-                <tr className="border-b border-border bg-card">
+              <thead className="sticky top-0 z-10 bg-card">
+                <tr className="border-b border-border">
                   <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Path</th>
                   <th className="px-4 py-2.5 text-left font-medium text-muted-foreground w-32">Hits</th>
                   <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Types</th>

@@ -162,8 +162,8 @@ export function WebGeoMap({ countries, totalHits }: { countries: WebCountryAttac
           </div>
           <div className="max-h-[480px] overflow-y-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10">
-                <tr className="border-b border-border bg-card">
+              <thead className="sticky top-0 z-10 bg-card">
+                <tr className="border-b border-border">
                   <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">#</th>
                   <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Country</th>
                   <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Hits</th>
