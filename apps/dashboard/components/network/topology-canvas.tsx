@@ -17,127 +17,131 @@ import {
 } from "@xyflow/react"
 import type { Sensor } from "@/lib/api"
 
-import { RfInternetNode } from "./rf-internet-node"
+import { RfInternetNode }              from "./rf-internet-node"
 import { RfSensorNode, type SensorNodeData } from "./rf-sensor-node"
-import { RfClientGroup } from "./rf-client-group"
-import { SensorPanel } from "./sensor-panel"
-import { StatsBar } from "./stats-bar"
-import { buildGroups } from "./utils"
+import { RfClientLabel }               from "./rf-client-label"
+import { SensorPanel }                 from "./sensor-panel"
+import { StatsBar }                    from "./stats-bar"
+import { buildGroups }                 from "./utils"
 
-// ─── Layout constants ────────────────────────────────────────────────────────
-const NODE_W      = 118
-const NODE_H      = 110
-const COL_STEP    = NODE_W + 28   // horizontal spacing between sensor columns
-const GROUP_PAD_X = 20            // padding inside client group box
-const GROUP_PAD_Y = 36            // top padding (room for label)
-const GROUP_GAP   = 48            // gap between client groups
-const EXT_Y       = 0             // y of external sensors inside group (relative)
-const INT_Y       = NODE_H + 60   // y of internal sensors inside group (relative)
-const INET_Y      = -200          // internet node — above all groups
+// ─── Layout constants ─────────────────────────────────────────────────────────
+const NODE_W     = 118
+const NODE_H     = 110
+const COL_STEP   = NODE_W + 32   // column pitch
+const GROUP_GAP  = 72            // gap between client columns
+const EXT_Y      = 220           // y for external (internet-facing) sensors
+const INT_Y      = 440           // y for internal sensors
+const INET_Y     = 40            // y for internet node
+const LABEL_Y    = 170           // y for client label badge (between Internet and ext row)
 
 const nodeTypes: NodeTypes = {
   internet:    RfInternetNode,
   sensor:      RfSensorNode,
-  clientGroup: RfClientGroup,
+  clientLabel: RfClientLabel,
 }
 
-// ─── Edge helpers ─────────────────────────────────────────────────────────────
-function cyanEdge(id: string, source: string, target: string): Edge {
+// ─── Edge colour based on sensor online status ───────────────────────────────
+function sensorEdge(
+  id: string,
+  source: string,
+  target: string,
+  online: boolean,
+  color: string,
+): Edge {
+  const stroke = online ? color : "rgb(71,85,105)"   // slate-600 when offline
   return {
     id, source, target,
     type: "smoothstep",
-    animated: true,
-    style: { stroke: "rgb(34,211,238)", strokeWidth: 1.5, strokeDasharray: "6 4" },
+    animated: online,
+    style: { stroke, strokeWidth: 1.5, strokeDasharray: online ? "6 4" : "4 4", strokeOpacity: online ? 1 : 0.45 },
   }
 }
 
-function violetEdge(id: string, source: string, target: string): Edge {
-  return {
-    id, source, target,
-    type: "smoothstep",
-    animated: true,
-    style: { stroke: "rgb(139,92,246)", strokeWidth: 1.5, strokeDasharray: "6 4" },
-  }
-}
-
-// ─── Build graph ─────────────────────────────────────────────────────────────
+// ─── Build graph ──────────────────────────────────────────────────────────────
 function buildGraph(sensors: Sensor[]): { nodes: Node[]; edges: Edge[] } {
   const groups = buildGroups(sensors)
   const nodes: Node[] = []
   const edges: Edge[] = []
 
-  let cursorX = 0
-
+  // Pass 1 — compute x positions for each group
+  const groupX: number[] = []
+  let cursor = 0
   for (const group of groups) {
-    const extCount  = Math.max(group.external.length, 0)
-    const intCount  = group.internal.length
-    const colCount  = Math.max(extCount, intCount, 1)
-    const innerW    = colCount * COL_STEP - (COL_STEP - NODE_W)
-    const groupW    = innerW + GROUP_PAD_X * 2
-    const hasInt    = intCount > 0
-    const groupH    = GROUP_PAD_Y + NODE_H + (hasInt ? 60 + NODE_H : 0) + GROUP_PAD_X
+    groupX.push(cursor)
+    const cols = Math.max(group.external.length, group.internal.length, 1)
+    cursor += cols * COL_STEP - (COL_STEP - NODE_W) + GROUP_GAP
+  }
+  const totalW = cursor - GROUP_GAP
 
-    // Client group background node
-    const groupId = `group-${group.key}`
+  // Internet node — centred above everything
+  nodes.push({
+    id: "__internet__",
+    type: "internet",
+    position: { x: totalW / 2 - 105, y: INET_Y },
+    data: {},
+    draggable: false,
+    selectable: false,
+    zIndex: 10,
+  })
+
+  // Pass 2 — place client labels and sensor nodes
+  for (let gi = 0; gi < groups.length; gi++) {
+    const group   = groups[gi]
+    const startX  = groupX[gi]
+    const extCols = Math.max(group.external.length, 1)
+    const intCols = Math.max(group.internal.length, 1)
+    const groupW  = Math.max(extCols, intCols) * COL_STEP - (COL_STEP - NODE_W)
+
+    // Client label
     nodes.push({
-      id:       groupId,
-      type:     "clientGroup",
-      position: { x: cursorX, y: 0 },
-      data:     { label: group.name, slug: group.slug },
-      style:    { width: groupW, height: groupH },
+      id:       `label-${group.key}`,
+      type:     "clientLabel",
+      position: { x: startX + groupW / 2, y: LABEL_Y },
+      data:     { label: group.name },
       draggable: false,
       selectable: false,
+      zIndex: 5,
     })
 
-    // External sensors (positioned relative to the group node)
+    // External sensors
     group.external.forEach((s, i) => {
       nodes.push({
         id:       s.sensorId,
         type:     "sensor",
-        parentId: groupId,
-        extent:   "parent",
-        position: { x: GROUP_PAD_X + i * COL_STEP, y: GROUP_PAD_Y },
+        position: { x: startX + i * COL_STEP, y: EXT_Y },
         data:     { sensor: s, selected: false, zone: "external" } satisfies SensorNodeData,
-        draggable: false,
+        draggable: true,
+        zIndex: 20,
       })
-      edges.push(cyanEdge(`inet-${s.sensorId}`, "__internet__", s.sensorId))
+      edges.push(sensorEdge(`inet-${s.sensorId}`, "__internet__", s.sensorId, s.online, "rgb(34,211,238)"))
     })
 
-    // Internal sensors
+    // Internal sensors — centred under the group
+    const intW      = group.internal.length * COL_STEP - (COL_STEP - NODE_W)
+    const intStartX = startX + (groupW - intW) / 2
+
     group.internal.forEach((s, i) => {
-      const intStartX = GROUP_PAD_X + (innerW - (intCount * COL_STEP - (COL_STEP - NODE_W))) / 2
       nodes.push({
         id:       s.sensorId,
         type:     "sensor",
-        parentId: groupId,
-        extent:   "parent",
-        position: { x: intStartX + i * COL_STEP, y: GROUP_PAD_Y + INT_Y },
+        position: { x: intStartX + i * COL_STEP, y: INT_Y },
         data:     { sensor: s, selected: false, zone: "internal" } satisfies SensorNodeData,
-        draggable: false,
+        draggable: true,
+        zIndex: 20,
       })
 
       if (group.external.length > 0) {
         group.external.forEach(ext => {
-          edges.push(violetEdge(`${ext.sensorId}-${s.sensorId}`, ext.sensorId, s.sensorId))
+          edges.push(sensorEdge(
+            `${ext.sensorId}-${s.sensorId}`, ext.sensorId, s.sensorId,
+            ext.online && s.online, "rgb(139,92,246)"
+          ))
         })
       } else {
-        edges.push(violetEdge(`inet-int-${s.sensorId}`, "__internet__", s.sensorId))
+        edges.push(sensorEdge(`inet-int-${s.sensorId}`, "__internet__", s.sensorId, s.online, "rgb(139,92,246)"))
       }
     })
-
-    cursorX += groupW + GROUP_GAP
   }
-
-  // Total width of all groups — centre internet node above them
-  const totalW = cursorX - GROUP_GAP
-  nodes.push({
-    id:        "__internet__",
-    type:      "internet",
-    position:  { x: totalW / 2 - 105, y: INET_Y },
-    data:      {},
-    draggable: false,
-    selectable: false,
-  })
 
   return { nodes, edges }
 }
@@ -160,7 +164,7 @@ export function TopologyCanvas({ sensors }: { sensors: Sensor[] }) {
     setNodes(ns => ns.map(n => {
       if (n.type !== "sensor") return n
       const d = n.data as SensorNodeData
-      const isThis = d.sensor.sensorId === data.sensor.sensorId
+      const isThis    = d.sensor.sensorId === data.sensor.sensorId
       const wasSelected = selectedSensor?.sensorId === data.sensor.sensorId
       return { ...n, data: { ...d, selected: isThis && !wasSelected } }
     }))
@@ -188,11 +192,12 @@ export function TopologyCanvas({ sensors }: { sensors: Sensor[] }) {
           onPaneClick={onPaneClick}
           nodeTypes={nodeTypes}
           fitView
-          fitViewOptions={{ padding: 0.15 }}
+          fitViewOptions={{ padding: 0.18 }}
           minZoom={0.1}
           maxZoom={3}
           style={{ width: "100%", height: "100%", background: "transparent" }}
           proOptions={{ hideAttribution: true }}
+          nodesDraggable
         >
           <Background
             variant={BackgroundVariant.Dots}
@@ -208,9 +213,9 @@ export function TopologyCanvas({ sensors }: { sensors: Sensor[] }) {
             className="!border-border !bg-card/80"
             nodeColor={n => {
               if (n.id === "__internet__") return "rgb(34,211,238)"
-              if (n.type === "clientGroup") return "hsl(var(--muted))"
+              if (n.type === "clientLabel") return "transparent"
               const d = n.data as SensorNodeData
-              return d?.sensor?.online ? "rgb(52,211,153)" : "rgb(100,116,139)"
+              return d?.sensor?.online ? "rgb(52,211,153)" : "rgb(71,85,105)"
             }}
             maskColor="hsl(var(--background) / 0.6)"
           />
@@ -229,6 +234,12 @@ export function TopologyCanvas({ sensors }: { sensors: Sensor[] }) {
               <line x1="0" y1="4" x2="20" y2="4" stroke="rgb(139,92,246)" strokeWidth="1.5" strokeDasharray="5 3" />
             </svg>
             Internal
+          </span>
+          <span className="flex items-center gap-1.5">
+            <svg width="20" height="8">
+              <line x1="0" y1="4" x2="20" y2="4" stroke="rgb(71,85,105)" strokeWidth="1.5" strokeDasharray="4 4" strokeOpacity="0.5" />
+            </svg>
+            Offline
           </span>
           <span className="flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
