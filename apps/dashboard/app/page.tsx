@@ -198,7 +198,7 @@ async function OverviewSection() {
         />
       </div>
 
-      <SensorActivityGrid overview={overview} />
+      <SensorActivityGrid overview={overview} trends={trends} />
 
       <div className="mb-6">
         <ProtocolDistributionChart overview={overview} />

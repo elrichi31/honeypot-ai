@@ -1,10 +1,11 @@
 import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
+import { TrendingUp, TrendingDown, Minus } from "lucide-react"
 import {
   Terminal, Globe, HardDrive, Database,
   Network, Wifi, Share2, Radar,
 } from "lucide-react"
-import type { HoneypotOverview } from "@/lib/api"
+import type { HoneypotOverview, KpiTrends, MetricTrend } from "@/lib/api"
 import { getServerT } from "@/lib/i18n/server"
 
 const PROTOCOL_CONFIG: Record<string, {
@@ -33,6 +34,27 @@ function relativeTime(ts: string | null) {
   catch { return null }
 }
 
+function DeltaBadge({ trend }: { trend: MetricTrend | undefined }) {
+  if (!trend) return null
+  const { deltaPct } = trend
+  if (deltaPct === null) {
+    return (
+      <span className="inline-flex items-center gap-0.5 rounded bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+        <Minus className="h-2.5 w-2.5" />—
+      </span>
+    )
+  }
+  const up = deltaPct >= 0
+  const Icon = up ? TrendingUp : TrendingDown
+  const tone = up ? "text-emerald-400 bg-emerald-500/10" : "text-rose-400 bg-rose-500/10"
+  return (
+    <span className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium ${tone}`}>
+      <Icon className="h-2.5 w-2.5" />
+      {up ? "+" : ""}{deltaPct}%
+    </span>
+  )
+}
+
 interface SensorItem {
   key: string
   count: number
@@ -41,7 +63,12 @@ interface SensorItem {
   subtitle: string | null
 }
 
-export async function SensorActivityGrid({ overview }: { overview: HoneypotOverview }) {
+interface Props {
+  overview: HoneypotOverview
+  trends?: KpiTrends
+}
+
+export async function SensorActivityGrid({ overview, trends }: Props) {
   const t = await getServerT()
   const items: SensorItem[] = []
 
@@ -101,19 +128,28 @@ export async function SensorActivityGrid({ overview }: { overview: HoneypotOverv
           const Icon = cfg.icon
           const when = relativeTime(item.lastSeen)
 
+          // Map sensor key to the right trend bucket
+          const trend: MetricTrend | undefined =
+            item.key === "ssh"  ? trends?.sshSessions :
+            item.key === "http" ? trends?.webHits :
+            trends?.protocols?.[item.key]
+
           return (
             <Link
               key={item.key}
               href={cfg.href}
               className={`group rounded-xl border ${cfg.border} bg-card p-4 transition-colors hover:bg-muted/30`}
             >
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2">
                 <div className={`rounded-lg p-2 ${cfg.bg}`}>
                   <Icon className={`h-4 w-4 ${cfg.color}`} />
                 </div>
-                <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${cfg.bg} ${cfg.color}`}>
-                  {cfg.label}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <DeltaBadge trend={trend} />
+                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${cfg.bg} ${cfg.color}`}>
+                    {cfg.label}
+                  </span>
+                </div>
               </div>
               <p className="mt-3 text-2xl font-semibold text-foreground">
                 {item.count.toLocaleString("en-US")}

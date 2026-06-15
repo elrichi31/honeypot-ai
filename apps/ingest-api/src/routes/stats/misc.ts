@@ -6,6 +6,10 @@ interface SshOverviewRow { sessions: bigint; uniqueIps: bigint; successfulLogins
 interface WebOverviewRow { hits: bigint; uniqueIps: bigint; lastSeen: Date | null }
 interface WebTopAttackRow { attackType: string }
 interface ProtocolOverviewRow { protocol: string; count: bigint; uniqueIps: bigint; authAttempts: bigint; lastSeen: Date | null }
+interface CountRow { n: bigint }
+interface SparkRow { b: Date; n: number }
+interface ProtoCountRow { protocol: string; n: bigint }
+interface ProtoSparkRow { protocol: string; b: Date; n: number }
 
 const OVERVIEW_TTL = 1800
 const GEO_TTL     = 1800
@@ -67,6 +71,77 @@ export async function miscRoutes(fastify: FastifyInstance) {
         web: { hits: webCount, uniqueIps: Number(web.uniqueIps), topAttackType: webTopAttackRows[0]?.attackType ?? null, lastSeen: web.lastSeen?.toISOString() ?? null },
         protocols: protocolRows.map(r => ({ protocol: r.protocol, count: Number(r.count), uniqueIps: Number(r.uniqueIps), authAttempts: Number(r.authAttempts), lastSeen: r.lastSeen?.toISOString() ?? null })),
         totals: { events: sshCount + webCount + protocolCount, activeSources },
+      }
+    })
+  )
+
+  fastify.get('/stats/kpi-trends', () =>
+    withCache(fastify.cache, 'stats:kpi-trends', 300, async () => {
+      const now = new Date()
+      const cur24Start  = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+      const prev24Start = new Date(now.getTime() - 48 * 60 * 60 * 1000)
+
+      function makeTrend(current: number, previous: number, spark: number[]) {
+        const deltaPct = previous === 0 ? null : Number((((current - previous) / previous) * 100).toFixed(1))
+        return { current, previous, deltaPct, spark }
+      }
+
+      const [
+        sshCur, sshPrev,
+        webCur, webPrev,
+        ipsCur, ipsPrev,
+        protoCur, protoPrev,
+        sshSpark, webSpark, protoSpark,
+      ] = await Promise.all([
+        fastify.prismaRead.$queryRaw<CountRow[]>(Prisma.sql`SELECT COUNT(*)::bigint AS n FROM sessions WHERE started_at >= ${cur24Start}`),
+        fastify.prismaRead.$queryRaw<CountRow[]>(Prisma.sql`SELECT COUNT(*)::bigint AS n FROM sessions WHERE started_at >= ${prev24Start} AND started_at < ${cur24Start}`),
+        fastify.prismaRead.$queryRaw<CountRow[]>(Prisma.sql`SELECT COUNT(*)::bigint AS n FROM web_hits WHERE timestamp >= ${cur24Start}`),
+        fastify.prismaRead.$queryRaw<CountRow[]>(Prisma.sql`SELECT COUNT(*)::bigint AS n FROM web_hits WHERE timestamp >= ${prev24Start} AND timestamp < ${cur24Start}`),
+        fastify.prismaRead.$queryRaw<CountRow[]>(Prisma.sql`SELECT COUNT(DISTINCT src_ip)::bigint AS n FROM sessions WHERE started_at >= ${cur24Start}`),
+        fastify.prismaRead.$queryRaw<CountRow[]>(Prisma.sql`SELECT COUNT(DISTINCT src_ip)::bigint AS n FROM sessions WHERE started_at >= ${prev24Start} AND started_at < ${cur24Start}`),
+        fastify.prismaRead.$queryRaw<ProtoCountRow[]>(Prisma.sql`SELECT protocol, COUNT(*)::bigint AS n FROM protocol_hits WHERE timestamp >= ${cur24Start} GROUP BY protocol`),
+        fastify.prismaRead.$queryRaw<ProtoCountRow[]>(Prisma.sql`SELECT protocol, COUNT(*)::bigint AS n FROM protocol_hits WHERE timestamp >= ${prev24Start} AND timestamp < ${cur24Start} GROUP BY protocol`),
+        fastify.prismaRead.$queryRaw<SparkRow[]>(Prisma.sql`SELECT date_trunc('hour', started_at) AS b, COUNT(*)::int AS n FROM sessions WHERE started_at >= ${cur24Start} GROUP BY 1 ORDER BY 1`),
+        fastify.prismaRead.$queryRaw<SparkRow[]>(Prisma.sql`SELECT date_trunc('hour', timestamp) AS b, COUNT(*)::int AS n FROM web_hits WHERE timestamp >= ${cur24Start} GROUP BY 1 ORDER BY 1`),
+        fastify.prismaRead.$queryRaw<ProtoSparkRow[]>(Prisma.sql`SELECT protocol, date_trunc('hour', timestamp) AS b, COUNT(*)::int AS n FROM protocol_hits WHERE timestamp >= ${cur24Start} GROUP BY 1, 2 ORDER BY 2`),
+      ])
+
+      const sshCurN  = Number(sshCur[0]?.n  ?? 0n)
+      const sshPrevN = Number(sshPrev[0]?.n ?? 0n)
+      const webCurN  = Number(webCur[0]?.n  ?? 0n)
+      const webPrevN = Number(webPrev[0]?.n ?? 0n)
+      const ipsCurN  = Number(ipsCur[0]?.n  ?? 0n)
+      const ipsPrevN = Number(ipsPrev[0]?.n ?? 0n)
+
+      const protoCurMap  = new Map(protoCur.map(r  => [r.protocol, Number(r.n)]))
+      const protoPrevMap = new Map(protoPrev.map(r => [r.protocol, Number(r.n)]))
+
+      const eventsCurN  = sshCurN  + webCurN  + [...protoCurMap.values()].reduce((s, n) => s + n, 0)
+      const eventsPrevN = sshPrevN + webPrevN + [...protoPrevMap.values()].reduce((s, n) => s + n, 0)
+
+      // Per-protocol spark
+      const protoSparkMap = new Map<string, number[]>()
+      for (const r of protoSpark) {
+        if (!protoSparkMap.has(r.protocol)) protoSparkMap.set(r.protocol, [])
+        protoSparkMap.get(r.protocol)!.push(r.n)
+      }
+
+      const allProtos = new Set([...protoCurMap.keys(), ...protoPrevMap.keys()])
+      const protocols: Record<string, ReturnType<typeof makeTrend>> = {}
+      for (const p of allProtos) {
+        protocols[p] = makeTrend(
+          protoCurMap.get(p)  ?? 0,
+          protoPrevMap.get(p) ?? 0,
+          protoSparkMap.get(p) ?? [],
+        )
+      }
+
+      return {
+        events:      makeTrend(eventsCurN,  eventsPrevN,  sshSpark.map(r => r.n)),
+        sshSessions: makeTrend(sshCurN,     sshPrevN,     sshSpark.map(r => r.n)),
+        webHits:     makeTrend(webCurN,     webPrevN,     webSpark.map(r => r.n)),
+        uniqueIps:   makeTrend(ipsCurN,     ipsPrevN,     []),
+        protocols,
       }
     })
   )
