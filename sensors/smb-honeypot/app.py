@@ -181,9 +181,10 @@ def _seed_decoy_files(path: str):
 #   (0xc000006d, 'STATUS_LOGON_FAILURE') = deny auth (honeypot behaviour)
 # ---------------------------------------------------------------------------
 def _auth_callback(connId, smbServer, spnegoData,
-                   username, domain, password, ntHash, lmHash, blob):
+                   username, domain, password, ntHash, lmHash, blob,
+                   connData=None):
     try:
-        conn_data = smbServer.getConnectionData(connId, checkStatus=False)
+        conn_data = connData or smbServer.getConnectionData(connId, checkStatus=False)
         src_ip    = conn_data.get("ClientIP", "unknown")
         src_port  = conn_data.get("ClientPort")
         native_os = conn_data.get("NativeOS", "") or ""
