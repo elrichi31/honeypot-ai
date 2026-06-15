@@ -16,7 +16,6 @@ services:
       - "42:42"
       - "81:81"
       - "135:135"
-      - "445:445"
       - "1433:1433"
       - "1723:1723"
       - "1883:1883"
@@ -48,8 +47,8 @@ services:
       SENSOR_VERSION: ${SENSOR_VERSION_DIONAEA:-dionaea}
       SENSOR_IP: ${SENSOR_IP_DIONAEA:-}
       SENSOR_HOST: dionaea
-      SENSOR_PORTS: "21 42 81 135 445 1433 1723 1883 3306"
-      SENSOR_PROBE_PORTS: "21 42 81 135 445 1433 1723 1883 3306"
+      SENSOR_PORTS: "21 42 81 135 1433 1723 1883 3306"
+      SENSOR_PROBE_PORTS: "21 42 81 135 1433 1723 1883 3306"
       DIONAEA_LOG_PATH: /opt/dionaea/var/lib/dionaea/dionaea.json
       DIONAEA_OFFSET_FILE: /state/dionaea.offset
       READ_FROM_END: "1"

@@ -80,6 +80,9 @@ export interface RiskInput {
   protocolUniquePorts: number
   credentialReuse: boolean
   timeWindowMinutes: number | null
+  // Deception port scan events (from deception_portscans table, real attacker IPs)
+  portScanEvents?: number
+  portScanUniquePorts?: number
 }
 
 export const CMD_PATTERNS: Record<CommandCategory, RegExp[]> = {

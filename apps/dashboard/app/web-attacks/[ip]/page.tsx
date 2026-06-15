@@ -6,7 +6,7 @@ import { ArrowLeft, Globe, Clock, MousePointerClick, Shield, Target, Fingerprint
 import { fetchWebHitsByIpPage, fetchWebHits, fetchThreat } from "@/lib/api"
 import { lookupIp } from "@/lib/geo"
 import { RiskBadge } from "@/components/risk-badge"
-import { countryFlag } from "@/lib/formatting"
+import { Flag } from "@/components/ui/flag"
 import { ATTACK_COLORS, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack-types"
 import { StatCard } from "@/components/stat-card"
 import { Surface } from "@/components/ui/surface"
@@ -120,7 +120,7 @@ export default async function WebAttackerDetailPage({
             <div>
               <div className="flex items-center gap-2">
                 {location?.country && (
-                  <span className="text-3xl">{countryFlag(location.country)}</span>
+                  <Flag code={location.country} className="text-3xl" />
                 )}
                 <h1 className="font-mono text-2xl font-semibold text-foreground">{srcIp}</h1>
               </div>

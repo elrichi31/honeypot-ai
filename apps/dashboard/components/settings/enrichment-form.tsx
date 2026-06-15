@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { CheckCircle, Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react"
+import { CheckCircle, Eye, EyeOff, Loader2, ShieldCheck, Activity } from "lucide-react"
 import { apiFetch } from "@/lib/client-fetch"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -119,6 +119,55 @@ function TextRow({ id, label, placeholder, hint, value, loading, onChange, onSav
   )
 }
 
+interface VtQuota {
+  today: number; thisMonth: number
+  dailyLimit: number; monthlyLimit: number
+  dailyRemaining: number; monthlyRemaining: number
+}
+
+function VtQuotaWidget({ quota }: { quota: VtQuota }) {
+  const dailyPct  = Math.min(100, Math.round((quota.today / quota.dailyLimit) * 100))
+  const monthPct  = Math.min(100, Math.round((quota.thisMonth / quota.monthlyLimit) * 100))
+  const barColor  = (pct: number) =>
+    pct >= 90 ? "bg-destructive" : pct >= 70 ? "bg-warning" : "bg-success"
+
+  return (
+    <div className="rounded-lg border border-border bg-secondary/40 p-3 space-y-3">
+      <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+        <Activity className="h-3.5 w-3.5 text-primary" />
+        VirusTotal quota usage
+      </div>
+      <div className="space-y-2">
+        <div>
+          <div className="mb-1 flex justify-between text-xs text-muted-foreground">
+            <span>Daily ({quota.dailyLimit} req/day soft cap)</span>
+            <span className={dailyPct >= 90 ? "text-destructive font-semibold" : ""}>
+              {quota.today} / {quota.dailyLimit} ({quota.dailyRemaining} left)
+            </span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-border">
+            <div className={`h-full rounded-full transition-all ${barColor(dailyPct)}`} style={{ width: `${dailyPct}%` }} />
+          </div>
+        </div>
+        <div>
+          <div className="mb-1 flex justify-between text-xs text-muted-foreground">
+            <span>Monthly ({quota.monthlyLimit.toLocaleString()} req/month soft cap)</span>
+            <span className={monthPct >= 90 ? "text-destructive font-semibold" : ""}>
+              {quota.thisMonth.toLocaleString()} / {quota.monthlyLimit.toLocaleString()} ({quota.monthlyRemaining.toLocaleString()} left)
+            </span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-border">
+            <div className={`h-full rounded-full transition-all ${barColor(monthPct)}`} style={{ width: `${monthPct}%` }} />
+          </div>
+        </div>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        Soft caps: 480/day · 15,000/month · Hard limits: 500/day · 15,500/month (free tier). Updates on page load.
+      </p>
+    </div>
+  )
+}
+
 export function EnrichmentForm() {
   const t = useT()
   const [abuseKey, setAbuseKey] = useState("")
@@ -139,6 +188,12 @@ export function EnrichmentForm() {
   const [spectraUrlError, setSpectraUrlError] = useState("")
   const [spectraTokenError, setSpectraTokenError] = useState("")
 
+  const [vtKey, setVtKey] = useState("")
+  const [hasVtKey, setHasVtKey] = useState(false)
+  const [vtStatus, setVtStatus] = useState<SaveStatus>("loading")
+  const [vtError, setVtError] = useState("")
+  const [vtQuota, setVtQuota] = useState<VtQuota | null>(null)
+
   useEffect(() => {
     apiFetch("/api/config")
       .then((r) => r.json())
@@ -156,12 +211,18 @@ export function EnrichmentForm() {
         setSpectraToken(d.hasSpectraAnalyzeToken ? d.spectraAnalyzeToken : "")
         setSpectraUrlStatus("idle")
         setSpectraTokenStatus("idle")
+
+        setHasVtKey(d.hasVirusTotalKey)
+        setVtKey(d.hasVirusTotalKey ? d.virustotalApiKey : "")
+        setVtStatus("idle")
+        if (d.vtQuota) setVtQuota(d.vtQuota)
       })
       .catch(() => {
         setAbuseStatus("idle")
         setIpinfoStatus("idle")
         setSpectraUrlStatus("idle")
         setSpectraTokenStatus("idle")
+        setVtStatus("idle")
       })
   }, [])
 
@@ -209,10 +270,10 @@ export function EnrichmentForm() {
     })
   }
 
-  const anyConfigured = hasAbuseKey || hasIpinfoKey || hasSpectraToken
+  const anyConfigured = hasAbuseKey || hasIpinfoKey || hasSpectraToken || hasVtKey
   const badge = anyConfigured ? (
     <span className="flex items-center gap-1 rounded-full bg-success/20 px-2 py-0.5 text-xs text-success">
-      <CheckCircle className="h-3 w-3" /> {[hasAbuseKey && "AbuseIPDB", hasIpinfoKey && "ipinfo", hasSpectraToken && "Spectra Analyze"].filter(Boolean).join(" · ")}
+      <CheckCircle className="h-3 w-3" /> {[hasAbuseKey && "AbuseIPDB", hasIpinfoKey && "ipinfo", hasSpectraToken && "Spectra Analyze", hasVtKey && "VirusTotal"].filter(Boolean).join(" · ")}
     </span>
   ) : undefined
 
@@ -284,6 +345,25 @@ export function EnrichmentForm() {
           status={spectraTokenStatus}
           error={spectraTokenError}
         />
+
+        <div className="border-t border-border" />
+
+        <KeyRow
+          id="vt-key"
+          label="VirusTotal API Key"
+          placeholder="your-virustotal-key"
+          hint="Free tier: 4 req/min · 500 req/day · 15,500 req/month · virustotal.com/gui/home/apikey"
+          value={vtKey}
+          hasKey={hasVtKey}
+          loading={vtStatus === "loading"}
+          onChange={setVtKey}
+          onSave={() => saveKey("virustotalApiKey", vtKey, setVtStatus, setVtError, setHasVtKey)}
+          onClear={() => clearKey("virustotalApiKey", setVtKey, setHasVtKey)}
+          status={vtStatus}
+          error={vtError}
+        />
+
+        {hasVtKey && vtQuota && <VtQuotaWidget quota={vtQuota} />}
 
         <div className="rounded-lg border border-border bg-secondary/50 p-3 text-xs text-muted-foreground">
           <p className="mb-1 font-medium text-foreground">{t("set.common.howItWorks")}</p>

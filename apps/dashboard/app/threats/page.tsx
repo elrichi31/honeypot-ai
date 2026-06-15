@@ -7,6 +7,7 @@ import { ClientSensorFilter } from "@/components/client-sensor-filter"
 import { Surface } from "@/components/ui/surface"
 import { StatCard } from "@/components/ui/stat-card"
 import { getServerT } from "@/lib/i18n/server"
+import { lookupIp } from "@/lib/geo"
 
 const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
 
@@ -58,6 +59,7 @@ export default async function ThreatsPage({
   let pageData: Awaited<ReturnType<typeof fetchThreatsPage>> | null = null
   let clients: Awaited<ReturnType<typeof fetchClients>> = []
   let sensors: Awaited<ReturnType<typeof fetchSensors>> = []
+  let geo: Record<string, { country: string; countryName: string } | null> = {}
   try {
     ;[pageData, clients, sensors] = await Promise.all([
       fetchThreatsPage({ page, pageSize, q, sortBy, sortDir, levels, commands, crossProtocol, clientSlug, sensorId }),
@@ -66,6 +68,12 @@ export default async function ThreatsPage({
     ])
   } catch {
     pageData = null
+  }
+
+  if (pageData) {
+    for (const item of pageData.items) {
+      try { geo[item.ip] = lookupIp(item.ip) } catch { geo[item.ip] = null }
+    }
   }
 
   const header = (
@@ -119,6 +127,7 @@ export default async function ThreatsPage({
 
       <ThreatsTable
         threats={pageData.items}
+        geo={geo}
         pagination={pageData.pagination}
         sortBy={sortBy}
         sortDir={sortDir}

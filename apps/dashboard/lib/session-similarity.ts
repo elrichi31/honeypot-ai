@@ -90,7 +90,7 @@ class UnionFind {
   }
 }
 
-// ----- Main clustering function -----
+// ----- Main clustering function (command Jaccard similarity) -----
 
 export function clusterSessions(
   sessions: ApiSession[],
@@ -161,9 +161,9 @@ export function clusterSessions(
     const dominantUsername = [...uCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
 
     // Label
-    let profileLabel = `${indices.length} sesiones similares`
-    if (sharedCommands.length > 0) profileLabel += ` · comandos comunes: ${sharedCommands.slice(0, 3).join(", ")}`
-    else if (dominantUsername) profileLabel += ` · usuario frecuente: ${dominantUsername}`
+    let profileLabel = `${indices.length} sessions with similar commands`
+    if (sharedCommands.length > 0) profileLabel += ` · shared: ${sharedCommands.slice(0, 3).join(", ")}`
+    else if (dominantUsername) profileLabel += ` · dominant user: ${dominantUsername}`
 
     clusters.push({
       id: `cluster-${indices[0]}`,
@@ -177,4 +177,72 @@ export function clusterSessions(
   }
 
   return clusters.sort((a, b) => b.sessions.length - a.sessions.length)
+}
+
+// ----- Fallback: cluster by SSH fingerprint (HASSH) -----
+// Used when sessions lack commands. Groups sessions sharing the same SSH
+// client fingerprint from different IPs — a strong signal of coordinated scanning.
+
+export function clusterByHashsh(sessions: ApiSession[]): BehaviorCluster[] {
+  const groups = new Map<string, ApiSession[]>()
+  for (const s of sessions) {
+    if (!s.hassh) continue
+    if (!groups.has(s.hassh)) groups.set(s.hassh, [])
+    groups.get(s.hassh)!.push(s)
+  }
+
+  return Array.from(groups.entries())
+    .filter(([, group]) => group.length >= 2)
+    .map(([hassh, group], idx) => {
+      const uCounts = new Map<string, number>()
+      for (const s of group) {
+        if (s.username) uCounts.set(s.username, (uCounts.get(s.username) ?? 0) + 1)
+      }
+      const dominantUsername = [...uCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+
+      return {
+        id: `hassh-cluster-${idx}`,
+        sessions: group,
+        similarity: 1.0,
+        sharedCommands: [],
+        sharedDomains: [],
+        dominantUsername,
+        profileLabel: `${group.length} sessions · same SSH client (HASSH: ${hassh.slice(0, 12)}...)`,
+      }
+    })
+    .sort((a, b) => b.sessions.length - a.sessions.length)
+}
+
+// ----- Fallback: cluster by credential pair -----
+// Groups sessions that used the exact same username:password from different IPs —
+// points to credential stuffing or a distributed botnet sharing a wordlist.
+
+export function clusterByCredentials(sessions: ApiSession[]): BehaviorCluster[] {
+  const groups = new Map<string, ApiSession[]>()
+  for (const s of sessions) {
+    if (!s.username || !s.password) continue
+    const key = `${s.username}:${s.password}`
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(s)
+  }
+
+  return Array.from(groups.entries())
+    .filter(([, group]) => {
+      const uniqueIps = new Set(group.map((s) => s.srcIp)).size
+      return uniqueIps >= 2   // same cred from 2+ distinct IPs
+    })
+    .map(([cred, group], idx) => {
+      const [username] = cred.split(":")
+      const uniqueIps = new Set(group.map((s) => s.srcIp)).size
+      return {
+        id: `cred-cluster-${idx}`,
+        sessions: group,
+        similarity: 1.0,
+        sharedCommands: [],
+        sharedDomains: [],
+        dominantUsername: username,
+        profileLabel: `${group.length} sessions · same credential from ${uniqueIps} IPs (${cred})`,
+      }
+    })
+    .sort((a, b) => b.sessions.length - a.sessions.length)
 }

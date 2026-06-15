@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation"
 import { PageShell } from "@/components/page-shell"
 import Link from "next/link"
-import { ArrowLeft, ShieldAlert, Terminal, Globe, Activity } from "lucide-react"
+import { ArrowLeft, ShieldAlert, Terminal, Globe, Activity, Radar } from "lucide-react"
 import { fetchThreat } from "@/lib/api"
 import { readConfig } from "@/lib/server-config"
 import { formatInTimezone } from "@/lib/timezone"
@@ -165,6 +165,41 @@ export default async function ThreatDetailPage({
                       {threat.ssh.loginSuccess ? t("threats.detail.yes") : t("threats.detail.no")}
                     </span>
                   </div>
+                </div>
+              </Surface>
+            )}
+
+            {/* Port scans (deception honeynodes) */}
+            {threat.portScans && threat.portScans.events > 0 && (
+              <Surface>
+                <div className="border-b border-border p-4 flex items-center gap-2">
+                  <Radar className="h-4 w-4 text-violet-400" />
+                  <h3 className="font-semibold text-foreground">Port Scans</h3>
+                </div>
+                <div className="divide-y divide-border text-sm">
+                  <div className="flex justify-between px-4 py-2.5">
+                    <span className="text-muted-foreground">Scan events</span>
+                    <span className="font-mono font-semibold text-foreground">{threat.portScans.events.toLocaleString('en-US')}</span>
+                  </div>
+                  <div className="flex justify-between px-4 py-2.5">
+                    <span className="text-muted-foreground">Unique ports probed</span>
+                    <span className="font-mono font-semibold text-foreground">{threat.portScans.uniquePorts}</span>
+                  </div>
+                  {threat.portScans.ports.length > 0 && (
+                    <div className="px-4 py-2.5">
+                      <p className="mb-1.5 text-muted-foreground">Ports</p>
+                      <div className="flex flex-wrap gap-1">
+                        {threat.portScans.ports.slice(0, 30).map((port) => (
+                          <span key={port} className="inline-flex items-center rounded border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 font-mono text-[10px] text-violet-400">
+                            {port}
+                          </span>
+                        ))}
+                        {threat.portScans.ports.length > 30 && (
+                          <span className="text-xs text-muted-foreground">+{threat.portScans.ports.length - 30} more</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </Surface>
             )}

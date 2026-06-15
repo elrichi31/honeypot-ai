@@ -121,13 +121,20 @@ export function ProtocolDetailPage({
   const formatDate = makeFormatDate(tz)
 
   const copy = COPY[protocol]
-  const isFtp     = protocol === "ftp"
-  const isMysql   = protocol === "mysql"
+  const isFtp      = protocol === "ftp"
+  const isMysql    = protocol === "mysql"
   const isPortScan = protocol === "port-scan"
-  const isSmb     = protocol === "smb"
-  const isMssql   = protocol === "mssql"
-  const isMqtt    = protocol === "mqtt"
+  const isSmb      = protocol === "smb"
+  const isMssql    = protocol === "mssql"
+  const isMqtt     = protocol === "mqtt"
   const hasCredentials = isFtp || isMysql || isSmb || isMssql
+
+  const smbHasRichData = isSmb && (
+    (insights.topDomains?.length ?? 0) > 0 ||
+    (insights.topShares?.length ?? 0) > 0 ||
+    (insights.topNativeOS?.length ?? 0) > 0 ||
+    (insights.topNtlmHashes?.length ?? 0) > 0
+  )
 
   return (
     <PageShell>
@@ -206,6 +213,40 @@ export function ProtocolDetailPage({
         </div>
       )}
 
+      {/* SMB rich data — only shown when the Impacket sensor is active */}
+      {smbHasRichData && (
+        <>
+          <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <RankingCard
+              title="NTLM domains / workgroups"
+              empty="No domains captured yet"
+              rows={(insights.topDomains ?? []).map((row) => ({ label: row.domain, count: row.count }))}
+            />
+            <RankingCard
+              title="Shares accessed"
+              empty="No share access captured yet"
+              rows={(insights.topShares ?? []).map((row) => ({ label: row.share, count: row.count }))}
+            />
+          </div>
+          <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <RankingCard
+              title="Attacker OS fingerprint"
+              empty="No OS info captured yet"
+              rows={(insights.topNativeOS ?? []).map((row) => ({ label: row.nativeOS, count: row.count }))}
+            />
+            <RankingCard
+              title="NTLM hashes (crackable offline)"
+              empty="No hashes captured yet"
+              rows={(insights.topNtlmHashes ?? []).map((row) => ({
+                label: row.ntlmHash,
+                detail: row.username ? `user: ${row.username}` : undefined,
+                count: row.count,
+              }))}
+            />
+          </div>
+        </>
+      )}
+
       <TableCard>
         <div className="border-b border-border px-4 py-3">
           <h2 className="text-sm font-semibold text-foreground">Recent events</h2>
@@ -217,7 +258,7 @@ export function ProtocolDetailPage({
               <TableHead>Dst Port</TableHead>
               <TableHead>Event</TableHead>
               <TableHead>
-                {isPortScan ? "Service / Payload" : isMysql ? "User / Database" : isMqtt ? "Topic / Message" : "User / Password"}
+                {isPortScan ? "Service / Payload" : isMysql ? "User / Database" : isMqtt ? "Topic / Message" : isSmb ? "User / Domain / OS" : "User / Password"}
               </TableHead>
               <TableHead>Timestamp</TableHead>
             </TableRow>
@@ -277,6 +318,25 @@ export function ProtocolDetailPage({
                             <p className="font-mono text-xs text-foreground">{command ?? "-"}</p>
                             {hit.username && (
                               <p className="font-mono text-[11px] text-muted-foreground">user: {hit.username}</p>
+                            )}
+                          </div>
+                        ) : isSmb ? (
+                          <div className="min-w-0">
+                            <p className="font-mono text-xs text-foreground">
+                              {hit.username ?? "-"}
+                              {dataValue(hit.data, "domain") && (
+                                <span className="text-muted-foreground"> @ {dataValue(hit.data, "domain")}</span>
+                              )}
+                            </p>
+                            {dataValue(hit.data, "nativeOS") && (
+                              <p className="truncate font-mono text-[11px] text-muted-foreground">
+                                {dataValue(hit.data, "nativeOS")}
+                              </p>
+                            )}
+                            {dataValue(hit.data, "share") && (
+                              <p className="truncate font-mono text-[11px] text-amber-400/80">
+                                \\{dataValue(hit.data, "share")}
+                              </p>
                             )}
                           </div>
                         ) : (

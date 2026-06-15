@@ -1,6 +1,6 @@
 "use client"
 
-import { Cell, Pie, PieChart, Tooltip, ResponsiveContainer, Legend } from "recharts"
+import { Bar, BarChart, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from "recharts"
 import type { HoneypotOverview } from "@/lib/api"
 import { Surface } from "@/components/ui/surface"
 
@@ -26,20 +26,38 @@ const PROTOCOL_LABEL: Record<string, string> = {
   smb: "SMB", mssql: "MSSQL", mqtt: "MQTT", rpc: "RPC", tftp: "TFTP",
 }
 
+function fmt(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
+  return n.toLocaleString("en-US")
+}
+
 interface CustomTooltipProps {
   active?: boolean
-  payload?: Array<{ name: string; value: number; payload: { pct: number } }>
+  payload?: Array<{ value: number; payload: { label: string; pct: number } }>
 }
 
 function CustomTooltip({ active, payload }: CustomTooltipProps) {
   if (!active || !payload?.length) return null
-  const { name, value, payload: p } = payload[0]
+  const { value, payload: p } = payload[0]
   return (
     <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-md">
-      <p className="font-semibold text-foreground">{name}</p>
-      <p className="text-muted-foreground">{value.toLocaleString("en-US")} eventos</p>
-      <p className="text-muted-foreground">{p.pct}% del total</p>
+      <p className="font-semibold text-foreground">{p.label}</p>
+      <p className="text-muted-foreground">{value.toLocaleString("en-US")} events · {p.pct}%</p>
     </div>
+  )
+}
+
+function CustomYTick({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) {
+  const label = payload?.value ?? ""
+  const color = colorFor(label)
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <circle cx={-10} cy={0} r={4} fill={color} />
+      <text x={-18} y={0} dy="0.35em" textAnchor="end" fill="#94a3b8" fontSize={11} fontFamily="inherit">
+        {label}
+      </text>
+    </g>
   )
 }
 
@@ -62,53 +80,57 @@ export function ProtocolDistributionChart({ overview }: { overview: HoneypotOver
     .map((r) => ({ ...r, pct: Number(((r.value / total) * 100).toFixed(1)) }))
     .sort((a, b) => b.value - a.value)
 
+  const chartHeight = Math.max(220, data.length * 38)
+
   return (
     <Surface padded>
-      <div className="mb-2">
-        <h3 className="font-semibold text-foreground">Event distribution</h3>
-        <p className="text-sm text-muted-foreground">By sensor type · cumulative total</p>
-      </div>
-
-      <div className="relative flex items-center justify-center">
-        <ResponsiveContainer width="100%" height={380}>
-          <PieChart>
-            <Pie
-              data={data}
-              dataKey="value"
-              nameKey="label"
-              cx="50%"
-              cy="50%"
-              innerRadius={60}
-              outerRadius={90}
-              paddingAngle={2}
-              strokeWidth={0}
-            >
-              {data.map((entry) => (
-                <Cell key={entry.label} fill={colorFor(entry.label)} />
-              ))}
-            </Pie>
-            <Tooltip content={<CustomTooltip />} />
-            <Legend
-              iconType="circle"
-              iconSize={8}
-              formatter={(value) => (
-                <span className="text-xs text-muted-foreground">{value}</span>
-              )}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-        {/* Total in center */}
-        <div className="pointer-events-none absolute flex flex-col items-center justify-center">
-          <p className="text-xl font-bold text-foreground leading-none">
-            {total >= 1_000_000
-              ? `${(total / 1_000_000).toFixed(1)}M`
-              : total >= 1_000
-              ? `${(total / 1_000).toFixed(1)}k`
-              : total.toLocaleString("en-US")}
-          </p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">events</p>
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <h3 className="font-semibold text-foreground">Event distribution</h3>
+          <p className="text-sm text-muted-foreground">By sensor type · cumulative total</p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-2xl font-bold text-foreground leading-none">{fmt(total)}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">total events</p>
         </div>
       </div>
+
+      <ResponsiveContainer width="100%" height={chartHeight}>
+        <BarChart
+          data={data}
+          layout="vertical"
+          margin={{ top: 0, right: 56, bottom: 0, left: 72 }}
+          barCategoryGap="28%"
+        >
+          <XAxis
+            type="number"
+            tickFormatter={fmt}
+            tick={{ fontSize: 10, fill: "#64748b" }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            type="category"
+            dataKey="label"
+            width={72}
+            tick={(props) => <CustomYTick {...props} />}
+            axisLine={false}
+            tickLine={false}
+          />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+          <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={20}>
+            {data.map((entry) => (
+              <Cell key={entry.label} fill={colorFor(entry.label)} />
+            ))}
+            <LabelList
+              dataKey="pct"
+              position="right"
+              formatter={(v: number) => `${v}%`}
+              style={{ fontSize: 10, fill: "#64748b" }}
+            />
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
     </Surface>
   )
 }

@@ -8,7 +8,8 @@ import {
   Loader2, ExternalLink, ShieldX, Bot,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { formatDuration, countryFlag } from "@/lib/formatting"
+import { formatDuration } from "@/lib/formatting"
+import { Flag } from "@/components/ui/flag"
 import { classify, type SessionItem } from "@/lib/session-classify-v2"
 import { EventTimeline } from "./event-timeline"
 import type { HoneypotEvent } from "@/lib/api"
@@ -49,7 +50,7 @@ export function SessionRow({ session }: { session: SessionItem }) {
             </span>
             {session.country && (
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <span>{countryFlag(session.country)}</span>
+                <Flag code={session.country} />
                 <span>{session.countryName}</span>
               </span>
             )}

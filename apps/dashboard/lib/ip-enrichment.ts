@@ -2,6 +2,7 @@ import { db } from "@/lib/db"
 import { readConfig } from "@/lib/server-config"
 import { sendDiscordAlert } from "@/lib/discord"
 import { fetchSpectraAnalyzeIpReport, type SpectraAnalyzeIpReport } from "@/lib/spectra-analyze"
+import { fetchVtIp, type VtIpData } from "@/lib/virustotal"
 
 export interface AbuseReport {
   reportedAt: string
@@ -49,12 +50,16 @@ export interface IpEnrichment {
   abuseipdb: AbuseIpData | null
   ipinfo: IpInfoData | null
   spectraAnalyze: SpectraAnalyzeIpReport | null
+  virustotal: VtIpData | null
   cachedAt: string
 }
 
-const ABUSE_TTL_MS  = 7  * 24 * 60 * 60 * 1000
-const IPINFO_TTL_MS = 30 * 24 * 60 * 60 * 1000
-const SPECTRA_TTL_MS = 7 * 24 * 60 * 60 * 1000
+export type { VtIpData }
+
+const ABUSE_TTL_MS      = 7  * 24 * 60 * 60 * 1000
+const IPINFO_TTL_MS     = 30 * 24 * 60 * 60 * 1000
+const SPECTRA_TTL_MS    = 7  * 24 * 60 * 60 * 1000
+const VIRUSTOTAL_TTL_MS = 7  * 24 * 60 * 60 * 1000
 
 function isStale(fetchedAt: Date | null, ttl: number): boolean {
   if (!fetchedAt) return true
@@ -136,6 +141,7 @@ export async function enrichIp(ip: string): Promise<IpEnrichment> {
   const { rows } = await db.query(
     `SELECT abuseipdb_data, ipinfo_data, abuseipdb_fetched_at, ipinfo_fetched_at, cached_at
             , spectra_analyze_data, spectra_analyze_fetched_at
+            , virustotal_data, virustotal_fetched_at
      FROM ip_enrichment_cache WHERE ip = $1`,
     [ip]
   )
@@ -144,9 +150,11 @@ export async function enrichIp(ip: string): Promise<IpEnrichment> {
   let abuseipdb: AbuseIpData | null = row?.abuseipdb_data ?? null
   let ipinfo: IpInfoData | null = row?.ipinfo_data ?? null
   let spectraAnalyze: SpectraAnalyzeIpReport | null = row?.spectra_analyze_data ?? null
+  let virustotal: VtIpData | null = row?.virustotal_data ?? null
   let abuseipdbFetchedAt: Date | null = row?.abuseipdb_fetched_at ?? null
   let ipinfoFetchedAt: Date | null = row?.ipinfo_fetched_at ?? null
   let spectraAnalyzeFetchedAt: Date | null = row?.spectra_analyze_fetched_at ?? null
+  let virustotalFetchedAt: Date | null = row?.virustotal_fetched_at ?? null
   let dirty = false
 
   const wasNewAbuse = !row?.abuseipdb_data
@@ -183,27 +191,40 @@ export async function enrichIp(ip: string): Promise<IpEnrichment> {
     }
   }
 
+  if (config.virustotalApiKey && isStale(virustotalFetchedAt, VIRUSTOTAL_TTL_MS)) {
+    const data = await fetchVtIp(ip, config.virustotalApiKey)
+    if (data) {
+      virustotal = data
+      virustotalFetchedAt = new Date()
+      dirty = true
+    }
+  }
+
   const cachedAt = dirty ? new Date() : (row?.cached_at ?? new Date())
 
   if (dirty) {
     await db.query(
       `INSERT INTO ip_enrichment_cache
-         (ip, abuseipdb_data, ipinfo_data, spectra_analyze_data, abuseipdb_fetched_at, ipinfo_fetched_at, spectra_analyze_fetched_at, cached_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         (ip, abuseipdb_data, ipinfo_data, spectra_analyze_data, abuseipdb_fetched_at, ipinfo_fetched_at, spectra_analyze_fetched_at,
+          virustotal_data, virustotal_fetched_at, cached_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (ip) DO UPDATE SET
-         abuseipdb_data        = EXCLUDED.abuseipdb_data,
-         ipinfo_data           = EXCLUDED.ipinfo_data,
-         spectra_analyze_data  = EXCLUDED.spectra_analyze_data,
-         abuseipdb_fetched_at  = EXCLUDED.abuseipdb_fetched_at,
-         ipinfo_fetched_at     = EXCLUDED.ipinfo_fetched_at,
+         abuseipdb_data             = EXCLUDED.abuseipdb_data,
+         ipinfo_data                = EXCLUDED.ipinfo_data,
+         spectra_analyze_data       = EXCLUDED.spectra_analyze_data,
+         abuseipdb_fetched_at       = EXCLUDED.abuseipdb_fetched_at,
+         ipinfo_fetched_at          = EXCLUDED.ipinfo_fetched_at,
          spectra_analyze_fetched_at = EXCLUDED.spectra_analyze_fetched_at,
-         cached_at             = EXCLUDED.cached_at`,
-      [ip, abuseipdb, ipinfo, spectraAnalyze, abuseipdbFetchedAt, ipinfoFetchedAt, spectraAnalyzeFetchedAt, cachedAt]
+         virustotal_data            = EXCLUDED.virustotal_data,
+         virustotal_fetched_at      = EXCLUDED.virustotal_fetched_at,
+         cached_at                  = EXCLUDED.cached_at`,
+      [ip, abuseipdb, ipinfo, spectraAnalyze, abuseipdbFetchedAt, ipinfoFetchedAt, spectraAnalyzeFetchedAt,
+       virustotal ? JSON.stringify(virustotal) : null, virustotalFetchedAt, cachedAt]
     )
   }
 
   return {
-    ip, abuseipdb, ipinfo, spectraAnalyze,
+    ip, abuseipdb, ipinfo, spectraAnalyze, virustotal,
     cachedAt: cachedAt.toISOString(),
   }
 }

@@ -7,7 +7,8 @@ import {
   ChevronDown, ChevronRight, Terminal, Clock, User, Key,
   ExternalLink, Shield, ScanLine, Bot,
 } from "lucide-react"
-import { formatDuration, countryFlag } from "@/lib/formatting"
+import { formatDuration } from "@/lib/formatting"
+import { Flag } from "@/components/ui/flag"
 import { type ScanGroup } from "@/lib/session-classify-v2"
 
 const CRED_PREVIEW = 5
@@ -35,7 +36,7 @@ export function ScanGroupRow({ group }: { group: ScanGroup }) {
             </span>
             {group.country && (
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <span>{countryFlag(group.country)}</span>
+                <Flag code={group.country} />
                 <span>{group.countryName}</span>
               </span>
             )}

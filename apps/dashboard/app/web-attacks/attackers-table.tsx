@@ -5,14 +5,7 @@ import { formatDistanceToNow } from "date-fns"
 import type { WebHitByIp } from "@/lib/api"
 import { ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
 import { EmptyState } from "@/components/ui/data-states"
-
-function countryFlag(code: string): string {
-  return code
-    .toUpperCase()
-    .split("")
-    .map((char) => String.fromCodePoint(0x1f1e6 - 65 + char.charCodeAt(0)))
-    .join("")
-}
+import { Flag } from "@/components/ui/flag"
 
 export function AttackersTable({
   attackers,
@@ -51,9 +44,7 @@ export function AttackersTable({
             <td className="whitespace-nowrap px-4 py-3">
               <div className="flex items-center gap-2">
                 {location?.country && (
-                  <span className="text-base" title={location.countryName ?? undefined}>
-                    {countryFlag(location.country)}
-                  </span>
+                  <Flag code={location.country} className="text-base" />
                 )}
                 <div>
                   <div className="flex items-center gap-1.5">

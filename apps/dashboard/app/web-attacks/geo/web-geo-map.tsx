@@ -12,6 +12,7 @@ import { ISO_A2_TO_NUM } from "@/lib/iso-codes"
 import type { WebCountryAttack } from "@/lib/geo"
 import { ATTACK_COLORS as ATTACK_BADGE, ATTACK_COLORS_HEX, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack-types"
 import { Surface } from "@/components/ui/surface"
+import { Flag } from "@/components/ui/flag"
 
 const GEO_URL = "/world-110m.json"
 
@@ -67,7 +68,7 @@ export function WebGeoMap({ countries, totalHits }: { countries: WebCountryAttac
 
           {tooltip && (
             <div className="flex items-center gap-3 rounded-lg border border-border bg-secondary px-3 py-1.5 text-sm shrink-0">
-              <span className="text-lg">{countryFlag(tooltip.country)}</span>
+              <Flag code={tooltip.country} className="text-lg" />
               <span className="font-semibold text-foreground">{tooltip.name}</span>
               <span className="text-muted-foreground">{tooltip.totalHits.toLocaleString('en-US')} hits</span>
               <span className="text-muted-foreground">{tooltip.uniqueIps} IPs</span>
@@ -180,7 +181,7 @@ export function WebGeoMap({ countries, totalHits }: { countries: WebCountryAttac
                       <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">{i + 1}</td>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
-                          <span className="text-base">{countryFlag(c.country)}</span>
+                          <Flag code={c.country} />
                           <div>
                             <p className="text-sm font-medium text-foreground">{c.name}</p>
                             <p className="text-xs text-muted-foreground font-mono">{c.country}</p>

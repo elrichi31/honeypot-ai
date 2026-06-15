@@ -48,6 +48,11 @@ export interface ProtocolInsights {
   topCommands: { command: string; count: number }[]
   topServices: { service: string; count: number }[]
   topDatabases: { database: string; count: number }[]
+  // SMB-specific
+  topDomains?: { domain: string; count: number }[]
+  topShares?: { share: string; count: number }[]
+  topNativeOS?: { nativeOS: string; count: number }[]
+  topNtlmHashes?: { ntlmHash: string; username: string; count: number }[]
 }
 
 export interface Sensor {

@@ -7,7 +7,9 @@ import {
   getIngestSecret,
   getSpectraAnalyzeToken,
   getSpectraAnalyzeUrl,
+  getVirusTotalKey,
 } from "@/lib/server-config"
+import { getVtQuota } from "@/lib/virustotal"
 import { logAudit } from "@/lib/audit"
 import { requireRole } from "@/lib/roles"
 
@@ -21,7 +23,10 @@ export async function GET() {
   if (!auth_check.ok) return auth_check.response
 
   const key = getOpenAiKey()
+  const vtKey = getVirusTotalKey()
   const config = readConfig()
+  const vtQuota = vtKey ? await getVtQuota().catch(() => null) : null
+
   return NextResponse.json({
     openaiApiKey: key ? maskKey(key) : "",
     hasKey: !!key,
@@ -32,6 +37,9 @@ export async function GET() {
     spectraAnalyzeUrl: getSpectraAnalyzeUrl() ?? "",
     spectraAnalyzeToken: getSpectraAnalyzeToken() ? maskKey(getSpectraAnalyzeToken()) : "",
     hasSpectraAnalyzeToken: !!getSpectraAnalyzeToken(),
+    virustotalApiKey: vtKey ? maskKey(vtKey) : "",
+    hasVirusTotalKey: !!vtKey,
+    vtQuota,
     hasDiscordWebhook: !!getDiscordWebhookUrl(),
     honeypotIp: config.honeypotIp ?? process.env.HONEYPOT_IP ?? "",
     sshPort: config.sshPort ?? (Number(process.env.HONEYPOT_SSH_PORT) || 22),
@@ -75,6 +83,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid Spectra Analyze token" }, { status: 400 })
     const trimmed = body.spectraAnalyzeToken.trim()
     if (!trimmed.includes("•")) config.spectraAnalyzeToken = trimmed || undefined
+  }
+  if ("virustotalApiKey" in body) {
+    if (typeof body.virustotalApiKey !== "string")
+      return NextResponse.json({ error: "Invalid VirusTotal key" }, { status: 400 })
+    const trimmed = body.virustotalApiKey.trim()
+    if (!trimmed.includes("•")) config.virustotalApiKey = trimmed || undefined
   }
   if ("discordWebhookUrl" in body) config.discordWebhookUrl = body.discordWebhookUrl?.trim() || undefined
   if ("honeypotIp" in body) config.honeypotIp = body.honeypotIp?.trim() || undefined
