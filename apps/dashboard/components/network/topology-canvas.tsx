@@ -25,14 +25,13 @@ import { StatsBar }                    from "./stats-bar"
 import { buildGroups }                 from "./utils"
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
-const NODE_W     = 118
-const NODE_H     = 110
-const COL_STEP   = NODE_W + 32   // column pitch
-const GROUP_GAP  = 72            // gap between client columns
-const EXT_Y      = 220           // y for external (internet-facing) sensors
-const INT_Y      = 440           // y for internal sensors
-const INET_Y     = 40            // y for internet node
-const LABEL_Y    = 170           // y for client label badge (between Internet and ext row)
+const NODE_W      = 118
+const NODE_H      = 110
+const COL_STEP    = NODE_W + 32   // column pitch
+const GROUP_GAP   = 100           // horizontal gap between client groups
+const INET_Y      = 40            // Internet node y
+const CLIENT_Y    = 200           // Client node y
+const SENSOR_Y    = 380           // Sensor row y
 
 const nodeTypes: NodeTypes = {
   internet:    RfInternetNode,
@@ -63,83 +62,67 @@ function buildGraph(sensors: Sensor[]): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = []
   const edges: Edge[] = []
 
-  // Pass 1 — compute x positions for each group
-  const groupX: number[] = []
+  // Pass 1 — compute x width for each group and their start positions
+  const groupMeta: Array<{ startX: number; groupW: number }> = []
   let cursor = 0
   for (const group of groups) {
-    groupX.push(cursor)
-    const cols = Math.max(group.external.length, group.internal.length, 1)
-    cursor += cols * COL_STEP - (COL_STEP - NODE_W) + GROUP_GAP
+    const allCount = group.external.length + group.internal.length
+    const cols     = Math.max(allCount, 1)
+    const groupW   = cols * COL_STEP - (COL_STEP - NODE_W)
+    groupMeta.push({ startX: cursor, groupW })
+    cursor += groupW + GROUP_GAP
   }
   const totalW = cursor - GROUP_GAP
 
-  // Internet node — centred above everything
+  // Internet node — centred above all clients
   nodes.push({
-    id: "__internet__",
-    type: "internet",
-    position: { x: totalW / 2 - 105, y: INET_Y },
-    data: {},
+    id:        "__internet__",
+    type:      "internet",
+    position:  { x: totalW / 2 - 105, y: INET_Y },
+    data:      {},
     draggable: false,
     selectable: false,
     zIndex: 10,
   })
 
-  // Pass 2 — place client labels and sensor nodes
+  // Pass 2 — one client node per group + its sensors below
   for (let gi = 0; gi < groups.length; gi++) {
     const group   = groups[gi]
-    const startX  = groupX[gi]
-    const extCols = Math.max(group.external.length, 1)
-    const intCols = Math.max(group.internal.length, 1)
-    const groupW  = Math.max(extCols, intCols) * COL_STEP - (COL_STEP - NODE_W)
+    const { startX, groupW } = groupMeta[gi]
+    const clientId = `client-${group.key}`
 
-    // Client label
+    // Is any sensor in this group online?
+    const anyOnline = [...group.external, ...group.internal].some(s => s.online)
+
+    // Client node — centred in its column
     nodes.push({
-      id:       `label-${group.key}`,
-      type:     "clientLabel",
-      position: { x: startX + groupW / 2, y: LABEL_Y },
-      data:     { label: group.name },
-      draggable: false,
-      selectable: false,
-      zIndex: 5,
+      id:        clientId,
+      type:      "clientLabel",
+      position:  { x: startX + groupW / 2, y: CLIENT_Y },
+      data:      { label: group.name, online: anyOnline },
+      draggable: true,
+      zIndex: 15,
     })
 
-    // External sensors
-    group.external.forEach((s, i) => {
+    // Internet → Client (cyan when any sensor online)
+    edges.push(sensorEdge(`inet-${clientId}`, "__internet__", clientId, anyOnline, "rgb(34,211,238)"))
+
+    // All sensors (ext + int) laid out in a single row below the client node
+    const allSensors = [...group.external, ...group.internal]
+    const rowW       = allSensors.length * COL_STEP - (COL_STEP - NODE_W)
+    const rowStartX  = startX + (groupW - rowW) / 2
+
+    allSensors.forEach((s, i) => {
       nodes.push({
         id:       s.sensorId,
         type:     "sensor",
-        position: { x: startX + i * COL_STEP, y: EXT_Y },
+        position: { x: rowStartX + i * COL_STEP, y: SENSOR_Y },
         data:     { sensor: s, selected: false, zone: "external" } satisfies SensorNodeData,
         draggable: true,
         zIndex: 20,
       })
-      edges.push(sensorEdge(`inet-${s.sensorId}`, "__internet__", s.sensorId, s.online, "rgb(34,211,238)"))
-    })
-
-    // Internal sensors — centred under the group
-    const intW      = group.internal.length * COL_STEP - (COL_STEP - NODE_W)
-    const intStartX = startX + (groupW - intW) / 2
-
-    group.internal.forEach((s, i) => {
-      nodes.push({
-        id:       s.sensorId,
-        type:     "sensor",
-        position: { x: intStartX + i * COL_STEP, y: INT_Y },
-        data:     { sensor: s, selected: false, zone: "internal" } satisfies SensorNodeData,
-        draggable: true,
-        zIndex: 20,
-      })
-
-      if (group.external.length > 0) {
-        group.external.forEach(ext => {
-          edges.push(sensorEdge(
-            `${ext.sensorId}-${s.sensorId}`, ext.sensorId, s.sensorId,
-            ext.online && s.online, "rgb(139,92,246)"
-          ))
-        })
-      } else {
-        edges.push(sensorEdge(`inet-int-${s.sensorId}`, "__internet__", s.sensorId, s.online, "rgb(139,92,246)"))
-      }
+      // Client → Sensor
+      edges.push(sensorEdge(`${clientId}-${s.sensorId}`, clientId, s.sensorId, s.online, "rgb(139,92,246)"))
     })
   }
 
@@ -227,13 +210,13 @@ export function TopologyCanvas({ sensors }: { sensors: Sensor[] }) {
             <svg width="20" height="8">
               <line x1="0" y1="4" x2="20" y2="4" stroke="rgb(34,211,238)" strokeWidth="1.5" strokeDasharray="5 3" />
             </svg>
-            Internet
+            Internet → Cliente
           </span>
           <span className="flex items-center gap-1.5">
             <svg width="20" height="8">
               <line x1="0" y1="4" x2="20" y2="4" stroke="rgb(139,92,246)" strokeWidth="1.5" strokeDasharray="5 3" />
             </svg>
-            Internal
+            Cliente → Sensor
           </span>
           <span className="flex items-center gap-1.5">
             <svg width="20" height="8">
