@@ -223,7 +223,6 @@ def main():
         server.addShare(SHARE_NAME, SHARE_PATH, "File Share")
         server.setSMBChallenge("")          # static challenge — hashes reproducible
         server.setLogFile("/dev/null")      # suppress Impacket's own file log
-        server.setSMB2Support(True)         # accept SMBv2 clients too
 
         # Register our auth interception callback
         server.setAuthCallback(_auth_callback)
