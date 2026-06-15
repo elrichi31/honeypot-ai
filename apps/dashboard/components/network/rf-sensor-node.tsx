@@ -19,8 +19,8 @@ export const RfSensorNode = memo(function RfSensorNode({ data }: { data: SensorN
 
   return (
     <div
-      className={`rounded-xl border bg-card p-3 transition-all duration-150 ${
-        data.selected ? meta.border : "border-border/50"
+      className={`rounded-xl border bg-card p-3 transition-all duration-150 cursor-pointer ${
+        data.selected ? meta.border : "border-border/50 hover:border-border"
       }`}
       style={{
         width: 118,
@@ -30,12 +30,8 @@ export const RfSensorNode = memo(function RfSensorNode({ data }: { data: SensorN
           : undefined,
       }}
     >
-      {/* Top handle — receives connection from Internet or external sensor */}
-      <Handle
-        type="target"
-        position={Position.Top}
-        className="!border-none !bg-transparent"
-      />
+      {/* Receives connections from Internet or external sensors */}
+      <Handle type="target" position={Position.Top} className="!border-none !bg-transparent" />
 
       <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${meta.bg} mb-2`}>
         <Icon className={`h-4 w-4 ${meta.color}`} />
@@ -68,13 +64,9 @@ export const RfSensorNode = memo(function RfSensorNode({ data }: { data: SensorN
         )}
       </div>
 
-      {/* Bottom handle — only shown for external sensors that connect to internal */}
+      {/* Source handle for external sensors connecting down to internal */}
       {zone === "external" && (
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          className="!border-none !bg-transparent"
-        />
+        <Handle type="source" position={Position.Bottom} className="!border-none !bg-transparent" />
       )}
     </div>
   )

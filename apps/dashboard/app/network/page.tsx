@@ -14,15 +14,19 @@ export default async function NetworkPage() {
   }
 
   return (
-    <PageShell>
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-foreground">Network Map</h1>
-        <p className="text-sm text-muted-foreground">
-          Sensor topology by client — Internet-facing sensors vs internal network.
-        </p>
-      </div>
+    <PageShell wide>
+      <div className="flex flex-col" style={{ height: "calc(100dvh - 72px)" }}>
+        <div className="mb-4 shrink-0">
+          <h1 className="text-2xl font-semibold text-foreground">Network Map</h1>
+          <p className="text-sm text-muted-foreground">
+            Sensor topology by client — Internet-facing sensors vs internal network.
+          </p>
+        </div>
 
-      <NetworkTopology sensors={sensors} />
+        <div className="min-h-0 flex-1">
+          <NetworkTopology sensors={sensors} />
+        </div>
+      </div>
     </PageShell>
   )
 }
