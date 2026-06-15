@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
-import { TrendingUp, TrendingDown, Minus } from "lucide-react"
+import { TrendingUp, TrendingDown } from "lucide-react"
 import {
   Terminal, Globe, HardDrive, Database,
   Network, Wifi, Share2, Radar,
@@ -36,13 +36,16 @@ function relativeTime(ts: string | null) {
 
 function DeltaBadge({ trend }: { trend: MetricTrend | undefined }) {
   if (!trend) return null
-  const { deltaPct } = trend
+  const { deltaPct, current, previous } = trend
   if (deltaPct === null) {
-    return (
-      <span className="inline-flex items-center gap-0.5 rounded bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-        <Minus className="h-2.5 w-2.5" />—
-      </span>
-    )
+    if (current > 0 && previous === 0) {
+      return (
+        <span className="inline-flex items-center gap-0.5 rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">
+          <TrendingUp className="h-2.5 w-2.5" />new
+        </span>
+      )
+    }
+    return null
   }
   const up = deltaPct >= 0
   const Icon = up ? TrendingUp : TrendingDown

@@ -1,6 +1,6 @@
 "use client"
 
-import { TrendingUp, TrendingDown, Minus } from "lucide-react"
+import { TrendingUp, TrendingDown } from "lucide-react"
 import { Line, LineChart, YAxis } from "recharts"
 import { Surface } from "@/components/ui/surface"
 import { ChartContainer } from "@/components/ui/chart"
@@ -19,13 +19,7 @@ const sparkConfig = { v: { label: "", color: "#22d3ee" } } satisfies ChartConfig
 
 function DeltaBadge({ deltaPct }: { deltaPct: number | null }) {
   const t = useT()
-  if (deltaPct === null) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-md bg-muted/40 px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
-        <Minus className="h-3 w-3" />—
-      </span>
-    )
-  }
+  if (deltaPct === null) return null
   const up = deltaPct >= 0
   const Icon = up ? TrendingUp : TrendingDown
   const tone = up ? "text-emerald-400 bg-emerald-500/10" : "text-rose-400 bg-rose-500/10"
