@@ -223,6 +223,9 @@ def main():
         server.addShare(SHARE_NAME, SHARE_PATH, "File Share")
         server.setSMBChallenge("")          # static challenge — hashes reproducible
         server.setLogFile("/dev/null")      # suppress Impacket's own file log
+        # Add a dummy credential so Impacket always runs NTLM verification
+        # (without any credential entry it grants access without calling auth_callback)
+        server.addCredential("__honeypot__", 0, "aad3b435b51404eeaad3b435b51404ee", "31d6cfe0d16ae931b73c59d7e0c089c0")
 
         # Register our auth interception callback
         server.setAuthCallback(_auth_callback)
