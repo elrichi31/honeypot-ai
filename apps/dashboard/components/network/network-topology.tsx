@@ -23,7 +23,7 @@ export function NetworkTopology({ sensors }: NetworkTopologyProps) {
   }
 
   return (
-    <Surface className="overflow-hidden" style={{ minHeight: 660 }}>
+    <Surface className="overflow-hidden" style={{ height: 680 }}>
       <TopologyCanvas sensors={sensors} />
     </Surface>
   )

@@ -181,10 +181,10 @@ export function TopologyCanvas({ sensors }: TopologyCanvasProps) {
   }, [setNodes])
 
   return (
-    <div className="flex flex-col" style={{ height: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <StatsBar groups={groups} />
 
-      <div className="relative flex-1" style={{ minHeight: 580 }}>
+      <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -199,6 +199,8 @@ export function TopologyCanvas({ sensors }: TopologyCanvasProps) {
           maxZoom={3}
           style={{
             background: "transparent",
+            width: "100%",
+            height: "100%",
           }}
           proOptions={{ hideAttribution: true }}
         >
