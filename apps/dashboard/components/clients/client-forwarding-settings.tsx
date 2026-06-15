@@ -231,9 +231,6 @@ export function ClientForwardingSettings({ client }: Props) {
                     </span>
                   )}
                 </div>
-                {csConfigured && !csExpanded && (
-                  <p className="text-xs text-muted-foreground truncate mt-0.5">{crowdstrikeHecUrl}</p>
-                )}
               </div>
               {csExpanded ? (
                 <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
