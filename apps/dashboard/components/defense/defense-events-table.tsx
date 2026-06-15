@@ -135,7 +135,7 @@ export function DefenseEventsTable() {
           </div>
         ) : (
           <table className="w-full border-collapse">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-[#0d0d0f]">
               <tr className="border-b border-white/[0.06]">
                 <th className="pl-3 pr-2 py-1.5 w-5" />
                 <th className="pr-3 py-1.5 text-left text-[10px] font-medium text-muted-foreground/60 w-[65px]">{t("defense.events.col.type")}</th>

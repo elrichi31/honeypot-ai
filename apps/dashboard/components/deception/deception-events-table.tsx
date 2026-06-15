@@ -100,7 +100,7 @@ export function DeceptionEventsTable({ events }: { events: DeceptionEvent[] }) {
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left text-[12px]">
-          <thead className="text-[10px] uppercase text-muted-foreground/60">
+          <thead className="sticky top-0 z-10 bg-card text-[10px] uppercase text-muted-foreground/60">
             <tr className="border-b border-border/40">
               <th className="px-4 py-2 font-medium w-6"></th>
               <th className="px-4 py-2 font-medium">Node</th>
