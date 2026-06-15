@@ -180,36 +180,22 @@ def _seed_decoy_files(path: str):
 # Return (errorCode, errorString):
 #   (0xc000006d, 'STATUS_LOGON_FAILURE') = deny auth (honeypot behaviour)
 # ---------------------------------------------------------------------------
-def _auth_callback(connId, smbServer, spnegoData,
-                   username, domain, password, ntHash, lmHash, blob,
-                   connData=None):
+def _auth_callback(smbServer, connData, domain_name, user_name, host_name):
     try:
-        conn_data = connData or smbServer.getConnectionData(connId, checkStatus=False)
-        src_ip    = conn_data.get("ClientIP", "unknown")
-        src_port  = conn_data.get("ClientPort")
-        native_os = conn_data.get("NativeOS", "") or ""
-        native_lan = conn_data.get("NativeLanManager", "") or ""
+        src_ip   = connData.get("ClientIP", "unknown")
+        src_port = connData.get("ClientPort")
 
-        user_str = username.decode(errors="replace") if isinstance(username, bytes) else str(username or "")
-        dom_str  = domain.decode(errors="replace")   if isinstance(domain,   bytes) else str(domain   or "")
-        nt_hex   = ntHash.hex() if ntHash else None
-        lm_hex   = lmHash.hex() if lmHash else None
-
-        log.info("auth user=%s domain=%s os=%s from %s:%s hash=%s",
-                 user_str, dom_str, native_os, src_ip, src_port,
-                 nt_hex[:16] if nt_hex else "-")
+        log.info("auth user=%s domain=%s host=%s from %s:%s",
+                 user_name, domain_name, host_name, src_ip, src_port)
 
         threading.Thread(
             target=_send,
             args=("auth", src_ip, src_port),
             kwargs={
-                "username": user_str or None,
+                "username": user_name or None,
                 "extra": {
-                    "domain":    dom_str or None,
-                    "nativeOS":  native_os or None,
-                    "nativeLAN": native_lan or None,
-                    "ntlmHash":  nt_hex,
-                    "lmHash":    lm_hex,
+                    "domain":    domain_name or None,
+                    "hostName":  host_name or None,
                     "shareName": SHARE_NAME,
                 },
             },
@@ -217,27 +203,6 @@ def _auth_callback(connId, smbServer, spnegoData,
         ).start()
     except Exception as exc:
         log.warning("auth callback error: %s", exc)
-
-    # Always deny — this is a honeypot
-    return None, None
-
-
-# ---------------------------------------------------------------------------
-# Connection callback — fires on every new TCP connection
-# ---------------------------------------------------------------------------
-def _connect_callback(connId, smbServer):
-    try:
-        conn_data = smbServer.getConnectionData(connId, checkStatus=False)
-        src_ip   = conn_data.get("ClientIP", "unknown")
-        src_port = conn_data.get("ClientPort")
-        log.info("connect from %s:%s connId=%s", src_ip, src_port, connId)
-        threading.Thread(
-            target=_send,
-            args=("connect", src_ip, src_port),
-            daemon=True,
-        ).start()
-    except Exception as exc:
-        log.debug("connect callback error: %s", exc)
 
 
 # ---------------------------------------------------------------------------
