@@ -51,7 +51,7 @@ function sensorEdge(
   const stroke = online ? color : "rgb(71,85,105)"   // slate-600 when offline
   return {
     id, source, target,
-    type: "smoothstep",
+    type: "default",   // bezier — natural curves, not right-angle steps
     animated: online,
     style: { stroke, strokeWidth: 1.5, strokeDasharray: online ? "6 4" : "4 4", strokeOpacity: online ? 1 : 0.45 },
   }

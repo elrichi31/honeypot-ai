@@ -4,14 +4,10 @@ import { Network } from "lucide-react"
 import type { Sensor } from "@/lib/api"
 import { TopologyCanvas } from "./topology-canvas"
 
-interface NetworkTopologyProps {
-  sensors: Sensor[]
-}
-
-export function NetworkTopology({ sensors }: NetworkTopologyProps) {
+export function NetworkTopology({ sensors }: { sensors: Sensor[] }) {
   if (sensors.length === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center rounded-xl border border-border bg-card text-center">
+      <div className="flex h-full flex-col items-center justify-center text-center">
         <Network className="h-10 w-10 text-muted-foreground/30 mb-3" />
         <p className="text-sm font-medium text-foreground mb-1">No sensors registered</p>
         <p className="text-xs text-muted-foreground max-w-sm">
@@ -22,7 +18,7 @@ export function NetworkTopology({ sensors }: NetworkTopologyProps) {
   }
 
   return (
-    <div className="h-full overflow-hidden rounded-xl border border-border bg-card">
+    <div className="h-full w-full">
       <TopologyCanvas sensors={sensors} />
     </div>
   )
