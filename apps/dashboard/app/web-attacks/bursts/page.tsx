@@ -168,7 +168,8 @@ export default async function WebBurstsPage({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="overflow-x-auto">
           <table className="min-w-[920px] w-full text-sm">
             <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b border-border">
@@ -227,6 +228,7 @@ export default async function WebBurstsPage({
               )}
             </tbody>
           </table>
+          </div>
         </div>
 
         <TablePagination pagination={burstsPage.pagination} />

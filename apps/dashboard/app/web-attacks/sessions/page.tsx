@@ -88,7 +88,7 @@ export default async function WebSessionsPage({
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-clip">
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b border-border">
