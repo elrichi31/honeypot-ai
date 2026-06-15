@@ -1,35 +1,42 @@
+"use client"
+
+import { memo } from "react"
+import { Handle, Position } from "@xyflow/react"
 import { WifiOff } from "lucide-react"
 import { getMeta } from "./constants"
-import { NODE_W, NODE_H } from "./constants"
-import type { SensorNode } from "./types"
+import type { Sensor } from "@/lib/api"
 
-interface SensorNodeCardProps {
-  node: SensorNode
+export type SensorNodeData = {
+  sensor: Sensor
   selected: boolean
-  onClick: () => void
+  zone: "external" | "internal"
 }
 
-export function SensorNodeCard({ node, selected, onClick }: SensorNodeCardProps) {
-  const meta = getMeta(node.sensor.protocol)
+export const RfSensorNode = memo(function RfSensorNode({ data }: { data: SensorNodeData }) {
+  const { sensor, zone } = data
+  const meta = getMeta(sensor.protocol)
   const Icon = meta.icon
 
   return (
     <div
-      onClick={(e) => { e.stopPropagation(); onClick() }}
-      className={`absolute rounded-xl border bg-card transition-all duration-150 p-3 cursor-pointer ${
-        selected ? meta.border : "border-border/50 hover:border-border"
+      className={`rounded-xl border bg-card p-3 transition-all duration-150 ${
+        data.selected ? meta.border : "border-border/50"
       }`}
       style={{
-        left:   node.x - NODE_W / 2,
-        top:    node.y - NODE_H / 2,
-        width:  NODE_W,
-        height: NODE_H,
-        zIndex: 2,
-        boxShadow: selected
+        width: 118,
+        minHeight: 104,
+        boxShadow: data.selected
           ? `0 0 0 1px rgb(${meta.glow}/0.5), 0 0 22px 4px rgb(${meta.glow}/0.35)`
           : undefined,
       }}
     >
+      {/* Top handle — receives connection from Internet or external sensor */}
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="!border-none !bg-transparent"
+      />
+
       <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${meta.bg} mb-2`}>
         <Icon className={`h-4 w-4 ${meta.color}`} />
       </div>
@@ -38,14 +45,14 @@ export function SensorNodeCard({ node, selected, onClick }: SensorNodeCardProps)
         {meta.label}
       </p>
       <p className="text-[10px] text-foreground font-medium leading-snug truncate mt-1">
-        {node.sensor.name}
+        {sensor.name}
       </p>
       <p className="font-mono text-[9px] text-muted-foreground truncate">
-        {node.sensor.ip || "-"}
+        {sensor.ip || "-"}
       </p>
 
       <div className="flex items-center gap-1 mt-1.5">
-        {node.sensor.online ? (
+        {sensor.online ? (
           <>
             <span className="relative flex h-1.5 w-1.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
@@ -60,6 +67,15 @@ export function SensorNodeCard({ node, selected, onClick }: SensorNodeCardProps)
           </>
         )}
       </div>
+
+      {/* Bottom handle — only shown for external sensors that connect to internal */}
+      {zone === "external" && (
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          className="!border-none !bg-transparent"
+        />
+      )}
     </div>
   )
-}
+})
