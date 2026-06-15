@@ -190,19 +190,18 @@ def _auth_callback(smbServer, connData, domain_name, user_name, host_name):
         log.info("auth user=%s domain=%s host=%s from %s:%s",
                  user_name, domain_name, host_name, src_ip, src_port)
 
-        threading.Thread(
-            target=_send,
-            args=("auth", src_ip, src_port),
-            kwargs={
-                "username": user_name or None,
-                "extra": {
-                    "domain":    domain_name or None,
-                    "hostName":  host_name or None,
-                    "shareName": SHARE_NAME,
-                },
-            },
-            daemon=True,
-        ).start()
+        # Ship synchronously so errors are visible in logs
+        try:
+            _send("auth", src_ip, src_port,
+                  username=user_name or None,
+                  extra={
+                      "domain":    domain_name or None,
+                      "hostName":  host_name or None,
+                      "shareName": SHARE_NAME,
+                  })
+            print(f"[smb-auth] shipped OK", flush=True, file=sys.stderr)
+        except Exception as send_exc:
+            print(f"[smb-auth] ship error: {send_exc}", flush=True, file=sys.stderr)
     except Exception as exc:
         print(f"[smb-auth] callback error: {exc}", flush=True, file=sys.stderr)
         log.warning("auth callback error: %s", exc)
