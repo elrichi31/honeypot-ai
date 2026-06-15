@@ -16,7 +16,7 @@ import { TableCell, TableRow } from "@/components/ui/table"
 export function TableCard({ className, children, ...props }: React.ComponentProps<"div">) {
   return (
     <Surface className={cn("overflow-hidden", className)} {...props}>
-      <div className="overflow-x-auto">{children}</div>
+      <div className="overflow-x-clip">{children}</div>
     </Surface>
   )
 }
