@@ -136,7 +136,9 @@ export async function protocolRoutes(fastify: FastifyInstance) {
 
     const cacheKey = `protocol-insights:${q.protocol}`
     return reply.send(await withCache(fastify.cache, cacheKey, 1800, async () => {
-    const [totals, topIps, topPorts, topUsernames, topPasswords, topCommands, topServices, topDatabases] = await Promise.all([
+    const isSmb = q.protocol === 'smb'
+
+    const [totals, topIps, topPorts, topUsernames, topPasswords, topCommands, topServices, topDatabases, topDomains, topShares, topNativeOS, topNtlmHashes] = await Promise.all([
       fastify.prisma.$queryRaw<Array<{
         total: number; unique_ips: number; auth_attempts: number; command_events: number; last_seen: Date | null;
       }>>`
@@ -205,6 +207,55 @@ export async function protocolRoutes(fastify: FastifyInstance) {
         ORDER BY count DESC
         LIMIT 10
       `,
+      // SMB-specific: NTLM domain/workgroup
+      isSmb
+        ? fastify.prisma.$queryRaw<Array<{ domain: string; count: number }>>`
+            SELECT data->>'domain' AS domain, COUNT(*)::int AS count
+            FROM protocol_hits
+            WHERE protocol = 'smb' AND data->>'domain' IS NOT NULL AND data->>'domain' <> ''
+            GROUP BY data->>'domain'
+            ORDER BY count DESC
+            LIMIT 10
+          `
+        : Promise.resolve([]),
+      // SMB-specific: accessed shares
+      isSmb
+        ? fastify.prisma.$queryRaw<Array<{ share: string; count: number }>>`
+            SELECT data->>'share' AS share, COUNT(*)::int AS count
+            FROM protocol_hits
+            WHERE protocol = 'smb' AND data->>'share' IS NOT NULL AND data->>'share' <> ''
+            GROUP BY data->>'share'
+            ORDER BY count DESC
+            LIMIT 10
+          `
+        : Promise.resolve([]),
+      // SMB-specific: NativeOS fingerprint of attacking host
+      isSmb
+        ? fastify.prisma.$queryRaw<Array<{ native_os: string; count: number }>>`
+            SELECT data->>'nativeOS' AS native_os, COUNT(*)::int AS count
+            FROM protocol_hits
+            WHERE protocol = 'smb' AND data->>'nativeOS' IS NOT NULL AND data->>'nativeOS' <> ''
+            GROUP BY data->>'nativeOS'
+            ORDER BY count DESC
+            LIMIT 10
+          `
+        : Promise.resolve([]),
+      // SMB-specific: top NTLM hashes (first 32 chars shown — enough for hashcat)
+      isSmb
+        ? fastify.prisma.$queryRaw<Array<{ ntlm_hash: string; username: string; count: number }>>`
+            SELECT
+              LEFT(data->>'ntlmHash', 32) AS ntlm_hash,
+              username,
+              COUNT(*)::int AS count
+            FROM protocol_hits
+            WHERE protocol = 'smb'
+              AND data->>'ntlmHash' IS NOT NULL
+              AND data->>'ntlmHash' <> ''
+            GROUP BY LEFT(data->>'ntlmHash', 32), username
+            ORDER BY count DESC
+            LIMIT 10
+          `
+        : Promise.resolve([]),
     ])
 
     const total = totals[0]
@@ -214,6 +265,10 @@ export async function protocolRoutes(fastify: FastifyInstance) {
         topIps: topIps.map(r => ({ srcIp: r.src_ip, count: r.count, lastSeen: r.last_seen })),
         topPorts: topPorts.map(r => ({ dstPort: r.dst_port, count: r.count, lastSeen: r.last_seen })),
         topUsernames, topPasswords, topCommands, topServices, topDatabases,
+        topDomains:    (topDomains    as Array<{ domain: string; count: number }>).map(r => ({ domain: r.domain, count: r.count })),
+        topShares:     (topShares     as Array<{ share: string; count: number }>).map(r => ({ share: r.share, count: r.count })),
+        topNativeOS:   (topNativeOS   as Array<{ native_os: string; count: number }>).map(r => ({ nativeOS: r.native_os, count: r.count })),
+        topNtlmHashes: (topNtlmHashes as Array<{ ntlm_hash: string; username: string; count: number }>).map(r => ({ ntlmHash: r.ntlm_hash, username: r.username, count: r.count })),
       }
     }))
   })

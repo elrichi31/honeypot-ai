@@ -379,7 +379,6 @@ services:
       - "8081:81"
       - "69:69/udp"
       - "135:135"
-      - "445:445"
       - "1433:1433"
       - "1723:1723"
       - "1883:1883"
@@ -395,7 +394,6 @@ services:
       - ./sensors/dionaea/services-enabled/mqtt.yaml:/opt/dionaea/etc/dionaea/services-enabled/mqtt.yaml:ro
       - ./sensors/dionaea/services-enabled/mssql.yaml:/opt/dionaea/etc/dionaea/services-enabled/mssql.yaml:ro
       - ./sensors/dionaea/services-enabled/pptp.yaml:/opt/dionaea/etc/dionaea/services-enabled/pptp.yaml:ro
-      - ./sensors/dionaea/services-enabled/smb.yaml:/opt/dionaea/etc/dionaea/services-enabled/smb.yaml:ro
       - ./sensors/dionaea/services-enabled/tftp.yaml:/opt/dionaea/etc/dionaea/services-enabled/tftp.yaml:ro
       - ./sensors/dionaea/util.py:/opt/dionaea/lib/dionaea/python/dionaea/util.py:ro
     networks:
@@ -430,8 +428,8 @@ services:
       SENSOR_VERSION: ${SENSOR_VERSION_DIONAEA:-dionaea}
       SENSOR_IP: ${HONEYPOT_IP:-}
       SENSOR_HOST: dionaea
-      SENSOR_PORTS: "21 42 135 445 1433 1723 1883 3306 8081"
-      SENSOR_PROBE_PORTS: "21 42 135 445 1433 1723 1883 3306 81"
+      SENSOR_PORTS: "21 42 135 1433 1723 1883 3306 8081"
+      SENSOR_PROBE_PORTS: "21 42 135 1433 1723 1883 3306 81"
       DIONAEA_LOG_PATH: /opt/dionaea/var/lib/dionaea/dionaea.json
       DIONAEA_OFFSET_FILE: /state/dionaea.offset
       READ_FROM_END: "1"
@@ -516,6 +514,47 @@ services:
           cpus: "0.5"
           pids: 256
 
+  smb-honeypot:
+    <<: *service-defaults
+    logging: *json-logging
+    build:
+      context: ./sensors/smb-honeypot
+    container_name: smb-honeypot
+    cap_add:
+      - NET_BIND_SERVICE
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+    environment:
+      INGEST_API_URL: http://ingest-api:3000
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      PORT: "445"
+      DST_PORT: "445"
+      SENSOR_ID: ${SENSOR_ID_SMB:-smb-01}
+      SENSOR_NAME: SMB Honeypot
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
+      SENSOR_IP: ${HONEYPOT_IP:-}
+      SENSOR_HOST: smb-honeypot
+      SMB_SHARE_NAME: ${SMB_SHARE_NAME:-ADMIN$}
+      SMB_SERVER_NAME: ${SMB_SERVER_NAME:-FILESERVER01}
+      SMB_SERVER_DOMAIN: ${SMB_SERVER_DOMAIN:-CORP}
+      SMB_SHARE_PATH: /share
+      SMB_CAPTURE_DIR: /captures
+    ports:
+      - "445:445"
+    volumes:
+      - smb_share:/share
+      - smb_captures:/captures
+    networks:
+      - edge
+      - honeypot_ingest
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          pids: 128
+
   dashboard:
     <<: *service-defaults
     logging: *json-logging
@@ -577,6 +616,7 @@ services:
     volumes:
       - dionaea_var:/data/dionaea
       - cowrie_var:/data/cowrie
+      - smb_captures:/data/smb-captures
     command: >
       sh -c "
         while true; do
@@ -586,6 +626,8 @@ services:
           find /data/dionaea/binaries -type f -mtime +30 -delete 2>/dev/null || true;
           echo \"[maintenance] $$(date): cleaning cowrie downloads > 30d\";
           find /data/cowrie/lib/cowrie/downloads -type f -mtime +30 -delete 2>/dev/null || true;
+          echo \"[maintenance] $$(date): cleaning smb captures > 30d\";
+          find /data/smb-captures -type f -mtime +30 -delete 2>/dev/null || true;
           echo \"[maintenance] $$(date): truncating dionaea.json if > 100MB\";
           [ -f /data/dionaea/dionaea.json ] && [ $$(stat -c%s /data/dionaea/dionaea.json 2>/dev/null || echo 0) -gt 104857600 ] && cp /dev/null /data/dionaea/dionaea.json || true;
           echo \"[maintenance] $$(date): done — sleeping 24h\";
@@ -609,6 +651,8 @@ volumes:
   dashboard_data:
   vector_data:
   suricata_logs:
+  smb_share:
+  smb_captures:
 
 networks:
   edge:

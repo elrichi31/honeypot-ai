@@ -208,10 +208,46 @@ services:
       - edge
     pids_limit: 256
 
+  smb-honeypot:
+    <<: *service-defaults
+    logging: *json-logging
+    build:
+      context: ./sensors/smb-honeypot
+    container_name: smb-honeypot
+    environment:
+      INGEST_API_URL: ${INGEST_API_URL}
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      PORT: "445"
+      DST_PORT: "445"
+      SENSOR_ID: ${SENSOR_ID_SMB:-smb-01}
+      SENSOR_NAME: SMB Honeypot
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
+      SENSOR_IP: ${HONEYPOT_IP:-}
+      SENSOR_HOST: smb-honeypot
+      SMB_SHARE_NAME: ${SMB_SHARE_NAME:-ADMIN$}
+      SMB_SERVER_NAME: ${SMB_SERVER_NAME:-FILESERVER01}
+      SMB_SERVER_DOMAIN: ${SMB_SERVER_DOMAIN:-CORP}
+      SMB_SHARE_PATH: /share
+      SMB_CAPTURE_DIR: /captures
+    ports:
+      - "445:445"
+    volumes:
+      - smb_share:/share
+      - smb_captures:/captures
+    networks:
+      - edge
+    # NET_BIND_SERVICE to bind port 445 (<1024) as non-root
+    cap_add:
+      - NET_BIND_SERVICE
+    pids_limit: 128
+
 volumes:
   cowrie_var:
   vector_data:
   suricata_logs:
+  smb_share:
+  smb_captures:
 
 networks:
   edge:

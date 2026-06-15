@@ -42,28 +42,33 @@ export function NoveltyStatsView({ novelty }: Props) {
         </div>
 
         {/* Top new IPs */}
-        <div>
+        <div className="min-w-0">
           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
             Top new IPs by activity
           </p>
           {topNewIps.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">No new IPs in window</p>
           ) : (
-            <div className="space-y-1.5">
-              {topNewIps.map((entry) => (
-                <div key={entry.srcIp} className="flex items-center justify-between gap-3">
-                  <span className="font-mono text-xs text-foreground">{entry.srcIp}</span>
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="h-1.5 rounded-full bg-amber-400/70"
-                      style={{ width: `${Math.max(12, (entry.hits / (topNewIps[0]?.hits || 1)) * 80)}px` }}
-                    />
-                    <span className="w-10 text-right text-xs tabular-nums text-muted-foreground">
-                      {entry.hits.toLocaleString("en-US")}
-                    </span>
+            <div className="space-y-2">
+              {topNewIps.map((entry) => {
+                const pct = Math.max(5, (entry.hits / (topNewIps[0]?.hits || 1)) * 100)
+                return (
+                  <div key={entry.srcIp} className="space-y-0.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs text-foreground truncate">{entry.srcIp}</span>
+                      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                        {entry.hits.toLocaleString("en-US")}
+                      </span>
+                    </div>
+                    <div className="h-1 w-full rounded-full bg-border/40">
+                      <div
+                        className="h-1 rounded-full bg-amber-400/80"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
