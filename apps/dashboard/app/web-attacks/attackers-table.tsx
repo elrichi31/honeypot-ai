@@ -111,11 +111,11 @@ export function AttackersTable({
               </div>
             </td>
 
-            <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+            <td suppressHydrationWarning className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
               {formatDistanceToNow(new Date(attacker.firstSeen), { addSuffix: true })}
             </td>
 
-            <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+            <td suppressHydrationWarning className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
               {formatDistanceToNow(new Date(attacker.lastSeen), { addSuffix: true })}
             </td>
           </tr>

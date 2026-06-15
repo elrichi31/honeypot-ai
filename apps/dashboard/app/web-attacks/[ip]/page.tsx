@@ -127,7 +127,7 @@ export default async function WebAttackerDetailPage({
               {location?.countryName && (
                 <p className="mt-0.5 text-sm text-muted-foreground">{location.countryName}</p>
               )}
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p suppressHydrationWarning className="mt-1 text-xs text-muted-foreground">
                 First hit {formatDistanceToNow(new Date(attacker.firstSeen), { addSuffix: true })} ·{" "}
                 Last {formatDistanceToNow(new Date(attacker.lastSeen), { addSuffix: true })}
               </p>
