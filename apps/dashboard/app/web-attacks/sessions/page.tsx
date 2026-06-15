@@ -90,8 +90,8 @@ export default async function WebSessionsPage({
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
+            <thead className="sticky top-0 z-10 bg-card">
+              <tr className="border-b border-border">
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Fingerprint</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">IPs</th>
                 <th className="px-4 py-2.5 text-right font-medium text-muted-foreground">Hits</th>

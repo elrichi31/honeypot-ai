@@ -111,7 +111,7 @@ export default function ContainerStatsChart() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-[12px]">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-card">
                 <tr className="border-b border-border text-left">
                   <th className="px-4 py-2 text-muted-foreground font-medium">Container</th>
                   <th className="px-4 py-2 text-muted-foreground font-medium text-right">CPU %</th>

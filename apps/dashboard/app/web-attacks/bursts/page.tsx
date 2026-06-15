@@ -170,8 +170,8 @@ export default async function WebBurstsPage({
 
         <div className="min-h-0 flex-1 overflow-auto">
           <table className="min-w-[920px] w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
+            <thead className="sticky top-0 z-10 bg-card">
+              <tr className="border-b border-border">
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Attacker IP</th>
                 <SortableBurstTh label="Started" column="startedAt" sortBy={sortBy} sortDir={sortDir} baseParams={baseParams} />
                 <SortableBurstTh label="Duration" column="durationSec" sortBy={sortBy} sortDir={sortDir} baseParams={baseParams} />
