@@ -17,7 +17,6 @@ import {
 } from "@xyflow/react"
 import type { Sensor } from "@/lib/api"
 
-import { RfInternetNode }              from "./rf-internet-node"
 import { RfSensorNode, type SensorNodeData } from "./rf-sensor-node"
 import { RfClientLabel }               from "./rf-client-label"
 import { SensorPanel }                 from "./sensor-panel"
@@ -29,12 +28,10 @@ const NODE_W      = 118
 const NODE_H      = 110
 const COL_STEP    = NODE_W + 32   // column pitch
 const GROUP_GAP   = 100           // horizontal gap between client groups
-const INET_Y      = 40            // Internet node y
-const CLIENT_Y    = 200           // Client node y
+const CLIENT_Y    = 40            // Client node y
 const SENSOR_Y    = 380           // Sensor row y
 
 const nodeTypes: NodeTypes = {
-  internet:    RfInternetNode,
   sensor:      RfSensorNode,
   clientLabel: RfClientLabel,
 }
@@ -74,16 +71,7 @@ function buildGraph(sensors: Sensor[]): { nodes: Node[]; edges: Edge[] } {
   }
   const totalW = cursor - GROUP_GAP
 
-  // Internet node — centred above all clients
-  nodes.push({
-    id:        "__internet__",
-    type:      "internet",
-    position:  { x: totalW / 2 - 105, y: INET_Y },
-    data:      {},
-    draggable: false,
-    selectable: false,
-    zIndex: 10,
-  })
+  // (Internet node removed — topology starts at client level)
 
   // Pass 2 — one client node per group + its sensors below
   for (let gi = 0; gi < groups.length; gi++) {
@@ -103,9 +91,6 @@ function buildGraph(sensors: Sensor[]): { nodes: Node[]; edges: Edge[] } {
       draggable: true,
       zIndex: 15,
     })
-
-    // Internet → Client (cyan when any sensor online)
-    edges.push(sensorEdge(`inet-${clientId}`, "__internet__", clientId, anyOnline, "rgb(34,211,238)"))
 
     // All sensors (ext + int) laid out in a single row below the client node
     const allSensors = [...group.external, ...group.internal]
@@ -206,12 +191,6 @@ export function TopologyCanvas({ sensors }: { sensors: Sensor[] }) {
 
         {/* Legend */}
         <div className="pointer-events-none absolute bottom-4 left-[calc(1rem+68px)] z-10 flex select-none items-center gap-4 text-[9px] text-muted-foreground/55">
-          <span className="flex items-center gap-1.5">
-            <svg width="20" height="8">
-              <line x1="0" y1="4" x2="20" y2="4" stroke="rgb(34,211,238)" strokeWidth="1.5" strokeDasharray="5 3" />
-            </svg>
-            Internet → Cliente
-          </span>
           <span className="flex items-center gap-1.5">
             <svg width="20" height="8">
               <line x1="0" y1="4" x2="20" y2="4" stroke="rgb(139,92,246)" strokeWidth="1.5" strokeDasharray="5 3" />

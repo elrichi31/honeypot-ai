@@ -19,9 +19,6 @@ export const RfClientLabel = memo(function RfClientLabel({
       className="flex items-center gap-2 rounded-xl border border-border/60 bg-card/90 px-4 py-2.5 backdrop-blur-sm shadow-lg"
       style={{ whiteSpace: "nowrap" }}
     >
-      {/* receives from Internet */}
-      <Handle type="target" position={Position.Top} className="!border-none !bg-transparent" />
-
       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted/60">
         <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
       </div>
