@@ -124,7 +124,7 @@ export async function SensorActivityGrid({ overview }: { overview: HoneypotOverv
               {(item.subtitle || when) && (
                 <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground/70">
                   {item.subtitle && <span className="truncate">{item.subtitle}</span>}
-                  {when && <span className="ml-auto shrink-0">{when}</span>}
+                  {when && <span suppressHydrationWarning className="ml-auto shrink-0">{when}</span>}
                 </div>
               )}
             </Link>
