@@ -181,10 +181,12 @@ def _seed_decoy_files(path: str):
 #   (0xc000006d, 'STATUS_LOGON_FAILURE') = deny auth (honeypot behaviour)
 # ---------------------------------------------------------------------------
 def _auth_callback(smbServer, connData, domain_name, user_name, host_name):
+    import sys
     try:
         src_ip   = connData.get("ClientIP", "unknown")
         src_port = connData.get("ClientPort")
 
+        print(f"[smb-auth] user={user_name} domain={domain_name} host={host_name} src={src_ip}:{src_port}", flush=True, file=sys.stderr)
         log.info("auth user=%s domain=%s host=%s from %s:%s",
                  user_name, domain_name, host_name, src_ip, src_port)
 
@@ -202,6 +204,7 @@ def _auth_callback(smbServer, connData, domain_name, user_name, host_name):
             daemon=True,
         ).start()
     except Exception as exc:
+        print(f"[smb-auth] callback error: {exc}", flush=True, file=sys.stderr)
         log.warning("auth callback error: %s", exc)
 
 
