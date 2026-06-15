@@ -184,8 +184,6 @@ class HoneypotSMBServer(SimpleSMBServer):
         super().__init__(listenAddress="0.0.0.0", listenPort=PORT)
 
         self.addShare(SHARE_NAME, SHARE_PATH, "File Share")
-        # Also expose IPC$ so Windows clients don't error out
-        self.addShare("IPC$", SHARE_PATH, "IPC Service")
 
         self.setSMBChallenge("")  # static challenge makes NTLM hashes reproducible
         self.setLogFile("/dev/null")  # suppress Impacket's own file logging
