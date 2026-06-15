@@ -107,6 +107,17 @@ const CATALOG: CatalogEntry[] = [
     iconBg: "bg-violet-400/10",
   },
   {
+    serviceKey: "smb",
+    protocol: "smb",
+    name: "SMB Honeypot (Impacket)",
+    description: "Captures NTLM auth, domains, OS fingerprints and file drops on port 445. Requires port 445 to be free.",
+    sensorPrefix: "smb",
+    ports: ":445",
+    icon: Server,
+    iconColor: "text-orange-400",
+    iconBg: "bg-orange-400/10",
+  },
+  {
     serviceKey: null,
     protocol: "dionaea",
     name: "Dionaea Multi-Protocol",

@@ -10,7 +10,7 @@ export function buildScript(
   clientSlug = "",
   clientName = "",
 ): string {
-  const compose = buildCompose(deployId, ingestUrl, secret, services, registry, clientSlug, clientName)
+  const compose = buildCompose(deployId, ingestUrl, secret, services, registry, clientSlug, clientName, rawBase)
   return SCRIPT_TEMPLATE
     .replaceAll("{{services}}", services.join(", "))
     .replaceAll("{{clientLine}}", clientLine(clientSlug, clientName))

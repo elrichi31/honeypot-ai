@@ -7,6 +7,7 @@ import {
   internalCanaryBlock,
   mysqlBlock,
   portBlock,
+  smbBlock,
   sshBlock,
   suricataBlock,
   vectorOnlyBlock,
@@ -29,9 +30,10 @@ export function buildCompose(
   registry = DEFAULT_REGISTRY,
   clientSlug = "",
   clientName = "",
+  rawBase = "",
 ): string {
   const isInternalCanary = services.includes("internal-canary")
-  const blocks = selectedServiceBlocks(services, deployId, registry)
+  const blocks = selectedServiceBlocks(services, deployId, registry, rawBase)
   const volumeLines = buildVolumeLines(services)
   // Internal canary is a standalone LAN deploy — no Suricata (no internet iface)
   // and no standard edge network.
@@ -45,7 +47,7 @@ export function buildCompose(
   ].join("\n\n")
 }
 
-function selectedServiceBlocks(services: ServiceKey[], deployId: string, registry: string) {
+function selectedServiceBlocks(services: ServiceKey[], deployId: string, registry: string, rawBase: string) {
   // Internal canary is a fully standalone compose — mutually exclusive with all
   // other services which are internet-facing DMZ sensors.
   if (services.includes("internal-canary")) {
@@ -60,6 +62,7 @@ function selectedServiceBlocks(services: ServiceKey[], deployId: string, registr
   if (services.includes("ftp")) blocks.push(ftpBlock(deployId, registry))
   if (services.includes("mysql")) blocks.push(mysqlBlock(deployId, registry))
   if (services.includes("port")) blocks.push(portBlock(deployId, registry))
+  if (services.includes("smb")) blocks.push(smbBlock(deployId, rawBase))
   if (withDeception) blocks.push(deceptionBlock(deployId, registry))
   return blocks
 }
@@ -98,6 +101,7 @@ function buildVolumeLines(services: ServiceKey[]) {
   const volumes = ["volumes:"]
   if (services.includes("ssh")) volumes.push("  cowrie_var:")
   volumes.push("  vector_data:", "  suricata_logs:")
+  if (services.includes("smb")) volumes.push("  smb_share:", "  smb_captures:")
   if (services.includes("deception")) volumes.push("  opencanary_logs:", "  opencanary_shipper_state:")
   return volumes.join("\n")
 }

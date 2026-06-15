@@ -1,4 +1,4 @@
-export type ServiceKey = "ssh" | "http" | "ftp" | "mysql" | "port" | "deception" | "internal-canary"
+export type ServiceKey = "ssh" | "http" | "ftp" | "mysql" | "port" | "deception" | "internal-canary" | "smb"
 
 export const ALL_SERVICES: ServiceKey[] = ["ssh", "http", "ftp", "mysql", "port", "deception"]
 
@@ -52,6 +52,10 @@ export function deceptionBlock(deployId: string, registry: string) {
 
 export function internalCanaryBlock(deployId: string, registry: string) {
   return fill(INTERNAL_CANARY_TEMPLATE, { deployId, registry })
+}
+
+export function smbBlock(deployId: string, rawBase: string) {
+  return fill(SMB_TEMPLATE, { deployId, rawBase })
 }
 
 const HEADER_TEMPLATE = `x-service-defaults: &service-defaults
@@ -486,6 +490,46 @@ const INTERNAL_CANARY_TEMPLATE = `  ic-cowrie:
     networks:
       - ic_net
     pids_limit: 32`
+
+const SMB_TEMPLATE = `  smb-honeypot:
+    <<: *service-defaults
+    logging: *json-logging
+    # SMB Honeypot uses Impacket — built from source, not a registry image.
+    # Pull the latest app.py from the repo and build locally.
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.12-alpine
+        RUN apk add --no-cache gcc musl-dev libffi-dev openssl-dev && \\
+            pip install --no-cache-dir impacket==0.12.0 && \\
+            apk del gcc musl-dev libffi-dev
+        WORKDIR /app
+        ADD {{rawBase}}/sensors/smb-honeypot/app.py /app/app.py
+        CMD ["python", "-u", "app.py"]
+    container_name: smb-honeypot
+    cap_add:
+      - NET_BIND_SERVICE
+    environment:
+      <<: *ingest
+      PORT: "445"
+      DST_PORT: "445"
+      SENSOR_ID: smb-{{deployId}}
+      SENSOR_NAME: "SMB Honeypot"
+      SENSOR_IP: ""
+      SENSOR_HOST: smb-honeypot
+      SMB_SHARE_NAME: "\${SMB_SHARE_NAME:-ADMIN$}"
+      SMB_SERVER_NAME: "\${SMB_SERVER_NAME:-FILESERVER01}"
+      SMB_SERVER_DOMAIN: "\${SMB_SERVER_DOMAIN:-CORP}"
+      SMB_SHARE_PATH: /share
+      SMB_CAPTURE_DIR: /captures
+    ports:
+      - "445:445"
+    volumes:
+      - smb_share:/share
+      - smb_captures:/captures
+    networks:
+      - edge
+    pids_limit: 128`
 
 const VECTOR_ONLY_TEMPLATE = `  vector:
     image: timberio/vector:0.40.0-alpine
