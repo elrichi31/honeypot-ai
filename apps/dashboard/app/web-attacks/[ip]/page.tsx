@@ -371,15 +371,14 @@ export default async function WebAttackerDetailPage({
               {enrichment.virustotal && (
                 <div className="space-y-1 min-w-[120px]">
                   <p className="text-xs font-medium text-muted-foreground">VirusTotal</p>
-                  {"malicious" in (enrichment.virustotal as object) ? (
-                    <>
-                      <p className={`text-2xl font-bold ${(enrichment.virustotal as { malicious: number }).malicious > 0 ? "text-red-400" : "text-green-400"}`}>
-                        {(enrichment.virustotal as { malicious: number }).malicious}
-                      </p>
-                      <p className="text-xs text-muted-foreground">malicious detections</p>
-                    </>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">data available</p>
+                  <p className={`text-2xl font-bold ${enrichment.virustotal.last_analysis_stats.malicious > 0 ? "text-red-400" : "text-green-400"}`}>
+                    {enrichment.virustotal.last_analysis_stats.malicious}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    malicious · {enrichment.virustotal.last_analysis_stats.suspicious} suspicious
+                  </p>
+                  {enrichment.virustotal.reputation !== 0 && (
+                    <p className="text-xs text-muted-foreground">reputation: {enrichment.virustotal.reputation}</p>
                   )}
                 </div>
               )}
