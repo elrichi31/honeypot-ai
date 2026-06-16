@@ -44,7 +44,13 @@ export default async function WebAttackerDetailPage({
   let enrichment = null
   try { enrichment = await enrichIp(srcIp) } catch {}
 
-  const location = lookupIp(srcIp)
+  // Prefer enrichment APIs (more accurate) over local geoip-lite
+  const geoFallback = lookupIp(srcIp)
+  const enrichCountry = enrichment?.abuseipdb?.countryCode || enrichment?.ipinfo?.country || null
+  const enrichCountryName = enrichment?.abuseipdb?.countryName || enrichment?.ipinfo?.country || null
+  const location = enrichCountry
+    ? { country: enrichCountry, countryName: enrichCountryName ?? enrichCountry }
+    : geoFallback
 
   // Breakdown por tipo de ataque
   const byType = hits.reduce<Record<string, number>>((acc, h) => {

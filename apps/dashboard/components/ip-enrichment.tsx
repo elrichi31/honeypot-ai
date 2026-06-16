@@ -400,11 +400,11 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
         </span>
       </div>
 
-      {/* 3-column grid: AbuseIPDB | Network/IPInfo | VirusTotal */}
-      <div className="grid divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+      {/* 2-column grid: AbuseIPDB + Network | VirusTotal */}
+      <div className="grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0">
 
-        {/* ── Column 1: AbuseIPDB ── */}
-        <div className="space-y-3 p-4">
+        {/* ── Column 1: AbuseIPDB + Network info ── */}
+        <div className="space-y-4 p-4">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">AbuseIPDB</p>
           {ab ? (
             <>
@@ -435,7 +435,7 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
                 </div>
               )}
 
-              {/* Meta fields */}
+              {/* AbuseIPDB meta */}
               <div className="space-y-1.5 text-xs">
                 {ab.isp && (
                   <div className="flex items-center gap-1.5">
@@ -481,7 +481,7 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
                 )}
               </div>
 
-              {/* Privacy flags */}
+              {/* Privacy + hosting flags */}
               {privacyFlags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {privacyFlags.map((f) => <Tag key={f.label} label={f.label} variant={f.v} />)}
@@ -513,86 +513,87 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
           ) : (
             <p className="text-xs text-muted-foreground">No AbuseIPDB data</p>
           )}
-        </div>
 
-        {/* ── Column 2: Network / IPInfo ── */}
-        <div className="space-y-3 p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Network</p>
-
-          {/* Org + ASN (prefer ipinfo, fallback to VT) */}
-          {(info?.org || ab?.isp) && (
-            <p className="text-sm font-semibold text-foreground">{info?.org || ab?.isp}</p>
-          )}
-          {(info?.asn || vt?.asn) && (
-            <p className="font-mono text-xs text-muted-foreground">
-              {info?.asn || `AS${vt!.asn}`}
-              {vt?.as_owner && vt.as_owner !== (info?.org || ab?.isp) ? ` · ${vt.as_owner}` : ""}
-            </p>
-          )}
-          {vt?.network && <p className="font-mono text-[10px] text-muted-foreground">{vt.network}</p>}
-          {(info?.hostname || ab?.hostnames?.[0]) && (
-            <p className="font-mono text-xs text-muted-foreground break-all">{info?.hostname || ab?.hostnames?.[0]}</p>
-          )}
-
-          {/* Location */}
-          {(info?.city || info?.region || info?.country || vt?.country || ab?.countryName) && (
-            <div className="rounded-md bg-muted/30 px-2 py-1.5 text-xs space-y-0.5">
-              <p className="text-muted-foreground text-[10px] uppercase tracking-wide">Location</p>
-              <div className="flex items-center gap-1.5">
-                {(info?.country || vt?.country || ab?.countryCode) && (
-                  <CountryFlag code={info?.country || vt?.country || ab?.countryCode || ""} />
+          {/* ── Network / IPInfo (merged into col 1) ── */}
+          {(info || vt?.asn || vt?.network) && (
+            <div className="space-y-2 border-t border-border pt-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Network</p>
+              <div className="space-y-1.5 text-xs">
+                {/* Org + ASN */}
+                {(info?.org) && (
+                  <div className="flex items-center gap-1.5">
+                    <Building2 className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    <span className="font-medium text-foreground">{info.org}</span>
+                  </div>
                 )}
-                <p className="font-semibold text-foreground">
-                  {[info?.city, info?.region, info?.country || vt?.country || ab?.countryName].filter(Boolean).join(", ")}
-                  {info?.postal ? ` (${info.postal})` : ""}
-                </p>
+                {(info?.asn || vt?.asn) && (
+                  <div className="flex items-center gap-1.5">
+                    <Hash className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    <span className="font-mono text-muted-foreground">
+                      {info?.asn || `AS${vt!.asn}`}
+                      {vt?.as_owner && vt.as_owner !== info?.org ? ` · ${vt.as_owner}` : ""}
+                    </span>
+                  </div>
+                )}
+                {vt?.network && (
+                  <div className="flex items-center gap-1.5">
+                    <Network className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    <span className="font-mono text-[10px] text-muted-foreground">{vt.network}</span>
+                  </div>
+                )}
+                {(info?.hostname) && (
+                  <div className="flex items-center gap-1.5">
+                    <Server className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    <span className="font-mono text-[10px] text-muted-foreground break-all">{info.hostname}</span>
+                  </div>
+                )}
+                {/* Location */}
+                {(info?.city || info?.region || info?.country || vt?.country) && (
+                  <div className="rounded-md bg-muted/30 px-2 py-1.5 space-y-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <CountryFlag code={info?.country || vt?.country || ""} />
+                      <span className="font-semibold text-foreground">
+                        {[info?.city, info?.region, info?.country || vt?.country].filter(Boolean).join(", ")}
+                        {info?.postal ? ` (${info.postal})` : ""}
+                      </span>
+                    </div>
+                    {info?.timezone && <p className="text-muted-foreground">{info.timezone}</p>}
+                    {(vt?.continent || vt?.regional_internet_registry) && (
+                      <p className="text-muted-foreground">
+                        {[vt.continent, vt.regional_internet_registry].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
+                    {info?.loc && (
+                      <div className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        <span className="font-mono text-[10px] text-muted-foreground">{info.loc}</span>
+                        <a href={`https://maps.google.com/?q=${info.loc}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-400 hover:underline">Maps ↗</a>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* Extra privacy flags from IPInfo not already shown above */}
+                {info && (
+                  <div className="flex flex-wrap gap-1">
+                    {info.isTor && !ab?.isTor && <span className="inline-flex items-center rounded-full border border-red-500/40 bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400">Tor (IPInfo)</span>}
+                    {info.isVpn && !ab?.isVpn && <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400">VPN (IPInfo)</span>}
+                    {info.isProxy && <span className="inline-flex items-center rounded-full border border-orange-500/40 bg-orange-500/15 px-2 py-0.5 text-[10px] font-semibold text-orange-400">Proxy</span>}
+                    {info.isHosting && <span className="inline-flex items-center rounded-full border border-blue-500/40 bg-blue-500/15 px-2 py-0.5 text-[10px] font-semibold text-blue-400">Hosting/DC</span>}
+                  </div>
+                )}
+                {vt?.jarm && (
+                  <div className="flex items-center gap-1.5">
+                    <Key className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    <span className="font-mono text-[10px] text-muted-foreground">JARM {vt.jarm.slice(0, 32)}…</span>
+                  </div>
+                )}
               </div>
-              {info?.timezone && <p className="text-muted-foreground">{info.timezone}</p>}
-              {(vt?.continent || vt?.regional_internet_registry) && (
-                <p className="text-muted-foreground">
-                  {[vt.continent, vt.regional_internet_registry].filter(Boolean).join(" · ")}
-                </p>
-              )}
-              {info?.loc && (
-                <div className="flex items-center gap-1">
-                  <MapPin className="h-3 w-3 shrink-0 text-muted-foreground" />
-                  <span className="font-mono text-[10px] text-muted-foreground">{info.loc}</span>
-                  <a href={`https://maps.google.com/?q=${info.loc}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-400 hover:underline">Maps ↗</a>
-                </div>
-              )}
             </div>
           )}
 
-          {/* Domain from AbuseIPDB */}
-          {ab?.domain && (
-            <div className="rounded-md bg-muted/30 px-2 py-1.5 text-xs">
-              <p className="text-muted-foreground text-[10px]">Domain</p>
-              <p className="font-mono font-semibold text-foreground">{ab.domain}</p>
-            </div>
-          )}
-
-          {/* Privacy flags */}
-          {(info || ab) && (
-            <div className="flex flex-wrap gap-1">
-              {(ab?.isTor || info?.isTor) && <span className="inline-flex items-center rounded-full border border-red-500/40 bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400">Tor exit node</span>}
-              {(ab?.isVpn || info?.isVpn) && <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400">VPN</span>}
-              {info?.isProxy && <span className="inline-flex items-center rounded-full border border-orange-500/40 bg-orange-500/15 px-2 py-0.5 text-[10px] font-semibold text-orange-400">Proxy</span>}
-              {info?.isHosting && <span className="inline-flex items-center rounded-full border border-blue-500/40 bg-blue-500/15 px-2 py-0.5 text-[10px] font-semibold text-blue-400">Hosting/DC</span>}
-              {ab?.isWhitelisted && <span className="inline-flex items-center rounded-full border border-green-500/40 bg-green-500/15 px-2 py-0.5 text-[10px] font-semibold text-green-400">Whitelisted</span>}
-            </div>
-          )}
-
-          {/* JARM fingerprint */}
-          {vt?.jarm && (
-            <div className="flex items-center gap-1.5">
-              <Key className="h-3 w-3 shrink-0 text-muted-foreground" />
-              <span className="font-mono text-[10px] text-muted-foreground">JARM {vt.jarm.slice(0, 32)}…</span>
-            </div>
-          )}
-
-          {/* Spectra Analyze (fits naturally in network column) */}
+          {/* ── Spectra Analyze (appended to col 1) ── */}
           {spectra && (
-            <div className="space-y-2 border-t border-border pt-3">
+            <div className="space-y-2 border-t border-border pt-4">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Spectra Analyze</p>
               {(spectraStats || spectraDownloaded) && (
                 <div className="space-y-1.5">
@@ -649,7 +650,7 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
           )}
         </div>
 
-        {/* ── Column 3: VirusTotal ── */}
+        {/* ── Column 2: VirusTotal ── */}
         <div className="space-y-3 p-4">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">VirusTotal</p>
           {vt ? (
