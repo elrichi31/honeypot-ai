@@ -19,6 +19,9 @@ import {
   ShieldAlert,
   Network,
   Key,
+  FileText,
+  CheckCircle2,
+  Calendar,
 } from "lucide-react"
 import type { AbuseReport, IpEnrichment } from "@/app/api/enrich/[ip]/route"
 import type { VtIpData } from "@/lib/virustotal"
@@ -99,6 +102,34 @@ function VtDetectionBar({ stats }: { stats: VtIpData["last_analysis_stats"] }) {
   )
 }
 
+function WhoisBlock({ whois, whoisDate }: { whois: string; whoisDate: number | null }) {
+  const [expanded, setExpanded] = useState(false)
+  const lines = whois.trim().split("\n")
+  const preview = lines.slice(0, 8)
+  const hasMore = lines.length > 8
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <FileText className="h-3 w-3 shrink-0 text-muted-foreground" />
+          <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+            WHOIS{whoisDate ? ` · ${formatDistanceToNow(new Date(whoisDate * 1000), { addSuffix: true })}` : ""}
+          </p>
+        </div>
+        {hasMore && (
+          <button onClick={() => setExpanded((p) => !p)} className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+            {expanded ? <><ChevronUp className="h-3 w-3" />Less</> : <><ChevronDown className="h-3 w-3" />Full WHOIS</>}
+          </button>
+        )}
+      </div>
+      <pre className="max-h-48 overflow-auto rounded-lg border border-border bg-secondary/20 p-2.5 font-mono text-[10px] leading-relaxed text-muted-foreground whitespace-pre-wrap break-all">
+        {(expanded ? lines : preview).join("\n")}
+        {!expanded && hasMore && "\n…"}
+      </pre>
+    </div>
+  )
+}
+
 function VtIpSection({ vt }: { vt: VtIpData }) {
   const [showEngines, setShowEngines] = useState(false)
   const maliciousEngines = Object.entries(vt.last_analysis_results)
@@ -109,12 +140,7 @@ function VtIpSection({ vt }: { vt: VtIpData }) {
   const scoreColor = score >= 5 ? "text-destructive" : score >= 1 ? "text-warning" : "text-success"
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="flex items-center gap-2">
-        <ShieldAlert className="h-3.5 w-3.5 text-orange-400" />
-        <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">VirusTotal</p>
-      </div>
-
+    <div className="space-y-4">
       {/* Score header */}
       <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
         <div>
@@ -208,11 +234,26 @@ function VtIpSection({ vt }: { vt: VtIpData }) {
           {vt.last_https_certificate.subject?.O && (
             <div className="flex gap-2"><span className="text-muted-foreground w-14 shrink-0">Org</span><span className="text-foreground">{vt.last_https_certificate.subject.O}</span></div>
           )}
+          {vt.last_https_certificate.subject?.C && (
+            <div className="flex gap-2"><span className="text-muted-foreground w-14 shrink-0">Country</span><span className="text-muted-foreground">{vt.last_https_certificate.subject.C}</span></div>
+          )}
           {vt.last_https_certificate.issuer?.CN && (
             <div className="flex gap-2"><span className="text-muted-foreground w-14 shrink-0">Issuer</span><span className="text-foreground">{vt.last_https_certificate.issuer.CN}</span></div>
           )}
+          {vt.last_https_certificate.issuer?.O && (
+            <div className="flex gap-2"><span className="text-muted-foreground w-14 shrink-0">Issuer Org</span><span className="text-muted-foreground">{vt.last_https_certificate.issuer.O}</span></div>
+          )}
+          {vt.last_https_certificate.validity?.not_before && (
+            <div className="flex gap-2"><span className="text-muted-foreground w-14 shrink-0">Valid from</span><span className="text-muted-foreground">{vt.last_https_certificate.validity.not_before}</span></div>
+          )}
           {vt.last_https_certificate.validity?.not_after && (
             <div className="flex gap-2"><span className="text-muted-foreground w-14 shrink-0">Expires</span><span className="text-muted-foreground">{vt.last_https_certificate.validity.not_after}</span></div>
+          )}
+          {vt.last_https_certificate.serial_number && (
+            <div className="flex gap-2"><span className="text-muted-foreground w-14 shrink-0">Serial</span><span className="font-mono text-[10px] text-muted-foreground break-all">{vt.last_https_certificate.serial_number}</span></div>
+          )}
+          {vt.last_https_certificate.thumbprint && (
+            <div className="flex gap-2"><span className="text-muted-foreground w-14 shrink-0">SHA1</span><span className="font-mono text-[10px] text-muted-foreground break-all">{vt.last_https_certificate.thumbprint}</span></div>
           )}
         </div>
       )}
@@ -239,6 +280,35 @@ function VtIpSection({ vt }: { vt: VtIpData }) {
           )}
         </div>
       )}
+
+      {/* All engines summary (harmless/undetected count) */}
+      {totalEngines > 0 && (
+        <div className="text-[10px] text-muted-foreground">
+          {totalEngines} engines scanned · {vt.last_analysis_stats.harmless} harmless · {vt.last_analysis_stats.undetected} undetected
+          {vt.last_analysis_stats.timeout > 0 && ` · ${vt.last_analysis_stats.timeout} timeout`}
+        </div>
+      )}
+
+      {/* WHOIS */}
+      {vt.whois && (
+        <WhoisBlock whois={vt.whois} whoisDate={vt.whois_date} />
+      )}
+
+      {/* Certificate date + last modification */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
+        {vt.last_https_certificate_date && (
+          <div className="flex items-center gap-1">
+            <Calendar className="h-3 w-3 shrink-0" />
+            <span>Cert captured {formatDistanceToNow(new Date(vt.last_https_certificate_date * 1000), { addSuffix: true })}</span>
+          </div>
+        )}
+        {vt.last_modification_date && (
+          <div className="flex items-center gap-1">
+            <Calendar className="h-3 w-3 shrink-0" />
+            <span>VT record updated {formatDistanceToNow(new Date(vt.last_modification_date * 1000), { addSuffix: true })}</span>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -318,228 +388,276 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
 
   return (
     <Surface className="overflow-hidden">
+      {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-cyan-400" />
-          <h3 className="font-semibold text-foreground">IP Enrichment</h3>
+          <h3 className="font-semibold text-foreground">Threat Intelligence</h3>
         </div>
         <span className="text-[10px] text-muted-foreground">
-          updated {formatDistanceToNow(new Date(data.cachedAt), { addSuffix: true })}
+          {[ab && "AbuseIPDB", info && "IPInfo", vt && "VirusTotal", spectra && "Spectra"].filter(Boolean).join(" · ")}
+          {" · "}updated {formatDistanceToNow(new Date(data.cachedAt), { addSuffix: true })}
         </span>
       </div>
 
-      <div className="divide-y divide-border">
-        {ab && (
-          <div className="space-y-4 p-4">
-            <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">AbuseIPDB</p>
+      {/* 3-column grid: AbuseIPDB | Network/IPInfo | VirusTotal */}
+      <div className="grid divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
 
-            <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
-              <div>
-                <span className={`text-4xl font-bold tabular-nums ${ABUSE_COLOR(ab.abuseConfidenceScore)}`}>
-                  {ab.abuseConfidenceScore}%
-                </span>
-                <span className="ml-2 text-xs text-muted-foreground">abuse confidence</span>
-              </div>
-              <div className="flex gap-4 text-xs">
-                <div className="text-center">
-                  <p className="text-lg font-semibold text-foreground">{ab.totalReports.toLocaleString("en-US")}</p>
-                  <p className="text-muted-foreground">reports</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-lg font-semibold text-foreground">{ab.numDistinctUsers.toLocaleString("en-US")}</p>
-                  <p className="text-muted-foreground">distinct users</p>
-                </div>
-              </div>
-            </div>
-
-            {ab.abuseConfidenceScore >= 80 && (
-              <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
-                <span className="text-xs font-medium text-destructive">IP widely reported as malicious</span>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-              {ab.isp && (
-                <div className="col-span-2 flex items-center gap-1.5">
-                  <Building2 className="h-3 w-3 shrink-0 text-muted-foreground" />
-                  <span className="font-medium text-foreground">{ab.isp}</span>
-                </div>
-              )}
-              {ab.domain && (
-                <div className="flex items-center gap-1.5">
-                  <Globe className="h-3 w-3 shrink-0 text-muted-foreground" />
-                  <span className="text-muted-foreground">{ab.domain}</span>
-                </div>
-              )}
-              {ab.countryName && (
-                <div className="flex items-center gap-1.5">
-                  <CountryFlag code={ab.countryCode ?? ""} />
-                  <span className="text-muted-foreground">{ab.countryName}</span>
-                </div>
-              )}
-              {ab.usageType && (
-                <div className="col-span-2 flex items-center gap-1.5">
-                  <Server className="h-3 w-3 shrink-0 text-muted-foreground" />
-                  <span className="text-muted-foreground">{ab.usageType}</span>
-                </div>
-              )}
-              {ab.lastReportedAt && (
-                <div className="col-span-2 flex items-center gap-1.5">
-                  <Clock className="h-3 w-3 shrink-0 text-muted-foreground" />
-                  <span className="text-muted-foreground">
-                    Last reported {formatDistanceToNow(new Date(ab.lastReportedAt), { addSuffix: true })}
+        {/* ── Column 1: AbuseIPDB ── */}
+        <div className="space-y-3 p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">AbuseIPDB</p>
+          {ab ? (
+            <>
+              {/* Score */}
+              <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+                <div>
+                  <span className={`text-4xl font-bold tabular-nums ${ABUSE_COLOR(ab.abuseConfidenceScore)}`}>
+                    {ab.abuseConfidenceScore}%
                   </span>
+                  <span className="ml-2 text-xs text-muted-foreground">abuse confidence</span>
+                </div>
+                <div className="flex gap-3 text-xs">
+                  <div className="text-center">
+                    <p className="text-lg font-semibold text-foreground">{ab.totalReports.toLocaleString("en-US")}</p>
+                    <p className="text-muted-foreground">reports</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-semibold text-foreground">{ab.numDistinctUsers.toLocaleString("en-US")}</p>
+                    <p className="text-muted-foreground">distinct users</p>
+                  </div>
+                </div>
+              </div>
+
+              {ab.abuseConfidenceScore >= 80 && (
+                <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
+                  <span className="text-xs font-medium text-destructive">IP widely reported as malicious</span>
                 </div>
               )}
-              {ab.hostnames.length > 0 && (
-                <div className="col-span-2 flex items-start gap-1.5">
-                  <Server className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
-                  <span className="font-mono text-[10px] text-muted-foreground">{ab.hostnames.join(", ")}</span>
+
+              {/* Meta fields */}
+              <div className="space-y-1.5 text-xs">
+                {ab.isp && (
+                  <div className="flex items-center gap-1.5">
+                    <Building2 className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    <span className="font-medium text-foreground">{ab.isp}</span>
+                  </div>
+                )}
+                {ab.domain && (
+                  <div className="flex items-center gap-1.5">
+                    <Globe className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    <span className="text-muted-foreground">{ab.domain}</span>
+                  </div>
+                )}
+                {ab.countryName && (
+                  <div className="flex items-center gap-1.5">
+                    <CountryFlag code={ab.countryCode ?? ""} />
+                    <span className="text-muted-foreground">{ab.countryName}{ab.countryCode ? ` (${ab.countryCode})` : ""}</span>
+                  </div>
+                )}
+                {ab.usageType && (
+                  <div className="flex items-center gap-1.5">
+                    <Server className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    <span className="text-muted-foreground">{ab.usageType}</span>
+                  </div>
+                )}
+                {ab.lastReportedAt && (
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    <span className="text-muted-foreground">Last reported {formatDistanceToNow(new Date(ab.lastReportedAt), { addSuffix: true })}</span>
+                  </div>
+                )}
+                {ab.hostnames.length > 0 && (
+                  <div className="flex items-start gap-1.5">
+                    <Server className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
+                    <span className="font-mono text-[10px] text-muted-foreground break-all">{ab.hostnames.join(", ")}</span>
+                  </div>
+                )}
+                {ab.isWhitelisted && (
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3 w-3 shrink-0 text-success" />
+                    <span className="text-success text-[11px]">Whitelisted by AbuseIPDB</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Privacy flags */}
+              {privacyFlags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {privacyFlags.map((f) => <Tag key={f.label} label={f.label} variant={f.v} />)}
+                </div>
+              )}
+
+              {/* Recent reports */}
+              {ab.reports.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <MessageSquare className="h-3 w-3 text-muted-foreground" />
+                    <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+                      Recent reports ({ab.reports.length})
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    {visibleReports.map((r, i) => <ReportRow key={i} report={r} />)}
+                  </div>
+                  {ab.reports.length > 3 && (
+                    <button onClick={() => setShowAllReports((p) => !p)} className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
+                      {showAllReports
+                        ? <><ChevronUp className="h-3 w-3" />Show less</>
+                        : <><ChevronDown className="h-3 w-3" />Show {ab.reports.length - 3} more</>}
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">No AbuseIPDB data</p>
+          )}
+        </div>
+
+        {/* ── Column 2: Network / IPInfo ── */}
+        <div className="space-y-3 p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Network</p>
+
+          {/* Org + ASN (prefer ipinfo, fallback to VT) */}
+          {(info?.org || ab?.isp) && (
+            <p className="text-sm font-semibold text-foreground">{info?.org || ab?.isp}</p>
+          )}
+          {(info?.asn || vt?.asn) && (
+            <p className="font-mono text-xs text-muted-foreground">
+              {info?.asn || `AS${vt!.asn}`}
+              {vt?.as_owner && vt.as_owner !== (info?.org || ab?.isp) ? ` · ${vt.as_owner}` : ""}
+            </p>
+          )}
+          {vt?.network && <p className="font-mono text-[10px] text-muted-foreground">{vt.network}</p>}
+          {(info?.hostname || ab?.hostnames?.[0]) && (
+            <p className="font-mono text-xs text-muted-foreground break-all">{info?.hostname || ab?.hostnames?.[0]}</p>
+          )}
+
+          {/* Location */}
+          {(info?.city || info?.region || info?.country || vt?.country || ab?.countryName) && (
+            <div className="rounded-md bg-muted/30 px-2 py-1.5 text-xs space-y-0.5">
+              <p className="text-muted-foreground text-[10px] uppercase tracking-wide">Location</p>
+              <div className="flex items-center gap-1.5">
+                {(info?.country || vt?.country || ab?.countryCode) && (
+                  <CountryFlag code={info?.country || vt?.country || ab?.countryCode || ""} />
+                )}
+                <p className="font-semibold text-foreground">
+                  {[info?.city, info?.region, info?.country || vt?.country || ab?.countryName].filter(Boolean).join(", ")}
+                  {info?.postal ? ` (${info.postal})` : ""}
+                </p>
+              </div>
+              {info?.timezone && <p className="text-muted-foreground">{info.timezone}</p>}
+              {(vt?.continent || vt?.regional_internet_registry) && (
+                <p className="text-muted-foreground">
+                  {[vt.continent, vt.regional_internet_registry].filter(Boolean).join(" · ")}
+                </p>
+              )}
+              {info?.loc && (
+                <div className="flex items-center gap-1">
+                  <MapPin className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  <span className="font-mono text-[10px] text-muted-foreground">{info.loc}</span>
+                  <a href={`https://maps.google.com/?q=${info.loc}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-400 hover:underline">Maps ↗</a>
                 </div>
               )}
             </div>
+          )}
 
-            {privacyFlags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {privacyFlags.map((f) => <Tag key={f.label} label={f.label} variant={f.v} />)}
-              </div>
-            )}
+          {/* Domain from AbuseIPDB */}
+          {ab?.domain && (
+            <div className="rounded-md bg-muted/30 px-2 py-1.5 text-xs">
+              <p className="text-muted-foreground text-[10px]">Domain</p>
+              <p className="font-mono font-semibold text-foreground">{ab.domain}</p>
+            </div>
+          )}
 
-            {ab.reports.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-1.5">
-                  <MessageSquare className="h-3 w-3 text-muted-foreground" />
-                  <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
-                    Recent reports ({ab.reports.length})
-                  </p>
-                </div>
+          {/* Privacy flags */}
+          {(info || ab) && (
+            <div className="flex flex-wrap gap-1">
+              {(ab?.isTor || info?.isTor) && <span className="inline-flex items-center rounded-full border border-red-500/40 bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400">Tor exit node</span>}
+              {(ab?.isVpn || info?.isVpn) && <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400">VPN</span>}
+              {info?.isProxy && <span className="inline-flex items-center rounded-full border border-orange-500/40 bg-orange-500/15 px-2 py-0.5 text-[10px] font-semibold text-orange-400">Proxy</span>}
+              {info?.isHosting && <span className="inline-flex items-center rounded-full border border-blue-500/40 bg-blue-500/15 px-2 py-0.5 text-[10px] font-semibold text-blue-400">Hosting/DC</span>}
+              {ab?.isWhitelisted && <span className="inline-flex items-center rounded-full border border-green-500/40 bg-green-500/15 px-2 py-0.5 text-[10px] font-semibold text-green-400">Whitelisted</span>}
+            </div>
+          )}
+
+          {/* JARM fingerprint */}
+          {vt?.jarm && (
+            <div className="flex items-center gap-1.5">
+              <Key className="h-3 w-3 shrink-0 text-muted-foreground" />
+              <span className="font-mono text-[10px] text-muted-foreground">JARM {vt.jarm.slice(0, 32)}…</span>
+            </div>
+          )}
+
+          {/* Spectra Analyze (fits naturally in network column) */}
+          {spectra && (
+            <div className="space-y-2 border-t border-border pt-3">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Spectra Analyze</p>
+              {(spectraStats || spectraDownloaded) && (
                 <div className="space-y-1.5">
-                  {visibleReports.map((r, i) => <ReportRow key={i} report={r} />)}
+                  {spectraStats && (
+                    <div className="rounded-md bg-muted/30 px-2 py-1.5 text-xs">
+                      <p className="text-[10px] text-muted-foreground mb-1">3rd-party reputation</p>
+                      <div className="flex flex-wrap gap-2">
+                        <span className="text-foreground">Total <span className="font-mono">{spectraStats.total ?? 0}</span></span>
+                        <span className="text-destructive">Malicious <span className="font-mono">{spectraStats.malicious ?? 0}</span></span>
+                        <span className="text-success">Clean <span className="font-mono">{spectraStats.clean ?? 0}</span></span>
+                      </div>
+                    </div>
+                  )}
+                  {spectraDownloaded && (
+                    <div className="rounded-md bg-muted/30 px-2 py-1.5 text-xs">
+                      <p className="text-[10px] text-muted-foreground mb-1">Downloaded files</p>
+                      <div className="flex flex-wrap gap-2">
+                        <span className="text-foreground">Total <span className="font-mono">{spectraDownloaded.total ?? 0}</span></span>
+                        <span className="text-destructive">Malicious <span className="font-mono">{spectraDownloaded.malicious ?? 0}</span></span>
+                        <span className="text-warning">Suspicious <span className="font-mono">{spectraDownloaded.suspicious ?? 0}</span></span>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {ab.reports.length > 3 && (
-                  <button onClick={() => setShowAllReports((p) => !p)} className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
-                    {showAllReports
-                      ? <><ChevronUp className="h-3 w-3" />Show less</>
-                      : <><ChevronDown className="h-3 w-3" />Show {ab.reports.length - 3} more</>}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {spectra && (
-          <div className="space-y-4 p-4">
-            <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Spectra Analyze</p>
-
-            {(spectraStats || spectraDownloaded) && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {spectraStats && (
-                  <div className="rounded-lg border border-border bg-secondary/30 p-3">
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">3rd-party reputation</p>
-                    <div className="mt-2 flex flex-wrap gap-3 text-xs">
-                      <span className="text-foreground">Total <span className="font-mono">{spectraStats.total ?? 0}</span></span>
-                      <span className="text-destructive">Malicious <span className="font-mono">{spectraStats.malicious ?? 0}</span></span>
-                      <span className="text-success">Clean <span className="font-mono">{spectraStats.clean ?? 0}</span></span>
-                    </div>
-                  </div>
-                )}
-                {spectraDownloaded && (
-                  <div className="rounded-lg border border-border bg-secondary/30 p-3">
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Downloaded files</p>
-                    <div className="mt-2 flex flex-wrap gap-3 text-xs">
-                      <span className="text-foreground">Total <span className="font-mono">{spectraDownloaded.total ?? 0}</span></span>
-                      <span className="text-destructive">Malicious <span className="font-mono">{spectraDownloaded.malicious ?? 0}</span></span>
-                      <span className="text-warning">Suspicious <span className="font-mono">{spectraDownloaded.suspicious ?? 0}</span></span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {spectraThreats.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Top threats</p>
-                <div className="flex flex-wrap gap-1.5">
+              )}
+              {spectraThreats.length > 0 && (
+                <div className="flex flex-wrap gap-1">
                   {spectraThreats.map((threat, idx) => {
                     const label = threat.threat_name || threat.malware_family || threat.malware_type || threat.sample_type || "Unknown"
                     return <Tag key={`${label}-${idx}`} label={label} variant="warn" />
                   })}
                 </div>
-              </div>
-            )}
-
-            {spectraSources.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Detections</p>
-                <div className="space-y-1.5">
+              )}
+              {spectraSources.length > 0 && (
+                <div className="space-y-1">
                   {spectraSources.map((source, idx) => (
-                    <div key={`${source.source ?? "src"}-${idx}`} className="rounded-lg border border-border bg-secondary/20 p-2.5 text-xs">
+                    <div key={`${source.source ?? "src"}-${idx}`} className="rounded border border-border bg-secondary/20 px-2 py-1.5 text-xs">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium text-foreground">{source.source ?? "Unknown source"}</span>
+                        <span className="font-medium text-foreground">{source.source ?? "Unknown"}</span>
                         <span className="text-muted-foreground">{source.detection ?? "undetected"}</span>
                       </div>
-                      {source.category && <p className="mt-1 text-muted-foreground">{source.category}</p>}
+                      {source.category && <p className="mt-0.5 text-[10px] text-muted-foreground">{source.category}</p>}
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {spectra.modified_time && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Clock className="h-3 w-3 shrink-0" />
-                <span>Report updated {formatDistanceToNow(new Date(spectra.modified_time), { addSuffix: true })}</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {vt && (
-          <VtIpSection vt={vt} />
-        )}
-
-        {info && (
-          <div className="space-y-3 p-4">
-            <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">ipinfo.io</p>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-              {info.org && (
-                <div className="col-span-2 flex items-start gap-1.5">
-                  <Building2 className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
-                  <span className="font-medium text-foreground">{info.org}</span>
-                </div>
               )}
-              {info.asn && (
-                <div className="flex items-center gap-1.5">
-                  <Hash className="h-3 w-3 shrink-0 text-muted-foreground" />
-                  <span className="font-mono text-muted-foreground">{info.asn}</span>
-                </div>
-              )}
-              {(info.city || info.region || info.country) && (
-                <div className="flex items-center gap-1.5">
-                  {info.country && <CountryFlag code={info.country} />}
-                  <span className="text-muted-foreground">
-                    {[info.city, info.region, info.country].filter(Boolean).join(", ")}
-                    {info.postal ? ` (${info.postal})` : ""}
-                  </span>
-                </div>
-              )}
-              {info.timezone && (
-                <div className="flex items-center gap-1.5">
-                  <Clock className="h-3 w-3 shrink-0 text-muted-foreground" />
-                  <span className="text-muted-foreground">{info.timezone}</span>
-                </div>
-              )}
-              {info.hostname && (
-                <div className="col-span-2 flex items-center gap-1.5">
-                  <Server className="h-3 w-3 shrink-0 text-muted-foreground" />
-                  <span className="truncate font-mono text-[10px] text-muted-foreground">{info.hostname}</span>
+              {spectra.modified_time && (
+                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <Clock className="h-3 w-3 shrink-0" />
+                  <span>Updated {formatDistanceToNow(new Date(spectra.modified_time), { addSuffix: true })}</span>
                 </div>
               )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
+
+        {/* ── Column 3: VirusTotal ── */}
+        <div className="space-y-3 p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">VirusTotal</p>
+          {vt ? (
+            <VtIpSection vt={vt} />
+          ) : (
+            <p className="text-xs text-muted-foreground">No VirusTotal data</p>
+          )}
+        </div>
       </div>
     </Surface>
   )
