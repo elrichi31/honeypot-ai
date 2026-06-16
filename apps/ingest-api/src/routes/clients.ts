@@ -39,7 +39,8 @@ function deriveClientCode(value: string): string {
 }
 
 export async function clientRoutes(fastify: FastifyInstance) {
-  fastify.get('/clients', async (_request, reply) => {
+  fastify.get('/clients', async (request, reply) => {
+    if (!ensureIngestToken(request, reply)) return reply
     const clients = await withCache(fastify.cache, CLIENTS_CACHE_KEY, 120, async () => {
       const rows = await fastify.prisma.$queryRaw<Array<{
         id: string; name: string; slug: string; code: string; description: string; forward_url: string; crowdstrike_hec_url: string; crowdstrike_api_key: string; created_at: Date

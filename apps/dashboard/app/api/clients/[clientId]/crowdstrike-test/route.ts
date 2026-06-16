@@ -4,6 +4,8 @@ import { getApiUrl, ingestHeaders } from "@/lib/api/server"
 
 const INTERNAL_API = getApiUrl()
 
+const CROWDSTRIKE_URL_RE = /^https:\/\/[a-zA-Z0-9-]+\.ingest\.[a-zA-Z0-9-]+\.crowdstrike\.com\//
+
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ clientId: string }> },
@@ -29,6 +31,9 @@ export async function POST(
   if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 })
   if (!client.crowdstrikeHecUrl || !client.crowdstrikeApiKey) {
     return NextResponse.json({ error: "CrowdStrike credentials not configured" }, { status: 400 })
+  }
+  if (!CROWDSTRIKE_URL_RE.test(client.crowdstrikeHecUrl)) {
+    return NextResponse.json({ error: "Invalid CrowdStrike HEC URL" }, { status: 400 })
   }
 
   const event = {

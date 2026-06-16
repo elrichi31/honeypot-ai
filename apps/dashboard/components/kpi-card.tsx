@@ -18,10 +18,10 @@ interface Props {
 
 const sparkConfig = { v: { label: "", color: "#22d3ee" } } satisfies ChartConfig
 
-function DeltaBadge({ deltaPct, previous }: { deltaPct: number | null; previous?: number }) {
+function DeltaBadge({ deltaPct, previous, current }: { deltaPct: number | null; previous?: number; current: number }) {
   const t = useT()
   if (deltaPct === null) {
-    if (previous === 0) {
+    if (previous === 0 && current > 0) {
       return (
         <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-xs font-medium text-emerald-400">
           <TrendingUp className="h-3 w-3" />new
@@ -51,7 +51,7 @@ export function KpiCard({ label, value, detail, deltaPct, previous, spark }: Pro
     <Surface padded>
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{label}</p>
-        <DeltaBadge deltaPct={deltaPct} previous={previous} />
+        <DeltaBadge deltaPct={deltaPct} previous={previous} current={value} />
       </div>
       <div className="mt-2 flex items-end justify-between gap-3">
         <div>

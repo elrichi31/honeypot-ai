@@ -43,64 +43,18 @@ export function classify(session: SessionItem): Classification {
   const tags = session.threatTags ?? []
 
   // ── Threat-tag labels take priority over generic heuristics ──────────────
-  if (loggedIn && tags.includes('ssh_backdoor')) {
-    return {
-      label: "SSH Backdoor",
-      icon: KeyRound,
-      color: "text-red-500",
-      bg: "bg-red-500/15",
-      summary: `Intentó plantar llave SSH persistente con chattr +ai`,
-    }
-  }
+  const TAG_CLASSIFICATIONS: Array<{ tag: string; result: Classification }> = [
+    { tag: 'ssh_backdoor',      result: { label: "SSH Backdoor",     icon: KeyRound, color: "text-red-500",     bg: "bg-red-500/15",     summary: `Intentó plantar llave SSH persistente con chattr +ai` } },
+    { tag: 'honeypot_evasion',  result: { label: "Honeypot Evasion", icon: Ghost,    color: "text-purple-400",  bg: "bg-purple-400/15",  summary: `Detectó sandbox/honeypot · buscó datos Telegram/SIM` } },
+    { tag: 'container_escape',  result: { label: "Container Escape", icon: Container, color: "text-orange-500", bg: "bg-orange-500/15",  summary: `Intentó detectar y escapar del entorno de contenedor` } },
+    { tag: 'crypto_mining',     result: { label: "Crypto Miner",     icon: Cpu,      color: "text-yellow-400",  bg: "bg-yellow-400/15",  summary: `Desplegó minero de criptomonedas` } },
+    { tag: 'data_exfil',        result: { label: "Data Exfil",       icon: Database, color: "text-red-400",     bg: "bg-red-400/15",     summary: `Intentó exfiltrar datos del sistema` } },
+    { tag: 'solana_targeting',  result: { label: "Targeted Crypto",  icon: Coins,    color: "text-emerald-400", bg: "bg-emerald-400/15", summary: `Buscó infraestructura Solana (validator, Jito, Firedancer)` } },
+  ]
 
-  if (loggedIn && tags.includes('honeypot_evasion')) {
-    return {
-      label: "Honeypot Evasion",
-      icon: Ghost,
-      color: "text-purple-400",
-      bg: "bg-purple-400/15",
-      summary: `Detectó sandbox/honeypot · buscó datos Telegram/SIM`,
-    }
-  }
-
-  if (loggedIn && tags.includes('container_escape')) {
-    return {
-      label: "Container Escape",
-      icon: Container,
-      color: "text-orange-500",
-      bg: "bg-orange-500/15",
-      summary: `Intentó detectar y escapar del entorno de contenedor`,
-    }
-  }
-
-  if (loggedIn && tags.includes('crypto_mining')) {
-    return {
-      label: "Crypto Miner",
-      icon: Cpu,
-      color: "text-yellow-400",
-      bg: "bg-yellow-400/15",
-      summary: `Desplegó minero de criptomonedas`,
-    }
-  }
-
-  if (loggedIn && tags.includes('data_exfil')) {
-    return {
-      label: "Data Exfil",
-      icon: Database,
-      color: "text-red-400",
-      bg: "bg-red-400/15",
-      summary: `Intentó exfiltrar datos del sistema`,
-    }
-  }
-
-  if (loggedIn && tags.includes('solana_targeting')) {
-    return {
-      label: "Targeted Crypto",
-      icon: Coins,
-      color: "text-emerald-400",
-      bg: "bg-emerald-400/15",
-      summary: `Buscó infraestructura Solana (validator, Jito, Firedancer)`,
-    }
+  if (loggedIn) {
+    const match = TAG_CLASSIFICATIONS.find(({ tag }) => tags.includes(tag))
+    if (match) return match.result
   }
 
   if (!loggedIn) {
@@ -218,6 +172,11 @@ export interface IpGroup {
   sessionTypes: Set<string>
 }
 
+function updateTimeWindow(group: { firstSeen: string; lastSeen: string }, ts: string): void {
+  if (ts < group.firstSeen) group.firstSeen = ts
+  if (ts > group.lastSeen) group.lastSeen = ts
+}
+
 export function groupSessionsByIp(sessions: SessionItem[]): IpGroup[] {
   const map = new Map<string, IpGroup>()
 
@@ -241,8 +200,7 @@ export function groupSessionsByIp(sessions: SessionItem[]): IpGroup[] {
     if (session.sessionType) group.sessionTypes.add(session.sessionType)
     if (session.commandCount > 0) group.hasCommands = true
 
-    if (new Date(session.startTime) < new Date(group.firstSeen)) group.firstSeen = session.startTime
-    if (new Date(session.startTime) > new Date(group.lastSeen)) group.lastSeen = session.startTime
+    updateTimeWindow(group, session.startTime)
 
     const cls = classify(session)
     group.worstClassification = worstOf(group.worstClassification, cls)
@@ -261,9 +219,14 @@ const SEVERITY_ORDER = [
   "Targeted Crypto",
   "SSH Backdoor",
   "Honeypot Evasion",
+  "Burst brute-force",
+  "Slow brute-force",
   "Interactive",
+  "Credential spray",
   "Bot Script",
   "Recon",
+  "Scanner",
+  "Port probe",
   "Login only",
 ]
 
@@ -322,8 +285,7 @@ export function groupScans(scans: SessionItem[]): ScanGroup[] {
     group.sessions.push(session)
     if (session.sessionType === 'bot') group.botCount++
 
-    if (new Date(session.startTime) < new Date(group.firstSeen)) group.firstSeen = session.startTime
-    if (new Date(session.startTime) > new Date(group.lastSeen)) group.lastSeen = session.startTime
+    updateTimeWindow(group, session.startTime)
 
     group.spanSec = Math.max(
       0,

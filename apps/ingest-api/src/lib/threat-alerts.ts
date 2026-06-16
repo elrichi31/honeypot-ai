@@ -152,6 +152,14 @@ async function shouldSendAlert(prisma: PrismaClient, key: string, cooldownMs: nu
 
 const IPV4_RE = /(\d{1,3}\.){3}\d{1,3}/
 
+interface ParsedAlertKey { keyValue: string | null; srcIp: string | null; sensorId: string | null }
+function parseAlertKey(key: string): ParsedAlertKey {
+  const keyValue = key.split(':').slice(1).join(':') || null
+  const srcIp = keyValue && !key.startsWith('sensor-offline:') && IPV4_RE.test(keyValue) ? keyValue : null
+  const sensorId = key.startsWith('sensor-offline:') ? keyValue : null
+  return { keyValue, srcIp, sensorId }
+}
+
 interface ClientCrowdStrikeConfig {
   crowdstrike_hec_url: string
   crowdstrike_api_key: string
@@ -194,9 +202,7 @@ async function resolveClientCrowdStrike(prisma: PrismaClient, key: string): Prom
 async function persistAlert(prisma: PrismaClient, payload: AlertPayload): Promise<void> {
   // Best-effort context from the cooldown key: "threat_score:<ip>",
   // "sensor-offline:<sensorId>", etc. Persistence must never block the alert.
-  const keyValue = payload.key.split(':').slice(1).join(':') || null
-  const srcIp = keyValue && IPV4_RE.test(keyValue) ? keyValue : null
-  const sensorId = payload.key.startsWith('sensor-offline:') ? keyValue : null
+  const { srcIp, sensorId } = parseAlertKey(payload.key)
   try {
     await prisma.alert.create({
       data: {
@@ -217,9 +223,7 @@ async function persistAlert(prisma: PrismaClient, payload: AlertPayload): Promis
 async function sendAlertOnce(prisma: PrismaClient, payload: AlertPayload): Promise<void> {
   if (!await shouldSendAlert(prisma, payload.key, payload.cooldownMs)) return
   await persistAlert(prisma, payload)
-  const keyValue = payload.key.split(':').slice(1).join(':') || null
-  const srcIp = keyValue && IPV4_RE.test(keyValue) ? keyValue : null
-  const sensorId = payload.key.startsWith('sensor-offline:') ? keyValue : null
+  const { srcIp, sensorId } = parseAlertKey(payload.key)
   await Promise.all([
     sendDiscordAlert({
       level: payload.level,
@@ -361,8 +365,9 @@ export async function drainThreatQueue(prisma: PrismaClient): Promise<void> {
   const batch: string[] = []
   for (const ip of pendingThreatIps) {
     if (batch.length >= MAX_DRAIN_BATCH) break
+    if (runningThreatAlerts.has(ip)) continue  // leave in pending; will be picked up next tick
     pendingThreatIps.delete(ip)
-    if (!runningThreatAlerts.has(ip)) batch.push(ip)
+    batch.push(ip)
   }
 
   let cursor = 0

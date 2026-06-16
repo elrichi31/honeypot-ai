@@ -141,13 +141,21 @@ export async function miscRoutes(fastify: FastifyInstance) {
       for (const r of sshRows) map.set(r.bucketStart, { label: r.label, ssh: r.count, web: 0 })
       for (const r of webRows) {
         const e = map.get(r.bucketStart)
-        if (e) (e as Record<string, number>).web = r.count
+        if (e) {
+          (e as Record<string, number>).web = r.count
+        } else {
+          map.set(r.bucketStart, { label: r.label, ssh: 0, web: r.count })
+        }
       }
       const activeProtocols = new Set<string>()
       for (const r of protoRows) {
         activeProtocols.add(r.protocol)
         const e = map.get(r.bucketStart)
-        if (e) (e as Record<string, number>)[r.protocol] = ((e as Record<string, number>)[r.protocol] ?? 0) + r.count
+        if (e) {
+          (e as Record<string, number>)[r.protocol] = ((e as Record<string, number>)[r.protocol] ?? 0) + r.count
+        } else {
+          map.set(r.bucketStart, { label: r.label, ssh: 0, web: 0, [r.protocol]: r.count })
+        }
       }
       const protoList = Array.from(activeProtocols)
       for (const e of map.values()) {

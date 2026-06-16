@@ -115,6 +115,8 @@ export function ClientForwardingSettings({ client }: Props) {
   const hasForwarding = !!client.forwardUrl
   const hasCrowdStrike = !!(client.crowdstrikeHecUrl && client.crowdstrikeApiKey)
   const csConfigured = !!(crowdstrikeHecUrl && crowdstrikeApiKey)
+  const csUnsaved = crowdstrikeHecUrl !== (client.crowdstrikeHecUrl || "") ||
+    crowdstrikeApiKey !== (client.crowdstrikeApiKey || "")
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -286,7 +288,7 @@ export function ClientForwardingSettings({ client }: Props) {
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={!hasCrowdStrike || testStatus === "sending"}
+                    disabled={!hasCrowdStrike || csUnsaved || testStatus === "sending"}
                     onClick={sendTestEvent}
                     className="gap-2"
                   >
@@ -309,8 +311,10 @@ export function ClientForwardingSettings({ client }: Props) {
                       {testError}
                     </span>
                   )}
-                  {!hasCrowdStrike && testStatus === "idle" && (
-                    <span className="text-xs text-muted-foreground">Save credentials first</span>
+                  {(!hasCrowdStrike || csUnsaved) && testStatus === "idle" && (
+                    <span className="text-xs text-muted-foreground">
+                      {csUnsaved ? "Save credentials first" : "Enter credentials above to test"}
+                    </span>
                   )}
                 </div>
               </div>

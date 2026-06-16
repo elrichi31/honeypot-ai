@@ -127,7 +127,7 @@ export async function kpiTrendsRoute(fastify: FastifyInstance) {
           SELECT protocol, COALESCE(counts.count, 0)::int AS count
           FROM (
             SELECT DISTINCT protocol FROM protocol_hits
-            WHERE timestamp >= ${curStart} AND timestamp <= ${now}
+            WHERE timestamp >= ${prevStart} AND timestamp <= ${now}
           ) protos
           CROSS JOIN (
             WITH bounds AS (
