@@ -18,6 +18,8 @@ export interface RequestGroup {
   sampleBody: string
   sampleHeaders: Record<string, string> | null
   sampleUserAgent: string
+  sampleReferer?: string
+  sampleHttpVersion?: string
 }
 
 /** Renders a known-noise header dictionary as aligned key: value lines. */
@@ -95,6 +97,20 @@ export function RequestRow({ group }: { group: RequestGroup }) {
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
                 Captured payload · representative sample of {group.count} hit{group.count > 1 ? "s" : ""}
               </p>
+              <div className="flex flex-wrap gap-4">
+                {group.sampleHttpVersion && (
+                  <div>
+                    <p className="mb-0.5 font-medium text-muted-foreground">HTTP version</p>
+                    <span className="font-mono text-foreground">{group.sampleHttpVersion}</span>
+                  </div>
+                )}
+                {group.sampleReferer && (
+                  <div className="min-w-0 flex-1">
+                    <p className="mb-0.5 font-medium text-muted-foreground">Referer</p>
+                    <p className="truncate font-mono text-foreground" title={group.sampleReferer}>{group.sampleReferer}</p>
+                  </div>
+                )}
+              </div>
               {group.sampleUserAgent && (
                 <div>
                   <p className="mb-1 font-medium text-muted-foreground">User-Agent</p>

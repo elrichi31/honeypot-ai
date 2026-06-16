@@ -178,6 +178,10 @@ async function handleListHits(fastify: FastifyInstance, request: FastifyRequest,
         body, headers, timestamp,
         headers->>'x-galah-result' AS "galahResult",
         headers->>'x-galah-error-type' AS "galahErrorType",
+        session_hits AS "sessionHits", session_elapsed_s AS "sessionElapsedS",
+        paths_visited AS "pathsVisited", attack_chain AS "attackChain",
+        is_chain_attack AS "isChainAttack", client_fingerprint AS "clientFingerprint",
+        canary_token_type AS "canaryTokenType", referer, http_version AS "httpVersion",
         FALSE AS "isBot"
       FROM web_hits ${whereSql}
       ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}

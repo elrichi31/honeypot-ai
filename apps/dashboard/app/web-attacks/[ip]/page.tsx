@@ -2,9 +2,10 @@ import { notFound } from "next/navigation"
 import { PageShell } from "@/components/page-shell"
 import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
-import { ArrowLeft, Globe, Clock, MousePointerClick, Shield, Target, Fingerprint, GitBranch, AlertTriangle } from "lucide-react"
+import { ArrowLeft, Globe, Clock, MousePointerClick, Shield, Target, Fingerprint, GitBranch, Link2 } from "lucide-react"
 import { fetchWebHitsByIpPage, fetchWebHits, fetchThreat } from "@/lib/api"
 import { lookupIp } from "@/lib/geo"
+import { enrichIp } from "@/lib/ip-enrichment"
 import { RiskBadge } from "@/components/risk-badge"
 import { Flag } from "@/components/ui/flag"
 import { ATTACK_COLORS, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack-types"
@@ -39,6 +40,9 @@ export default async function WebAttackerDetailPage({
   let threat = null
   try { threat = await fetchThreat(srcIp) } catch {}
 
+  let enrichment = null
+  try { enrichment = await enrichIp(srcIp) } catch {}
+
   const location = lookupIp(srcIp)
 
   // Breakdown por tipo de ataque
@@ -69,6 +73,22 @@ export default async function WebAttackerDetailPage({
   const maxSessionHits  = Math.max(0, ...hitsWithSession.map((h) => h.sessionHits ?? 0))
   const maxElapsed      = Math.max(0, ...hitsWithSession.map((h) => h.sessionElapsedS ?? 0))
 
+  // Attack chain sequence — deduplicated ordered list of attack types seen in chain hits
+  const attackChainSequence: string[] = []
+  for (const h of hits) {
+    if (h.attackChain?.length) {
+      for (const t of h.attackChain) {
+        if (!attackChainSequence.includes(t)) attackChainSequence.push(t)
+      }
+    }
+  }
+
+  // HTTP version breakdown
+  const httpVersions = [...new Set(hits.map((h) => h.httpVersion).filter(Boolean))]
+
+  // Referers seen
+  const referers = [...new Set(hits.map((h) => h.referer).filter(Boolean))].slice(0, 5)
+
   // Group the request timeline by (method + path + type) so noisy scanners
   // (e.g. Nikto hitting one path hundreds of times) collapse into a single row
   // with a count, instead of flooding the table. Each group keeps the most
@@ -93,12 +113,16 @@ export default async function WebAttackerDetailPage({
         existing.sampleBody = hit.body ?? ""
         existing.sampleHeaders = hit.headers ?? null
         existing.sampleUserAgent = hit.userAgent
+        existing.sampleReferer = hit.referer || undefined
+        existing.sampleHttpVersion = hit.httpVersion || undefined
       }
     } else {
       groupMap.set(key, {
         method: hit.method, path: fullPath, attackType: hit.attackType,
         count: 1, lastSeen: hit.timestamp, galahFailures: isGalahFail, canary: isCanary,
         sampleBody: hit.body ?? "", sampleHeaders: hit.headers ?? null, sampleUserAgent: hit.userAgent,
+        sampleReferer: hit.referer || undefined,
+        sampleHttpVersion: hit.httpVersion || undefined,
       })
     }
   }
@@ -169,7 +193,7 @@ export default async function WebAttackerDetailPage({
         </div>
 
         {/* Session intelligence panel — only shown when sensor sends session data */}
-        {(fingerprint || chainHits > 0 || canaryHits > 0) && (
+        {(fingerprint || chainHits > 0 || canaryHits > 0 || attackChainSequence.length > 0 || httpVersions.length > 0 || referers.length > 0) && (
           <Surface className="mb-6 p-4">
             <div className="flex flex-wrap items-start justify-between gap-4">
               {/* Fingerprint */}
@@ -243,6 +267,131 @@ export default async function WebAttackerDetailPage({
                         : `${Math.round(maxElapsed)}s`}
                     </p>
                   </div>
+                </div>
+              )}
+
+              {/* Attack chain sequence */}
+              {attackChainSequence.length > 1 && (
+                <div className="flex items-start gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-500/15">
+                    <GitBranch className="h-4 w-4 text-purple-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Attack sequence</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                      {attackChainSequence.map((t, i) => (
+                        <span key={t} className="flex items-center gap-1">
+                          <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-medium ${ATTACK_COLORS[t] ?? ATTACK_COLORS.recon}`}>
+                            {ATTACK_LABELS[t] ?? t}
+                          </span>
+                          {i < attackChainSequence.length - 1 && <span className="text-muted-foreground text-xs">→</span>}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* HTTP version + referers */}
+              {(httpVersions.length > 0 || referers.length > 0) && (
+                <div className="flex items-start gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+                    <Link2 className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div className="space-y-1">
+                    {httpVersions.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">HTTP version</p>
+                        <p className="font-mono text-sm text-foreground">{httpVersions.join(", ")}</p>
+                      </div>
+                    )}
+                    {referers.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">Referers</p>
+                        {referers.map((r) => (
+                          <p key={r} className="truncate font-mono text-xs text-muted-foreground" title={r}>{r}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </Surface>
+        )}
+
+        {/* Threat intel enrichment panel */}
+        {enrichment && (enrichment.abuseipdb || enrichment.ipinfo || enrichment.virustotal) && (
+          <Surface className="mb-6 p-4">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Threat Intelligence</p>
+            <div className="flex flex-wrap gap-6">
+              {/* AbuseIPDB */}
+              {enrichment.abuseipdb && (
+                <div className="space-y-1 min-w-[140px]">
+                  <p className="text-xs font-medium text-muted-foreground">AbuseIPDB</p>
+                  <p className={`text-2xl font-bold ${enrichment.abuseipdb.abuseConfidenceScore >= 80 ? "text-red-400" : enrichment.abuseipdb.abuseConfidenceScore >= 40 ? "text-amber-400" : "text-green-400"}`}>
+                    {enrichment.abuseipdb.abuseConfidenceScore}%
+                  </p>
+                  <p className="text-xs text-muted-foreground">confidence score</p>
+                  {enrichment.abuseipdb.totalReports > 0 && (
+                    <p className="text-xs text-muted-foreground">{enrichment.abuseipdb.totalReports.toLocaleString('en-US')} reports · {enrichment.abuseipdb.numDistinctUsers} users</p>
+                  )}
+                  {enrichment.abuseipdb.isTor && <span className="inline-flex items-center rounded-full border border-red-500/40 bg-red-500/15 px-1.5 py-0 text-[10px] font-semibold text-red-400">Tor</span>}
+                  {enrichment.abuseipdb.isVpn && <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/15 px-1.5 py-0 text-[10px] font-semibold text-amber-400">VPN</span>}
+                </div>
+              )}
+
+              {/* IPInfo */}
+              {enrichment.ipinfo && (
+                <div className="space-y-1 min-w-[160px]">
+                  <p className="text-xs font-medium text-muted-foreground">Network</p>
+                  {enrichment.ipinfo.org && <p className="text-sm font-semibold text-foreground">{enrichment.ipinfo.org}</p>}
+                  {enrichment.ipinfo.asn && <p className="font-mono text-xs text-muted-foreground">{enrichment.ipinfo.asn}</p>}
+                  {enrichment.ipinfo.hostname && <p className="text-xs text-muted-foreground">{enrichment.ipinfo.hostname}</p>}
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {enrichment.ipinfo.isHosting && <span className="inline-flex items-center rounded-full border border-blue-500/40 bg-blue-500/15 px-1.5 py-0 text-[10px] font-semibold text-blue-400">Hosting</span>}
+                    {enrichment.ipinfo.isVpn    && <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/15 px-1.5 py-0 text-[10px] font-semibold text-amber-400">VPN</span>}
+                    {enrichment.ipinfo.isTor    && <span className="inline-flex items-center rounded-full border border-red-500/40 bg-red-500/15 px-1.5 py-0 text-[10px] font-semibold text-red-400">Tor</span>}
+                    {enrichment.ipinfo.isProxy  && <span className="inline-flex items-center rounded-full border border-orange-500/40 bg-orange-500/15 px-1.5 py-0 text-[10px] font-semibold text-orange-400">Proxy</span>}
+                  </div>
+                </div>
+              )}
+
+              {/* AbuseIPDB ISP fallback when ipinfo not available */}
+              {enrichment.abuseipdb && enrichment.abuseipdb.isp && !enrichment.ipinfo && (
+                <div className="space-y-1 min-w-[160px]">
+                  <p className="text-xs font-medium text-muted-foreground">Network</p>
+                  <p className="text-sm font-semibold text-foreground">{enrichment.abuseipdb.isp}</p>
+                  {enrichment.abuseipdb.domain && <p className="font-mono text-xs text-muted-foreground">{enrichment.abuseipdb.domain}</p>}
+                  {enrichment.abuseipdb.usageType && <p className="text-xs text-muted-foreground">{enrichment.abuseipdb.usageType}</p>}
+                </div>
+              )}
+
+              {/* VirusTotal */}
+              {enrichment.virustotal && (
+                <div className="space-y-1 min-w-[120px]">
+                  <p className="text-xs font-medium text-muted-foreground">VirusTotal</p>
+                  {"malicious" in (enrichment.virustotal as object) ? (
+                    <>
+                      <p className={`text-2xl font-bold ${(enrichment.virustotal as { malicious: number }).malicious > 0 ? "text-red-400" : "text-green-400"}`}>
+                        {(enrichment.virustotal as { malicious: number }).malicious}
+                      </p>
+                      <p className="text-xs text-muted-foreground">malicious detections</p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">data available</p>
+                  )}
+                </div>
+              )}
+
+              {/* Last report date */}
+              {enrichment.abuseipdb?.lastReportedAt && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Last reported</p>
+                  <p suppressHydrationWarning className="text-sm text-foreground">
+                    {formatDistanceToNow(new Date(enrichment.abuseipdb.lastReportedAt), { addSuffix: true })}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">via AbuseIPDB</p>
                 </div>
               )}
             </div>

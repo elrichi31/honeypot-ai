@@ -433,6 +433,141 @@ def _swagger(_m, _q, _b) -> tuple[str, str, int]:
     return (json.dumps(spec), "application/json", 200)
 
 
+def _k8s_api(_m, _q, _b) -> tuple[str, str, int]:
+    """Kubernetes API server root — common cloud-env SSRF / exposed k8s target."""
+    return (json.dumps({
+        "kind": "APIVersions",
+        "versions": ["v1"],
+        "serverAddressByClientCIDRs": [{"clientCIDR": "0.0.0.0/0", "serverAddress": "k8s-api.internal:6443"}],
+    }), "application/json", 200)
+
+
+def _k8s_pods(_m, _q, _b) -> tuple[str, str, int]:
+    return (json.dumps({
+        "apiVersion": "v1", "kind": "PodList",
+        "items": [
+            {"metadata": {"name": "app-7d4f9b6c8-xk2pn", "namespace": "production",
+                          "labels": {"app": "techcorp-app", "env": "production"}},
+             "status": {"phase": "Running", "podIP": "10.0.1.15",
+                        "containerStatuses": [{"name": "app", "ready": True, "image": "techcorp/app:2.4.1"}]}},
+            {"metadata": {"name": "postgres-0", "namespace": "production",
+                          "labels": {"app": "postgres"}},
+             "status": {"phase": "Running", "podIP": "10.0.1.20",
+                        "containerStatuses": [{"name": "postgres", "ready": True, "image": "postgres:16"}]}},
+        ]
+    }), "application/json", 200)
+
+
+def _k8s_secrets(_m, _q, _b) -> tuple[str, str, int]:
+    """Kubernetes secrets list — high-value target for credential theft."""
+    import base64
+    return (json.dumps({
+        "apiVersion": "v1", "kind": "SecretList",
+        "items": [
+            {"metadata": {"name": "db-credentials", "namespace": "production"},
+             "type": "Opaque",
+             "data": {
+                 "username": base64.b64encode(b"appuser").decode(),
+                 "password": base64.b64encode(b"REDACTED").decode(),
+             }},
+            {"metadata": {"name": "tls-cert", "namespace": "production"},
+             "type": "kubernetes.io/tls",
+             "data": {"tls.crt": "LS0tLS1CRUdJTi...", "tls.key": "LS0tLS1CRUdJTi..."}},
+        ]
+    }), "application/json", 200)
+
+
+def _docker_registry(_m, _q, _b) -> tuple[str, str, int]:
+    """Docker registry v2 API root — probe for exposed private registries."""
+    return ("{}", "application/json", 200)
+
+
+def _docker_registry_catalog(_m, _q, _b) -> tuple[str, str, int]:
+    return (json.dumps({
+        "repositories": ["techcorp/app", "techcorp/worker", "techcorp/nginx", "postgres", "redis"]
+    }), "application/json", 200)
+
+
+def _docker_registry_tags(_m, _q, _b) -> tuple[str, str, int]:
+    return (json.dumps({"name": "techcorp/app", "tags": ["latest", "2.4.1", "2.4.0", "2.3.9"]}),
+            "application/json", 200)
+
+
+def _elasticsearch(_m, _q, _b) -> tuple[str, str, int]:
+    """Elasticsearch root — exposes version and cluster name."""
+    return (json.dumps({
+        "name": "es-node-01",
+        "cluster_name": "techcorp-production",
+        "version": {"number": "8.11.1", "lucene_version": "9.8.0"},
+        "tagline": "You Know, for Search",
+    }), "application/json", 200)
+
+
+def _elasticsearch_cluster(_m, _q, _b) -> tuple[str, str, int]:
+    return (json.dumps({
+        "cluster_name": "techcorp-production",
+        "status": "green",
+        "number_of_nodes": 3,
+        "number_of_data_nodes": 3,
+        "active_primary_shards": 12,
+        "active_shards": 24,
+        "indices": {"users": {"status": "open"}, "logs": {"status": "open"}, "orders": {"status": "open"}},
+    }), "application/json", 200)
+
+
+def _elasticsearch_search(_m, _q, _b) -> tuple[str, str, int]:
+    return (json.dumps({
+        "hits": {
+            "total": {"value": 1042, "relation": "eq"},
+            "hits": [
+                {"_index": "users", "_id": "1", "_score": 1.0,
+                 "_source": {"email": "admin@techcorp.internal", "role": "superadmin", "created": "2024-01-15"}},
+            ]
+        }
+    }), "application/json", 200)
+
+
+def _jenkins(_m, _q, _b) -> tuple[str, str, int]:
+    """Jenkins main page — exposes version header and job list."""
+    html = (
+        "<!DOCTYPE html><html><head><title>Dashboard [Jenkins]</title></head><body>"
+        "<h1>Jenkins</h1>"
+        "<p>Version 2.426.3</p>"
+        "<ul>"
+        "<li><a href='/job/deploy-production/'>deploy-production</a></li>"
+        "<li><a href='/job/build-app/'>build-app</a></li>"
+        "<li><a href='/job/run-tests/'>run-tests</a></li>"
+        "</ul>"
+        "</body></html>"
+    )
+    return (html, "text/html", 200)
+
+
+def _jenkins_api(_m, _q, _b) -> tuple[str, str, int]:
+    return (json.dumps({
+        "jobs": [
+            {"name": "deploy-production", "url": "/job/deploy-production/", "color": "blue"},
+            {"name": "build-app",         "url": "/job/build-app/",         "color": "blue"},
+            {"name": "run-tests",         "url": "/job/run-tests/",         "color": "red"},
+        ],
+        "nodeDescription": "the master Jenkins node",
+        "numExecutors": 4,
+        "mode": "NORMAL",
+    }), "application/json", 200)
+
+
+def _ssh_private_key(_m, _q, _b) -> tuple[str, str, int]:
+    """Fake RSA private key — frequently targeted by credential harvesters."""
+    fake_key = (
+        "-----BEGIN OPENSSH PRIVATE KEY-----\n"
+        "b3BlbnNzaC1rZXktdjEAAAAA" + "A" * 40 + "AAAAA\n"
+        "AAABAQC2randomfakekeydata" + "B" * 40 + "randomdata\n"
+        "notarealkey" + "C" * 40 + "fakefakefake\n"
+        "-----END OPENSSH PRIVATE KEY-----\n"
+    )
+    return (fake_key, "text/plain", 200)
+
+
 def _web_config(_m, _q, _b) -> tuple[str, str, int]:
     """IIS web.config — fake ASP.NET configuration (no real secrets)."""
     xml = (
@@ -638,6 +773,34 @@ ROUTE_TABLE: list[tuple[str, Callable[[str, str, str], tuple[str, str, int]]]] =
     ("/api/v2/", _api_versioned),
     ("/api/v3/", _api_versioned),
     ("/api/",    _api_auth_required),
+    # Kubernetes API (exposed k8s / SSRF target)
+    ("/api/v1/namespaces/production/secrets", _k8s_secrets),
+    ("/api/v1/namespaces/default/secrets",    _k8s_secrets),
+    ("/api/v1/secrets",                       _k8s_secrets),
+    ("/api/v1/pods",                          _k8s_pods),
+    ("/api/v1/namespaces",                    _k8s_pods),
+    ("/api/v1",                               _k8s_api),
+    # Docker registry v2
+    ("/v2/_catalog",   _docker_registry_catalog),
+    ("/v2/tags/list",  _docker_registry_tags),
+    ("/v2/",           _docker_registry),
+    # Elasticsearch
+    ("/_search",          _elasticsearch_search),
+    ("/_all/_search",     _elasticsearch_search),
+    ("/_cluster/health",  _elasticsearch_cluster),
+    ("/_cluster/state",   _elasticsearch_cluster),
+    ("/_nodes",           _elasticsearch_cluster),
+    ("/_cat/indices",     _elasticsearch_cluster),
+    # Jenkins
+    ("/jenkins/api/json", _jenkins_api),
+    ("/jenkins",          _jenkins),
+    ("/jenkins/",         _jenkins),
+    # SSH private keys
+    ("/.ssh/id_rsa",         _ssh_private_key),
+    ("/.ssh/id_ed25519",     _ssh_private_key),
+    ("/id_rsa",              _ssh_private_key),
+    ("/home/ubuntu/.ssh/id_rsa", _ssh_private_key),
+    ("/root/.ssh/id_rsa",    _ssh_private_key),
     # IIS / .NET
     ("/web.config", _web_config),
     # Rails
