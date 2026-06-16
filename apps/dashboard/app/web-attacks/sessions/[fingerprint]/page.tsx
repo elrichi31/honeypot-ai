@@ -14,7 +14,7 @@ import { Flag } from "@/components/ui/flag"
 import { StatCard } from "@/components/stat-card"
 import { IpEnrichment } from "@/components/ip-enrichment"
 import { ATTACK_COLORS, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack-types"
-import { RequestRow, type RequestGroup } from "../../../[ip]/request-row"
+import { RequestRow, type RequestGroup } from "@/components/web-request-row"
 
 export default async function SessionDetailPage({
   params,

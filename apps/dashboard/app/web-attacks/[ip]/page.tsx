@@ -12,7 +12,7 @@ import { ATTACK_COLORS, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack
 import { StatCard } from "@/components/stat-card"
 import { Surface } from "@/components/ui/surface"
 import { AttackTypeFilter } from "@/components/attack-type-filter"
-import { RequestRow, type RequestGroup } from "./request-row"
+import { RequestRow, type RequestGroup } from "@/components/web-request-row"
 import { IpBursts } from "./ip-bursts"
 import { IpEnrichment } from "@/components/ip-enrichment"
 
