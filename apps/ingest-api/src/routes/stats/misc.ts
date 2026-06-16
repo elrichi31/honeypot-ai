@@ -170,26 +170,32 @@ export async function miscRoutes(fastify: FastifyInstance) {
     withCache(fastify.cache, 'stats:geo', GEO_TTL, () =>
       fastify.prismaRead.$queryRaw<{ srcIp: string; loginSuccess: boolean | null }[]>(Prisma.sql`
         SELECT src_ip AS "srcIp", BOOL_OR(login_success IS TRUE) AS "loginSuccess"
-        FROM sessions GROUP BY src_ip
+        FROM sessions
+        WHERE started_at >= NOW() - INTERVAL '90 days'
+        GROUP BY src_ip
       `)
     )
   )
 
   fastify.get('/stats/session-commands', async (request) => {
     const { limit = '500' } = request.query as Record<string, string>
-    const events = await fastify.prismaRead.event.findMany({
-      where: { eventType: 'command.input', command: { not: null } },
-      select: { sessionId: true, command: true },
-      take: Math.min(Number(limit), 5000),
-      orderBy: { eventTs: 'asc' },
+    const take = Math.min(Number(limit), 5000)
+    const cacheKey = `stats:session-commands:${take}`
+    return withCache(fastify.cache, cacheKey, 300, async () => {
+      const events = await fastify.prismaRead.event.findMany({
+        where: { eventType: 'command.input', command: { not: null } },
+        select: { sessionId: true, command: true },
+        take,
+        orderBy: { eventTs: 'asc' },
+      })
+      const result: Record<string, string[]> = {}
+      for (const e of events) {
+        if (!e.command) continue
+        if (!result[e.sessionId]) result[e.sessionId] = []
+        result[e.sessionId].push(e.command)
+      }
+      return result
     })
-    const result: Record<string, string[]> = {}
-    for (const e of events) {
-      if (!e.command) continue
-      if (!result[e.sessionId]) result[e.sessionId] = []
-      result[e.sessionId].push(e.command)
-    }
-    return result
   })
 
   fastify.get('/stats/heatmap', async (request) => {

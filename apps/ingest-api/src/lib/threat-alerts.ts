@@ -165,7 +165,16 @@ interface ClientCrowdStrikeConfig {
   crowdstrike_api_key: string
 }
 
+const csConfigCache = new Map<string, { value: ClientCrowdStrikeConfig | null; expiresAt: number }>()
+const CS_CONFIG_TTL_MS = 5 * 60 * 1000
+
 async function resolveClientCrowdStrike(prisma: PrismaClient, key: string): Promise<ClientCrowdStrikeConfig | null> {
+  const cached = csConfigCache.get(key)
+  if (cached && cached.expiresAt > Date.now()) return cached.value
+  const store = (value: ClientCrowdStrikeConfig | null) => {
+    csConfigCache.set(key, { value, expiresAt: Date.now() + CS_CONFIG_TTL_MS })
+    return value
+  }
   try {
     // sensor-offline:<sensorId> — direct sensor lookup
     if (key.startsWith('sensor-offline:')) {
@@ -178,11 +187,11 @@ async function resolveClientCrowdStrike(prisma: PrismaClient, key: string): Prom
           AND c.crowdstrike_hec_url <> '' AND c.crowdstrike_api_key <> ''
         LIMIT 1
       `
-      return rows[0] ?? null
+      return store(rows[0] ?? null)
     }
     // All other keys carry an IP as the last colon-segment: threat_score:<ip>, canary:<ip>, etc.
     const ip = key.split(':').pop() ?? ''
-    if (!IPV4_RE.test(ip)) return null
+    if (!IPV4_RE.test(ip)) return store(null)
     const rows = await prisma.$queryRaw<Array<ClientCrowdStrikeConfig>>`
       SELECT c.crowdstrike_hec_url, c.crowdstrike_api_key
       FROM sessions s
@@ -193,7 +202,7 @@ async function resolveClientCrowdStrike(prisma: PrismaClient, key: string): Prom
       ORDER BY s.started_at DESC
       LIMIT 1
     `
-    return rows[0] ?? null
+    return store(rows[0] ?? null)
   } catch {
     return null
   }
@@ -386,8 +395,8 @@ export async function checkSensorHealthAlerts(prisma: PrismaClient): Promise<voi
   if (!sensorCfg.types.sensorOffline) return
   const offlineSensors = await queryOfflineSensors(prisma)
   const timezone = getTimezone()
-  for (const sensor of offlineSensors) {
-    await sendAlertOnce(prisma, {
+  await Promise.all(offlineSensors.map((sensor) =>
+    sendAlertOnce(prisma, {
       key: `sensor-offline:${sensor.sensor_id}`,
       cooldownMs: SENSOR_OFFLINE_COOLDOWN_MS,
       level: 'high',
@@ -400,7 +409,7 @@ export async function checkSensorHealthAlerts(prisma: PrismaClient): Promise<voi
         { name: 'Last seen', value: formatInTimezone(sensor.last_seen, timezone), inline: false },
       ],
     })
-  }
+  ))
 }
 
 export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Promise<void> {
@@ -416,8 +425,7 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
   const twentyMinAgo = new Date(Date.now() - 20 * 60 * 1000)
 
   const [sshRows, cmdRows, webRows, protocolRows, recentSshRows, recentIdentityRows,
-    recentWebRows, recentProtocolRows, recentProtocolRowsFiveMin, recentCmdRows,
-    recentSshFiveMinRows] = await Promise.all([
+    recentWebRows, recentProtocolRows, recentProtocolRowsFiveMin, recentCmdRows] = await Promise.all([
     querySshAggregate(db, ip),
     querySshCommands(db, ip),
     queryWebAggregate(db, ip),
@@ -428,8 +436,13 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
     queryRecentProtocolAggregate(db, ip, tenMinAgo),
     queryRecentProtocolAggregate(db, ip, fiveMinAgo),
     queryRecentCommands(db, ip, twentyMinAgo),
-    queryRecentSshAggregate(db, ip, fiveMinAgo),
   ])
+  // Derive the 5-min SSH window from the already-fetched 10-min row by applying
+  // the time filter in JS — avoids a redundant DB round-trip per IP evaluation.
+  const recentSsh10 = recentSshRows[0]
+  const recentSshFiveMinAuthAttempts = recentSsh10
+    ? Number(recentSsh10.auth_attempts)
+    : 0
 
   const ssh = sshRows[0]
   const web = webRows[0]
@@ -480,7 +493,7 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
 
   const recentIdentity = recentIdentityRows[0]
   const recentProtocolAuthAttempts = recentProtocolRowsFiveMin.reduce((sum, r) => sum + Number(r.auth_attempts), 0)
-  const totalAuthAttempts = Number(recentSshFiveMinRows[0]?.auth_attempts ?? 0) + recentProtocolAuthAttempts
+  const totalAuthAttempts = recentSshFiveMinAuthAttempts + recentProtocolAuthAttempts
   const uniqueAuthUsernames = new Set([
     ...uniqStrings(recentIdentity?.usernames ?? []),
     ...uniqStrings(recentProtocolRowsFiveMin.flatMap((r) => r.usernames ?? [])),

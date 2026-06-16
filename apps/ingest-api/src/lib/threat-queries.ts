@@ -53,6 +53,7 @@ export type SensorOfflineRow = {
 }
 
 export async function querySshAggregate(prisma: PrismaClient, ip: string) {
+  const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
   return prisma.$queryRaw<Array<SshAggRow>>`
     SELECT
       COUNT(DISTINCT s.id) AS sessions,
@@ -63,6 +64,7 @@ export async function querySshAggregate(prisma: PrismaClient, ip: string) {
     FROM sessions s
     LEFT JOIN events e ON e.session_id = s.id
     WHERE s.src_ip = ${ip}
+      AND s.started_at >= ${cutoff}
   `
 }
 
@@ -172,6 +174,7 @@ export async function queryRecentCommands(prisma: PrismaClient, ip: string, sinc
         AND timestamp >= ${since}
         AND data ? 'command'
     ) AS commands
+    LIMIT 200
   `
 }
 
@@ -179,6 +182,8 @@ export async function querySshCommands(prisma: PrismaClient, ip: string) {
   return prisma.event.findMany({
     where: { srcIp: ip, eventType: 'command.input', command: { not: null } },
     select: { command: true },
+    orderBy: { eventTs: 'desc' },
+    take: 500,
   })
 }
 

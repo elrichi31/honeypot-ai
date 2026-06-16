@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client'
 import type { FastifyInstance } from 'fastify'
 import { withCache } from '../../lib/cache-helper.js'
 
-const KPI_TRENDS_TTL = 300
+const KPI_TRENDS_TTL = 600
 
 interface MetricTrend {
   current: number

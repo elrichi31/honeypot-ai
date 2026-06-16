@@ -34,6 +34,7 @@ model Session {
   @@index([loginSuccess, startedAt(sort: Desc)])
   @@index([sessionType])
   @@index([sessionType, startedAt(sort: Desc)])
+  @@index([startedAt, endedAt])
   @@map("sessions")
 }
 
@@ -391,6 +392,7 @@ model WebHit {
   @@index([timestamp])
   @@index([srcIp, timestamp(sort: Desc)])
   @@index([attackType, timestamp(sort: Desc)])
+  @@index([timestamp(sort: Desc), srcIp, attackType])
   @@index([path])
   @@index([clientFingerprint])
   @@index([isChainAttack, timestamp(sort: Desc)])

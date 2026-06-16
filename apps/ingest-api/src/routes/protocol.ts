@@ -109,7 +109,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
     const offset = (q.page - 1) * q.limit
 
     const [rows, countRows] = await Promise.all([
-      fastify.prisma.$queryRaw<Array<{
+      fastify.prismaRead.$queryRaw<Array<{
         id: string; protocol: string; src_ip: string; src_port: number | null;
         dst_port: number; event_type: string; username: string | null; password: string | null; data: unknown; timestamp: Date;
       }>>`
@@ -119,7 +119,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
         ORDER BY timestamp DESC
         LIMIT ${q.limit} OFFSET ${offset}
       `,
-      fastify.prisma.$queryRaw<[{ count: bigint }]>`
+      fastify.prismaRead.$queryRaw<[{ count: bigint }]>`
         SELECT COUNT(*) FROM protocol_hits
         WHERE (${q.protocol ?? null}::text IS NULL OR protocol = ${q.protocol ?? null})
       `,
@@ -139,7 +139,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
     const isSmb = q.protocol === 'smb'
 
     const [totals, topIps, topPorts, topUsernames, topPasswords, topCommands, topServices, topDatabases, topDomains, topShares, topNativeOS, topNtlmHashes] = await Promise.all([
-      fastify.prisma.$queryRaw<Array<{
+      fastify.prismaRead.$queryRaw<Array<{
         total: number; unique_ips: number; auth_attempts: number; command_events: number; last_seen: Date | null;
       }>>`
         SELECT
@@ -151,7 +151,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
         FROM protocol_hits
         WHERE protocol = ${q.protocol}
       `,
-      fastify.prisma.$queryRaw<Array<{ src_ip: string; count: number; last_seen: Date }>>`
+      fastify.prismaRead.$queryRaw<Array<{ src_ip: string; count: number; last_seen: Date }>>`
         SELECT src_ip, COUNT(*)::int AS count, MAX(timestamp) AS last_seen
         FROM protocol_hits
         WHERE protocol = ${q.protocol}
@@ -159,7 +159,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
         ORDER BY count DESC, last_seen DESC
         LIMIT 10
       `,
-      fastify.prisma.$queryRaw<Array<{ dst_port: number; count: number; last_seen: Date }>>`
+      fastify.prismaRead.$queryRaw<Array<{ dst_port: number; count: number; last_seen: Date }>>`
         SELECT dst_port, COUNT(*)::int AS count, MAX(timestamp) AS last_seen
         FROM protocol_hits
         WHERE protocol = ${q.protocol}
@@ -167,7 +167,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
         ORDER BY count DESC, last_seen DESC
         LIMIT 10
       `,
-      fastify.prisma.$queryRaw<Array<{ username: string; count: number }>>`
+      fastify.prismaRead.$queryRaw<Array<{ username: string; count: number }>>`
         SELECT username, COUNT(*)::int AS count
         FROM protocol_hits
         WHERE protocol = ${q.protocol} AND username IS NOT NULL AND username <> ''
@@ -175,7 +175,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
         ORDER BY count DESC
         LIMIT 10
       `,
-      fastify.prisma.$queryRaw<Array<{ password: string; count: number }>>`
+      fastify.prismaRead.$queryRaw<Array<{ password: string; count: number }>>`
         SELECT password, COUNT(*)::int AS count
         FROM protocol_hits
         WHERE protocol = ${q.protocol} AND password IS NOT NULL AND password <> ''
@@ -183,7 +183,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
         ORDER BY count DESC
         LIMIT 10
       `,
-      fastify.prisma.$queryRaw<Array<{ command: string; count: number }>>`
+      fastify.prismaRead.$queryRaw<Array<{ command: string; count: number }>>`
         SELECT data->>'command' AS command, COUNT(*)::int AS count
         FROM protocol_hits
         WHERE protocol = ${q.protocol} AND data ? 'command' AND data->>'command' <> ''
@@ -191,7 +191,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
         ORDER BY count DESC
         LIMIT 10
       `,
-      fastify.prisma.$queryRaw<Array<{ service: string; count: number }>>`
+      fastify.prismaRead.$queryRaw<Array<{ service: string; count: number }>>`
         SELECT data->>'service' AS service, COUNT(*)::int AS count
         FROM protocol_hits
         WHERE protocol = ${q.protocol} AND data ? 'service' AND data->>'service' <> ''
@@ -199,7 +199,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
         ORDER BY count DESC
         LIMIT 10
       `,
-      fastify.prisma.$queryRaw<Array<{ database: string; count: number }>>`
+      fastify.prismaRead.$queryRaw<Array<{ database: string; count: number }>>`
         SELECT data->>'database' AS database, COUNT(*)::int AS count
         FROM protocol_hits
         WHERE protocol = ${q.protocol} AND data ? 'database' AND data->>'database' <> ''
@@ -209,7 +209,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
       `,
       // SMB-specific: NTLM domain/workgroup
       isSmb
-        ? fastify.prisma.$queryRaw<Array<{ domain: string; count: number }>>`
+        ? fastify.prismaRead.$queryRaw<Array<{ domain: string; count: number }>>`
             SELECT data->>'domain' AS domain, COUNT(*)::int AS count
             FROM protocol_hits
             WHERE protocol = 'smb' AND data->>'domain' IS NOT NULL AND data->>'domain' <> ''
@@ -220,7 +220,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
         : Promise.resolve([]),
       // SMB-specific: accessed shares
       isSmb
-        ? fastify.prisma.$queryRaw<Array<{ share: string; count: number }>>`
+        ? fastify.prismaRead.$queryRaw<Array<{ share: string; count: number }>>`
             SELECT data->>'share' AS share, COUNT(*)::int AS count
             FROM protocol_hits
             WHERE protocol = 'smb' AND data->>'share' IS NOT NULL AND data->>'share' <> ''
@@ -231,7 +231,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
         : Promise.resolve([]),
       // SMB-specific: NativeOS fingerprint of attacking host
       isSmb
-        ? fastify.prisma.$queryRaw<Array<{ native_os: string; count: number }>>`
+        ? fastify.prismaRead.$queryRaw<Array<{ native_os: string; count: number }>>`
             SELECT data->>'nativeOS' AS native_os, COUNT(*)::int AS count
             FROM protocol_hits
             WHERE protocol = 'smb' AND data->>'nativeOS' IS NOT NULL AND data->>'nativeOS' <> ''
@@ -242,7 +242,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
         : Promise.resolve([]),
       // SMB-specific: top NTLM hashes (first 32 chars shown — enough for hashcat)
       isSmb
-        ? fastify.prisma.$queryRaw<Array<{ ntlm_hash: string; username: string; count: number }>>`
+        ? fastify.prismaRead.$queryRaw<Array<{ ntlm_hash: string; username: string; count: number }>>`
             SELECT
               LEFT(data->>'ntlmHash', 32) AS ntlm_hash,
               username,
@@ -275,7 +275,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
 
   fastify.get('/protocol-hits/stats', (_request, reply) =>
     withCache(fastify.cache, 'protocol-hits:stats', 1800, async () => {
-      const rows = await fastify.prisma.$queryRaw<Array<{ protocol: string; count: bigint; last_seen: Date; auth_attempts: bigint }>>`
+      const rows = await fastify.prismaRead.$queryRaw<Array<{ protocol: string; count: bigint; last_seen: Date; auth_attempts: bigint }>>`
         SELECT protocol, COUNT(*) AS count, MAX(timestamp) AS last_seen,
                COUNT(*) FILTER (WHERE event_type = 'auth') AS auth_attempts
         FROM protocol_hits
@@ -288,7 +288,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
 
   fastify.get('/protocol-hits/ports/stats', (_request, reply) =>
     withCache(fastify.cache, 'protocol-hits:ports-stats', 1800, async () => {
-      const rows = await fastify.prisma.$queryRaw<Array<{ protocol: string; dst_port: number; count: bigint; last_seen: Date; auth_attempts: bigint }>>`
+      const rows = await fastify.prismaRead.$queryRaw<Array<{ protocol: string; dst_port: number; count: bigint; last_seen: Date; auth_attempts: bigint }>>`
         SELECT protocol, dst_port, COUNT(*) AS count, MAX(timestamp) AS last_seen,
                COUNT(*) FILTER (WHERE event_type = 'auth') AS auth_attempts
         FROM protocol_hits
