@@ -11,10 +11,9 @@ RUN ["/cowrie/cowrie-env/bin/python3", "/cowrie/cowrie-git/patch_auth.py"]
 # Stage defaults outside the VOLUME path — entrypoint.py copies them at runtime.
 # Switch to root so COPY+chmod run with the right privileges; restore cowrie after.
 USER root
-# Generate moduli so clients using diffie-hellman-group-exchange (e.g. OpenSSH 9+) can connect.
-RUN ssh-keygen -G /tmp/moduli.all -b 2048 && \
-    ssh-keygen -T /cowrie/cowrie-git/etc/moduli -f /tmp/moduli.all && \
-    rm /tmp/moduli.all
+# moduli enables diffie-hellman-group-exchange for modern SSH clients (OpenSSH 9+).
+# Generate with: ssh-keygen -G /tmp/m.all -b 2048 && ssh-keygen -T sensors/cowrie/moduli -f /tmp/m.all
+COPY moduli /cowrie/cowrie-git/etc/moduli
 
 COPY cowrie.cfg   /cowrie-defaults/cowrie.cfg
 COPY userdb.txt   /cowrie-defaults/userdb.txt
