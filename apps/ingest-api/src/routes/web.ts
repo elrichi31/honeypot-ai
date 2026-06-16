@@ -119,7 +119,7 @@ async function handleSingleEvent(fastify: FastifyInstance, request: FastifyReque
       forwardWebEvent(fastify, d, sensorId);
       scheduleThreatAlert(fastify.prisma, d.srcIp);
       if (d.canaryTriggered) {
-        void evaluateCanaryAlert(fastify.prisma, { ip: d.srcIp, path: d.path });
+        void evaluateCanaryAlert(fastify.prisma, { ip: d.srcIp, path: d.path, method: d.method, userAgent: d.userAgent, timestamp: new Date(d.timestamp) });
       }
       return reply.status(201).send({ id: row.id, attackType: row.attack_type });
     }
@@ -152,7 +152,7 @@ async function handleBatchEvents(fastify: FastifyInstance, request: FastifyReque
         forwardWebEvent(fastify, d, d.sensorId ?? null);
         scheduleThreatAlert(fastify.prisma, d.srcIp);
         if (d.canaryTriggered) {
-          void evaluateCanaryAlert(fastify.prisma, { ip: d.srcIp, path: d.path });
+          void evaluateCanaryAlert(fastify.prisma, { ip: d.srcIp, path: d.path, method: d.method, userAgent: d.userAgent, timestamp: new Date(d.timestamp) });
         }
       }
     } catch {

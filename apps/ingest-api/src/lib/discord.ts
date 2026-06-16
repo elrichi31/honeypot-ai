@@ -15,6 +15,7 @@ interface AlertOptions {
   title: string
   description: string
   fields?: Field[]
+  srcIp?: string | null
 }
 
 const DISCORD_FAILURE_LOG_COOLDOWN_MS = 15 * 60 * 1000
@@ -37,7 +38,7 @@ export async function sendDiscordAlert(opts: AlertOptions): Promise<boolean> {
       description: opts.description,
       color: COLORS[opts.level],
       fields: opts.fields ?? [],
-      footer: { text: "Honeypot AI" },
+      footer: { text: opts.srcIp ? `Honeypot AI • ${opts.srcIp}` : 'Honeypot AI' },
       timestamp: new Date().toISOString(),
     }],
   }

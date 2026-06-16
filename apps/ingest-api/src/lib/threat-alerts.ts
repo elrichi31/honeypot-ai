@@ -4,8 +4,10 @@ import { sendDiscordAlert } from './discord.js'
 import { sendCrowdStrikeAlert } from './crowdstrike.js'
 import { getAlertConfig, getTimezone } from './runtime-config.js'
 import { formatInTimezone } from './date-utils.js'
+import { lookupGeo } from './geo.js'
 import {
   checkScoreThreshold,
+  checkFirstLoginSuccess,
   checkCrossProtocol,
   checkAuthBurst,
   checkPostAuthSuccess,
@@ -13,6 +15,7 @@ import {
   checkDeceptionInteraction,
   checkCanaryReplay,
   type AlertPayload,
+  type AlertContext,
 } from './threat-checks.js'
 export {
   deriveMultiServiceLevel,
@@ -239,6 +242,7 @@ async function sendAlertOnce(prisma: PrismaClient, payload: AlertPayload): Promi
       title: payload.title,
       description: payload.description,
       fields: payload.fields,
+      srcIp: srcIp ?? undefined,
     }),
     resolveClientCrowdStrike(prisma, payload.key).then((cs) => {
       if (!cs) return
@@ -291,10 +295,16 @@ const CANARY_ALERT_COOLDOWN_MS = 15 * 60 * 1000
  */
 export async function evaluateCanaryAlert(
   prisma: PrismaClient,
-  input: { ip: string; path: string },
+  input: { ip: string; path: string; method?: string | null; userAgent?: string | null; timestamp?: Date | null },
 ): Promise<void> {
   try {
-    const payload = checkCanaryReplay(input.ip, input.path, CANARY_ALERT_COOLDOWN_MS)
+    const geo = lookupGeo(input.ip)
+    const payload = checkCanaryReplay(input.ip, input.path, CANARY_ALERT_COOLDOWN_MS, {
+      geo: geo ?? undefined,
+      httpMethod: input.method ?? null,
+      userAgent: input.userAgent ?? null,
+      timestamp: input.timestamp ?? null,
+    })
     await sendAlertOnce(prisma, payload)
   } catch (error) {
     console.warn(
@@ -325,15 +335,22 @@ export async function evaluateDeceptionAlert(
 ): Promise<void> {
   try {
     const db = readClient(prisma)
-    const rows = await db.$queryRaw<Array<{ src_ip: string }>>`
-      SELECT s.src_ip
+    const rows = await db.$queryRaw<Array<{ src_ip: string; cowrie_session_id: string; started_at: Date }>>`
+      SELECT s.src_ip, s.cowrie_session_id, s.started_at
       FROM sessions s
       WHERE ${input.timestamp} >= s.started_at
         AND ${input.timestamp} <= COALESCE(s.ended_at, s.started_at + interval '2 hours')
       ORDER BY s.started_at DESC
       LIMIT 1
     `
-    const publicIp = rows[0]?.src_ip ?? input.internalIp
+    const sessionRow = rows[0]
+    const publicIp = sessionRow?.src_ip ?? input.internalIp
+    const attributionSource = sessionRow ? 'session' as const : 'fallback' as const
+    const dwellTimeSeconds = sessionRow
+      ? Math.round((input.timestamp.getTime() - sessionRow.started_at.getTime()) / 1000)
+      : null
+
+    const geo = lookupGeo(publicIp)
     const payload = checkDeceptionInteraction(
       publicIp,
       input.nodeId,
@@ -341,6 +358,13 @@ export async function evaluateDeceptionAlert(
       input.eventType,
       DECEPTION_ALERT_COOLDOWN_MS,
       { username: input.username, password: input.password },
+      {
+        geo: geo ?? undefined,
+        attributionSource,
+        interactionTime: input.timestamp,
+        dwellTimeSeconds,
+        sessionId: sessionRow?.cowrie_session_id ?? null,
+      },
     )
     await sendAlertOnce(prisma, payload)
   } catch (error) {
@@ -504,21 +528,108 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
   ]).size
   const recentCommands = recentCmdRows.map((r) => r.command ?? '').filter(Boolean)
 
+  // Sensor attribution: best-effort lookup of which sensor first saw this IP.
+  // Used to populate the Sensor field in enriched alerts.
+  const sensorRows = await db.$queryRaw<Array<{ sensor_id: string }>>`
+    SELECT sensor_id FROM sessions
+    WHERE src_ip = ${ip} AND sensor_id IS NOT NULL
+    ORDER BY started_at ASC LIMIT 1
+  `.catch(() => [] as Array<{ sensor_id: string }>)
+  const attributedSensorId = sensorRows[0]?.sensor_id ?? null
+
+  const geo = lookupGeo(ip)
+  const baseCtx: AlertContext = {
+    geo: geo ?? undefined,
+    sensorId: attributedSensorId ?? undefined,
+    firstSeen: ssh?.first_seen ?? null,
+    lastSeen: ssh?.last_seen ?? web?.last_seen ?? null,
+    sshSessions: Number(ssh?.sessions ?? 0),
+    sshAuthAttempts: Number(ssh?.auth_attempts ?? 0),
+    hadSuccess: ssh?.had_success ?? false,
+    credentialReuse: protocolSummary.credentialReuse,
+    webAttackTypes: web?.attack_types ?? [],
+    windowMinutes: buildTimeWindowMinutes(
+      ssh ? { firstSeen: ssh.first_seen, lastSeen: ssh.last_seen } : null,
+      web ? { firstSeen: web.first_seen, lastSeen: web.last_seen } : null,
+    ),
+  }
+
+  // Sample usernames from the recent identity row (first 5 unique values)
+  const sampleUsernames = uniqStrings(recentIdentity?.usernames ?? []).slice(0, 5)
+
+  // Ports scanned (from protocol summary)
+  const recentProtocolPorts = recentProtocolSummary.uniquePorts
+  const recentProtocolPortNumbers = recentProtocolRowsFiveMin
+    .flatMap((r) => (r.dst_ports ?? []).filter((p): p is number => typeof p === 'number'))
+    .slice(0, 10)
+
+  const loginSuccessCount = Number(recentSsh?.login_successes ?? 0)
+  const recentLoginSuccesses = Number(recentSsh?.login_successes ?? 0)
+
   const checks = [
     alertCfg.types.threatScore && levelPasses(risk.level as 'HIGH' | 'CRITICAL')
-      ? checkScoreThreshold(ip, risk, protocolsSeen, alertCfg.cooldownMs)
+      ? checkScoreThreshold(ip, risk, protocolsSeen, alertCfg.cooldownMs, {
+          ...baseCtx,
+          windowMinutes: buildTimeWindowMinutes(
+            ssh ? { firstSeen: ssh.first_seen, lastSeen: ssh.last_seen } : null,
+            web ? { firstSeen: web.first_seen, lastSeen: web.last_seen } : null,
+            protocolRows.length > 0
+              ? {
+                  firstSeen: protocolRows.reduce<Date | null>((min, r) => !min || (r.first_seen && r.first_seen < min) ? r.first_seen : min, null),
+                  lastSeen: protocolRows.reduce<Date | null>((max, r) => !max || (r.last_seen && r.last_seen > max) ? r.last_seen : max, null),
+                }
+              : null,
+          ),
+        })
       : null,
     alertCfg.types.multiService
-      ? checkCrossProtocol(ip, recentFamilies, alertCfg.cooldownMs)
+      ? checkCrossProtocol(ip, recentFamilies, alertCfg.cooldownMs, {
+          ...baseCtx,
+          windowAuthAttempts: totalAuthAttempts,
+          portsScanned: recentProtocolPorts,
+          credentialReuse: recentProtocolSummary.credentialReuse,
+          webAttackTypes: recentWeb?.attack_types ?? [],
+        })
       : null,
     alertCfg.types.authBurst
-      ? checkAuthBurst(ip, totalAuthAttempts, uniqueAuthUsernames, uniqueAuthPasswords, recentFamilies, alertCfg.cooldownMs)
+      ? checkAuthBurst(ip, totalAuthAttempts, uniqueAuthUsernames, uniqueAuthPasswords, recentFamilies, alertCfg.cooldownMs, {
+          ...baseCtx,
+          sshAuthAttempts: recentSshFiveMinAuthAttempts,
+          protocolAuthAttempts: recentProtocolAuthAttempts,
+          sampleUsernames,
+          loginSuccesses: loginSuccessCount,
+          portsTargeted: recentProtocolPortNumbers,
+        })
       : null,
     alertCfg.types.postAuth
-      ? checkPostAuthSuccess(ip, Number(recentSsh?.login_successes ?? 0), recentCommands, alertCfg.cooldownMs)
+      ? checkPostAuthSuccess(ip, recentLoginSuccesses, recentCommands, alertCfg.cooldownMs, {
+          ...baseCtx,
+          sshAuthAttempts: Number(recentSsh?.auth_attempts ?? 0),
+        })
       : null,
     alertCfg.types.attackChain
-      ? checkAttackChain(ip, recentProtocolSummary.names.includes('port-scan'), recentWeb?.attack_types ?? [], totalAuthAttempts, alertCfg.cooldownMs)
+      ? checkAttackChain(
+          ip,
+          recentProtocolSummary.names.includes('port-scan'),
+          recentWeb?.attack_types ?? [],
+          totalAuthAttempts,
+          alertCfg.cooldownMs,
+          {
+            ...baseCtx,
+            portsScanned: recentProtocolPorts,
+            authSuccess: (ssh?.had_success ?? false) || recentLoginSuccesses > 0,
+            riskScore: risk.score,
+            riskLevel: risk.level,
+            allWebAttackTypes: web?.attack_types ?? [],
+          },
+        )
+      : null,
+    // First-time login success without post-auth commands yet — attacker just got in
+    alertCfg.types.postAuth && recentLoginSuccesses > 0 && recentCommands.length === 0
+      ? checkFirstLoginSuccess(ip, alertCfg.cooldownMs, {
+          ...baseCtx,
+          sshAuthAttempts: Number(ssh?.auth_attempts ?? 0),
+        })
       : null,
   ]
 
