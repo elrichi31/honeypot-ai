@@ -87,6 +87,10 @@ export async function fetchWebSessions(params?: {
   return apiFetch(`${getApiUrl()}/web-hits/sessions?${sp}`, 60)
 }
 
+export async function fetchWebSessionDetail(fingerprint: string): Promise<{ fingerprint: string; hits: import("./types").WebHit[] }> {
+  return apiFetch(`${getApiUrl()}/web-hits/sessions/${encodeURIComponent(fingerprint)}`, 30)
+}
+
 export async function fetchWebHitsStats(params?: { range?: string; clientSlug?: string; sensorId?: string }): Promise<{
   total: number
   byAttackType: { attackType: string; count: number }[]

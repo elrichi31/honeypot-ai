@@ -24,6 +24,7 @@ import {
   queryWebHitsByIp,
   queryWebSessions,
   countWebSessions,
+  querySessionHits,
   type WebHitsByIpRow,
   type WebHitRow,
   type AttackTypeStatRow,
@@ -454,6 +455,15 @@ async function handleSessions(fastify: FastifyInstance, request: FastifyRequest,
   }));
 }
 
+async function handleSessionDetail(fastify: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
+  const { fingerprint } = (request.params as { fingerprint: string });
+  if (!fingerprint?.trim()) return reply.status(400).send({ error: 'fingerprint required' });
+  const fp = decodeURIComponent(fingerprint);
+  const hits = await querySessionHits(fastify.prisma, fp, 500);
+  if (hits.length === 0) return reply.status(404).send({ error: 'session not found' });
+  return reply.send({ fingerprint: fp, hits });
+}
+
 export async function webRoutes(fastify: FastifyInstance) {
   fastify.post('/ingest/web/event', (req, rep) => handleSingleEvent(fastify, req, rep));
   fastify.post('/ingest/web/vector', (req, rep) => handleBatchEvents(fastify, req, rep));
@@ -465,4 +475,5 @@ export async function webRoutes(fastify: FastifyInstance) {
   fastify.get('/web-hits/hourly', (req, rep) => handleHourly(fastify, req, rep));
   fastify.get('/web-hits/stats', (req, rep) => handleStats(fastify, req, rep));
   fastify.get('/web-hits/sessions', (req, rep) => handleSessions(fastify, req, rep));
+  fastify.get('/web-hits/sessions/:fingerprint', (req, rep) => handleSessionDetail(fastify, req, rep));
 }

@@ -302,6 +302,29 @@ export async function countWebSessions(
   return rows[0]?.total ?? 0;
 }
 
+/** All hits that share a client fingerprint, across every IP they used. */
+export async function querySessionHits(
+  prisma: PrismaClient,
+  fingerprint: string,
+  limit: number,
+): Promise<WebHitRow[]> {
+  return prisma.$queryRaw<WebHitRow[]>`
+    SELECT id, src_ip AS "srcIp", method, path, query,
+      user_agent AS "userAgent", attack_type AS "attackType",
+      canary_triggered AS "canaryTriggered", body, headers, timestamp,
+      headers->>'x-galah-result'     AS "galahResult",
+      headers->>'x-galah-error-type' AS "galahErrorType",
+      session_hits AS "sessionHits", session_elapsed_s AS "sessionElapsedS",
+      paths_visited AS "pathsVisited", attack_chain AS "attackChain",
+      is_chain_attack AS "isChainAttack", client_fingerprint AS "clientFingerprint",
+      canary_token_type AS "canaryTokenType", referer, http_version AS "httpVersion"
+    FROM web_hits
+    WHERE COALESCE(client_fingerprint, src_ip) = ${fingerprint}
+    ORDER BY timestamp DESC
+    LIMIT ${limit}
+  `;
+}
+
 type InsertedWebHit = { id: string; attack_type: string };
 
 export async function insertWebHit(

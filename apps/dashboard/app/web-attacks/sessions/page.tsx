@@ -145,18 +145,20 @@ function SessionRow({ session: s, timezone }: { session: WebSession; timezone: s
     <tr className={`transition-colors hover:bg-muted/20 ${isCanary ? "bg-red-500/5" : isChain ? "bg-orange-500/5" : ""}`}>
       {/* Fingerprint */}
       <td className="px-4 py-3">
-        <div className="flex items-center gap-2">
-          {isCanary && <Target className="h-3.5 w-3.5 shrink-0 text-red-400" />}
-          {isChain && !isCanary && <GitBranch className="h-3.5 w-3.5 shrink-0 text-orange-400" />}
-          {isMultiIp && !isCanary && !isChain && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-yellow-400" />}
-          <span className="font-mono text-xs text-foreground">{s.clientFingerprint}</span>
-          {isIpFallback(s.clientFingerprint) && (
-            <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">IP</span>
+        <Link href={`/web-attacks/sessions/${encodeURIComponent(s.clientFingerprint)}`} className="group block">
+          <div className="flex items-center gap-2">
+            {isCanary && <Target className="h-3.5 w-3.5 shrink-0 text-red-400" />}
+            {isChain && !isCanary && <GitBranch className="h-3.5 w-3.5 shrink-0 text-orange-400" />}
+            {isMultiIp && !isCanary && !isChain && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-yellow-400" />}
+            <span className="font-mono text-xs text-blue-400 group-hover:underline">{s.clientFingerprint}</span>
+            {isIpFallback(s.clientFingerprint) && (
+              <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">IP</span>
+            )}
+          </div>
+          {isMultiIp && (
+            <p className="mt-0.5 text-xs text-yellow-400">Multi-IP · possible VPN hopper</p>
           )}
-        </div>
-        {isMultiIp && (
-          <p className="mt-0.5 text-xs text-yellow-400">Multi-IP · possible VPN hopper</p>
-        )}
+        </Link>
       </td>
 
       {/* IPs */}
