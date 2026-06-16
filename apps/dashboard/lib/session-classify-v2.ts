@@ -206,6 +206,75 @@ export function classify(session: SessionItem): Classification {
   }
 }
 
+export interface IpGroup {
+  srcIp: string
+  country: string | null
+  countryName: string | null
+  sessions: SessionItem[]
+  firstSeen: string
+  lastSeen: string
+  worstClassification: Classification
+  hasCommands: boolean
+  sessionTypes: Set<string>
+}
+
+export function groupSessionsByIp(sessions: SessionItem[]): IpGroup[] {
+  const map = new Map<string, IpGroup>()
+
+  for (const session of sessions) {
+    if (!map.has(session.srcIp)) {
+      map.set(session.srcIp, {
+        srcIp: session.srcIp,
+        country: session.country,
+        countryName: session.countryName,
+        sessions: [],
+        firstSeen: session.startTime,
+        lastSeen: session.startTime,
+        worstClassification: classify(session),
+        hasCommands: false,
+        sessionTypes: new Set(),
+      })
+    }
+
+    const group = map.get(session.srcIp)!
+    group.sessions.push(session)
+    if (session.sessionType) group.sessionTypes.add(session.sessionType)
+    if (session.commandCount > 0) group.hasCommands = true
+
+    if (new Date(session.startTime) < new Date(group.firstSeen)) group.firstSeen = session.startTime
+    if (new Date(session.startTime) > new Date(group.lastSeen)) group.lastSeen = session.startTime
+
+    const cls = classify(session)
+    group.worstClassification = worstOf(group.worstClassification, cls)
+  }
+
+  return [...map.values()].sort(
+    (a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime(),
+  )
+}
+
+const SEVERITY_ORDER = [
+  "Malware dropper",
+  "Container Escape",
+  "Crypto Miner",
+  "Data Exfil",
+  "Targeted Crypto",
+  "SSH Backdoor",
+  "Honeypot Evasion",
+  "Interactive",
+  "Bot Script",
+  "Recon",
+  "Login only",
+]
+
+function worstOf(a: Classification, b: Classification): Classification {
+  const ai = SEVERITY_ORDER.indexOf(a.label)
+  const bi = SEVERITY_ORDER.indexOf(b.label)
+  if (ai === -1) return b
+  if (bi === -1) return a
+  return ai <= bi ? a : b
+}
+
 export interface ScanGroup {
   srcIp: string
   country: string | null

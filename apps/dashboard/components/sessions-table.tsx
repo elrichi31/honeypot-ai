@@ -10,9 +10,10 @@ import { NavTransitionProvider, useNavTransitionOptional } from "@/lib/use-nav-t
 import { cn } from "@/lib/utils"
 import { Surface } from "@/components/ui/surface"
 import { countryFlag } from "@/lib/formatting"
-import { classify, groupScans, type SessionItem } from "@/lib/session-classify-v2"
+import { groupScans, groupSessionsByIp, type SessionItem } from "@/lib/session-classify-v2"
 import { SessionRow } from "./session-row"
 import { ScanGroupRow } from "./scan-group-row"
+import { IpSessionGroup } from "./ip-session-group"
 
 export type { SessionItem }
 
@@ -72,35 +73,36 @@ function SessionsTableInner({
   const activeSessions = useMemo(() => sessions.filter((session) => session.loginSuccess === true), [sessions])
   const scanSessions = useMemo(() => sessions.filter((session) => session.loginSuccess !== true), [sessions])
   const scanGroups = useMemo(() => groupScans(scanSessions), [scanSessions])
+  const ipGroups = useMemo(() => groupSessionsByIp(activeSessions), [activeSessions])
 
   const availableCountries = useMemo(() => {
-    const source = tab === "sessions" ? activeSessions : scanSessions
     const seen = new Map<string, string>()
+    const source = tab === "sessions" ? ipGroups : scanSessions
 
-    for (const session of source) {
-      if (session.country && session.countryName && !seen.has(session.country)) {
-        seen.set(session.country, session.countryName)
+    for (const item of source) {
+      if (item.country && item.countryName && !seen.has(item.country)) {
+        seen.set(item.country, item.countryName)
       }
     }
 
     return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]))
-  }, [tab, activeSessions, scanSessions])
+  }, [tab, ipGroups, scanSessions])
 
   const availableClasses = useMemo(() => {
     const seen = new Set<string>()
-    for (const session of activeSessions) seen.add(classify(session).label)
+    for (const group of ipGroups) seen.add(group.worstClassification.label)
     return [...seen].sort()
-  }, [activeSessions])
+  }, [ipGroups])
 
-  const filteredSessions = useMemo(
+  const filteredGroups2 = useMemo(
     () =>
-      activeSessions.filter((session) => {
-        if (filters.search && !session.srcIp.includes(filters.search)) return false
-        if (filters.country && session.country !== filters.country) return false
-        if (filters.classification && classify(session).label !== filters.classification) return false
+      ipGroups.filter((group) => {
+        if (filters.search && !group.srcIp.includes(filters.search)) return false
+        if (filters.country && group.country !== filters.country) return false
+        if (filters.classification && group.worstClassification.label !== filters.classification) return false
         return true
       }),
-    [activeSessions, filters],
+    [ipGroups, filters],
   )
 
   const filteredGroups = useMemo(
@@ -310,7 +312,7 @@ function SessionsTableInner({
           <span className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
             <Filter className="h-3.5 w-3.5" />
             {tab === "sessions"
-              ? `${filteredSessions.length} of ${activeSessions.length} visible`
+              ? `${filteredGroups2.length} of ${ipGroups.length} visible`
               : `${filteredGroups.length} of ${scanGroups.length} visible`}
           </span>
         </div>
@@ -356,10 +358,10 @@ function SessionsTableInner({
     >
       <div className="divide-y divide-border">
         {tab === "sessions" ? (
-          filteredSessions.length === 0 ? (
+          filteredGroups2.length === 0 ? (
             <p className="p-8 text-center text-sm text-muted-foreground">No sessions matching filters.</p>
           ) : (
-            filteredSessions.map((session) => <SessionRow key={session.id} session={session} />)
+            filteredGroups2.map((group) => <IpSessionGroup key={group.srcIp} group={group} />)
           )
         ) : filteredGroups.length === 0 ? (
           <p className="p-8 text-center text-sm text-muted-foreground">No scans matching filters.</p>
