@@ -24,15 +24,16 @@ export default async function SessionDetailPage({
   const { fingerprint } = await params
   const fp = decodeURIComponent(fingerprint)
 
-  let detail: Awaited<ReturnType<typeof fetchWebSessionDetail>>
+  let detail: Awaited<ReturnType<typeof fetchWebSessionDetail>> | null = null
   try {
     detail = await fetchWebSessionDetail(fp)
   } catch {
-    notFound()
+    // endpoint returned 404 or network error
   }
 
+  if (!detail || detail.hits.length === 0) notFound()
+
   const { hits } = detail
-  if (hits.length === 0) notFound()
 
   // Derived stats
   const srcIps = [...new Set(hits.map((h) => h.srcIp))]
