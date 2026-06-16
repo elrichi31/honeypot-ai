@@ -6,6 +6,10 @@ interface SshOverviewRow { sessions: bigint; uniqueIps: bigint; successfulLogins
 interface WebOverviewRow { hits: bigint; uniqueIps: bigint; lastSeen: Date | null }
 interface WebTopAttackRow { attackType: string }
 interface ProtocolOverviewRow { protocol: string; count: bigint; uniqueIps: bigint; authAttempts: bigint; lastSeen: Date | null }
+interface CountRow { n: bigint }
+interface SparkRow { b: Date; n: number }
+interface ProtoCountRow { protocol: string; n: bigint }
+interface ProtoSparkRow { protocol: string; b: Date; n: number }
 
 const OVERVIEW_TTL = 1800
 const GEO_TTL     = 1800

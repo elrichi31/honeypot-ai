@@ -15,9 +15,9 @@ export function DeceptionPortscansTable({ portscans }: { portscans: DeceptionPor
           <p className="text-[11px] text-muted-foreground">Reconnaissance detected by OpenCanary on the internal deception network.</p>
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-clip">
         <table className="w-full text-left text-[12px]">
-          <thead className="text-[10px] uppercase text-muted-foreground/60">
+          <thead className="sticky top-0 z-10 bg-card text-[10px] uppercase text-muted-foreground/60">
             <tr className="border-b border-border/40">
               <th className="px-4 py-2 font-medium">Source IP</th>
               <th className="px-4 py-2 font-medium">Node</th>

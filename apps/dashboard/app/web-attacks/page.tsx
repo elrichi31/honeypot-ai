@@ -141,8 +141,8 @@ export default async function WebAttacksPage({
 
         <div className="min-h-0 flex-1 overflow-auto">
           <table className="min-w-[1080px] w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
+            <thead className="sticky top-0 z-10 bg-card">
+              <tr className="border-b border-border">
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Attacker IP</th>
                 <SortableWebTh label="Hits" column="totalHits" sortBy={sortBy} sortDir={sortDir} q={q} type={attackType} range={range} clientSlug={clientSlug} sensorId={sensorId} pageSize={pageSize} />
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Attack types</th>

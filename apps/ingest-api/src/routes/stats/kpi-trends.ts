@@ -89,11 +89,15 @@ export async function kpiTrendsRoute(fastify: FastifyInstance) {
           FROM series LEFT JOIN counts USING (b) ORDER BY series.b
         `)
 
+      type ProtoCountRow = { protocol: string; count: bigint }
+      type ProtoSparkRow = { protocol: string; count: number }
+
       const [
         sshCur, sshPrev, sshSpark,
         webCur, webPrev, webSpark,
         protoCur, protoPrev, protoSpark,
         ipCur, ipPrev, ipSpark,
+        protoBreakCur, protoBreakPrev, protoBreakSpark,
       ] = await Promise.all([
         windowCount('sessions', 'started_at', curStart, now),
         windowCount('sessions', 'started_at', prevStart, curStart),
@@ -110,6 +114,36 @@ export async function kpiTrendsRoute(fastify: FastifyInstance) {
         uniqueIpCount(curStart, now),
         uniqueIpCount(prevStart, curStart),
         uniqueIpSpark(curStart, now),
+
+        fastify.prismaRead.$queryRaw<ProtoCountRow[]>(Prisma.sql`
+          SELECT protocol, COUNT(*)::bigint AS count FROM protocol_hits
+          WHERE timestamp >= ${curStart} AND timestamp <= ${now} GROUP BY protocol
+        `),
+        fastify.prismaRead.$queryRaw<ProtoCountRow[]>(Prisma.sql`
+          SELECT protocol, COUNT(*)::bigint AS count FROM protocol_hits
+          WHERE timestamp >= ${prevStart} AND timestamp <= ${curStart} GROUP BY protocol
+        `),
+        fastify.prismaRead.$queryRaw<ProtoSparkRow[]>(Prisma.sql`
+          SELECT protocol, COALESCE(counts.count, 0)::int AS count
+          FROM (
+            SELECT DISTINCT protocol FROM protocol_hits
+            WHERE timestamp >= ${curStart} AND timestamp <= ${now}
+          ) protos
+          CROSS JOIN (
+            WITH bounds AS (
+              SELECT date_trunc('hour', ${curStart}::timestamptz) AS s,
+                     date_trunc('hour', ${now}::timestamptz)      AS e
+            ),
+            series AS (SELECT generate_series(s, e, interval '1 hour') AS b FROM bounds)
+            SELECT b FROM series
+          ) hrs
+          LEFT JOIN (
+            SELECT protocol, date_trunc('hour', timestamp::timestamptz) AS b, COUNT(*)::int AS count
+            FROM protocol_hits WHERE timestamp >= ${curStart} AND timestamp <= ${now}
+            GROUP BY 1, 2
+          ) counts USING (protocol, b)
+          ORDER BY protos.protocol, hrs.b
+        `),
       ])
 
       const num = (rows: CountRow[]) => Number(rows[0]?.count ?? 0n)
@@ -131,11 +165,28 @@ export async function kpiTrendsRoute(fastify: FastifyInstance) {
       const sumSpark = (a: number[], b: number[], c: number[]) =>
         a.map((v, i) => v + (b[i] ?? 0) + (c[i] ?? 0))
 
+      const protoCurMap  = new Map(protoBreakCur.map(r  => [r.protocol, Number(r.count)]))
+      const protoPrevMap = new Map(protoBreakPrev.map(r => [r.protocol, Number(r.count)]))
+      const protoSparkMap = new Map<string, number[]>()
+      for (const r of protoBreakSpark) {
+        if (!protoSparkMap.has(r.protocol)) protoSparkMap.set(r.protocol, [])
+        protoSparkMap.get(r.protocol)!.push(r.count)
+      }
+      const protocols: Record<string, MetricTrend> = {}
+      for (const p of new Set([...protoCurMap.keys(), ...protoPrevMap.keys()])) {
+        protocols[p] = metric(
+          protoCurMap.get(p)  ?? 0,
+          protoPrevMap.get(p) ?? 0,
+          protoSparkMap.get(p) ?? [],
+        )
+      }
+
       return {
         events: metric(eventsCur, eventsPrev, sumSpark(spark(sshSpark), spark(webSpark), spark(protoSpark))),
         sshSessions: metric(sshC, sshP, spark(sshSpark)),
         webHits: metric(webC, webP, spark(webSpark)),
         uniqueIps: metric(num(ipCur), num(ipPrev), spark(ipSpark)),
+        protocols,
       }
     })
   )

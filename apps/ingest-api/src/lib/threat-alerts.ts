@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client'
 import { computeRiskScore } from './risk-score.js'
 import { sendDiscordAlert } from './discord.js'
+import { sendCrowdStrikeAlert } from './crowdstrike.js'
 import { getAlertConfig, getTimezone } from './runtime-config.js'
 import { formatInTimezone } from './date-utils.js'
 import {
@@ -151,6 +152,45 @@ async function shouldSendAlert(prisma: PrismaClient, key: string, cooldownMs: nu
 
 const IPV4_RE = /(\d{1,3}\.){3}\d{1,3}/
 
+interface ClientCrowdStrikeConfig {
+  crowdstrike_hec_url: string
+  crowdstrike_api_key: string
+}
+
+async function resolveClientCrowdStrike(prisma: PrismaClient, key: string): Promise<ClientCrowdStrikeConfig | null> {
+  try {
+    // sensor-offline:<sensorId> — direct sensor lookup
+    if (key.startsWith('sensor-offline:')) {
+      const sensorId = key.slice('sensor-offline:'.length)
+      const rows = await prisma.$queryRaw<Array<ClientCrowdStrikeConfig>>`
+        SELECT c.crowdstrike_hec_url, c.crowdstrike_api_key
+        FROM sensors s
+        JOIN clients c ON c.id = s.client_id
+        WHERE s.sensor_id = ${sensorId}
+          AND c.crowdstrike_hec_url <> '' AND c.crowdstrike_api_key <> ''
+        LIMIT 1
+      `
+      return rows[0] ?? null
+    }
+    // All other keys carry an IP as the last colon-segment: threat_score:<ip>, canary:<ip>, etc.
+    const ip = key.split(':').pop() ?? ''
+    if (!IPV4_RE.test(ip)) return null
+    const rows = await prisma.$queryRaw<Array<ClientCrowdStrikeConfig>>`
+      SELECT c.crowdstrike_hec_url, c.crowdstrike_api_key
+      FROM sessions s
+      JOIN sensors sen ON sen.sensor_id = s.sensor_id
+      JOIN clients c ON c.id = sen.client_id
+      WHERE s.src_ip = ${ip}
+        AND c.crowdstrike_hec_url <> '' AND c.crowdstrike_api_key <> ''
+      ORDER BY s.started_at DESC
+      LIMIT 1
+    `
+    return rows[0] ?? null
+  } catch {
+    return null
+  }
+}
+
 async function persistAlert(prisma: PrismaClient, payload: AlertPayload): Promise<void> {
   // Best-effort context from the cooldown key: "threat_score:<ip>",
   // "sensor-offline:<sensorId>", etc. Persistence must never block the alert.
@@ -177,12 +217,30 @@ async function persistAlert(prisma: PrismaClient, payload: AlertPayload): Promis
 async function sendAlertOnce(prisma: PrismaClient, payload: AlertPayload): Promise<void> {
   if (!await shouldSendAlert(prisma, payload.key, payload.cooldownMs)) return
   await persistAlert(prisma, payload)
-  await sendDiscordAlert({
-    level: payload.level,
-    title: payload.title,
-    description: payload.description,
-    fields: payload.fields,
-  })
+  const keyValue = payload.key.split(':').slice(1).join(':') || null
+  const srcIp = keyValue && IPV4_RE.test(keyValue) ? keyValue : null
+  const sensorId = payload.key.startsWith('sensor-offline:') ? keyValue : null
+  await Promise.all([
+    sendDiscordAlert({
+      level: payload.level,
+      title: payload.title,
+      description: payload.description,
+      fields: payload.fields,
+    }),
+    resolveClientCrowdStrike(prisma, payload.key).then((cs) => {
+      if (!cs) return
+      return sendCrowdStrikeAlert({
+        hecUrl: cs.crowdstrike_hec_url,
+        apiKey: cs.crowdstrike_api_key,
+        level: payload.level,
+        title: payload.title,
+        description: payload.description,
+        fields: payload.fields,
+        srcIp,
+        sensorId,
+      })
+    }),
+  ])
 }
 
 export async function clearSensorOfflineAlert(prisma: PrismaClient, sensorId: string): Promise<void> {

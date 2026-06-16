@@ -48,7 +48,7 @@ export function CredentialCampaigns({ rows }: Props) {
       <div className="overflow-hidden rounded-xl border border-border">
         <div className="max-h-[540px] overflow-auto">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-muted/95 text-xs uppercase tracking-wide text-muted-foreground backdrop-blur">
+            <thead className="sticky top-0 z-10 bg-card text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 text-left">{t("dash.campaigns.colCredential")}</th>
                 <th className="px-4 py-3 text-left">{t("dash.campaigns.colWindow")}</th>

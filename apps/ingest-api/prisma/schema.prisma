@@ -115,13 +115,15 @@ model Sensor {
 }
 
 model Client {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  code        String   @default("")
-  description String   @default("")
-  forwardUrl  String   @default("") @map("forward_url")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id                  String   @id @default(cuid())
+  name                String
+  slug                String   @unique
+  code                String   @default("")
+  description         String   @default("")
+  forwardUrl          String   @default("") @map("forward_url")
+  crowdstrikeHecUrl   String   @default("") @map("crowdstrike_hec_url")
+  crowdstrikeApiKey   String   @default("") @map("crowdstrike_api_key")
+  createdAt           DateTime @default(now()) @map("created_at")
 
   sensors          Sensor[]
   provisionTokens  SensorProvisionToken[]

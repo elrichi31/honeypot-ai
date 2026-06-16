@@ -127,7 +127,7 @@ export default async function WebAttackerDetailPage({
               {location?.countryName && (
                 <p className="mt-0.5 text-sm text-muted-foreground">{location.countryName}</p>
               )}
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p suppressHydrationWarning className="mt-1 text-xs text-muted-foreground">
                 First hit {formatDistanceToNow(new Date(attacker.firstSeen), { addSuffix: true })} ·{" "}
                 Last {formatDistanceToNow(new Date(attacker.lastSeen), { addSuffix: true })}
               </p>
@@ -327,8 +327,8 @@ export default async function WebAttackerDetailPage({
               </div>
               <div className="overflow-y-auto max-h-[620px]">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 z-10">
-                  <tr className="border-b border-border bg-card">
+                <thead className="sticky top-0 z-10 bg-card">
+                  <tr className="border-b border-border">
                     <th className="w-6 px-2 py-2.5"></th>
                     <th className="px-2 py-2.5 text-left font-medium text-muted-foreground">Method</th>
                     <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Path</th>

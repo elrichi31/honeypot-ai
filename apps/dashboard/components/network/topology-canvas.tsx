@@ -1,172 +1,227 @@
 "use client"
 
-import { useState, useRef, useEffect, useMemo } from "react"
+import "@xyflow/react/dist/style.css"
+
+import { useState, useMemo, useCallback } from "react"
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  MiniMap,
+  useNodesState,
+  useEdgesState,
+  BackgroundVariant,
+  type Node,
+  type Edge,
+  type NodeTypes,
+} from "@xyflow/react"
 import type { Sensor } from "@/lib/api"
 
-import { Lines }          from "./lines"
-import { SensorNodeCard } from "./sensor-node"
-import { InternetNode }   from "./internet-node"
-import { ClusterLayer }   from "./cluster-layer"
-import { SensorPanel }    from "./sensor-panel"
-import { StatsBar }       from "./stats-bar"
-import { ZoomControls }   from "./zoom-controls"
-import { useCanvasTransform } from "./use-canvas-transform"
-import { buildGroups, computeLayout } from "./utils"
-import { CANVAS_W, CANVAS_H } from "./constants"
+import { RfSensorNode, type SensorNodeData } from "./rf-sensor-node"
+import { RfClientLabel }               from "./rf-client-label"
+import { SensorPanel }                 from "./sensor-panel"
+import { StatsBar }                    from "./stats-bar"
+import { buildGroups }                 from "./utils"
 
-interface TopologyCanvasProps {
-  sensors: Sensor[]
+// ─── Layout constants ─────────────────────────────────────────────────────────
+const NODE_W      = 118
+const NODE_H      = 110
+const COL_STEP    = NODE_W + 32   // column pitch
+const GROUP_GAP   = 100           // horizontal gap between client groups
+const CLIENT_Y    = 40            // Client node y
+const SENSOR_Y    = 380           // Sensor row y
+
+const nodeTypes: NodeTypes = {
+  sensor:      RfSensorNode,
+  clientLabel: RfClientLabel,
 }
 
-export function TopologyCanvas({ sensors }: TopologyCanvasProps) {
-  const groups = useMemo(() => buildGroups(sensors), [sensors])
-  const layout = useMemo(() => computeLayout(groups), [groups])
+// ─── Edge colour based on sensor online status ───────────────────────────────
+function sensorEdge(
+  id: string,
+  source: string,
+  target: string,
+  online: boolean,
+  color: string,
+): Edge {
+  const stroke = online ? color : "rgb(71,85,105)"   // slate-600 when offline
+  return {
+    id, source, target,
+    type: "default",   // bezier — natural curves, not right-angle steps
+    animated: online,
+    style: { stroke, strokeWidth: 1.5, strokeDasharray: online ? "6 4" : "4 4", strokeOpacity: online ? 1 : 0.45 },
+  }
+}
 
-  const viewportRef = useRef<HTMLDivElement>(null)
-  const [vpW, setVpW] = useState(0)
-  const [vpH, setVpH] = useState(600)
+// ─── Build graph ──────────────────────────────────────────────────────────────
+function buildGraph(sensors: Sensor[]): { nodes: Node[]; edges: Edge[] } {
+  const groups = buildGroups(sensors)
+  const nodes: Node[] = []
+  const edges: Edge[] = []
 
-  const { xform, fit, zoom, panHandlers, getDidPan } = useCanvasTransform(viewportRef)
+  // Pass 1 — compute x width for each group and their start positions
+  const groupMeta: Array<{ startX: number; groupW: number }> = []
+  let cursor = 0
+  for (const group of groups) {
+    const allCount = group.external.length + group.internal.length
+    const cols     = Math.max(allCount, 1)
+    const groupW   = cols * COL_STEP - (COL_STEP - NODE_W)
+    groupMeta.push({ startX: cursor, groupW })
+    cursor += groupW + GROUP_GAP
+  }
+  const totalW = cursor - GROUP_GAP
 
-  // Measure viewport and set initial fit transform
-  useEffect(() => {
-    const el = viewportRef.current
-    if (!el) return
+  // (Internet node removed — topology starts at client level)
 
-    const apply = (w: number, h: number) => {
-      setVpW(w)
-      setVpH(h)
-      fit(w, h)
-    }
+  // Pass 2 — one client node per group + its sensors below
+  for (let gi = 0; gi < groups.length; gi++) {
+    const group   = groups[gi]
+    const { startX, groupW } = groupMeta[gi]
+    const clientId = `client-${group.key}`
 
-    apply(el.clientWidth, el.clientHeight)
+    // Is any sensor in this group online?
+    const anyOnline = [...group.external, ...group.internal].some(s => s.online)
 
-    const obs = new ResizeObserver(([entry]) => {
-      apply(entry.contentRect.width, entry.contentRect.height)
+    // Client node — centred in its column
+    nodes.push({
+      id:        clientId,
+      type:      "clientLabel",
+      position:  { x: startX + groupW / 2, y: CLIENT_Y },
+      data:      { label: group.name, online: anyOnline },
+      draggable: true,
+      zIndex: 15,
     })
-    obs.observe(el)
-    return () => obs.disconnect()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
-  // ─── Selection state ─────────────────────────────────────────────────────────
-  const [selectedId,     setSelectedId]     = useState<string | null>(null)
-  const [selectedClient, setSelectedClient] = useState<string | null>(null)
+    // All sensors (ext + int) laid out in a single row below the client node
+    const allSensors = [...group.external, ...group.internal]
+    const rowW       = allSensors.length * COL_STEP - (COL_STEP - NODE_W)
+    const rowStartX  = startX + (groupW - rowW) / 2
 
-  const allNodes    = [...layout.extNodes, ...layout.intNodes]
-  const selectedSensor = selectedId
-    ? allNodes.find(n => n.sensor.sensorId === selectedId)?.sensor ?? null
-    : null
-
-  function handleNodeClick(sensorId: string, clientKey: string) {
-    if (getDidPan()) return
-    setSelectedId(prev => prev === sensorId ? null : sensorId)
-    setSelectedClient(clientKey)
+    allSensors.forEach((s, i) => {
+      nodes.push({
+        id:       s.sensorId,
+        type:     "sensor",
+        position: { x: rowStartX + i * COL_STEP, y: SENSOR_Y },
+        data:     { sensor: s, selected: false, zone: "external" } satisfies SensorNodeData,
+        draggable: true,
+        zIndex: 20,
+      })
+      // Client → Sensor
+      edges.push(sensorEdge(`${clientId}-${s.sensorId}`, clientId, s.sensorId, s.online, "rgb(139,92,246)"))
+    })
   }
 
-  function handleClientSelect(key: string) {
-    setSelectedClient(prev => prev === key ? null : key)
-    setSelectedId(null)
-  }
+  return { nodes, edges }
+}
 
-  function handleBackgroundClick() {
-    if (!getDidPan()) {
-      setSelectedId(null)
-      setSelectedClient(null)
-    }
-  }
+// ─── Component ────────────────────────────────────────────────────────────────
+export function TopologyCanvas({ sensors }: { sensors: Sensor[] }) {
+  const groups = useMemo(() => buildGroups(sensors), [sensors])
+  const { nodes: initialNodes, edges: initialEdges } = useMemo(() => buildGraph(sensors), [sensors])
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
+  const [edges, ,  onEdgesChange]        = useEdgesState(initialEdges)
+  const [selectedSensor, setSelectedSensor] = useState<Sensor | null>(null)
+
+  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    if (node.type !== "sensor") return
+    const data = node.data as SensorNodeData
+    setSelectedSensor(prev =>
+      prev?.sensorId === data.sensor.sensorId ? null : data.sensor
+    )
+    setNodes(ns => ns.map(n => {
+      if (n.type !== "sensor") return n
+      const d = n.data as SensorNodeData
+      const isThis    = d.sensor.sensorId === data.sensor.sensorId
+      const wasSelected = selectedSensor?.sensorId === data.sensor.sensorId
+      return { ...n, data: { ...d, selected: isThis && !wasSelected } }
+    }))
+  }, [selectedSensor, setNodes])
+
+  const onPaneClick = useCallback(() => {
+    setSelectedSensor(null)
+    setNodes(ns => ns.map(n => {
+      if (n.type !== "sensor") return n
+      return { ...n, data: { ...(n.data as SensorNodeData), selected: false } }
+    }))
+  }, [setNodes])
 
   return (
-    <div className="flex flex-col" style={{ height: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <StatsBar groups={groups} />
 
-      {/* Scrollable viewport */}
-      <div
-        ref={viewportRef}
-        className="relative flex-1 overflow-hidden"
-        style={{
-          minHeight: 580,
-          cursor: "grab",
-          background: `
-            radial-gradient(ellipse 70% 35% at 50% 0%, rgb(34 211 238 / 0.05) 0%, transparent 65%),
-            radial-gradient(circle, hsl(var(--border) / 0.6) 1px, transparent 1px)
-          `,
-          backgroundSize: "100% 100%, 28px 28px",
-        }}
-        onClick={handleBackgroundClick}
-        {...panHandlers}
-      >
-        {/* Transformable world — everything inside scales + pans together */}
-        <div
-          style={{
-            position: "absolute",
-            top: 0, left: 0,
-            width: CANVAS_W,
-            height: CANVAS_H,
-            transformOrigin: "0 0",
-            transform: `translate(${xform.x.toFixed(2)}px, ${xform.y.toFixed(2)}px) scale(${xform.scale})`,
-            willChange: "transform",
-          }}
+      <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeClick={onNodeClick}
+          onPaneClick={onPaneClick}
+          nodeTypes={nodeTypes}
+          fitView
+          fitViewOptions={{ padding: 0.18 }}
+          minZoom={0.1}
+          maxZoom={3}
+          style={{ width: "100%", height: "100%", background: "transparent" }}
+          proOptions={{ hideAttribution: true }}
+          nodesDraggable
         >
-          <Lines         layout={layout}    selectedId={selectedId} />
-          <ClusterLayer  clusters={layout.clusters} selectedClient={selectedClient} onSelect={handleClientSelect} />
-          <InternetNode  x={layout.internet.x} y={layout.internet.y} />
-
-          {layout.extNodes.map(n => (
-            <SensorNodeCard
-              key={n.sensor.sensorId}
-              node={n}
-              selected={selectedId === n.sensor.sensorId}
-              onClick={() => handleNodeClick(n.sensor.sensorId, n.clientKey)}
-            />
-          ))}
-
-          {layout.intNodes.map(n => (
-            <SensorNodeCard
-              key={n.sensor.sensorId}
-              node={n}
-              selected={selectedId === n.sensor.sensorId}
-              onClick={() => handleNodeClick(n.sensor.sensorId, n.clientKey)}
-            />
-          ))}
-        </div>
-
-        {/* Sensor detail panel — in screen-space, not scaled */}
-        {selectedSensor && (
-          <SensorPanel
-            sensor={selectedSensor}
-            onClose={() => { setSelectedId(null); setSelectedClient(null) }}
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={28}
+            size={1}
+            color="hsl(var(--border) / 0.5)"
           />
-        )}
-
-        {/* Zoom controls */}
-        <ZoomControls
-          scale={xform.scale}
-          onZoomIn={() => zoom(1.25)}
-          onZoomOut={() => zoom(0.8)}
-          onFit={() => fit(vpW, vpH)}
-        />
+          <Controls
+            className="!border-border !bg-card [&_button]:!border-border [&_button]:!bg-card [&_button]:!fill-muted-foreground [&_button:hover]:!bg-muted"
+            showInteractive={false}
+          />
+          <MiniMap
+            className="!border-border !bg-card/80"
+            nodeColor={n => {
+              if (n.id === "__internet__") return "rgb(34,211,238)"
+              if (n.type === "clientLabel") return "transparent"
+              const d = n.data as SensorNodeData
+              return d?.sensor?.online ? "rgb(52,211,153)" : "rgb(71,85,105)"
+            }}
+            maskColor="hsl(var(--background) / 0.6)"
+          />
+        </ReactFlow>
 
         {/* Legend */}
-        <div className="absolute bottom-4 left-4 flex items-center gap-4 text-[9px] text-muted-foreground/55 select-none z-10 pointer-events-none">
-          <span className="flex items-center gap-1.5">
-            <svg width="20" height="8">
-              <line x1="0" y1="4" x2="20" y2="4" stroke="rgb(34,211,238)" strokeWidth="1.5" strokeDasharray="5 3" />
-            </svg>
-            Internet
-          </span>
+        <div className="pointer-events-none absolute bottom-4 left-[calc(1rem+68px)] z-10 flex select-none items-center gap-4 text-[9px] text-muted-foreground/55">
           <span className="flex items-center gap-1.5">
             <svg width="20" height="8">
               <line x1="0" y1="4" x2="20" y2="4" stroke="rgb(139,92,246)" strokeWidth="1.5" strokeDasharray="5 3" />
             </svg>
-            Interna
+            Cliente → Sensor
+          </span>
+          <span className="flex items-center gap-1.5">
+            <svg width="20" height="8">
+              <line x1="0" y1="4" x2="20" y2="4" stroke="rgb(71,85,105)" strokeWidth="1.5" strokeDasharray="4 4" strokeOpacity="0.5" />
+            </svg>
+            Offline
           </span>
           <span className="flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
             Online
           </span>
-          <span className="text-muted-foreground/35">Scroll → zoom · Drag → pan</span>
         </div>
+
+        {/* Sensor detail panel */}
+        {selectedSensor && (
+          <SensorPanel
+            sensor={selectedSensor}
+            onClose={() => {
+              setSelectedSensor(null)
+              setNodes(ns => ns.map(n => {
+                if (n.type !== "sensor") return n
+                return { ...n, data: { ...(n.data as SensorNodeData), selected: false } }
+              }))
+            }}
+          />
+        )}
       </div>
     </div>
   )

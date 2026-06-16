@@ -1,6 +1,5 @@
 export const dynamic = "force-dynamic"
 
-import { PageShell } from "@/components/page-shell"
 import { NetworkTopology } from "@/components/network/network-topology"
 import { fetchSensors } from "@/lib/api"
 import type { Sensor } from "@/lib/api"
@@ -14,15 +13,9 @@ export default async function NetworkPage() {
   }
 
   return (
-    <PageShell>
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-foreground">Network Map</h1>
-        <p className="text-sm text-muted-foreground">
-          Sensor topology by client — Internet-facing sensors vs internal network.
-        </p>
-      </div>
-
+    // Bleed out of the parent <main>'s p-6 padding on all sides
+    <div className="-m-6 flex flex-col" style={{ height: "calc(100dvh)" }}>
       <NetworkTopology sensors={sensors} />
-    </PageShell>
+    </div>
   )
 }

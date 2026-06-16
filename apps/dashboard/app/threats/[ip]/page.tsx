@@ -353,8 +353,8 @@ export default async function ThreatDetailPage({
               ) : (
                 <div className="overflow-y-auto max-h-[600px]">
                   <Table>
-                    <TableHeader className="sticky top-0 z-10">
-                      <TableRow className="bg-card">
+                    <TableHeader className="sticky top-0 z-10 bg-card">
+                      <TableRow>
                         <TableHead>{t("threats.detail.col.time")}</TableHead>
                         <TableHead>{t("threats.detail.col.category")}</TableHead>
                         <TableHead>{t("threats.detail.col.command")}</TableHead>

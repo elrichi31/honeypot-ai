@@ -107,7 +107,7 @@ export default async function SessionReplayPage({
               <h1 className="font-mono text-2xl font-semibold text-foreground">
                 {session.srcIp}
               </h1>
-              <p className="text-sm text-muted-foreground">
+              <p suppressHydrationWarning className="text-sm text-muted-foreground">
                 {formatDateTimeLong(session.startedAt, timezone)} ·{" "}
                 {formatDistanceToNow(new Date(session.startedAt), { addSuffix: true })}
               </p>

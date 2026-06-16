@@ -82,6 +82,8 @@ export interface Client {
   code: string
   description: string
   forwardUrl: string
+  crowdstrikeHecUrl: string
+  crowdstrikeApiKey: string
   createdAt: string
 }
 

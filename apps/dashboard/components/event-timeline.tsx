@@ -75,6 +75,13 @@ const eventConfig: Record<
   },
 }
 
+// Event types that are pure protocol noise — hide message body, show label only
+const COMPACT_EVENTS = new Set(["client.kex", "client.size"])
+
+function truncate(s: string, max = 120) {
+  return s.length > max ? s.slice(0, max) + "…" : s
+}
+
 interface EventTimelineProps {
   events: HoneypotEvent[]
 }
@@ -86,10 +93,11 @@ export function EventTimeline({ events }: EventTimelineProps) {
       {events.map((event, index) => {
         const config = eventConfig[event.eventType] || eventConfig.unknown
         const Icon = config.icon
+        const compact = COMPACT_EVENTS.has(event.eventType)
 
         return (
-          <div key={event.id} className="flex gap-3">
-            <div className="flex flex-col items-center">
+          <div key={event.id} className="flex gap-3 min-w-0">
+            <div className="flex flex-col items-center shrink-0">
               <div
                 className={cn(
                   "flex h-8 w-8 items-center justify-center rounded-lg",
@@ -102,32 +110,32 @@ export function EventTimeline({ events }: EventTimelineProps) {
                 <div className="mt-2 h-full w-px bg-border" />
               )}
             </div>
-            <div className="flex-1 pb-4">
-              <div className="flex items-center justify-between">
-                <span className={cn("text-sm font-medium", config.color)}>
+            <div className="min-w-0 flex-1 pb-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className={cn("text-sm font-medium shrink-0", config.color)}>
                   {config.label}
                 </span>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs text-muted-foreground shrink-0">
                   {formatTimeOnly(event.eventTs, timezone)}
                 </span>
               </div>
-              {event.message && (
-                <p className="mt-1 font-mono text-xs text-muted-foreground break-all">
-                  {event.message}
+              {event.message && !compact && (
+                <p className="mt-1 font-mono text-xs text-muted-foreground truncate">
+                  {truncate(event.message)}
                 </p>
               )}
               {event.command && (
-                <code className="mt-1 block rounded bg-background px-2 py-1 font-mono text-xs text-foreground">
+                <code className="mt-1 block truncate rounded bg-background px-2 py-1 font-mono text-xs text-foreground">
                   $ {event.command}
                 </code>
               )}
               {event.username && event.password && (
-                <div className="mt-1 flex gap-2 text-xs">
-                  <span className="text-muted-foreground">
+                <div className="mt-1 flex gap-2 text-xs min-w-0">
+                  <span className="text-muted-foreground shrink-0">
                     User: <span className="text-foreground">{event.username}</span>
                   </span>
-                  <span className="text-muted-foreground">
-                    Pass: <span className="text-foreground">{event.password}</span>
+                  <span className="text-muted-foreground truncate">
+                    Pass: <span className="text-foreground">{truncate(event.password, 60)}</span>
                   </span>
                 </div>
               )}

@@ -260,8 +260,8 @@ export default function UsersPage() {
           </div>
         ) : (
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
+            <thead className="sticky top-0 z-10 bg-card">
+              <tr className="border-b border-border">
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Name</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Email</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Role</th>

@@ -98,9 +98,9 @@ export function DeceptionEventsTable({ events }: { events: DeceptionEvent[] }) {
         <h2 className="text-sm font-semibold text-foreground">Raw events on trap nodes</h2>
         <p className="text-[11px] text-muted-foreground">Every interaction logged by OpenCanary on the internal network. Click a row to see the detail.</p>
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-clip">
         <table className="w-full text-left text-[12px]">
-          <thead className="text-[10px] uppercase text-muted-foreground/60">
+          <thead className="sticky top-0 z-10 bg-card text-[10px] uppercase text-muted-foreground/60">
             <tr className="border-b border-border/40">
               <th className="px-4 py-2 font-medium w-6"></th>
               <th className="px-4 py-2 font-medium">Node</th>

@@ -41,6 +41,7 @@ export interface KpiTrends {
   sshSessions: MetricTrend
   webHits: MetricTrend
   uniqueIps: MetricTrend
+  protocols?: Record<string, MetricTrend>
 }
 
 export interface MitreMatrix {
