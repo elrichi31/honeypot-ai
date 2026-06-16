@@ -320,82 +320,233 @@ export default async function WebAttackerDetailPage({
           </Surface>
         )}
 
-        {/* Threat intel enrichment panel */}
-        {enrichment && (enrichment.abuseipdb || enrichment.ipinfo || enrichment.virustotal) && (
-          <Surface className="mb-6 p-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Threat Intelligence</p>
-            <div className="flex flex-wrap gap-6">
-              {/* AbuseIPDB */}
-              {enrichment.abuseipdb && (
-                <div className="space-y-1 min-w-[140px]">
-                  <p className="text-xs font-medium text-muted-foreground">AbuseIPDB</p>
-                  <p className={`text-2xl font-bold ${enrichment.abuseipdb.abuseConfidenceScore >= 80 ? "text-red-400" : enrichment.abuseipdb.abuseConfidenceScore >= 40 ? "text-amber-400" : "text-green-400"}`}>
-                    {enrichment.abuseipdb.abuseConfidenceScore}%
-                  </p>
-                  <p className="text-xs text-muted-foreground">confidence score</p>
-                  {enrichment.abuseipdb.totalReports > 0 && (
-                    <p className="text-xs text-muted-foreground">{enrichment.abuseipdb.totalReports.toLocaleString('en-US')} reports · {enrichment.abuseipdb.numDistinctUsers} users</p>
+        {/* Threat Intelligence panel */}
+        {enrichment && (enrichment.abuseipdb || enrichment.ipinfo || enrichment.virustotal) && (() => {
+          const abuse = enrichment.abuseipdb
+          const info  = enrichment.ipinfo
+          const vt    = enrichment.virustotal
+          const vtStats = vt?.last_analysis_stats
+          const vtTotal = vtStats ? vtStats.malicious + vtStats.suspicious + vtStats.undetected + vtStats.harmless + vtStats.timeout : 0
+          const networkOrg  = info?.org  || abuse?.isp  || null
+          const networkAsn  = info?.asn  || (vt?.asn ? `AS${vt.asn}` : null)
+          const networkHost = info?.hostname || null
+          const abuseScore  = abuse?.abuseConfidenceScore ?? 0
+          const scoreColor  = abuseScore >= 80 ? "text-red-400" : abuseScore >= 40 ? "text-amber-400" : "text-green-400"
+          const scoreBg     = abuseScore >= 80 ? "bg-red-500/10 border-red-500/20" : abuseScore >= 40 ? "bg-amber-500/10 border-amber-500/20" : "bg-green-500/10 border-green-500/20"
+
+          return (
+            <Surface className="mb-6 overflow-hidden">
+              <div className="border-b border-border px-4 py-3">
+                <h3 className="font-semibold text-foreground">Threat Intelligence</h3>
+                <p className="text-xs text-muted-foreground">
+                  {[abuse && "AbuseIPDB", info && "IPInfo", vt && "VirusTotal"].filter(Boolean).join(" · ")}
+                  {" · "}
+                  <span suppressHydrationWarning>cached {formatDistanceToNow(new Date(enrichment.cachedAt), { addSuffix: true })}</span>
+                </p>
+              </div>
+
+              <div className="grid divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+
+                {/* ── Column 1: AbuseIPDB ── */}
+                <div className="p-4 space-y-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">AbuseIPDB</p>
+                  {abuse ? (
+                    <>
+                      {/* Score gauge */}
+                      <div className={`inline-flex items-end gap-2 rounded-lg border px-3 py-2 ${scoreBg}`}>
+                        <span className={`text-4xl font-black leading-none ${scoreColor}`}>{abuseScore}%</span>
+                        <span className="mb-0.5 text-xs text-muted-foreground">confidence</span>
+                      </div>
+
+                      {/* Stats row */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="rounded-md bg-muted/30 px-2 py-1.5">
+                          <p className="text-muted-foreground">Reports</p>
+                          <p className="font-semibold text-foreground">{abuse.totalReports.toLocaleString('en-US')}</p>
+                        </div>
+                        <div className="rounded-md bg-muted/30 px-2 py-1.5">
+                          <p className="text-muted-foreground">Distinct users</p>
+                          <p className="font-semibold text-foreground">{abuse.numDistinctUsers.toLocaleString('en-US')}</p>
+                        </div>
+                        {abuse.usageType && (
+                          <div className="col-span-2 rounded-md bg-muted/30 px-2 py-1.5">
+                            <p className="text-muted-foreground">Usage type</p>
+                            <p className="font-semibold text-foreground">{abuse.usageType}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Flags */}
+                      <div className="flex flex-wrap gap-1">
+                        {abuse.isTor         && <span className="inline-flex items-center rounded-full border border-red-500/40 bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400">Tor exit node</span>}
+                        {abuse.isVpn         && <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400">VPN</span>}
+                        {abuse.isWhitelisted && <span className="inline-flex items-center rounded-full border border-green-500/40 bg-green-500/15 px-2 py-0.5 text-[10px] font-semibold text-green-400">Whitelisted</span>}
+                      </div>
+
+                      {/* Last reported */}
+                      {abuse.lastReportedAt && (
+                        <p suppressHydrationWarning className="text-xs text-muted-foreground">
+                          Last reported {formatDistanceToNow(new Date(abuse.lastReportedAt), { addSuffix: true })}
+                        </p>
+                      )}
+
+                      {/* Recent reports */}
+                      {abuse.reports.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Recent reports</p>
+                          <div className="max-h-32 overflow-y-auto space-y-1">
+                            {abuse.reports.slice(0, 5).map((r, i) => (
+                              <div key={i} className="rounded-md bg-muted/20 px-2 py-1.5 text-xs">
+                                <p suppressHydrationWarning className="text-muted-foreground text-[10px]">
+                                  {formatDistanceToNow(new Date(r.reportedAt), { addSuffix: true })} · {r.reporterCountryName || r.reporterCountryCode}
+                                </p>
+                                {r.comment && <p className="mt-0.5 text-foreground line-clamp-2">{r.comment}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No AbuseIPDB data</p>
                   )}
-                  {enrichment.abuseipdb.isTor && <span className="inline-flex items-center rounded-full border border-red-500/40 bg-red-500/15 px-1.5 py-0 text-[10px] font-semibold text-red-400">Tor</span>}
-                  {enrichment.abuseipdb.isVpn && <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/15 px-1.5 py-0 text-[10px] font-semibold text-amber-400">VPN</span>}
                 </div>
-              )}
 
-              {/* IPInfo */}
-              {enrichment.ipinfo && (
-                <div className="space-y-1 min-w-[160px]">
-                  <p className="text-xs font-medium text-muted-foreground">Network</p>
-                  {enrichment.ipinfo.org && <p className="text-sm font-semibold text-foreground">{enrichment.ipinfo.org}</p>}
-                  {enrichment.ipinfo.asn && <p className="font-mono text-xs text-muted-foreground">{enrichment.ipinfo.asn}</p>}
-                  {enrichment.ipinfo.hostname && <p className="text-xs text-muted-foreground">{enrichment.ipinfo.hostname}</p>}
-                  <div className="flex flex-wrap gap-1 pt-0.5">
-                    {enrichment.ipinfo.isHosting && <span className="inline-flex items-center rounded-full border border-blue-500/40 bg-blue-500/15 px-1.5 py-0 text-[10px] font-semibold text-blue-400">Hosting</span>}
-                    {enrichment.ipinfo.isVpn    && <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/15 px-1.5 py-0 text-[10px] font-semibold text-amber-400">VPN</span>}
-                    {enrichment.ipinfo.isTor    && <span className="inline-flex items-center rounded-full border border-red-500/40 bg-red-500/15 px-1.5 py-0 text-[10px] font-semibold text-red-400">Tor</span>}
-                    {enrichment.ipinfo.isProxy  && <span className="inline-flex items-center rounded-full border border-orange-500/40 bg-orange-500/15 px-1.5 py-0 text-[10px] font-semibold text-orange-400">Proxy</span>}
-                  </div>
-                </div>
-              )}
+                {/* ── Column 2: Network / IPInfo ── */}
+                <div className="p-4 space-y-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Network</p>
 
-              {/* AbuseIPDB ISP fallback when ipinfo not available */}
-              {enrichment.abuseipdb && enrichment.abuseipdb.isp && !enrichment.ipinfo && (
-                <div className="space-y-1 min-w-[160px]">
-                  <p className="text-xs font-medium text-muted-foreground">Network</p>
-                  <p className="text-sm font-semibold text-foreground">{enrichment.abuseipdb.isp}</p>
-                  {enrichment.abuseipdb.domain && <p className="font-mono text-xs text-muted-foreground">{enrichment.abuseipdb.domain}</p>}
-                  {enrichment.abuseipdb.usageType && <p className="text-xs text-muted-foreground">{enrichment.abuseipdb.usageType}</p>}
-                </div>
-              )}
+                  {/* Org + ASN */}
+                  {networkOrg && <p className="text-sm font-semibold text-foreground">{networkOrg}</p>}
+                  {networkAsn && <p className="font-mono text-xs text-muted-foreground">{networkAsn}{vt?.as_owner && vt.as_owner !== networkOrg ? ` · ${vt.as_owner}` : ""}</p>}
+                  {vt?.network && <p className="font-mono text-[10px] text-muted-foreground">{vt.network}</p>}
+                  {networkHost && <p className="font-mono text-xs text-muted-foreground break-all">{networkHost}</p>}
 
-              {/* VirusTotal */}
-              {enrichment.virustotal && (
-                <div className="space-y-1 min-w-[120px]">
-                  <p className="text-xs font-medium text-muted-foreground">VirusTotal</p>
-                  <p className={`text-2xl font-bold ${enrichment.virustotal.last_analysis_stats.malicious > 0 ? "text-red-400" : "text-green-400"}`}>
-                    {enrichment.virustotal.last_analysis_stats.malicious}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    malicious · {enrichment.virustotal.last_analysis_stats.suspicious} suspicious
-                  </p>
-                  {enrichment.virustotal.reputation !== 0 && (
-                    <p className="text-xs text-muted-foreground">reputation: {enrichment.virustotal.reputation}</p>
+                  {/* Location */}
+                  {(info?.city || info?.region || info?.country || vt?.country) && (
+                    <div className="rounded-md bg-muted/30 px-2 py-1.5 text-xs">
+                      <p className="text-muted-foreground">Location</p>
+                      <p className="font-semibold text-foreground">
+                        {[info?.city, info?.region, info?.country || vt?.country].filter(Boolean).join(", ")}
+                      </p>
+                      {info?.timezone && <p className="text-muted-foreground">{info.timezone}</p>}
+                    </div>
+                  )}
+
+                  {/* Privacy flags */}
+                  {info && (
+                    <div className="flex flex-wrap gap-1">
+                      {info.isHosting && <span className="inline-flex items-center rounded-full border border-blue-500/40 bg-blue-500/15 px-2 py-0.5 text-[10px] font-semibold text-blue-400">Hosting / DC</span>}
+                      {info.isVpn     && <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400">VPN</span>}
+                      {info.isTor     && <span className="inline-flex items-center rounded-full border border-red-500/40 bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400">Tor</span>}
+                      {info.isProxy   && <span className="inline-flex items-center rounded-full border border-orange-500/40 bg-orange-500/15 px-2 py-0.5 text-[10px] font-semibold text-orange-400">Proxy</span>}
+                      {!info.isHosting && !info.isVpn && !info.isTor && !info.isProxy && (
+                        <span className="inline-flex items-center rounded-full border border-muted px-2 py-0.5 text-[10px] text-muted-foreground">Residential</span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Domain info from AbuseIPDB */}
+                  {abuse?.domain && (
+                    <div className="rounded-md bg-muted/30 px-2 py-1.5 text-xs">
+                      <p className="text-muted-foreground">Domain</p>
+                      <p className="font-mono font-semibold text-foreground">{abuse.domain}</p>
+                    </div>
+                  )}
+
+                  {/* Hostnames */}
+                  {(abuse?.hostnames?.length ?? 0) > 0 && (
+                    <div className="space-y-0.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Hostnames</p>
+                      {abuse!.hostnames.slice(0, 4).map((h) => (
+                        <p key={h} className="truncate font-mono text-xs text-muted-foreground">{h}</p>
+                      ))}
+                    </div>
                   )}
                 </div>
-              )}
 
-              {/* Last report date */}
-              {enrichment.abuseipdb?.lastReportedAt && (
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">Last reported</p>
-                  <p suppressHydrationWarning className="text-sm text-foreground">
-                    {formatDistanceToNow(new Date(enrichment.abuseipdb.lastReportedAt), { addSuffix: true })}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">via AbuseIPDB</p>
+                {/* ── Column 3: VirusTotal ── */}
+                <div className="p-4 space-y-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">VirusTotal</p>
+                  {vt && vtStats ? (
+                    <>
+                      {/* Detection bar */}
+                      <div>
+                        <div className="mb-1 flex items-end justify-between">
+                          <span className={`text-3xl font-black leading-none ${vtStats.malicious > 0 ? "text-red-400" : "text-green-400"}`}>
+                            {vtStats.malicious}
+                          </span>
+                          <span className="text-xs text-muted-foreground">/ {vtTotal} engines</span>
+                        </div>
+                        {vtTotal > 0 && (
+                          <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
+                            {vtStats.malicious  > 0 && <div className="bg-red-500"    style={{ width: `${vtStats.malicious  / vtTotal * 100}%` }} />}
+                            {vtStats.suspicious > 0 && <div className="bg-amber-500"  style={{ width: `${vtStats.suspicious / vtTotal * 100}%` }} />}
+                            {vtStats.harmless   > 0 && <div className="bg-green-500"  style={{ width: `${vtStats.harmless   / vtTotal * 100}%` }} />}
+                            {vtStats.undetected > 0 && <div className="bg-muted-foreground/30" style={{ width: `${vtStats.undetected / vtTotal * 100}%` }} />}
+                          </div>
+                        )}
+                        <div className="mt-1 grid grid-cols-2 gap-x-2 text-[10px] text-muted-foreground">
+                          <span><span className="text-red-400">■</span> {vtStats.malicious} malicious</span>
+                          <span><span className="text-amber-400">■</span> {vtStats.suspicious} suspicious</span>
+                          <span><span className="text-green-400">■</span> {vtStats.harmless} harmless</span>
+                          <span><span className="text-muted-foreground/50">■</span> {vtStats.undetected} undetected</span>
+                        </div>
+                      </div>
+
+                      {/* Reputation + votes */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="rounded-md bg-muted/30 px-2 py-1.5">
+                          <p className="text-muted-foreground">Reputation</p>
+                          <p className={`font-semibold ${vt.reputation < 0 ? "text-red-400" : vt.reputation > 0 ? "text-green-400" : "text-foreground"}`}>
+                            {vt.reputation > 0 ? `+${vt.reputation}` : vt.reputation}
+                          </p>
+                        </div>
+                        <div className="rounded-md bg-muted/30 px-2 py-1.5">
+                          <p className="text-muted-foreground">Community votes</p>
+                          <p className="text-xs text-foreground">
+                            <span className="text-red-400">{vt.total_votes.malicious}✗</span>
+                            {" / "}
+                            <span className="text-green-400">{vt.total_votes.harmless}✓</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Tags */}
+                      {vt.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {vt.tags.map((tag) => (
+                            <span key={tag} className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">{tag}</span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Last analysis date */}
+                      {vt.last_analysis_date && (
+                        <p suppressHydrationWarning className="text-xs text-muted-foreground">
+                          Last analyzed {formatDistanceToNow(new Date(vt.last_analysis_date * 1000), { addSuffix: true })}
+                        </p>
+                      )}
+
+                      {/* TLS cert */}
+                      {vt.last_https_certificate?.subject?.CN && (
+                        <div className="rounded-md bg-muted/30 px-2 py-1.5 text-xs">
+                          <p className="text-muted-foreground">TLS certificate</p>
+                          <p className="font-mono text-foreground">{vt.last_https_certificate.subject.CN}</p>
+                          {vt.last_https_certificate.issuer?.O && (
+                            <p className="text-muted-foreground">{vt.last_https_certificate.issuer.O}</p>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No VirusTotal data</p>
+                  )}
                 </div>
-              )}
-            </div>
-          </Surface>
-        )}
+              </div>
+            </Surface>
+          )
+        })()}
 
         <div className="grid gap-6 xl:grid-cols-3">
           {/* Left column */}
