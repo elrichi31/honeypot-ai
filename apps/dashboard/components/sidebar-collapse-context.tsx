@@ -19,14 +19,20 @@ const SidebarCollapseContext = createContext<SidebarCollapseValue | null>(null)
  * synchronously from storage to avoid a flash of the wrong width on mount.
  */
 export function SidebarCollapseProvider({ children }: { children: React.ReactNode }) {
-  const [collapsed, setCollapsedState] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false
-    return localStorage.getItem(STORAGE_KEY) === "true"
-  })
+  // Start false on server AND client so the first client render matches the
+  // server HTML (no hydration #418). The stored preference is applied in an
+  // effect right after mount.
+  const [collapsed, setCollapsedState] = useState<boolean>(false)
+  const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, String(collapsed))
-  }, [collapsed])
+    setCollapsedState(localStorage.getItem(STORAGE_KEY) === "true")
+    setHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (hydrated) localStorage.setItem(STORAGE_KEY, String(collapsed))
+  }, [collapsed, hydrated])
 
   const value: SidebarCollapseValue = {
     collapsed,

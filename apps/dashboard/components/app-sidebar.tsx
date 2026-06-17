@@ -125,16 +125,19 @@ const navSections = [
 ] as const
 
 function useHealthCheck() {
+  // Deterministic initial value (server === client) to avoid hydration #418;
+  // the cached value is loaded in an effect, client-only.
   const [status, setStatus] = useState<{
     apiOnline: boolean | null
     lastEventAt: string | null
-  }>(() => {
-    if (typeof window !== "undefined") {
-      const cached = localStorage.getItem("sidebar_health")
-      if (cached) return JSON.parse(cached)
+  }>({ apiOnline: null, lastEventAt: null })
+
+  useEffect(() => {
+    const cached = localStorage.getItem("sidebar_health")
+    if (cached) {
+      try { setStatus(JSON.parse(cached)) } catch { /* ignore malformed cache */ }
     }
-    return { apiOnline: null, lastEventAt: null }
-  })
+  }, [])
 
   useEffect(() => {
     function check() {
@@ -168,12 +171,18 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
   // The rail (collapsed) mode only applies to the fixed desktop sidebar. Inside
   // the mobile sheet we always render the full expanded panel.
   const collapsed = mobile ? false : collapsedState
-  const [myRole, setMyRole] = useState<Role>(() => {
-    if (typeof window !== "undefined") {
-      return (localStorage.getItem("sidebar_role") as Role) || "viewer"
-    }
-    return "viewer"
-  })
+  // Must start with the SAME value on server and client to avoid a hydration
+  // mismatch (#418): the server has no localStorage, so reading it in the
+  // initializer made the server render "viewer" while the client rendered the
+  // cached role (e.g. "superadmin"), which renders a different set of nav
+  // sections — a structural mismatch that tears down the tree. We start at
+  // "viewer" everywhere and reconcile from localStorage + /api/me in effects.
+  const [myRole, setMyRole] = useState<Role>("viewer")
+
+  useEffect(() => {
+    const cached = localStorage.getItem("sidebar_role") as Role | null
+    if (cached) setMyRole(cached)
+  }, [])
 
   useEffect(() => {
     fetch("/api/me")
