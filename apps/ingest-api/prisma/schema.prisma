@@ -87,7 +87,10 @@ model ProtocolHit {
   @@index([srcIp])
   @@index([protocol])
   @@index([dstPort])
-  @@index([sensorId])
+  // Per-sensor + time range — drives the per-client activity chart and threats
+  // ranking. Composite (sensor_id, timestamp) supersedes the standalone
+  // sensor_id index: Seq Scan (~1.5s) -> Index Only Scan (~0.17s).
+  @@index([sensorId, timestamp])
   @@index([timestamp(sort: Desc)])
   @@index([protocol, timestamp(sort: Desc)])
   @@index([srcIp, protocol, timestamp(sort: Desc)])
