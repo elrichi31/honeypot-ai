@@ -3,6 +3,13 @@
 import { Building2, Globe } from "lucide-react"
 import { useTenant } from "@/components/tenant-context"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 /**
  * Tenant selector for superadmins: switch between "Global" (all clients) and a
@@ -10,8 +17,15 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
  * applies app-wide via server-side scope resolution. Hidden for non-superadmins,
  * who are pinned to their own client.
  *
+ * Uses the themed Radix Select (not a native <select>) so the open menu matches
+ * the dark dashboard instead of the OS's white dropdown.
+ *
  * `collapsed` renders the compact rail variant (icon + tooltip).
  */
+
+// Radix Select forbids an empty-string value, so use a sentinel for "Global".
+const GLOBAL = "__global__"
+
 export function TenantSwitcher({ collapsed = false }: { collapsed?: boolean }) {
   const { isSuperadmin, tenantId, setTenant, clients } = useTenant()
 
@@ -36,24 +50,27 @@ export function TenantSwitcher({ collapsed = false }: { collapsed?: boolean }) {
 
   return (
     <div className="border-b border-border px-3 py-2">
-      <div className="relative flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5">
-        {tenantId ? (
-          <Building2 className="h-3.5 w-3.5 shrink-0 text-fuchsia-400" />
-        ) : (
-          <Globe className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        )}
-        <select
-          value={tenantId ?? ""}
-          onChange={(e) => setTenant(e.target.value || null)}
-          className="w-full bg-transparent text-xs text-foreground focus:outline-none"
-          title="Scope global por tenant (superadmin)"
-        >
-          <option value="">Global (todos los tenants)</option>
+      <Select
+        value={tenantId ?? GLOBAL}
+        onValueChange={(v) => setTenant(v === GLOBAL ? null : v)}
+      >
+        <SelectTrigger size="sm" className="w-full bg-card" aria-label="Tenant scope">
+          <span className="flex items-center gap-2 truncate">
+            {tenantId ? (
+              <Building2 className="h-3.5 w-3.5 shrink-0 text-fuchsia-400" />
+            ) : (
+              <Globe className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            )}
+            <SelectValue />
+          </span>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={GLOBAL}>Global (todos los tenants)</SelectItem>
           {clients.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
+            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
           ))}
-        </select>
-      </div>
+        </SelectContent>
+      </Select>
     </div>
   )
 }
