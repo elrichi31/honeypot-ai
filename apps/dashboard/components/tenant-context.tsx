@@ -35,7 +35,14 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const [isSuperadmin, setIsSuperadmin] = useState(false)
   const [clients, setClients] = useState<ClientLite[]>([])
-  const [tenantId, setTenantId] = useState<string | null>(() => readCookie(TENANT_COOKIE))
+  // Start null on BOTH server and client to avoid a hydration mismatch (the
+  // server can't read document.cookie). The real value is read in useEffect.
+  const [tenantId, setTenantId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fromCookie = readCookie(TENANT_COOKIE)
+    if (fromCookie) setTenantId(fromCookie)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
