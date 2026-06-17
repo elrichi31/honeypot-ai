@@ -4,12 +4,16 @@ import { proxyJson } from "@/lib/api/server"
 
 export const dynamic = "force-dynamic"
 
-export async function POST(request: NextRequest) {
+// Delete a single alert. Requires analyst+.
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   const auth_check = await requireRole("analyst")
   if (!auth_check.ok) return auth_check.response
 
-  const qs = request.nextUrl.searchParams.toString()
-  const result = await proxyJson(`/alerts/read-all${qs ? `?${qs}` : ""}`, { method: "POST" })
+  const { id } = await params
+  const result = await proxyJson(`/alerts/${encodeURIComponent(id)}`, { method: "DELETE" })
   if (!result.ok) return Response.json({ error: result.error }, { status: result.status })
   return Response.json(result.data, { status: result.status })
 }

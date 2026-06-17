@@ -314,12 +314,15 @@ model Alert {
   fields      Json     @default("[]")
   srcIp       String?  @map("src_ip")
   sensorId    String?  @map("sensor_id")
+  clientId    String?  @map("client_id")
   readAt      DateTime? @map("read_at")
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([createdAt(sort: Desc)])
   @@index([readAt])
   @@index([level])
+  @@index([clientId])
+  @@index([clientId, createdAt(sort: Desc)])
   @@map("alerts")
 }
 

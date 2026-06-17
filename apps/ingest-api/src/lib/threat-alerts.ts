@@ -211,10 +211,41 @@ async function resolveClientCrowdStrike(prisma: PrismaClient, key: string): Prom
   }
 }
 
+// Resolve which client an alert belongs to, by the same path the SIEM routing
+// uses: sensor-offline:<sensorId> → sensor.client_id; otherwise the trailing IP
+// → most recent session → sensor → client. Returns null when it can't resolve
+// (unknown / global). Desnormalizamos esto en la alerta para filtrar/aislar por
+// tenant sin JOINs en cada lectura.
+export async function resolveClientId(prisma: PrismaClient, key: string): Promise<string | null> {
+  try {
+    if (key.startsWith('sensor-offline:')) {
+      const sensorId = key.slice('sensor-offline:'.length)
+      const rows = await prisma.$queryRaw<Array<{ client_id: string | null }>>`
+        SELECT client_id FROM sensors WHERE sensor_id = ${sensorId} LIMIT 1
+      `
+      return rows[0]?.client_id ?? null
+    }
+    const ip = key.split(':').pop() ?? ''
+    if (!IPV4_RE.test(ip)) return null
+    const rows = await prisma.$queryRaw<Array<{ client_id: string | null }>>`
+      SELECT sen.client_id
+      FROM sessions s
+      JOIN sensors sen ON sen.sensor_id = s.sensor_id
+      WHERE s.src_ip = ${ip} AND sen.client_id IS NOT NULL
+      ORDER BY s.started_at DESC
+      LIMIT 1
+    `
+    return rows[0]?.client_id ?? null
+  } catch {
+    return null
+  }
+}
+
 async function persistAlert(prisma: PrismaClient, payload: AlertPayload): Promise<void> {
   // Best-effort context from the cooldown key: "threat_score:<ip>",
   // "sensor-offline:<sensorId>", etc. Persistence must never block the alert.
   const { srcIp, sensorId } = parseAlertKey(payload.key)
+  const clientId = await resolveClientId(prisma, payload.key)
   try {
     await prisma.alert.create({
       data: {
@@ -225,6 +256,7 @@ async function persistAlert(prisma: PrismaClient, payload: AlertPayload): Promis
         fields: payload.fields,
         srcIp,
         sensorId,
+        clientId,
       },
     })
   } catch (error) {
