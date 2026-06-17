@@ -51,6 +51,8 @@ const KIND_ACCENT: Record<ThreatNodeKind, string> = {
   reputation: "border-purple-500/50 bg-purple-500/10 text-purple-300",
 }
 
+const FOUR_SIDES = [Position.Top, Position.Right, Position.Bottom, Position.Left] as const
+
 function ThreatNode({ data }: NodeProps<Node<ThreatNodeData>>) {
   const Icon = KIND_ICON[data.kind]
   const isCenter = data.kind === "ip"
@@ -62,7 +64,27 @@ function ThreatNode({ data }: NodeProps<Node<ThreatNodeData>>) {
       }`}
       title={data.copyable ?? data.label}
     >
-      <Handle type="target" position={Position.Top} className="!h-1.5 !w-1.5 !bg-border" />
+      {/* Handles on all four sides; edges pick the closest pair dynamically.
+          Each side carries both a source and a target handle so an edge can
+          enter/leave from whichever side gives the shortest, straightest path. */}
+      {FOUR_SIDES.map((pos) => (
+        <Handle
+          key={`t-${pos}`}
+          id={`t-${pos}`}
+          type="target"
+          position={pos}
+          className="!h-1 !w-1 !min-w-0 !min-h-0 !border-0 !bg-transparent"
+        />
+      ))}
+      {FOUR_SIDES.map((pos) => (
+        <Handle
+          key={`s-${pos}`}
+          id={`s-${pos}`}
+          type="source"
+          position={pos}
+          className="!h-1 !w-1 !min-w-0 !min-h-0 !border-0 !bg-transparent"
+        />
+      ))}
       <div className="flex items-center gap-1.5">
         <Icon className="h-3.5 w-3.5 shrink-0" />
         <span className={`truncate font-mono ${isCenter ? "text-sm font-semibold" : "text-xs"}`}>
@@ -70,7 +92,6 @@ function ThreatNode({ data }: NodeProps<Node<ThreatNodeData>>) {
         </span>
       </div>
       {data.sub && <p className="mt-0.5 truncate text-[10px] opacity-70">{data.sub}</p>}
-      <Handle type="source" position={Position.Bottom} className="!h-1.5 !w-1.5 !bg-border" />
     </div>
   )
 }
@@ -83,31 +104,75 @@ const EDGE_COLOR = "#475569"      // slate-600
 const EDGE_LABEL = "#94a3b8"      // slate-400
 const EDGE_LABEL_BG = "#0f172a"   // slate-900
 
-function toFlowEdges(graph: ThreatGraph): Edge[] {
-  return graph.edges.map((e) => ({
-    id: e.id,
-    source: e.source,
-    target: e.target,
-    label: e.label,
-    animated: e.source === "ip",
-    style: { stroke: EDGE_COLOR, strokeWidth: 1.5 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_COLOR, width: 16, height: 16 },
-    labelStyle: { fill: EDGE_LABEL, fontSize: 10 },
-    labelBgStyle: { fill: EDGE_LABEL_BG, fillOpacity: 0.85 },
-    labelBgPadding: [4, 2] as [number, number],
-  }))
+const NODE_W = 150
+const NODE_H = 52
+
+/**
+ * Picks which of the four sides an edge should leave/enter by the dominant axis
+ * between the two node centers. If the target is mostly to the right, the edge
+ * exits the right side and enters the left side — the shortest, straightest
+ * path, instead of always going out the bottom and curving back.
+ */
+function sideHandles(
+  src: { x: number; y: number },
+  tgt: { x: number; y: number },
+): { sourceHandle: string; targetHandle: string } {
+  const dx = tgt.x - src.x
+  const dy = tgt.y - src.y
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return dx >= 0
+      ? { sourceHandle: "s-right", targetHandle: "t-left" }
+      : { sourceHandle: "s-left", targetHandle: "t-right" }
+  }
+  return dy >= 0
+    ? { sourceHandle: "s-bottom", targetHandle: "t-top" }
+    : { sourceHandle: "s-top", targetHandle: "t-bottom" }
+}
+
+function center(n: Node | undefined): { x: number; y: number } {
+  if (!n) return { x: 0, y: 0 }
+  return { x: n.position.x + NODE_W / 2, y: n.position.y + NODE_H / 2 }
+}
+
+function toFlowEdges(graph: ThreatGraph, nodes: Node[]): Edge[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]))
+  return graph.edges.map((e) => {
+    const { sourceHandle, targetHandle } = sideHandles(
+      center(byId.get(e.source)),
+      center(byId.get(e.target)),
+    )
+    return {
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      sourceHandle,
+      targetHandle,
+      label: e.label,
+      type: "straight",
+      animated: e.source === "ip",
+      style: { stroke: EDGE_COLOR, strokeWidth: 1.5 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_COLOR, width: 16, height: 16 },
+      labelStyle: { fill: EDGE_LABEL, fontSize: 10 },
+      labelBgStyle: { fill: EDGE_LABEL_BG, fillOpacity: 0.85 },
+      labelBgPadding: [4, 2] as [number, number],
+    }
+  })
 }
 
 export function ThreatGraphView({ graph }: { graph: ThreatGraph }) {
   const [nodes, , onNodesChange] = useNodesState<Node<ThreatNodeData>>(
     graph.nodes as Node<ThreatNodeData>[],
   )
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(toFlowEdges(graph))
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(
+    toFlowEdges(graph, graph.nodes as Node[]),
+  )
 
-  // Keep edges in sync if the graph prop changes (navigating between IPs).
+  // Recompute which side each edge attaches to whenever node positions change
+  // (initial render, prop change, or dragging a node) so connections always
+  // take the shortest side and stay straight.
   useEffect(() => {
-    setEdges(toFlowEdges(graph))
-  }, [graph, setEdges])
+    setEdges(toFlowEdges(graph, nodes))
+  }, [graph, nodes, setEdges])
 
   const onNodeClick = useCallback((_: unknown, node: Node<ThreatNodeData>) => {
     const { href, copyable } = node.data
