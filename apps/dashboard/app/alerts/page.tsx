@@ -47,6 +47,7 @@ export default function AlertsPage() {
   const [deletingAll, setDeletingAll] = useState(false)
   const [clients, setClients] = useState<ClientLite[]>([])
   const [clientId, setClientId] = useState<string>("")   // "" = all clients
+  const [isSuperadmin, setIsSuperadmin] = useState(false)
 
   const fetchAlerts = useCallback(async () => {
     setLoading(true)
@@ -63,12 +64,20 @@ export default function AlertsPage() {
 
   useEffect(() => { fetchAlerts() }, [fetchAlerts])
 
-  // Load the client list once for the filter dropdown.
+  // Only superadmins get the tenant selector; scoped users are pinned to their
+  // own client server-side and see no dropdown. Load /api/me first, then the
+  // client list only if superadmin.
   useEffect(() => {
-    fetch("/api/clients")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows: Array<{ id: string; name: string }>) =>
-        setClients(rows.map((c) => ({ id: c.id, name: c.name }))))
+    fetch("/api/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((me: { isSuperadmin?: boolean } | null) => {
+        if (!me?.isSuperadmin) return
+        setIsSuperadmin(true)
+        return fetch("/api/clients")
+          .then((r) => (r.ok ? r.json() : []))
+          .then((rows: Array<{ id: string; name: string }>) =>
+            setClients(rows.map((c) => ({ id: c.id, name: c.name }))))
+      })
       .catch(() => {})
   }, [])
 
@@ -141,22 +150,27 @@ export default function AlertsPage() {
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Alerts</h1>
           <p className="text-sm text-muted-foreground">
-            {clientId
-              ? `Threat alerts for ${clients.find((c) => c.id === clientId)?.name ?? "the selected client"}.`
-              : "Threat alerts across all clients and sensors."}
+            {!isSuperadmin
+              ? "Threat alerts for your honeypots."
+              : clientId
+                ? `Threat alerts for ${clients.find((c) => c.id === clientId)?.name ?? "the selected client"}.`
+                : "Threat alerts across all clients and sensors."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            className="h-11 rounded-xl border border-border bg-card px-3 text-sm text-foreground"
-          >
-            <option value="">All clients</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+          {isSuperadmin && (
+            <select
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              className="h-11 rounded-xl border border-border bg-card px-3 text-sm text-foreground"
+              title="Enter a tenant (superadmin)"
+            >
+              <option value="">All clients</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          )}
           <Surface className="flex items-center gap-2 px-4 py-3">
             <Bell className="h-4 w-4 text-amber-400" />
             <span className="text-sm font-medium text-foreground">{unread}</span>

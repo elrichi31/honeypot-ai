@@ -50,21 +50,25 @@ export async function PATCH(
   const { id } = await params
   const body = await req.json().catch(() => null)
 
-  if (!body?.name && !body?.role) {
-    return NextResponse.json({ error: "Se requiere name o role" }, { status: 400 })
+  // clientId can be set to a string (assign tenant) or null (unassign). Use a
+  // presence check so `clientId: null` is treated as an intentional update.
+  const hasClientId = body && Object.prototype.hasOwnProperty.call(body, "clientId")
+
+  if (!body?.name && !body?.role && !hasClientId) {
+    return NextResponse.json({ error: "Se requiere name, role o clientId" }, { status: 400 })
   }
 
-  if (body?.role && !["admin", "analyst", "viewer"].includes(body.role)) {
-    return NextResponse.json({ error: "Rol inválido. Debe ser admin, analyst o viewer" }, { status: 400 })
+  if (body?.role && !["superadmin", "admin", "analyst", "viewer"].includes(body.role)) {
+    return NextResponse.json({ error: "Rol inválido" }, { status: 400 })
   }
 
-  // Prevent removing admin from own account
-  if (body?.role && id === auth_check.userId && body.role !== "admin") {
+  // Prevent removing admin-level access from own account
+  if (body?.role && id === auth_check.userId && !["admin", "superadmin"].includes(body.role)) {
     return NextResponse.json({ error: "No puedes quitarte el rol de admin a ti mismo" }, { status: 400 })
   }
 
-  const current = await db.query<{ id: string; name: string; email: string; role: string }>(
-    `SELECT id, name, email, role FROM "user" WHERE id = $1 LIMIT 1`,
+  const current = await db.query<{ id: string; name: string; email: string; role: string; clientId: string | null }>(
+    `SELECT id, name, email, role, "clientId" FROM "user" WHERE id = $1 LIMIT 1`,
     [id],
   )
 
@@ -75,10 +79,12 @@ export async function PATCH(
   const target = current.rows[0]
   const newName = body.name ?? target.name
   const newRole = body.role ?? target.role
+  const newClientId = hasClientId ? (body.clientId || null) : target.clientId
 
-  const result = await db.query<{ id: string; name: string; email: string; role: string }>(
-    `UPDATE "user" SET name = $1, role = $2, "updatedAt" = now() WHERE id = $3 RETURNING id, name, email, role`,
-    [newName, newRole, id],
+  const result = await db.query<{ id: string; name: string; email: string; role: string; clientId: string | null }>(
+    `UPDATE "user" SET name = $1, role = $2, "clientId" = $3, "updatedAt" = now() WHERE id = $4
+     RETURNING id, name, email, role, "clientId"`,
+    [newName, newRole, newClientId, id],
   )
 
   await logAudit({
@@ -89,6 +95,7 @@ export async function PATCH(
     details: {
       ...(body.name ? { name: newName } : {}),
       ...(body.role ? { rolePrev: target.role, roleNew: newRole } : {}),
+      ...(hasClientId ? { clientIdPrev: target.clientId, clientIdNew: newClientId } : {}),
     },
     request: req,
   })

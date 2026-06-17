@@ -16,7 +16,8 @@ export async function GET() {
     role: string
     createdAt: string
     updatedAt: string
-  }>(`SELECT id, name, email, "emailVerified", role, "createdAt", "updatedAt" FROM "user" ORDER BY "createdAt" ASC`)
+    clientId: string | null
+  }>(`SELECT id, name, email, "emailVerified", role, "clientId", "createdAt", "updatedAt" FROM "user" ORDER BY "createdAt" ASC`)
 
   return NextResponse.json(result.rows)
 }
@@ -31,7 +32,8 @@ export async function POST(req: NextRequest) {
   }
 
   const { name, email, password } = body as { name: string; email: string; password: string }
-  const role = (["admin", "analyst", "viewer"].includes(body.role) ? body.role : "analyst") as string
+  const role = (["superadmin", "admin", "analyst", "viewer"].includes(body.role) ? body.role : "analyst") as string
+  const clientId = typeof body.clientId === "string" && body.clientId ? body.clientId : null
 
   if (password.length < 8) {
     return NextResponse.json({ error: "La contraseña debe tener al menos 8 caracteres" }, { status: 400 })
@@ -44,8 +46,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No se pudo crear el usuario" }, { status: 500 })
     }
 
-    // Set the requested role (default analyst)
-    await db.query(`UPDATE "user" SET role = $1 WHERE id = $2`, [role, created.user.id])
+    // Set the requested role (default analyst) and tenant scope.
+    await db.query(`UPDATE "user" SET role = $1, "clientId" = $2 WHERE id = $3`, [role, clientId, created.user.id])
 
     await logAudit({
       action: "CREATE",

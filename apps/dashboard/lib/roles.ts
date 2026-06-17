@@ -5,7 +5,7 @@ import { NextResponse } from "next/server"
 import { hasPermission, type Role } from "@/lib/roles-shared"
 
 export type { Role } from "@/lib/roles-shared"
-export { ROLE_ORDER, hasPermission, ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_COLORS } from "@/lib/roles-shared"
+export { ROLE_ORDER, hasPermission, ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_COLORS, SCOPE_NONE, resolveScopeClientId } from "@/lib/roles-shared"
 
 export type AuthOk = {
   ok: true
@@ -13,6 +13,8 @@ export type AuthOk = {
   userEmail: string
   userName: string
   role: Role
+  clientId: string | null
+  isSuperadmin: boolean
 }
 export type AuthFail = { ok: false; response: NextResponse }
 export type AuthResult = AuthOk | AuthFail
@@ -25,11 +27,14 @@ export async function requireRole(minRole: Role): Promise<AuthResult> {
       return { ok: false, response: NextResponse.json({ error: "No autorizado" }, { status: 401 }) }
     }
 
-    const result = await db.query<{ role: string }>(
-      `SELECT role FROM "user" WHERE id = $1`,
+    // Read role + clientId from the DB (NOT the session cookie — cookieCache is
+    // enabled, so a freshly-changed scope could be stale in the cookie).
+    const result = await db.query<{ role: string; clientId: string | null }>(
+      `SELECT role, "clientId" FROM "user" WHERE id = $1`,
       [session.user.id],
     )
     const role = (result.rows[0]?.role ?? "viewer") as Role
+    const clientId = result.rows[0]?.clientId ?? null
 
     if (!hasPermission(role, minRole)) {
       return {
@@ -47,6 +52,8 @@ export async function requireRole(minRole: Role): Promise<AuthResult> {
       userEmail: session.user.email,
       userName: session.user.name || "",
       role,
+      clientId,
+      isSuperadmin: role === "superadmin",
     }
   } catch {
     return { ok: false, response: NextResponse.json({ error: "No autorizado" }, { status: 401 }) }

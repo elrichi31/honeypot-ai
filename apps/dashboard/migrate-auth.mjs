@@ -74,6 +74,13 @@ async function migrate() {
     ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "role" TEXT NOT NULL DEFAULT 'analyst';
   `)
 
+  // Multi-tenant: the client (tenant) this user is scoped to. NULL = unscoped,
+  // which only the superadmin role may use for global access. For any other role
+  // NULL means "no data" (fail-closed enforcement in roles.ts).
+  await pool.query(`
+    ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "clientId" TEXT;
+  `)
+
   // Promote the oldest user to admin if no admin exists yet
   await pool.query(`
     UPDATE "user"

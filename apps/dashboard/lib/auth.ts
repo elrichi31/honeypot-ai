@@ -21,6 +21,16 @@ export const auth = betterAuth({
   },
   secret: process.env.BETTER_AUTH_SECRET,
   emailAndPassword: { enabled: true },
+  user: {
+    additionalFields: {
+      // Tenant the user belongs to. NULL = unscoped (only meaningful for the
+      // superadmin role, which has global access). For every other role, NULL
+      // means "no data" — enforcement is fail-closed (see roles.ts).
+      // input:false so it can't be set via the public signup/update API; it's
+      // assigned by admins through the users management endpoint.
+      clientId: { type: "string", required: false, input: false },
+    },
+  },
   session: {
     expiresIn: getSessionDurationSeconds(),   // configurable in Settings (default 8h)
     updateAge: 60 * 60 * 2,   // re-issue cookie every 2 hours of activity

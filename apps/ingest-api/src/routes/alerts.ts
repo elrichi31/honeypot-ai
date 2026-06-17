@@ -106,11 +106,16 @@ export async function alertRoutes(fastify: FastifyInstance) {
     return reply.send({ deleted: result.count })
   })
 
-  // Delete a single alert.
+  // Delete a single alert, optionally constrained to a client scope so a
+  // tenant-scoped caller can't delete another client's alert by id.
   fastify.delete('/alerts/:id', async (request, reply) => {
     const params = z.object({ id: z.string().min(1) }).safeParse(request.params)
     if (!params.success) return reply.status(400).send({ error: 'Invalid id' })
-    const result = await fastify.prisma.alert.deleteMany({ where: { id: params.data.id } })
+    const query = deleteQuerySchema.safeParse(request.query)
+    const clientId = query.success ? query.data.clientId : undefined
+    const result = await fastify.prisma.alert.deleteMany({
+      where: { id: params.data.id, ...(clientId ? { clientId } : {}) },
+    })
     return reply.send({ deleted: result.count })
   })
 }
