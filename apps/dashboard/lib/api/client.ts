@@ -13,6 +13,12 @@ export async function apiFetch<T>(url: string, revalidate?: number, timeoutMs = 
   // Heavy aggregate endpoints (e.g. /threats) pass a larger timeout so a slow
   // query isn't misread as "no data".
   init.signal = AbortSignal.timeout(timeoutMs)
+  // Some ingest-api routes (e.g. /clients, /sensors) are guarded by
+  // ensureIngestToken. These calls run server-side, so attach the shared secret
+  // when available; public routes simply ignore it.
+  if (process.env.INGEST_SHARED_SECRET) {
+    init.headers = { ...init.headers, "X-Ingest-Token": process.env.INGEST_SHARED_SECRET }
+  }
   const res = await fetch(url, init)
   if (!res.ok) throw new Error(`API error ${res.status}: ${url}`)
   return res.json()
