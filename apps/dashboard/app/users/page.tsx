@@ -9,7 +9,7 @@ import { Users, UserPlus, Trash2, X, Eye, EyeOff, ShieldCheck } from "lucide-rea
 import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
 import { useSession } from "@/lib/auth-client"
-import { ROLE_LABELS, ROLE_COLORS, ROLE_DESCRIPTIONS, type Role } from "@/lib/roles-shared"
+import { ROLE_LABELS, ROLE_COLORS, ROLE_DESCRIPTIONS, hasPermission, type Role } from "@/lib/roles-shared"
 
 type User = {
   id: string
@@ -254,7 +254,9 @@ export default function UsersPage() {
 
   useEffect(() => { fetchAll() }, [])
 
-  const isAdmin = me?.role === "admin" || me?.role === "superadmin"
+  // admin-level (admin or superadmin) — use hasPermission so any role at/above
+  // admin in ROLE_ORDER qualifies, instead of a brittle hand-written list.
+  const isAdmin = me ? hasPermission(me.role, "admin") : false
   const canSuperadmin = me?.role === "superadmin"
   const clientName = (id: string | null) => (id ? clients.find((c) => c.id === id)?.name ?? "—" : "Global")
 
