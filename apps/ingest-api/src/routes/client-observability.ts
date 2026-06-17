@@ -88,29 +88,65 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
     // run the page-row query on each pagination click.
     const countKey = `client:events:count:${cs.clientId}:${query.data.sensorId ?? 'all'}:${source}:${rawIp ?? ''}:${textQ ?? ''}`
 
+    // Whether we can push the ORDER BY/LIMIT into each UNION branch. Only safe
+    // without per-column filters (they're applied post-UNION on normalized
+    // names). The unfiltered path is the common one (initial load) and the one
+    // that was doing a Seq Scan of ~1M rows + global sort (~560ms); pushing a
+    // (OFFSET+pageSize) LIMIT into each branch lets each table use its timestamp
+    // index instead, measured ~560ms -> <1ms.
+    const hasFilters = !!rawIp || !!textQ
+    const perBranch = offset + pageSize
+
+    const rowQuery = hasFilters
+      ? fastify.prismaRead.$queryRaw<LogRow[]>`
+          SELECT id, source, protocol, src_ip, event_type, ts, message, command, username, password, session_id, extra
+          FROM (
+            SELECT e.id::text, 'ssh'::text AS source, 'ssh'::text AS protocol, e.src_ip, e.event_type,
+                   e.event_ts AS ts, e.message, e.command, e.username, e.password,
+                   e.session_id::text AS session_id, e.normalized_json::text AS extra
+            FROM events e JOIN sessions s ON s.id = e.session_id
+            WHERE s.sensor_id IN (${sids}) AND ${wantSsh}
+            UNION ALL
+            SELECT ph.id::text, 'protocol'::text, ph.protocol, ph.src_ip, ph.event_type,
+                   ph.timestamp, NULL::text, (ph.data->>'command'), ph.username, ph.password,
+                   NULL::text, ph.data::text
+            FROM protocol_hits ph WHERE ph.sensor_id IN (${sids}) AND ${wantProtocol}
+            UNION ALL
+            SELECT wh.id::text, 'web'::text, 'http'::text, wh.src_ip, wh.attack_type,
+                   wh.timestamp, NULL::text, wh.path, NULL::text, NULL::text, NULL::text,
+                   json_build_object('method',wh.method,'path',wh.path,'query',wh.query,'userAgent',wh.user_agent,'attackType',wh.attack_type)::text
+            FROM web_hits wh WHERE wh.sensor_id IN (${sids}) AND ${wantWeb}
+          ) AS combined
+          WHERE 1=1 ${ipCond} ${qCond}
+          ORDER BY ts DESC LIMIT ${pageSize} OFFSET ${offset}
+        `
+      : fastify.prismaRead.$queryRaw<LogRow[]>`
+          SELECT id, source, protocol, src_ip, event_type, ts, message, command, username, password, session_id, extra
+          FROM (
+            (SELECT e.id::text, 'ssh'::text AS source, 'ssh'::text AS protocol, e.src_ip, e.event_type,
+                   e.event_ts AS ts, e.message, e.command, e.username, e.password,
+                   e.session_id::text AS session_id, e.normalized_json::text AS extra
+             FROM events e JOIN sessions s ON s.id = e.session_id
+             WHERE s.sensor_id IN (${sids}) AND ${wantSsh}
+             ORDER BY e.event_ts DESC LIMIT ${perBranch})
+            UNION ALL
+            (SELECT ph.id::text, 'protocol'::text, ph.protocol, ph.src_ip, ph.event_type,
+                   ph.timestamp, NULL::text, (ph.data->>'command'), ph.username, ph.password,
+                   NULL::text, ph.data::text
+             FROM protocol_hits ph WHERE ph.sensor_id IN (${sids}) AND ${wantProtocol}
+             ORDER BY ph.timestamp DESC LIMIT ${perBranch})
+            UNION ALL
+            (SELECT wh.id::text, 'web'::text, 'http'::text, wh.src_ip, wh.attack_type,
+                   wh.timestamp, NULL::text, wh.path, NULL::text, NULL::text, NULL::text,
+                   json_build_object('method',wh.method,'path',wh.path,'query',wh.query,'userAgent',wh.user_agent,'attackType',wh.attack_type)::text
+             FROM web_hits wh WHERE wh.sensor_id IN (${sids}) AND ${wantWeb}
+             ORDER BY wh.timestamp DESC LIMIT ${perBranch})
+          ) AS combined
+          ORDER BY ts DESC LIMIT ${pageSize} OFFSET ${offset}
+        `
+
     const [rows, total] = await Promise.all([
-      fastify.prismaRead.$queryRaw<LogRow[]>`
-        SELECT id, source, protocol, src_ip, event_type, ts, message, command, username, password, session_id, extra
-        FROM (
-          SELECT e.id::text, 'ssh'::text AS source, 'ssh'::text AS protocol, e.src_ip, e.event_type,
-                 e.event_ts AS ts, e.message, e.command, e.username, e.password,
-                 e.session_id::text AS session_id, e.normalized_json::text AS extra
-          FROM events e JOIN sessions s ON s.id = e.session_id
-          WHERE s.sensor_id IN (${sids}) AND ${wantSsh}
-          UNION ALL
-          SELECT ph.id::text, 'protocol'::text, ph.protocol, ph.src_ip, ph.event_type,
-                 ph.timestamp, NULL::text, (ph.data->>'command'), ph.username, ph.password,
-                 NULL::text, ph.data::text
-          FROM protocol_hits ph WHERE ph.sensor_id IN (${sids}) AND ${wantProtocol}
-          UNION ALL
-          SELECT wh.id::text, 'web'::text, 'http'::text, wh.src_ip, wh.attack_type,
-                 wh.timestamp, NULL::text, wh.path, NULL::text, NULL::text, NULL::text,
-                 json_build_object('method',wh.method,'path',wh.path,'query',wh.query,'userAgent',wh.user_agent,'attackType',wh.attack_type)::text
-          FROM web_hits wh WHERE wh.sensor_id IN (${sids}) AND ${wantWeb}
-        ) AS combined
-        WHERE 1=1 ${ipCond} ${qCond}
-        ORDER BY ts DESC LIMIT ${pageSize} OFFSET ${offset}
-      `,
+      rowQuery,
       withCache(fastify.cache, countKey, 60, async () => {
         const countRows = await fastify.prismaRead.$queryRaw<[{ total: bigint }]>`
           SELECT COUNT(*) AS total FROM (
