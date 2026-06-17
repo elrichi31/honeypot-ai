@@ -20,6 +20,8 @@ import {
 } from "lucide-react"
 import { EventTimeline } from "@/components/event-timeline"
 import { AiSummary } from "@/components/ai-summary"
+import { ThreatIntelCard } from "@/components/threat-intel-card"
+import { detectBotnetFamily, extractIocs, hasThreatIntel } from "@/lib/botnet-signatures"
 import { fetchSession, fetchThreat } from "@/lib/api"
 import { RiskBadge } from "@/components/risk-badge"
 import { StatCard } from "@/components/stat-card"
@@ -92,6 +94,12 @@ export default async function SessionReplayPage({
     session.endedAt
       ? differenceInSeconds(new Date(session.endedAt), new Date(session.startedAt))
       : null
+
+  // Botnet-family attribution + IoC extraction. Computed here (on detail view)
+  // rather than at ingest, so it never touches the high-volume event pipeline.
+  const botnetFamily = detectBotnetFamily(commands.map((e) => e.command ?? ""))
+  const iocs = extractIocs(events)
+  const showThreatIntel = hasThreatIntel(botnetFamily, iocs)
 
   return (
     <PageShell>
@@ -267,6 +275,7 @@ export default async function SessionReplayPage({
           {/* Right column: timeline + AI */}
           <div className="space-y-6 xl:col-span-2">
             <IpEnrichment ip={session.srcIp} initialData={enrichmentCache} autoFetch={false} />
+            {showThreatIntel && <ThreatIntelCard family={botnetFamily} iocs={iocs} />}
             <AiSummary session={session} events={events} />
 
             <Surface>
