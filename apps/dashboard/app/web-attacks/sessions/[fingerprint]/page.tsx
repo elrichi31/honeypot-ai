@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { formatDistanceToNow } from "date-fns"
+import { formatDistanceToNow, format } from "date-fns"
 import {
   ArrowLeft, Fingerprint, GitBranch, Target, Clock, MousePointerClick,
-  Globe, Shield, AlertTriangle, Network,
+  Globe, Shield, AlertTriangle, Network, Zap, Code2, ArrowRight, BarChart2,
 } from "lucide-react"
 import { fetchWebSessionDetail } from "@/lib/api"
 import { lookupIp } from "@/lib/geo"
@@ -15,6 +15,60 @@ import { StatCard } from "@/components/stat-card"
 import { IpEnrichment } from "@/components/ip-enrichment"
 import { ATTACK_COLORS, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack-types"
 import { RequestRow, type RequestGroup } from "@/components/web-request-row"
+
+function buildActivityBuckets(timestamps: string[], bucketCount = 24) {
+  if (timestamps.length === 0) return []
+  const times = timestamps.map((t) => new Date(t).getTime()).sort((a, b) => a - b)
+  const minT = times[0]
+  const maxT = times[times.length - 1]
+  const span = maxT - minT || 1
+  const buckets: { label: string; count: number; start: number }[] = Array.from(
+    { length: bucketCount },
+    (_, i) => ({ start: minT + (span / bucketCount) * i, label: "", count: 0 }),
+  )
+  for (const t of times) {
+    const idx = Math.min(bucketCount - 1, Math.floor(((t - minT) / span) * bucketCount))
+    buckets[idx].count++
+  }
+  buckets.forEach((b) => { b.label = format(new Date(b.start), "HH:mm") })
+  return buckets
+}
+
+type WebHit = Awaited<ReturnType<typeof fetchWebSessionDetail>>["hits"][0]
+
+function extractPayloads(hits: WebHit[]): { payload: string; count: number; attackType: string }[] {
+  const map = new Map<string, { count: number; attackType: string }>()
+  for (const h of hits) {
+    const raw = h.body?.trim()
+    if (!raw || raw.length < 3) continue
+    const key = raw.slice(0, 200)
+    const existing = map.get(key)
+    if (existing) existing.count++
+    else map.set(key, { count: 1, attackType: h.attackType })
+  }
+  return [...map.entries()]
+    .map(([payload, { count, attackType }]) => ({ payload, count, attackType }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8)
+}
+
+function buildIpHopTimeline(hits: WebHit[]) {
+  const sorted = [...hits].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+  )
+  const segments: { ip: string; start: string; end: string; count: number }[] = []
+  let current: (typeof segments)[0] | null = null
+  for (const h of sorted) {
+    if (!current || current.ip !== h.srcIp) {
+      current = { ip: h.srcIp, start: h.timestamp, end: h.timestamp, count: 1 }
+      segments.push(current)
+    } else {
+      current.end = h.timestamp
+      current.count++
+    }
+  }
+  return segments
+}
 
 export default async function SessionDetailPage({
   params,
@@ -35,7 +89,6 @@ export default async function SessionDetailPage({
 
   const { hits } = detail
 
-  // Derived stats
   const srcIps = [...new Set(hits.map((h) => h.srcIp))]
   const isMultiIp = srcIps.length > 1
   const firstSeen = hits[hits.length - 1].timestamp
@@ -46,26 +99,25 @@ export default async function SessionDetailPage({
   const attackTypes = [...new Set(hits.map((h) => h.attackType))]
   const galahFailures = hits.filter((h) => h.galahResult?.includes("failedResponse")).length
 
-  // Per-IP breakdown
-  const perIp = srcIps.map((ip) => {
-    const ipHits = hits.filter((h) => h.srcIp === ip)
-    return {
-      ip,
-      count: ipHits.length,
-      attackTypes: [...new Set(ipHits.map((h) => h.attackType))],
-      firstSeen: ipHits[ipHits.length - 1]?.timestamp,
-      lastSeen: ipHits[0]?.timestamp,
-      location: lookupIp(ip),
-    }
-  }).sort((a, b) => b.count - a.count)
+  const perIp = srcIps
+    .map((ip) => {
+      const ipHits = hits.filter((h) => h.srcIp === ip)
+      return {
+        ip,
+        count: ipHits.length,
+        attackTypes: [...new Set(ipHits.map((h) => h.attackType))],
+        firstSeen: ipHits[ipHits.length - 1]?.timestamp,
+        lastSeen: ipHits[0]?.timestamp,
+        location: lookupIp(ip),
+      }
+    })
+    .sort((a, b) => b.count - a.count)
 
-  // Attack type breakdown
   const byType = hits.reduce<Record<string, number>>((acc, h) => {
     acc[h.attackType] = (acc[h.attackType] ?? 0) + 1
     return acc
   }, {})
 
-  // Top paths
   const pathCount = hits.reduce<Record<string, number>>((acc, h) => {
     const fullPath = h.query ? `${h.path}?${h.query}` : h.path
     acc[fullPath] = (acc[fullPath] ?? 0) + 1
@@ -73,7 +125,21 @@ export default async function SessionDetailPage({
   }, {})
   const topPaths = Object.entries(pathCount).sort((a, b) => b[1] - a[1]).slice(0, 15)
 
-  // Attack chain sequence across all hits
+  const reconPaths = hits
+    .filter((h) => h.attackType === "recon" || h.attackType === "scan")
+    .reduce<Record<string, number>>((acc, h) => {
+      const p = h.query ? `${h.path}?${h.query}` : h.path
+      acc[p] = (acc[p] ?? 0) + 1
+      return acc
+    }, {})
+  const exploitPaths = hits
+    .filter((h) => h.attackType !== "recon" && h.attackType !== "scan")
+    .reduce<Record<string, number>>((acc, h) => {
+      const p = h.query ? `${h.path}?${h.query}` : h.path
+      acc[p] = (acc[p] ?? 0) + 1
+      return acc
+    }, {})
+
   const attackChainSequence: string[] = []
   for (const h of hits) {
     if (h.attackChain?.length) {
@@ -83,24 +149,35 @@ export default async function SessionDetailPage({
     }
   }
 
-  // Canary token types
   const canaryTokenTypes = [...new Set(hits.map((h) => h.canaryTokenType).filter(Boolean))]
-
-  // HTTP versions + referers
   const httpVersions = [...new Set(hits.map((h) => h.httpVersion).filter(Boolean))]
   const referers = [...new Set(hits.map((h) => h.referer).filter(Boolean))].slice(0, 5)
-
-  // User agents
   const uniqueUAs = [...new Set(hits.map((h) => h.userAgent).filter(Boolean))]
 
-  // Enrichment for each IP (only first 3 IPs to avoid too many API calls)
+  const activityBuckets = buildActivityBuckets(hits.map((h) => h.timestamp))
+  const maxBucket = Math.max(...activityBuckets.map((b) => b.count), 1)
+
+  const durationMs = new Date(lastSeen).getTime() - new Date(firstSeen).getTime()
+  const durationMinutes = durationMs / 60_000 || 1
+  const avgRpm = totalHits / durationMinutes
+  const sortedTs = hits.map((h) => new Date(h.timestamp).getTime()).sort((a, b) => a - b)
+  let peakRpm = 0
+  for (let i = 0; i < sortedTs.length; i++) {
+    const windowEnd = sortedTs[i] + 60_000
+    let count = 1
+    for (let j = i + 1; j < sortedTs.length && sortedTs[j] <= windowEnd; j++) count++
+    if (count > peakRpm) peakRpm = count
+  }
+
+  const payloads = extractPayloads(hits)
+  const hopTimeline = isMultiIp ? buildIpHopTimeline(hits) : []
+
   const enrichments = await Promise.all(
     srcIps.slice(0, 3).map(async (ip) => {
       try { return { ip, data: await enrichIp(ip) } } catch { return { ip, data: null } }
-    })
+    }),
   )
 
-  // Group hits into request groups (same as per-IP page, but across all IPs)
   const groupMap = new Map<string, RequestGroup>()
   for (const hit of hits) {
     const fullPath = hit.query ? `${hit.path}?${hit.query}` : hit.path
@@ -124,16 +201,16 @@ export default async function SessionDetailPage({
       groupMap.set(key, {
         method: hit.method, path: fullPath, attackType: hit.attackType,
         count: 1, lastSeen: hit.timestamp, galahFailures: isGalahFail, canary: isCanary,
-        sampleBody: hit.body ?? "", sampleHeaders: hit.headers ?? null, sampleUserAgent: hit.userAgent,
-        sampleReferer: hit.referer || undefined, sampleHttpVersion: hit.httpVersion || undefined,
+        sampleBody: hit.body ?? "", sampleHeaders: hit.headers ?? null,
+        sampleUserAgent: hit.userAgent, sampleReferer: hit.referer || undefined,
+        sampleHttpVersion: hit.httpVersion || undefined,
       })
     }
   }
   const groupedHits = [...groupMap.values()].sort(
-    (a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime()
+    (a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime(),
   )
 
-  const durationMs = new Date(lastSeen).getTime() - new Date(firstSeen).getTime()
   const durationLabel = (() => {
     const h = Math.floor(durationMs / 3_600_000)
     const m = Math.floor((durationMs % 3_600_000) / 60_000)
@@ -144,12 +221,8 @@ export default async function SessionDetailPage({
 
   return (
     <PageShell>
-      {/* Header */}
       <div className="mb-6">
-        <Link
-          href="/web-attacks/sessions"
-          className="mb-3 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
+        <Link href="/web-attacks/sessions" className="mb-3 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-3.5 w-3.5" /> Back to Sessions
         </Link>
         <div className="flex items-start justify-between gap-4">
@@ -161,24 +234,23 @@ export default async function SessionDetailPage({
             {isMultiIp && (
               <div className="mt-1 flex items-center gap-1.5 text-sm text-yellow-400">
                 <AlertTriangle className="h-3.5 w-3.5" />
-                Multi-IP session · possible VPN hopper — {srcIps.length} IPs used
+                Multi-IP session &middot; possible VPN hopper &mdash; {srcIps.length} IPs used
               </div>
             )}
             <p suppressHydrationWarning className="mt-1 text-xs text-muted-foreground">
-              First seen {formatDistanceToNow(new Date(firstSeen), { addSuffix: true })} ·{" "}
-              Last seen {formatDistanceToNow(new Date(lastSeen), { addSuffix: true })} ·{" "}
-              Duration {durationLabel}
+              First seen {formatDistanceToNow(new Date(firstSeen), { addSuffix: true })} &middot;{" "}
+              Last seen {formatDistanceToNow(new Date(lastSeen), { addSuffix: true })} &middot; Duration {durationLabel}
             </p>
           </div>
           <div className="flex flex-wrap justify-end items-center gap-1.5">
             {canaryHits > 0 && (
               <span className="inline-flex items-center gap-1 rounded-full border border-red-500/40 bg-red-500/15 px-2.5 py-1 text-xs font-semibold text-red-400">
-                <Target className="h-3 w-3" /> Canary ×{canaryHits}
+                <Target className="h-3 w-3" /> Canary x{canaryHits}
               </span>
             )}
             {chainHits > 0 && (
               <span className="inline-flex items-center gap-1 rounded-full border border-orange-500/40 bg-orange-500/15 px-2.5 py-1 text-xs font-semibold text-orange-400">
-                <GitBranch className="h-3 w-3" /> Chain ×{chainHits}
+                <GitBranch className="h-3 w-3" /> Chain x{chainHits}
               </span>
             )}
             {attackTypes.map((t) => (
@@ -190,7 +262,6 @@ export default async function SessionDetailPage({
         </div>
       </div>
 
-      {/* Stat cards */}
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard icon={MousePointerClick} label="Total hits" value={totalHits.toLocaleString("en-US")} color="text-warning" bg="bg-warning/20" />
         <StatCard icon={Network} label="IPs used" value={srcIps.length} color={isMultiIp ? "text-yellow-400" : undefined} bg={isMultiIp ? "bg-yellow-500/20" : undefined} />
@@ -198,13 +269,90 @@ export default async function SessionDetailPage({
         <StatCard icon={Globe} label="Unique paths" value={Object.keys(pathCount).length} />
       </div>
 
-      {/* IP roster — one card per IP */}
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        <Surface className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Zap className="h-4 w-4 text-yellow-400" />
+            <h3 className="text-sm font-semibold text-foreground">Attack speed</h3>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Average</span>
+              <span className="font-mono text-sm font-semibold text-foreground">
+                {avgRpm < 1 ? avgRpm.toFixed(2) : avgRpm.toFixed(1)} req/min
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Peak (1-min window)</span>
+              <span className="font-mono text-sm font-semibold text-orange-400">{peakRpm} req/min</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Galah failures</span>
+              <span className="font-mono text-sm font-semibold text-red-400">{galahFailures > 0 ? galahFailures : "none"}</span>
+            </div>
+          </div>
+        </Surface>
+
+        <Surface className="p-4 sm:col-span-2">
+          <div className="flex items-center gap-2 mb-3">
+            <BarChart2 className="h-4 w-4 text-cyan-400" />
+            <h3 className="text-sm font-semibold text-foreground">Activity over session</h3>
+            <span className="ml-auto text-xs text-muted-foreground">{activityBuckets.length} time buckets</span>
+          </div>
+          <div className="flex items-end gap-px h-14">
+            {activityBuckets.map((b, i) => {
+              const pct = (b.count / maxBucket) * 100
+              return (
+                <div key={i} className="group relative flex-1 flex flex-col items-center justify-end" title={`${b.label} - ${b.count} hits`}>
+                  <div className="w-full rounded-sm bg-cyan-500/60 group-hover:bg-cyan-400 transition-colors" style={{ height: `${Math.max(pct, b.count > 0 ? 4 : 0)}%` }} />
+                </div>
+              )
+            })}
+          </div>
+          <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+            <span suppressHydrationWarning>{format(new Date(firstSeen), "HH:mm")}</span>
+            <span suppressHydrationWarning>{format(new Date(lastSeen), "HH:mm")}</span>
+          </div>
+        </Surface>
+      </div>
+
+      {isMultiIp && hopTimeline.length > 1 && (
+        <Surface className="mb-6 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Network className="h-4 w-4 text-yellow-400" />
+            <h3 className="text-sm font-semibold text-foreground">IP rotation timeline</h3>
+            <span className="ml-auto text-xs text-muted-foreground">{hopTimeline.length} segments</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
+            {hopTimeline.map((seg, i) => {
+              const loc = lookupIp(seg.ip)
+              return (
+                <div key={i} className="flex items-center gap-1">
+                  <div className="rounded-lg border border-border bg-muted/30 px-2 py-1.5 text-xs">
+                    <div className="flex items-center gap-1 font-mono font-semibold text-blue-400">
+                      {loc?.country && <Flag code={loc.country} />}
+                      <Link href={`/web-attacks/${encodeURIComponent(seg.ip)}`} className="hover:underline">{seg.ip}</Link>
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <span suppressHydrationWarning>{format(new Date(seg.start), "HH:mm:ss")}</span>
+                      <span className="opacity-50">|</span>
+                      <span>{seg.count} hits</span>
+                    </div>
+                  </div>
+                  {i < hopTimeline.length - 1 && <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                </div>
+              )
+            })}
+          </div>
+        </Surface>
+      )}
+
       <Surface className="mb-6 overflow-hidden">
         <div className="border-b border-border px-4 py-3">
           <h3 className="font-semibold text-foreground">IP addresses used in this session</h3>
           <p className="text-xs text-muted-foreground">
             Same passive fingerprint detected across {srcIps.length} IP{srcIps.length > 1 ? "s" : ""}
-            {isMultiIp ? " — likely VPN or proxy rotation" : ""}
+            {isMultiIp ? " -- likely VPN or proxy rotation" : ""}
           </p>
         </div>
         <div className="divide-y divide-border">
@@ -212,9 +360,7 @@ export default async function SessionDetailPage({
             <div key={ip} className="flex items-center justify-between gap-4 px-4 py-3">
               <div className="flex items-center gap-2 min-w-0">
                 {location?.country && <Flag code={location.country} />}
-                <Link href={`/web-attacks/${encodeURIComponent(ip)}`} className="font-mono text-sm text-blue-400 hover:underline">
-                  {ip}
-                </Link>
+                <Link href={`/web-attacks/${encodeURIComponent(ip)}`} className="font-mono text-sm text-blue-400 hover:underline">{ip}</Link>
                 {location?.countryName && <span className="text-xs text-muted-foreground">{location.countryName}</span>}
               </div>
               <div className="flex items-center gap-4 text-xs text-muted-foreground shrink-0">
@@ -226,7 +372,7 @@ export default async function SessionDetailPage({
                   ))}
                 </div>
                 <span suppressHydrationWarning className="whitespace-nowrap">
-                  {count} hits · last {formatDistanceToNow(new Date(ipLast ?? lastSeen), { addSuffix: true })}
+                  {count} hits
                 </span>
               </div>
             </div>
@@ -234,7 +380,6 @@ export default async function SessionDetailPage({
         </div>
       </Surface>
 
-      {/* Session intelligence */}
       {(chainHits > 0 || canaryHits > 0 || attackChainSequence.length > 1 || httpVersions.length > 0 || referers.length > 0) && (
         <Surface className="mb-6 p-4">
           <div className="flex flex-wrap items-start gap-6">
@@ -245,7 +390,7 @@ export default async function SessionDetailPage({
                 </div>
                 <div>
                   <p className="text-xs font-medium text-muted-foreground">Chain attacks</p>
-                  <p className="text-sm font-semibold text-orange-400">{chainHits} recon → exploit transitions</p>
+                  <p className="text-sm font-semibold text-orange-400">{chainHits} recon to exploit transitions</p>
                 </div>
               </div>
             )}
@@ -275,7 +420,7 @@ export default async function SessionDetailPage({
                         <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-medium ${ATTACK_COLORS[t] ?? ATTACK_COLORS.recon}`}>
                           {ATTACK_LABELS[t] ?? t}
                         </span>
-                        {i < attackChainSequence.length - 1 && <span className="text-muted-foreground text-xs">→</span>}
+                        {i < attackChainSequence.length - 1 && <span className="text-muted-foreground text-xs">to</span>}
                       </span>
                     ))}
                   </div>
@@ -305,7 +450,6 @@ export default async function SessionDetailPage({
         </Surface>
       )}
 
-      {/* Threat intelligence — one panel per enriched IP */}
       {enrichments.some((e) => e.data) && (
         <div className="mb-6 space-y-4">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Threat Intelligence</h2>
@@ -322,9 +466,7 @@ export default async function SessionDetailPage({
       )}
 
       <div className="grid gap-6 xl:grid-cols-3">
-        {/* Left column */}
         <div className="space-y-6 xl:col-span-1">
-          {/* Attack type breakdown */}
           <Surface>
             <div className="border-b border-border p-4">
               <h3 className="font-semibold text-foreground">Breakdown by type</h3>
@@ -341,7 +483,39 @@ export default async function SessionDetailPage({
             </div>
           </Surface>
 
-          {/* User agents */}
+          {Object.keys(reconPaths).length > 0 && Object.keys(exploitPaths).length > 0 && (
+            <Surface>
+              <div className="border-b border-border p-4">
+                <h3 className="font-semibold text-foreground">Paths by phase</h3>
+                <p className="text-xs text-muted-foreground">Recon vs exploit split</p>
+              </div>
+              <div className="divide-y divide-border">
+                <div className="p-3">
+                  <p className="mb-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Recon / Scan</p>
+                  <div className="space-y-1">
+                    {Object.entries(reconPaths).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([p, c]) => (
+                      <div key={p} className="flex items-center justify-between gap-2">
+                        <span className="min-w-0 truncate font-mono text-xs text-muted-foreground" title={p}>{p}</span>
+                        <span className="shrink-0 font-mono text-xs text-foreground">x{c}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="p-3">
+                  <p className="mb-1.5 text-xs font-medium text-orange-400 uppercase tracking-wider">Exploit / Other</p>
+                  <div className="space-y-1">
+                    {Object.entries(exploitPaths).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([p, c]) => (
+                      <div key={p} className="flex items-center justify-between gap-2">
+                        <span className="min-w-0 truncate font-mono text-xs text-muted-foreground" title={p}>{p}</span>
+                        <span className="shrink-0 font-mono text-xs text-foreground">x{c}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </Surface>
+          )}
+
           {uniqueUAs.length > 0 && (
             <Surface>
               <div className="border-b border-border p-4">
@@ -356,7 +530,6 @@ export default async function SessionDetailPage({
             </Surface>
           )}
 
-          {/* Top paths */}
           <Surface>
             <div className="border-b border-border p-4">
               <h3 className="font-semibold text-foreground">Most targeted paths</h3>
@@ -365,22 +538,48 @@ export default async function SessionDetailPage({
               {topPaths.map(([path, count]) => (
                 <div key={path} className="flex items-center justify-between gap-2 px-4 py-2">
                   <p className="min-w-0 truncate font-mono text-xs text-foreground" title={path}>{path}</p>
-                  <span className="shrink-0 font-mono text-xs text-muted-foreground">×{count}</span>
+                  <span className="shrink-0 font-mono text-xs text-muted-foreground">x{count}</span>
                 </div>
               ))}
             </div>
           </Surface>
         </div>
 
-        {/* Right column: full request timeline */}
-        <div className="xl:col-span-2">
+        <div className="space-y-6 xl:col-span-2">
+          {payloads.length > 0 && (
+            <Surface className="overflow-hidden">
+              <div className="border-b border-border p-4">
+                <div className="flex items-center gap-2">
+                  <Code2 className="h-4 w-4 text-purple-400" />
+                  <h3 className="font-semibold text-foreground">Payload analysis</h3>
+                </div>
+                <p className="text-xs text-muted-foreground">Most frequent request bodies</p>
+              </div>
+              <div className="divide-y divide-border">
+                {payloads.map((p, i) => (
+                  <div key={i} className="px-4 py-3">
+                    <div className="mb-1 flex items-center gap-2">
+                      <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${ATTACK_COLORS[p.attackType] ?? ATTACK_COLORS.recon}`}>
+                        {ATTACK_LABELS[p.attackType] ?? p.attackType}
+                      </span>
+                      <span className="ml-auto font-mono text-xs text-muted-foreground">x{p.count}</span>
+                    </div>
+                    <pre className="overflow-x-auto rounded bg-muted/40 p-2 font-mono text-xs text-foreground whitespace-pre-wrap break-all max-h-24">
+                      {p.payload}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            </Surface>
+          )}
+
           <Surface className="overflow-hidden">
             <div className="border-b border-border p-4">
               <h3 className="font-semibold text-foreground">Request timeline</h3>
               <p className="text-xs text-muted-foreground">
-                {groupedHits.length} unique requests · {totalHits} hits across {srcIps.length} IP{srcIps.length > 1 ? "s" : ""}
-                {galahFailures > 0 ? ` · ${galahFailures} galah failures` : ""}
-                {" · click a row for the raw payload"}
+                {groupedHits.length} unique requests - {totalHits} hits across {srcIps.length} IP{srcIps.length > 1 ? "s" : ""}
+                {galahFailures > 0 ? ` - ${galahFailures} galah failures` : ""}
+                {" - click a row for the raw payload"}
               </p>
             </div>
             <div className="overflow-y-auto max-h-[720px]">
