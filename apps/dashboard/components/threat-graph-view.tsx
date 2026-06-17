@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useMemo } from "react"
+import { useCallback, useEffect } from "react"
 import {
   ReactFlow,
   Background,
@@ -8,6 +8,9 @@ import {
   MiniMap,
   Handle,
   Position,
+  MarkerType,
+  useNodesState,
+  useEdgesState,
   type NodeProps,
   type Node,
   type Edge,
@@ -74,25 +77,37 @@ function ThreatNode({ data }: NodeProps<Node<ThreatNodeData>>) {
 
 const nodeTypes = { threatNode: ThreatNode }
 
+// Explicit colors — React Flow draws edges in SVG, where Tailwind CSS vars
+// like var(--border) don't resolve. Use concrete values.
+const EDGE_COLOR = "#475569"      // slate-600
+const EDGE_LABEL = "#94a3b8"      // slate-400
+const EDGE_LABEL_BG = "#0f172a"   // slate-900
+
+function toFlowEdges(graph: ThreatGraph): Edge[] {
+  return graph.edges.map((e) => ({
+    id: e.id,
+    source: e.source,
+    target: e.target,
+    label: e.label,
+    animated: e.source === "ip",
+    style: { stroke: EDGE_COLOR, strokeWidth: 1.5 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_COLOR, width: 16, height: 16 },
+    labelStyle: { fill: EDGE_LABEL, fontSize: 10 },
+    labelBgStyle: { fill: EDGE_LABEL_BG, fillOpacity: 0.85 },
+    labelBgPadding: [4, 2] as [number, number],
+  }))
+}
+
 export function ThreatGraphView({ graph }: { graph: ThreatGraph }) {
-  const nodes = useMemo<Node<ThreatNodeData>[]>(
-    () => graph.nodes as Node<ThreatNodeData>[],
-    [graph.nodes],
+  const [nodes, , onNodesChange] = useNodesState<Node<ThreatNodeData>>(
+    graph.nodes as Node<ThreatNodeData>[],
   )
-  const edges = useMemo<Edge[]>(
-    () =>
-      graph.edges.map((e) => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        label: e.label,
-        animated: e.source === "ip",
-        style: { stroke: "var(--border)" },
-        labelStyle: { fill: "var(--muted-foreground)", fontSize: 10 },
-        labelBgStyle: { fill: "var(--card)" },
-      })),
-    [graph.edges],
-  )
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(toFlowEdges(graph))
+
+  // Keep edges in sync if the graph prop changes (navigating between IPs).
+  useEffect(() => {
+    setEdges(toFlowEdges(graph))
+  }, [graph, setEdges])
 
   const onNodeClick = useCallback((_: unknown, node: Node<ThreatNodeData>) => {
     const { href, copyable } = node.data
@@ -108,20 +123,22 @@ export function ThreatGraphView({ graph }: { graph: ThreatGraph }) {
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
         onNodeClick={onNodeClick}
         fitView
-        fitViewOptions={{ padding: 0.2 }}
+        fitViewOptions={{ padding: 0.25 }}
         proOptions={{ hideAttribution: true }}
         minZoom={0.2}
         maxZoom={2}
       >
-        <Background gap={16} className="!bg-transparent" color="var(--border)" />
+        <Background gap={16} className="!bg-transparent" color={EDGE_COLOR} />
         <Controls className="!bg-card !border-border" showInteractive={false} />
         <MiniMap
           className="!bg-card !border-border"
           maskColor="rgba(0,0,0,0.4)"
-          nodeColor="var(--muted-foreground)"
+          nodeColor={EDGE_LABEL}
           pannable
           zoomable
         />
