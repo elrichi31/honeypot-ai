@@ -1,4 +1,4 @@
-import { Fingerprint, Crosshair, Biohazard } from "lucide-react"
+import { Fingerprint } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { IocSection } from "@/components/ioc-section"
 import { fetchThreats, fetchMalwareArtifacts } from "@/lib/api"
@@ -66,17 +66,15 @@ export default async function IocsPage() {
       <div className="space-y-6">
         <IocSection
           title={t("iocs.section.ips")}
-          icon={Crosshair}
+          kind="ip"
           entries={ipEntries}
           fileBase="honeypot-malicious-ips"
-          renderMeta={(e) => `${e.meta?.level} · score ${e.meta?.score}${e.meta?.protocols ? ` · ${String(e.meta.protocols).replace(/\|/g, ", ")}` : ""}`}
         />
         <IocSection
           title={t("iocs.section.hashes")}
-          icon={Biohazard}
+          kind="hash"
           entries={hashEntries}
           fileBase="honeypot-malware-hashes"
-          renderMeta={(e) => [e.meta?.source, e.meta?.fileType, e.meta?.srcIp].filter(Boolean).join(" · ")}
         />
       </div>
     </PageShell>

@@ -1,9 +1,22 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Copy, Check, Download, Search, type LucideIcon } from "lucide-react"
+import { Copy, Check, Download, Search, Crosshair, Biohazard } from "lucide-react"
 import { Surface } from "@/components/ui/surface"
-import { toPlainList, toCsv, toStixBundle, type IocEntry } from "@/lib/ioc-export"
+import { toPlainList, toCsv, toStixBundle, type IocEntry, type IocType } from "@/lib/ioc-export"
+
+// Icon + per-row metadata are resolved here (a Client Component) by `kind`,
+// because functions/components can't be passed as props from the Server
+// Component page — doing so crashes the RSC render.
+const KIND_ICON = { ip: Crosshair, hash: Biohazard } as const
+
+function metaLine(e: IocEntry): string {
+  if (e.type === "ip") {
+    const protos = e.meta?.protocols ? ` · ${String(e.meta.protocols).replace(/\|/g, ", ")}` : ""
+    return `${e.meta?.level ?? ""} · score ${e.meta?.score ?? ""}${protos}`
+  }
+  return [e.meta?.source, e.meta?.fileType, e.meta?.srcIp].filter(Boolean).join(" · ")
+}
 
 const INITIAL_VISIBLE = 500
 
@@ -38,17 +51,16 @@ function CopyButton({ value, label }: { value: string; label?: string }) {
 
 export function IocSection({
   title,
-  icon: Icon,
+  kind,
   entries,
   fileBase,
-  renderMeta,
 }: {
   title: string
-  icon: LucideIcon
+  kind: IocType
   entries: IocEntry[]
   fileBase: string                         // e.g. "honeypot-ips"
-  renderMeta?: (e: IocEntry) => string     // optional one-line metadata per row
 }) {
+  const Icon = KIND_ICON[kind]
   const [q, setQ] = useState("")
   const [showAll, setShowAll] = useState(false)
 
@@ -56,9 +68,9 @@ export function IocSection({
     const needle = q.trim().toLowerCase()
     if (!needle) return entries
     return entries.filter(
-      (e) => e.value.toLowerCase().includes(needle) || (renderMeta?.(e) ?? "").toLowerCase().includes(needle),
+      (e) => e.value.toLowerCase().includes(needle) || metaLine(e).toLowerCase().includes(needle),
     )
-  }, [entries, q, renderMeta])
+  }, [entries, q])
 
   const visible = showAll ? filtered : filtered.slice(0, INITIAL_VISIBLE)
   const plain = useMemo(() => toPlainList(filtered), [filtered])
@@ -113,7 +125,7 @@ export function IocSection({
               <div key={e.value} className="flex items-center gap-2 px-4 py-2 text-sm">
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-mono text-foreground">{e.value}</p>
-                  {renderMeta && <p className="truncate text-xs text-muted-foreground">{renderMeta(e)}</p>}
+                  <p className="truncate text-xs text-muted-foreground">{metaLine(e)}</p>
                 </div>
                 <CopyButton value={e.value} />
               </div>
