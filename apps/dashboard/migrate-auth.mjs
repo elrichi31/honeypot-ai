@@ -81,12 +81,14 @@ async function migrate() {
     ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "clientId" TEXT;
   `)
 
-  // Promote the oldest user to admin if no admin exists yet
+  // Promote the oldest user to admin only if NO admin-level user exists yet.
+  // superadmin counts as admin-level — otherwise this would demote a lone
+  // superadmin back to admin on every startup (migrate-auth runs each boot).
   await pool.query(`
     UPDATE "user"
     SET role = 'admin'
     WHERE id = (SELECT id FROM "user" ORDER BY "createdAt" ASC LIMIT 1)
-      AND NOT EXISTS (SELECT 1 FROM "user" WHERE role = 'admin');
+      AND NOT EXISTS (SELECT 1 FROM "user" WHERE role IN ('admin', 'superadmin'));
   `)
 
   await pool.query(`
