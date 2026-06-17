@@ -78,6 +78,10 @@ export const en = {
   "threats.detail.col.time": "Time",
   "threats.detail.col.category": "Category",
   "threats.detail.col.command": "Command",
+  "threats.detail.graph.title": "Attack graph",
+  "threats.detail.graph.subtitle": "Everything this IP did, connected · drag, zoom, click a node to copy/pivot",
+  "threats.detail.timeline.title": "Intelligence timeline",
+  "threats.detail.timeline.subtitle": "Honeypot activity merged with AbuseIPDB & VirusTotal reports",
 } as const
 
 export const es: Record<keyof typeof en, string> = {
@@ -157,4 +161,8 @@ export const es: Record<keyof typeof en, string> = {
   "threats.detail.col.time": "Hora",
   "threats.detail.col.category": "Categoría",
   "threats.detail.col.command": "Comando",
+  "threats.detail.graph.title": "Grafo de ataque",
+  "threats.detail.graph.subtitle": "Todo lo que hizo esta IP, conectado · arrastra, haz zoom, clic en un nodo para copiar/pivotar",
+  "threats.detail.timeline.title": "Cronología de inteligencia",
+  "threats.detail.timeline.subtitle": "Actividad en el honeypot fusionada con reportes de AbuseIPDB y VirusTotal",
 }

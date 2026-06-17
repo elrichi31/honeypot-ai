@@ -187,10 +187,11 @@ function hostPortFromUrl(url: string): { host: string; port?: number } | null {
 }
 
 /**
- * Pulls actionable indicators out of a session's events. Only looks at the
- * command text and the file.download message (where cowrie records the SHA-256).
+ * Pulls actionable indicators out of a list of command strings (C2 endpoints
+ * and planted SSH keys). Used where only command text is available — e.g. the
+ * threat page's `classifiedCommands` — without full HoneypotEvent objects.
  */
-export function extractIocs(events: HoneypotEvent[]): SessionIocs {
+export function extractIocsFromCommands(commands: string[]): SessionIocs {
   const c2 = new Map<string, C2Indicator>()
   const sshKeys = new Map<string, PlantedSshKey>()
   const hashes = new Set<string>()
@@ -199,9 +200,8 @@ export function extractIocs(events: HoneypotEvent[]): SessionIocs {
     if (!c2.has(ind.value)) c2.set(ind.value, ind)
   }
 
-  for (const ev of events) {
-    const cmd = ev.command ?? ""
-    const msg = ev.message ?? ""
+  for (const cmd of commands) {
+    if (!cmd) continue
 
     // C2 — URLs (only those pointing at an IP or with an explicit scheme:port)
     for (const m of cmd.matchAll(URL_RE)) {
@@ -229,9 +229,8 @@ export function extractIocs(events: HoneypotEvent[]): SessionIocs {
     if (/authorized_keys/i.test(cmd)) {
       for (const m of cmd.matchAll(SSH_KEY_RE)) {
         const [, algorithm, material, comment] = m
-        const key = material
-        if (!sshKeys.has(key)) {
-          sshKeys.set(key, {
+        if (!sshKeys.has(material)) {
+          sshKeys.set(material, {
             algorithm,
             comment: comment ?? null,
             fingerprint: `${material.slice(0, 12)}…${material.slice(-8)}`,
@@ -241,11 +240,9 @@ export function extractIocs(events: HoneypotEvent[]): SessionIocs {
       }
     }
 
-    // Malware hashes — cowrie file.download message carries the SHA-256
-    if (ev.eventType === "file.download" || /SHA-?256/i.test(msg)) {
-      for (const h of `${msg} ${cmd}`.matchAll(SHA256_RE)) {
-        hashes.add(h[0].toLowerCase())
-      }
+    // Hashes that appear inline in a command
+    if (/SHA-?256/i.test(cmd)) {
+      for (const h of cmd.matchAll(SHA256_RE)) hashes.add(h[0].toLowerCase())
     }
   }
 
@@ -254,6 +251,25 @@ export function extractIocs(events: HoneypotEvent[]): SessionIocs {
     sshKeys: [...sshKeys.values()],
     malwareHashes: [...hashes],
   }
+}
+
+/**
+ * Pulls actionable indicators out of a session's events. Reuses the
+ * command-text extraction and adds malware SHA-256 hashes from cowrie's
+ * `file.download` message (where the hash is recorded).
+ */
+export function extractIocs(events: HoneypotEvent[]): SessionIocs {
+  const base = extractIocsFromCommands(events.map((e) => e.command ?? ""))
+  const hashes = new Set(base.malwareHashes)
+
+  for (const ev of events) {
+    const msg = ev.message ?? ""
+    if (ev.eventType === "file.download" || /SHA-?256/i.test(msg)) {
+      for (const h of msg.matchAll(SHA256_RE)) hashes.add(h[0].toLowerCase())
+    }
+  }
+
+  return { ...base, malwareHashes: [...hashes] }
 }
 
 /** True when there is anything worth showing in the threat-intel card. */

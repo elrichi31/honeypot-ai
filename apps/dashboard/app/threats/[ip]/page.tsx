@@ -8,12 +8,38 @@ import { formatInTimezone } from "@/lib/timezone"
 import { LEVEL_STYLES, CMD_COLORS, CMD_LABELS } from "@/lib/attack-types"
 import { AiThreatSummary } from "@/components/ai-threat-summary"
 import { IpEnrichment } from "@/components/ip-enrichment"
+import { ThreatGraphView } from "@/components/threat-graph-view"
+import { IntelTimeline } from "@/components/intel-timeline"
+import { buildThreatGraph } from "@/lib/threat-graph"
+import { db } from "@/lib/db"
+import type { IpEnrichment as IpEnrichmentData } from "@/lib/ip-enrichment"
 import { Surface } from "@/components/ui/surface"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { getServerT } from "@/lib/i18n/server"
 import fs from "fs"
 import path from "path"
 import type { ThreatAnalysis } from "@/app/api/ai/threat-analysis/route"
+
+// Reads the cached IP enrichment straight from the DB (same pattern as the
+// session detail page) so the graph/timeline never spend external API quota.
+async function readEnrichmentCache(ip: string): Promise<IpEnrichmentData | null> {
+  try {
+    const { rows } = await db.query(
+      `SELECT abuseipdb_data, ipinfo_data, spectra_analyze_data, virustotal_data, cached_at FROM ip_enrichment_cache WHERE ip = $1`,
+      [ip]
+    )
+    const row = rows[0]
+    if (!row || (!row.abuseipdb_data && !row.ipinfo_data && !row.spectra_analyze_data && !row.virustotal_data)) return null
+    return {
+      ip,
+      abuseipdb: row.abuseipdb_data,
+      ipinfo: row.ipinfo_data,
+      spectraAnalyze: row.spectra_analyze_data,
+      virustotal: row.virustotal_data ?? null,
+      cachedAt: row.cached_at.toISOString(),
+    }
+  } catch { return null }
+}
 
 function readThreatCache(ip: string): ThreatAnalysis | null {
   try {
@@ -44,6 +70,8 @@ export default async function ThreatDetailPage({
   }
 
   const cachedAnalysis = readThreatCache(srcIp)
+  const enrichmentCache = await readEnrichmentCache(srcIp)
+  const graph = buildThreatGraph(threat, enrichmentCache)
 
   const s = LEVEL_STYLES[threat.risk.level]
 
@@ -386,6 +414,24 @@ export default async function ThreatDetailPage({
             </Surface>
           </div>
         </div>
+
+        {/* Attack graph — interactive node/edge view of everything this IP did */}
+        <Surface className="mt-6 overflow-hidden">
+          <div className="border-b border-border p-4">
+            <h3 className="font-semibold text-foreground">{t("threats.detail.graph.title")}</h3>
+            <p className="text-xs text-muted-foreground">{t("threats.detail.graph.subtitle")}</p>
+          </div>
+          <ThreatGraphView graph={graph} />
+        </Surface>
+
+        {/* Intelligence timeline — honeypot activity + AbuseIPDB / VirusTotal */}
+        <Surface className="mt-6 overflow-hidden">
+          <div className="border-b border-border p-4">
+            <h3 className="font-semibold text-foreground">{t("threats.detail.timeline.title")}</h3>
+            <p className="text-xs text-muted-foreground">{t("threats.detail.timeline.subtitle")}</p>
+          </div>
+          <IntelTimeline threat={threat} enrichment={enrichmentCache} timezone={tz} />
+        </Surface>
   </PageShell>
   )
 }

@@ -10,6 +10,7 @@ import assert from "node:assert/strict"
 import {
   detectBotnetFamily,
   extractIocs,
+  extractIocsFromCommands,
   hasThreatIntel,
 } from "./botnet-signatures.ts"
 import type { HoneypotEvent } from "./api/types.ts"
@@ -75,6 +76,13 @@ test("extractIocs reads the SHA-256 from a file.download event", () => {
     }),
   ])
   assert.deepEqual(iocs.malwareHashes, [sha])
+})
+
+test("extractIocsFromCommands works on plain command strings (no events)", () => {
+  const iocs = extractIocsFromCommands([...MDRFCKR_CMDS, ...C2_CMDS])
+  assert.ok(iocs.c2.some((c) => c.host === "197.255.229.88"))
+  assert.equal(iocs.sshKeys.length, 1)
+  assert.equal(iocs.sshKeys[0].comment, "mdrfckr")
 })
 
 test("hasThreatIntel is false for a plain recon session", () => {
