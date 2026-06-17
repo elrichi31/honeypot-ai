@@ -17,6 +17,7 @@ import * as settings from "./dicts/settings"
 import * as credentials from "./dicts/credentials"
 import * as dashboard from "./dicts/dashboard"
 import * as threats from "./dicts/threats"
+import * as iocs from "./dicts/iocs"
 import * as malware from "./dicts/malware"
 import * as suricata from "./dicts/suricata"
 import * as defense from "./dicts/defense"
@@ -39,6 +40,7 @@ const en = {
   ...credentials.en,
   ...dashboard.en,
   ...threats.en,
+  ...iocs.en,
   ...malware.en,
   ...suricata.en,
   ...defense.en,
@@ -55,6 +57,7 @@ const es: Record<TranslationKey, string> = {
   ...credentials.es,
   ...dashboard.es,
   ...threats.es,
+  ...iocs.es,
   ...malware.es,
   ...suricata.es,
   ...defense.es,

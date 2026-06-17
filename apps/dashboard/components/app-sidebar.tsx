@@ -29,6 +29,7 @@ import {
   Bell,
   BookOpen,
   Ghost,
+  Fingerprint,
   MonitorSmartphone,
   PanelLeftClose,
   PanelLeftOpen,
@@ -89,6 +90,7 @@ const navSections = [
     items: [
       { titleKey: "sidebar.item.alerts",      href: "/alerts",      icon: Bell        },
       { titleKey: "sidebar.item.threats",     href: "/threats",     icon: ShieldAlert },
+      { titleKey: "sidebar.item.iocs",        href: "/iocs",        icon: Fingerprint },
       { titleKey: "sidebar.item.credentials", href: "/credentials", icon: Shield      },
       { titleKey: "sidebar.item.malware",     href: "/malware",     icon: Biohazard   },
       { titleKey: "sidebar.item.networkIds", href: "/suricata",    icon: FileCode    },
