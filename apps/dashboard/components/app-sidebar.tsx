@@ -36,6 +36,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { AlertsBell } from "@/components/alerts/alerts-bell"
+import { TenantSwitcher } from "@/components/tenant-switcher"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useSidebarCollapse } from "@/components/sidebar-collapse-context"
 import { SidebarUserCard } from "@/components/sidebar-user-card"
@@ -278,6 +279,9 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
             </Tooltip>
           </div>
         )}
+
+        {/* Tenant scope switcher (superadmin only; renders nothing otherwise) */}
+        <TenantSwitcher collapsed={collapsed} />
 
         {/* Nav */}
         <nav className={cn("flex-1 overflow-y-auto", collapsed ? "space-y-1 p-2" : "space-y-2 p-3")}>

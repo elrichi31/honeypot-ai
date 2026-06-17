@@ -7,6 +7,7 @@ import { Bell, Check, CheckCheck, Loader2, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
+import { useTenant } from "@/components/tenant-context"
 
 type AlertField = { name: string; value: string; inline?: boolean }
 
@@ -27,8 +28,6 @@ type Alert = {
 
 type AlertsResponse = { alerts: Alert[]; unreadCount: number }
 
-type ClientLite = { id: string; name: string }
-
 const LEVEL_STYLES: Record<string, { dot: string; badge: string; label: string }> = {
   critical: { dot: "bg-red-500",   badge: "bg-red-500/10 text-red-400",     label: "Critical" },
   high:     { dot: "bg-amber-500", badge: "bg-amber-500/10 text-amber-400", label: "High" },
@@ -45,14 +44,14 @@ export default function AlertsPage() {
   const [loading, setLoading] = useState(true)
   const [markingAll, setMarkingAll] = useState(false)
   const [deletingAll, setDeletingAll] = useState(false)
-  const [clients, setClients] = useState<ClientLite[]>([])
-  const [clientId, setClientId] = useState<string>("")   // "" = all clients
-  const [isSuperadmin, setIsSuperadmin] = useState(false)
+  const { tenantId } = useTenant()
 
+  // The active tenant scope lives in the global switcher (a cookie the server
+  // reads), so we just refetch when it changes — no ?clientId needed here.
   const fetchAlerts = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/alerts?limit=100${clientId ? `&clientId=${encodeURIComponent(clientId)}` : ""}`)
+      const res = await fetch(`/api/alerts?limit=100`)
       if (res.ok) setData(await res.json())
       else toast.error("Could not load alerts")
     } catch {
@@ -60,26 +59,9 @@ export default function AlertsPage() {
     } finally {
       setLoading(false)
     }
-  }, [clientId])
-
-  useEffect(() => { fetchAlerts() }, [fetchAlerts])
-
-  // Only superadmins get the tenant selector; scoped users are pinned to their
-  // own client server-side and see no dropdown. Load /api/me first, then the
-  // client list only if superadmin.
-  useEffect(() => {
-    fetch("/api/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((me: { isSuperadmin?: boolean } | null) => {
-        if (!me?.isSuperadmin) return
-        setIsSuperadmin(true)
-        return fetch("/api/clients")
-          .then((r) => (r.ok ? r.json() : []))
-          .then((rows: Array<{ id: string; name: string }>) =>
-            setClients(rows.map((c) => ({ id: c.id, name: c.name }))))
-      })
-      .catch(() => {})
   }, [])
+
+  useEffect(() => { fetchAlerts() }, [fetchAlerts, tenantId])
 
   async function markRead(id: string) {
     // Optimistic: flip the row to read immediately.
@@ -100,7 +82,7 @@ export default function AlertsPage() {
   async function markAllRead() {
     setMarkingAll(true)
     try {
-      const res = await fetch(`/api/alerts/read-all${clientId ? `?clientId=${encodeURIComponent(clientId)}` : ""}`, { method: "POST" })
+      const res = await fetch(`/api/alerts/read-all`, { method: "POST" })
       if (!res.ok) throw new Error()
       const body = await res.json().catch(() => ({}))
       toast.success(`${body.updated ?? 0} alert(s) marked as read`)
@@ -125,11 +107,11 @@ export default function AlertsPage() {
   }
 
   async function deleteAll() {
-    const scope = clientId ? "for this client" : "across all clients"
+    const scope = tenantId ? "for the selected tenant" : "in the current scope"
     if (!confirm(`Delete all alerts ${scope}? This cannot be undone.`)) return
     setDeletingAll(true)
     try {
-      const res = await fetch(`/api/alerts${clientId ? `?clientId=${encodeURIComponent(clientId)}` : ""}`, { method: "DELETE" })
+      const res = await fetch(`/api/alerts`, { method: "DELETE" })
       if (!res.ok) throw new Error()
       const body = await res.json().catch(() => ({}))
       toast.success(`${body.deleted ?? 0} alert(s) deleted`)
@@ -150,27 +132,10 @@ export default function AlertsPage() {
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Alerts</h1>
           <p className="text-sm text-muted-foreground">
-            {!isSuperadmin
-              ? "Threat alerts for your honeypots."
-              : clientId
-                ? `Threat alerts for ${clients.find((c) => c.id === clientId)?.name ?? "the selected client"}.`
-                : "Threat alerts across all clients and sensors."}
+            Threat alerts within your current tenant scope.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {isSuperadmin && (
-            <select
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              className="h-11 rounded-xl border border-border bg-card px-3 text-sm text-foreground"
-              title="Enter a tenant (superadmin)"
-            >
-              <option value="">All clients</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          )}
           <Surface className="flex items-center gap-2 px-4 py-3">
             <Bell className="h-4 w-4 text-amber-400" />
             <span className="text-sm font-medium text-foreground">{unread}</span>

@@ -7,6 +7,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { useIsMobile } from "@/components/ui/use-mobile"
 import { cn } from "@/lib/utils"
 import { SidebarCollapseProvider, useSidebarCollapse } from "@/components/sidebar-collapse-context"
+import { TenantProvider } from "@/components/tenant-context"
 import {
   Sheet,
   SheetContent,
@@ -18,7 +19,9 @@ const NO_SIDEBAR_PATHS = ["/login", "/setup"]
 export function SidebarLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarCollapseProvider>
-      <SidebarLayoutInner>{children}</SidebarLayoutInner>
+      <TenantProvider>
+        <SidebarLayoutInner>{children}</SidebarLayoutInner>
+      </TenantProvider>
     </SidebarCollapseProvider>
   )
 }

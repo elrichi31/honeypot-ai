@@ -17,12 +17,16 @@ type User = {
   email: string
   emailVerified: boolean
   role: string
+  clientId: string | null
   createdAt: string
 }
 
-type Me = { id: string; name: string; email: string; role: Role }
+type Me = { id: string; name: string; email: string; role: Role; isSuperadmin?: boolean }
 
-const ROLES: Role[] = ["admin", "analyst", "viewer"]
+type ClientLite = { id: string; name: string }
+
+// Roles assignable from the UI. `superadmin` is only offered to a superadmin.
+const ASSIGNABLE_ROLES: Role[] = ["admin", "analyst", "viewer"]
 
 function RoleBadge({ role }: { role: string }) {
   const color = ROLE_COLORS[role as Role] ?? "bg-muted text-muted-foreground"
@@ -33,14 +37,27 @@ function RoleBadge({ role }: { role: string }) {
   )
 }
 
-function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function CreateUserDialog({
+  onClose,
+  onCreated,
+  clients,
+  canSuperadmin,
+}: {
+  onClose: () => void
+  onCreated: () => void
+  clients: ClientLite[]
+  canSuperadmin: boolean
+}) {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [role, setRole] = useState<Role>("analyst")
+  const [clientId, setClientId] = useState<string>("")   // "" = global / unscoped
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+
+  const roleOptions: Role[] = canSuperadmin ? ["superadmin", ...ASSIGNABLE_ROLES] : ASSIGNABLE_ROLES
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -50,7 +67,8 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
       const res = await apiFetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, role }),
+        // superadmin is unscoped by definition; everyone else carries a tenant.
+        body: JSON.stringify({ name, email, password, role, clientId: role === "superadmin" ? null : (clientId || null) }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? "Failed to create user"); return }
@@ -104,7 +122,7 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Role</label>
             <div className="grid grid-cols-3 gap-2">
-              {ROLES.map((r) => (
+              {roleOptions.map((r) => (
                 <button key={r} type="button" onClick={() => setRole(r)}
                   className={`rounded-lg border px-3 py-2 text-left transition-colors ${
                     role === r
@@ -121,6 +139,25 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
               ))}
             </div>
           </div>
+
+          {/* Tenant — which client this user is scoped to. Hidden for superadmin
+              (global by definition). */}
+          {role !== "superadmin" && (
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Tenant (cliente)</label>
+              <select
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">{canSuperadmin ? "Sin asignar (sin acceso a datos)" : "Selecciona un tenant"}</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-[10px] text-muted-foreground">El usuario solo verá los datos de este cliente.</p>
+            </div>
+          )}
 
           {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
 
@@ -190,6 +227,7 @@ export default function UsersPage() {
   const { data: session } = useSession()
   const [users, setUsers] = useState<User[]>([])
   const [me, setMe] = useState<Me | null>(null)
+  const [clients, setClients] = useState<ClientLite[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null)
@@ -198,9 +236,17 @@ export default function UsersPage() {
   async function fetchAll() {
     setLoading(true)
     try {
-      const [usersRes, meRes] = await Promise.all([apiFetch("/api/users"), apiFetch("/api/me")])
+      const [usersRes, meRes, clientsRes] = await Promise.all([
+        apiFetch("/api/users"),
+        apiFetch("/api/me"),
+        apiFetch("/api/clients"),
+      ])
       if (usersRes.ok) setUsers(await usersRes.json())
       if (meRes.ok) setMe(await meRes.json())
+      if (clientsRes.ok) {
+        const rows: Array<{ id: string; name: string }> = await clientsRes.json()
+        setClients(rows.map((c) => ({ id: c.id, name: c.name })))
+      }
     } finally {
       setLoading(false)
     }
@@ -208,7 +254,9 @@ export default function UsersPage() {
 
   useEffect(() => { fetchAll() }, [])
 
-  const isAdmin = me?.role === "admin"
+  const isAdmin = me?.role === "admin" || me?.role === "superadmin"
+  const canSuperadmin = me?.role === "superadmin"
+  const clientName = (id: string | null) => (id ? clients.find((c) => c.id === id)?.name ?? "—" : "Global")
 
   async function handleRoleChange(userId: string, newRole: Role) {
     setChangingRole(userId)
@@ -217,6 +265,20 @@ export default function UsersPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role: newRole }),
+      })
+      await fetchAll()
+    } finally {
+      setChangingRole(null)
+    }
+  }
+
+  async function handleTenantChange(userId: string, newClientId: string) {
+    setChangingRole(userId)
+    try {
+      await apiFetch(`/api/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: newClientId || null }),
       })
       await fetchAll()
     } finally {
@@ -242,7 +304,7 @@ export default function UsersPage() {
 
       {/* Role legend */}
       <div className="mb-6 flex flex-wrap items-start gap-3">
-        {ROLES.map((r) => (
+        {(canSuperadmin ? (["superadmin", ...ASSIGNABLE_ROLES] as Role[]) : ASSIGNABLE_ROLES).map((r) => (
           <Surface key={r} className="flex items-center gap-2 px-4 py-3">
             <RoleBadge role={r} />
             <span className="text-xs text-muted-foreground">{ROLE_DESCRIPTIONS[r]}</span>
@@ -265,6 +327,7 @@ export default function UsersPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Name</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Email</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Role</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Tenant</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Registered</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground"></th>
               </tr>
@@ -292,17 +355,34 @@ export default function UsersPage() {
                           onChange={(e) => handleRoleChange(user.id, e.target.value as Role)}
                           className="rounded-lg border border-border bg-card px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
                         >
-                          {ROLES.map((r) => (
+                          {(canSuperadmin ? (["superadmin", ...ASSIGNABLE_ROLES] as Role[]) : ASSIGNABLE_ROLES).map((r) => (
                             <option key={r} value={r}>{ROLE_LABELS[r]}</option>
                           ))}
                         </select>
                       ) : (
                         <div className="flex items-center gap-1.5">
                           <RoleBadge role={user.role} />
-                          {isCurrentUser && user.role === "admin" && (
+                          {isCurrentUser && (user.role === "admin" || user.role === "superadmin") && (
                             <ShieldCheck className="h-3.5 w-3.5 text-rose-400" />
                           )}
                         </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {isAdmin && !isCurrentUser && user.role !== "superadmin" ? (
+                        <select
+                          value={user.clientId ?? ""}
+                          disabled={isBusy}
+                          onChange={(e) => handleTenantChange(user.id, e.target.value)}
+                          className="rounded-lg border border-border bg-card px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                        >
+                          <option value="">{canSuperadmin ? "Sin asignar" : "Selecciona tenant"}</option>
+                          {clients.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">{user.role === "superadmin" ? "Global" : clientName(user.clientId)}</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground text-xs">
@@ -332,7 +412,12 @@ export default function UsersPage() {
       )}
 
       {showCreate && (
-        <CreateUserDialog onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchAll() }} />
+        <CreateUserDialog
+          onClose={() => setShowCreate(false)}
+          onCreated={() => { setShowCreate(false); fetchAll() }}
+          clients={clients}
+          canSuperadmin={canSuperadmin}
+        />
       )}
       {deleteTarget && (
         <DeleteConfirmDialog user={deleteTarget} onClose={() => setDeleteTarget(null)} onDeleted={() => { setDeleteTarget(null); fetchAll() }} />
