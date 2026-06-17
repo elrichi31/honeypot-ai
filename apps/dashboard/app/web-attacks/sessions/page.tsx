@@ -9,7 +9,7 @@ import { TimeRangeFilter } from "@/components/time-range-filter"
 import { TablePagination } from "@/components/table-pagination"
 import { lookupIp } from "@/lib/geo"
 import { Flag } from "@/components/ui/flag"
-import { ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
+import { AttackTypeBadge } from "@/components/attack-type-badge"
 import { readConfig } from "@/lib/server-config"
 import { formatInTimezone } from "@/lib/timezone"
 import type { WebSession } from "@/lib/api"
@@ -212,12 +212,7 @@ function SessionRow({ session: s, timezone }: { session: WebSession; timezone: s
       <td className="px-4 py-3">
         <div className="flex flex-wrap gap-1">
           {s.attackTypes.slice(0, 4).map((t) => (
-            <span
-              key={t}
-              className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-medium ${ATTACK_COLORS[t] ?? ATTACK_COLORS.recon}`}
-            >
-              {ATTACK_LABELS[t] ?? t}
-            </span>
+            <AttackTypeBadge key={t} type={t} />
           ))}
           {s.attackTypes.length > 4 && (
             <span className="text-xs text-muted-foreground">+{s.attackTypes.length - 4}</span>

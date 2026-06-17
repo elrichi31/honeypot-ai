@@ -1,6 +1,7 @@
 "use client"
 
 import { formatDistanceToNow } from "date-fns"
+import { TimeAgo } from "@/components/time-ago"
 import { useTimezone } from "@/components/timezone-provider"
 import { formatInTimezone } from "@/lib/timezone"
 import { ArrowDown, ArrowUp, ArrowUpDown, Clock, Globe, Shield, ShieldX } from "lucide-react"
@@ -130,7 +131,7 @@ export function PairsTable({
                   <p className="text-xs text-muted-foreground">
                     {t("cred.firstSeen")}{" "}
                     {item.firstSeen
-                      ? formatDistanceToNow(new Date(item.firstSeen), { addSuffix: true })
+                      ? <TimeAgo timestamp={item.firstSeen} />
                       : t("cred.unknown")}
                   </p>
                 </div>
@@ -352,7 +353,7 @@ export function RecentAttemptsTable({
               <TableCell className="px-4 py-3">
                 <span className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Clock className="h-3 w-3" />
-                  {formatDistanceToNow(new Date(event.eventTs), { addSuffix: true })}
+                  <TimeAgo timestamp={event.eventTs} />
                 </span>
               </TableCell>
             </TableRow>

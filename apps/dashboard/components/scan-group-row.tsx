@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
+import { TimeAgo } from "@/components/time-ago"
 import {
   ChevronDown, ChevronRight, Terminal, Clock, User, Key,
   ExternalLink, Shield, ScanLine, Bot,
@@ -68,7 +69,7 @@ export function ScanGroupRow({ group }: { group: ScanGroup }) {
           <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              {formatDistanceToNow(new Date(group.lastSeen), { addSuffix: true })}
+              <TimeAgo timestamp={group.lastSeen} />
             </span>
             {group.spanSec > 0 && (
               <span className="flex items-center gap-1" title="Time between first and last attempt from this IP">
@@ -148,7 +149,7 @@ export function ScanGroupRow({ group }: { group: ScanGroup }) {
                     className="flex items-center gap-3 rounded-lg bg-card border border-border px-3 py-2 text-xs"
                   >
                     <span className="text-muted-foreground w-32 shrink-0">
-                      {formatDistanceToNow(new Date(s.startTime), { addSuffix: true })}
+                      <TimeAgo timestamp={s.startTime} />
                     </span>
                     {s.duration !== null && (
                       <span className="text-muted-foreground w-12 shrink-0">{formatDuration(s.duration)}</span>

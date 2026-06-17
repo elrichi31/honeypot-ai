@@ -2,6 +2,7 @@
 
 import { Server } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
+import { TimeAgo } from "@/components/time-ago"
 import { Surface } from "@/components/ui/surface"
 import type { DeceptionNode } from "@/lib/api/deception"
 
@@ -50,7 +51,7 @@ export function DeceptionNodesGrid({ nodes }: { nodes: DeceptionNode[] }) {
             </div>
           </div>
           <p className="mt-2 text-[10px] text-muted-foreground/60">
-            {node.lastHit ? `last hit ${formatDistanceToNow(new Date(node.lastHit), { addSuffix: true })}` : "no activity"}
+            {node.lastHit ? `last hit $<TimeAgo timestamp={node.lastHit} />` : "no activity"}
           </p>
         </Surface>
       ))}

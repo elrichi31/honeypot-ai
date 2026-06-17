@@ -2,6 +2,7 @@ import { notFound } from "next/navigation"
 import { PageShell } from "@/components/page-shell"
 import Link from "next/link"
 import { formatDistanceToNow, differenceInSeconds } from "date-fns"
+import { TimeAgo } from "@/components/time-ago"
 import { formatDateTimeLong } from "@/lib/timezone"
 import { readConfig } from "@/lib/server-config"
 import { db } from "@/lib/db"
@@ -109,7 +110,7 @@ export default async function SessionReplayPage({
               </h1>
               <p suppressHydrationWarning className="text-sm text-muted-foreground">
                 {formatDateTimeLong(session.startedAt, timezone)} ·{" "}
-                {formatDistanceToNow(new Date(session.startedAt), { addSuffix: true })}
+                <TimeAgo timestamp={session.startedAt} />
               </p>
             </div>
             <div className="flex items-center gap-2">

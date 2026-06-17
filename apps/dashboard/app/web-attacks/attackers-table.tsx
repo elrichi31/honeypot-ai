@@ -1,10 +1,10 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { formatDistanceToNow } from "date-fns"
 import type { WebHitByIp } from "@/lib/api"
-import { ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
 import { EmptyState } from "@/components/ui/data-states"
+import { AttackTypeBadge } from "@/components/attack-type-badge"
+import { TimeAgo } from "@/components/time-ago"
 import { Flag } from "@/components/ui/flag"
 
 export function AttackersTable({
@@ -70,12 +70,7 @@ export function AttackersTable({
             <td className="px-4 py-3">
               <div className="flex flex-wrap gap-1">
                 {attacker.attackTypes.map((type) => (
-                  <span
-                    key={type}
-                    className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-medium ${ATTACK_COLORS[type] ?? ATTACK_COLORS.recon}`}
-                  >
-                    {ATTACK_LABELS[type] ?? type}
-                  </span>
+                  <AttackTypeBadge key={type} type={type} />
                 ))}
               </div>
             </td>
@@ -111,12 +106,12 @@ export function AttackersTable({
               </div>
             </td>
 
-            <td suppressHydrationWarning className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
-              {formatDistanceToNow(new Date(attacker.firstSeen), { addSuffix: true })}
+            <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+              <TimeAgo timestamp={attacker.firstSeen} />
             </td>
 
-            <td suppressHydrationWarning className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
-              {formatDistanceToNow(new Date(attacker.lastSeen), { addSuffix: true })}
+            <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+              <TimeAgo timestamp={attacker.lastSeen} />
             </td>
           </tr>
         )

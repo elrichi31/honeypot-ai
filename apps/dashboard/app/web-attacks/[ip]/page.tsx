@@ -1,14 +1,15 @@
 import { notFound } from "next/navigation"
 import { PageShell } from "@/components/page-shell"
 import Link from "next/link"
-import { formatDistanceToNow } from "date-fns"
 import { ArrowLeft, Globe, Clock, MousePointerClick, Shield, Target, Fingerprint, GitBranch, Link2 } from "lucide-react"
 import { fetchWebHitsByIpPage, fetchWebHits, fetchThreat } from "@/lib/api"
 import { lookupIp } from "@/lib/geo"
 import { enrichIp } from "@/lib/ip-enrichment"
 import { RiskBadge } from "@/components/risk-badge"
 import { Flag } from "@/components/ui/flag"
-import { ATTACK_COLORS, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack-types"
+import { ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack-types"
+import { AttackTypeBadge } from "@/components/attack-type-badge"
+import { TimeAgo } from "@/components/time-ago"
 import { StatCard } from "@/components/stat-card"
 import { Surface } from "@/components/ui/surface"
 import { AttackTypeFilter } from "@/components/attack-type-filter"
@@ -158,9 +159,9 @@ export default async function WebAttackerDetailPage({
               {location?.countryName && (
                 <p className="mt-0.5 text-sm text-muted-foreground">{location.countryName}</p>
               )}
-              <p suppressHydrationWarning className="mt-1 text-xs text-muted-foreground">
-                First hit {formatDistanceToNow(new Date(attacker.firstSeen), { addSuffix: true })} ·{" "}
-                Last {formatDistanceToNow(new Date(attacker.lastSeen), { addSuffix: true })}
+              <p className="mt-1 text-xs text-muted-foreground">
+                First hit <TimeAgo timestamp={attacker.firstSeen} /> ·{" "}
+                Last <TimeAgo timestamp={attacker.lastSeen} />
               </p>
             </div>
             <div className="flex flex-wrap justify-end items-center gap-1.5">
@@ -171,12 +172,7 @@ export default async function WebAttackerDetailPage({
               )}
               {threat && <RiskBadge level={threat.risk.level} score={threat.risk.score} ip={srcIp} />}
               {attacker.attackTypes.map((t) => (
-                <span
-                  key={t}
-                  className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${ATTACK_COLORS[t] ?? ATTACK_COLORS.recon}`}
-                >
-                  {ATTACK_LABELS[t] ?? t}
-                </span>
+                <AttackTypeBadge key={t} type={t} size="base" long />
               ))}
             </div>
           </div>
@@ -288,9 +284,7 @@ export default async function WebAttackerDetailPage({
                     <div className="mt-1 flex flex-wrap items-center gap-1">
                       {attackChainSequence.map((t, i) => (
                         <span key={t} className="flex items-center gap-1">
-                          <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-medium ${ATTACK_COLORS[t] ?? ATTACK_COLORS.recon}`}>
-                            {ATTACK_LABELS[t] ?? t}
-                          </span>
+                          <AttackTypeBadge type={t} long />
                           {i < attackChainSequence.length - 1 && <span className="text-muted-foreground text-xs">→</span>}
                         </span>
                       ))}
@@ -348,9 +342,7 @@ export default async function WebAttackerDetailPage({
                   .sort((a, b) => b[1] - a[1])
                   .map(([t, count]) => (
                     <div key={t} className="flex items-center justify-between px-4 py-2.5">
-                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${ATTACK_COLORS[t] ?? ATTACK_COLORS.recon}`}>
-                        {ATTACK_LABELS[t] ?? t}
-                      </span>
+                      <AttackTypeBadge type={t} long />
                       <span className="font-mono text-sm font-semibold text-foreground">{count}</span>
                     </div>
                   ))}

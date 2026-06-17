@@ -2,6 +2,7 @@
 
 import { useState, Fragment } from "react"
 import { formatDistanceToNow } from "date-fns"
+import { TimeAgo } from "@/components/time-ago"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import type { DeceptionEvent } from "@/lib/api/deception"
 import { Surface } from "@/components/ui/surface"
@@ -135,7 +136,7 @@ export function DeceptionEventsTable({ events }: { events: DeceptionEvent[] }) {
                       {e.username ? `${e.username}${e.password ? ` / ${e.password}` : ""}` : "—"}
                     </td>
                     <td className="px-4 py-2 text-right text-muted-foreground/70">
-                      {formatDistanceToNow(new Date(e.timestamp), { addSuffix: true })}
+                      <TimeAgo timestamp={e.timestamp} />
                     </td>
                   </tr>
                   {isExpanded && (

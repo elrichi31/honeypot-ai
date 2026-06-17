@@ -1,6 +1,7 @@
 "use client"
 
 import { formatDistanceToNow } from "date-fns"
+import { TimeAgo } from "@/components/time-ago"
 import { Radar } from "lucide-react"
 import type { DeceptionPortscan } from "@/lib/api/deception"
 import { Surface } from "@/components/ui/surface"
@@ -55,7 +56,7 @@ export function DeceptionPortscansTable({ portscans }: { portscans: DeceptionPor
                   {ps.scan_type}
                 </td>
                 <td className="px-4 py-2 text-right text-muted-foreground/70">
-                  {formatDistanceToNow(new Date(ps.timestamp), { addSuffix: true })}
+                  <TimeAgo timestamp={ps.timestamp} />
                 </td>
               </tr>
             ))}

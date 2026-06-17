@@ -5,7 +5,7 @@ import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
 import { SectionError } from "@/components/section-error"
 import { fetchWebPaths } from "@/lib/api"
-import { ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
+import { AttackTypeBadge } from "@/components/attack-type-badge"
 
 export default async function WebPathsPage() {
   let paths
@@ -111,13 +111,7 @@ export default async function WebPathsPage() {
                             .sort((a, b) => b[1] - a[1])
                             .slice(0, 3)
                             .map(([type, count]) => (
-                              <span
-                                key={type}
-                                className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${ATTACK_COLORS[type] ?? ATTACK_COLORS.recon}`}
-                                title={`${count} hits`}
-                              >
-                                {ATTACK_LABELS[type] ?? type}
-                              </span>
+                              <AttackTypeBadge key={type} type={type} size="xs" className="cursor-default" />
                             ))}
                         </div>
                       </td>

@@ -1,7 +1,7 @@
 "use client"
 
 import { Zap } from "lucide-react"
-import { ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
+import { AttackTypeBadge } from "@/components/attack-type-badge"
 import { useTimezone } from "@/components/timezone-provider"
 import { formatInTimezone } from "@/lib/timezone"
 import type { WebHit } from "@/lib/api"
@@ -80,12 +80,7 @@ export function IpBursts({ hits }: { hits: WebHit[] }) {
                 </span>
               )}
               {b.attackTypes.map((t) => (
-                <span
-                  key={t}
-                  className={`inline-flex items-center rounded-full border px-1.5 py-0 text-[10px] font-medium ${ATTACK_COLORS[t] ?? ATTACK_COLORS.recon}`}
-                >
-                  {ATTACK_LABELS[t] ?? t}
-                </span>
+                <AttackTypeBadge key={t} type={t} size="xs" />
               ))}
             </div>
           </div>

@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { formatDistanceToNow } from "date-fns"
+import { TimeAgo } from "@/components/time-ago"
 import { useTimezone } from "@/components/timezone-provider"
 import { formatInTimezone } from "@/lib/timezone"
 import {
@@ -96,11 +97,11 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
             </span>
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              First: {formatDistanceToNow(new Date(campaign.firstSeen), { addSuffix: true })}
+              First: <TimeAgo timestamp={campaign.firstSeen} />
             </span>
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              Last: {formatDistanceToNow(new Date(campaign.lastSeen), { addSuffix: true })}
+              Last: <TimeAgo timestamp={campaign.lastSeen} />
             </span>
           </div>
 

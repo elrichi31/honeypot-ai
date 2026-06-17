@@ -11,7 +11,7 @@ import { ClientSensorFilter } from "@/components/client-sensor-filter"
 import { TablePagination } from "@/components/table-pagination"
 import { lookupIp } from "@/lib/geo"
 import { Flag } from "@/components/ui/flag"
-import { ATTACK_COLORS, ATTACK_LABELS } from "@/lib/attack-types"
+import { AttackTypeBadge } from "@/components/attack-type-badge"
 import { readConfig } from "@/lib/server-config"
 import { formatInTimezone } from "@/lib/timezone"
 
@@ -209,9 +209,7 @@ export default async function WebBurstsPage({
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
                         {b.attackTypes.map((t) => (
-                          <span key={t} className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-medium ${ATTACK_COLORS[t] ?? ATTACK_COLORS.recon}`}>
-                            {ATTACK_LABELS[t] ?? t}
-                          </span>
+                          <AttackTypeBadge key={t} type={t} />
                         ))}
                       </div>
                     </td>

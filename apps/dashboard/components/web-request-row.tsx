@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { ChevronRight } from "lucide-react"
-import { ATTACK_COLORS, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack-types"
+import { AttackTypeBadge } from "@/components/attack-type-badge"
 import { useTimezone } from "@/components/timezone-provider"
 import { formatInTimezone } from "@/lib/timezone"
 import { cn } from "@/lib/utils"
@@ -78,9 +78,7 @@ export function RequestRow({ group }: { group: RequestGroup }) {
           </div>
         </td>
         <td className="whitespace-nowrap px-4 py-2 align-top">
-          <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-medium ${ATTACK_COLORS[group.attackType] ?? ATTACK_COLORS.recon}`}>
-            {ATTACK_LABELS[group.attackType] ?? group.attackType}
-          </span>
+          <AttackTypeBadge type={group.attackType} long />
         </td>
         <td className="whitespace-nowrap px-4 py-2 text-right align-top font-mono text-xs font-semibold text-foreground">
           ×{group.count}

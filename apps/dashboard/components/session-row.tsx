@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
+import { TimeAgo } from "@/components/time-ago"
 import {
   ChevronDown, ChevronRight, Terminal, Clock, User, Key,
   Loader2, ExternalLink, ShieldX, Bot,
@@ -73,7 +74,7 @@ export function SessionRow({ session }: { session: SessionItem }) {
           <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              {formatDistanceToNow(new Date(session.startTime), { addSuffix: true })}
+              <TimeAgo timestamp={session.startTime} />
             </span>
             {session.duration !== null && (
               <span className="flex items-center gap-1">

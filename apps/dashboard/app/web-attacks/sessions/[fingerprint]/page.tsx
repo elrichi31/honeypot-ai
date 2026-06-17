@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { formatDistanceToNow, format } from "date-fns"
+import { format } from "date-fns"
 import {
   ArrowLeft, Fingerprint, GitBranch, Target, Clock, MousePointerClick,
   Globe, Shield, AlertTriangle, Network, Zap, Code2, ArrowRight, BarChart2,
 } from "lucide-react"
+import { TimeAgo } from "@/components/time-ago"
 import { fetchWebSessionDetail } from "@/lib/api"
 import { lookupIp } from "@/lib/geo"
 import { enrichIp } from "@/lib/ip-enrichment"
@@ -13,7 +14,7 @@ import { Surface } from "@/components/ui/surface"
 import { Flag } from "@/components/ui/flag"
 import { StatCard } from "@/components/stat-card"
 import { IpEnrichment } from "@/components/ip-enrichment"
-import { ATTACK_COLORS, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack-types"
+import { AttackTypeBadge } from "@/components/attack-type-badge"
 import { RequestRow, type RequestGroup } from "@/components/web-request-row"
 
 function buildActivityBuckets(timestamps: string[], bucketCount = 24) {
@@ -238,8 +239,8 @@ export default async function SessionDetailPage({
               </div>
             )}
             <p suppressHydrationWarning className="mt-1 text-xs text-muted-foreground">
-              First seen {formatDistanceToNow(new Date(firstSeen), { addSuffix: true })} &middot;{" "}
-              Last seen {formatDistanceToNow(new Date(lastSeen), { addSuffix: true })} &middot; Duration {durationLabel}
+              First seen <TimeAgo timestamp={firstSeen} /> &middot;{" "}
+              Last seen <TimeAgo timestamp={lastSeen} /> &middot; Duration {durationLabel}
             </p>
           </div>
           <div className="flex flex-wrap justify-end items-center gap-1.5">
@@ -254,9 +255,7 @@ export default async function SessionDetailPage({
               </span>
             )}
             {attackTypes.map((t) => (
-              <span key={t} className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${ATTACK_COLORS[t] ?? ATTACK_COLORS.recon}`}>
-                {ATTACK_LABELS[t] ?? t}
-              </span>
+              <AttackTypeBadge key={t} type={t} size="base" long />
             ))}
           </div>
         </div>
@@ -366,9 +365,7 @@ export default async function SessionDetailPage({
               <div className="flex items-center gap-4 text-xs text-muted-foreground shrink-0">
                 <div className="flex flex-wrap gap-1">
                   {ipTypes.slice(0, 3).map((t) => (
-                    <span key={t} className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${ATTACK_COLORS[t] ?? ATTACK_COLORS.recon}`}>
-                      {ATTACK_LABELS[t] ?? t}
-                    </span>
+                    <AttackTypeBadge key={t} type={t} size="xs" />
                   ))}
                 </div>
                 <span suppressHydrationWarning className="whitespace-nowrap">
@@ -417,9 +414,7 @@ export default async function SessionDetailPage({
                   <div className="mt-1 flex flex-wrap items-center gap-1">
                     {attackChainSequence.map((t, i) => (
                       <span key={t} className="flex items-center gap-1">
-                        <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-medium ${ATTACK_COLORS[t] ?? ATTACK_COLORS.recon}`}>
-                          {ATTACK_LABELS[t] ?? t}
-                        </span>
+                        <AttackTypeBadge type={t} long />
                         {i < attackChainSequence.length - 1 && <span className="text-muted-foreground text-xs">to</span>}
                       </span>
                     ))}
@@ -474,9 +469,7 @@ export default async function SessionDetailPage({
             <div className="max-h-48 overflow-y-auto divide-y divide-border">
               {Object.entries(byType).sort((a, b) => b[1] - a[1]).map(([t, count]) => (
                 <div key={t} className="flex items-center justify-between px-4 py-2.5">
-                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${ATTACK_COLORS[t] ?? ATTACK_COLORS.recon}`}>
-                    {ATTACK_LABELS[t] ?? t}
-                  </span>
+                  <AttackTypeBadge type={t} long />
                   <span className="font-mono text-sm font-semibold text-foreground">{count}</span>
                 </div>
               ))}
@@ -559,9 +552,7 @@ export default async function SessionDetailPage({
                 {payloads.map((p, i) => (
                   <div key={i} className="px-4 py-3">
                     <div className="mb-1 flex items-center gap-2">
-                      <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${ATTACK_COLORS[p.attackType] ?? ATTACK_COLORS.recon}`}>
-                        {ATTACK_LABELS[p.attackType] ?? p.attackType}
-                      </span>
+                      <AttackTypeBadge type={p.attackType} size="xs" />
                       <span className="ml-auto font-mono text-xs text-muted-foreground">x{p.count}</span>
                     </div>
                     <pre className="overflow-x-auto rounded bg-muted/40 p-2 font-mono text-xs text-foreground whitespace-pre-wrap break-all max-h-24">

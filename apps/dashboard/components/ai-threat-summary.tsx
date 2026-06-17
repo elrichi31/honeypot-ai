@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Bot, Cpu, ShieldAlert, Sparkles, RefreshCw, Loader2 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
+import { TimeAgo } from "@/components/time-ago"
 import type { ThreatDetail } from "@/lib/api"
 import type { ThreatAnalysis } from "@/app/api/ai/threat-analysis/route"
 import { Surface } from "@/components/ui/surface"
@@ -63,7 +64,7 @@ export function AiThreatSummary({ ip, threat, initialAnalysis, autoTrigger }: Pr
         <div className="flex items-center gap-2">
           {analysis && (
             <span className="text-[10px] text-muted-foreground">
-              {formatDistanceToNow(new Date(analysis.analyzedAt), { addSuffix: true })}
+              <TimeAgo timestamp={analysis.analyzedAt} />
             </span>
           )}
           <button

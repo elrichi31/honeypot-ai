@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { Terminal, ChevronRight, ChevronDown, Database, Server, Globe, HardDrive, KeyRound, ExternalLink, Ghost } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
+import { TimeAgo } from "@/components/time-ago"
 import { useTimezone } from "@/components/timezone-provider"
 import { formatInTimezone } from "@/lib/timezone"
 import type { KillChain, KillChainStep } from "@/lib/api/deception"
@@ -156,7 +157,7 @@ function ChainRow({ chain }: { chain: KillChain }) {
           <span>·</span>
           <span>{chain.steps.length} steps</span>
           <span>·</span>
-          <span>{formatDistanceToNow(new Date(chain.lastSeen), { addSuffix: true })}</span>
+          <span><TimeAgo timestamp={chain.lastSeen} /></span>
         </div>
       </div>
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import { formatDistanceToNow } from "date-fns"
+import { TimeAgo } from "@/components/time-ago"
 import { Search, Terminal, Clock, Globe } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import type { HoneypotEvent, PaginationMeta } from "@/lib/api"
@@ -85,7 +86,7 @@ export function CommandsView({ events, searchQuery, pagination }: CommandsViewPr
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {formatDistanceToNow(new Date(command.eventTs), { addSuffix: true })}
+                          <TimeAgo timestamp={command.eventTs} />
                         </span>
                       </div>
                     </div>
