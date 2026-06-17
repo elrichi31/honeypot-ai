@@ -19,6 +19,9 @@ export async function GET() {
 
   const res = await fetch(`${INTERNAL_API}/clients`, {
     cache: "no-store",
+    // GET /clients on the ingest-api is guarded by ensureIngestToken, so the
+    // proxy must forward the shared secret (the POST already did).
+    headers: ingestHeaders(false),
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   })
   const body = await res.text()
