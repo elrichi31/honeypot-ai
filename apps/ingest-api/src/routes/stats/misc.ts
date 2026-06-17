@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import type { FastifyInstance } from 'fastify'
 import { withCache } from '../../lib/cache-helper.js'
+import { parseSensorScope } from '../../lib/sensor-scope.js'
 
 interface SshOverviewRow { sessions: bigint; uniqueIps: bigint; successfulLogins: bigint; lastSeen: Date | null }
 interface WebOverviewRow { hits: bigint; uniqueIps: bigint; lastSeen: Date | null }
@@ -16,8 +17,9 @@ const GEO_TTL     = 1800
 const TIMELINE_TTL = 600
 
 export async function miscRoutes(fastify: FastifyInstance) {
-  fastify.get('/stats/honeypot-overview', () =>
-    withCache(fastify.cache, 'stats:honeypot-overview', OVERVIEW_TTL, async () => {
+  fastify.get('/stats/honeypot-overview', (request) => {
+    const scope = parseSensorScope(request.query as Record<string, unknown>)
+    return withCache(fastify.cache, `stats:honeypot-overview:${scope.cacheSuffix}`, OVERVIEW_TTL, async () => {
       const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
       const [sshRows, webRows, webTopAttackRows, protocolRows] = await Promise.all([
         fastify.prismaRead.$queryRaw<SshOverviewRow[]>(Prisma.sql`
@@ -26,19 +28,19 @@ export async function miscRoutes(fastify: FastifyInstance) {
                  COUNT(*) FILTER (WHERE login_success IS TRUE)::bigint AS "successfulLogins",
                  MAX(started_at) AS "lastSeen"
           FROM sessions
-          WHERE started_at >= ${cutoff}
+          WHERE started_at >= ${cutoff} ${scope.cond('sensor_id')}
         `),
         fastify.prismaRead.$queryRaw<WebOverviewRow[]>(Prisma.sql`
           SELECT COUNT(*)::bigint AS hits,
                  COUNT(DISTINCT src_ip)::bigint AS "uniqueIps",
                  MAX(timestamp) AS "lastSeen"
           FROM web_hits
-          WHERE timestamp >= ${cutoff}
+          WHERE timestamp >= ${cutoff} ${scope.cond('sensor_id')}
         `),
         fastify.prismaRead.$queryRaw<WebTopAttackRow[]>(Prisma.sql`
           SELECT attack_type AS "attackType"
           FROM web_hits
-          WHERE timestamp >= ${cutoff}
+          WHERE timestamp >= ${cutoff} ${scope.cond('sensor_id')}
           GROUP BY attack_type
           ORDER BY COUNT(*) DESC
           LIMIT 1
@@ -50,7 +52,7 @@ export async function miscRoutes(fastify: FastifyInstance) {
                  COUNT(*) FILTER (WHERE event_type = 'auth')::bigint AS "authAttempts",
                  MAX(timestamp) AS "lastSeen"
           FROM protocol_hits
-          WHERE timestamp >= ${cutoff}
+          WHERE timestamp >= ${cutoff} ${scope.cond('sensor_id')}
           GROUP BY protocol
           ORDER BY COUNT(*) DESC
         `),
@@ -73,13 +75,14 @@ export async function miscRoutes(fastify: FastifyInstance) {
         totals: { events: sshCount + webCount + protocolCount, activeSources },
       }
     })
-  )
+  })
 
   fastify.get('/stats/cross-sensor-timeline', async (request) => {
     const query = request.query as Record<string, string | undefined>
     const range = query.range === 'week' || query.range === 'month' ? query.range : 'day'
     const timezone = query.timezone || 'UTC'
-    const cacheKey = `stats:cross-sensor-timeline:${range}:${timezone.replace(/\//g, '_')}`
+    const scope = parseSensorScope(request.query as Record<string, unknown>)
+    const cacheKey = `stats:cross-sensor-timeline:${range}:${timezone.replace(/\//g, '_')}:${scope.cacheSuffix}`
 
     return withCache(fastify.cache, cacheKey, TIMELINE_TTL, async () => {
       const now = new Date()
@@ -106,7 +109,7 @@ export async function miscRoutes(fastify: FastifyInstance) {
           series AS (SELECT generate_series(s, e, ${Prisma.raw(interval)}) AS b FROM bounds),
           counts AS (
             SELECT date_trunc(${truncUnit}, timezone(${timezone}, started_at::timestamptz)) AS b, COUNT(*)::int AS count
-            FROM sessions WHERE started_at >= ${startDate} AND started_at <= ${endDate} GROUP BY 1
+            FROM sessions WHERE started_at >= ${startDate} AND started_at <= ${endDate} ${scope.cond('sensor_id')} GROUP BY 1
           )
           SELECT to_char(series.b, ${fmt}) AS "bucketStart", to_char(series.b, ${lbl}) AS label,
                  COALESCE(counts.count, 0)::int AS count
@@ -120,7 +123,7 @@ export async function miscRoutes(fastify: FastifyInstance) {
           series AS (SELECT generate_series(s, e, ${Prisma.raw(interval)}) AS b FROM bounds),
           counts AS (
             SELECT date_trunc(${truncUnit}, timezone(${timezone}, timestamp::timestamptz)) AS b, COUNT(*)::int AS count
-            FROM web_hits WHERE timestamp >= ${startDate} AND timestamp <= ${endDate} GROUP BY 1
+            FROM web_hits WHERE timestamp >= ${startDate} AND timestamp <= ${endDate} ${scope.cond('sensor_id')} GROUP BY 1
           )
           SELECT to_char(series.b, ${fmt}) AS "bucketStart", to_char(series.b, ${lbl}) AS label,
                  COALESCE(counts.count, 0)::int AS count
@@ -131,7 +134,7 @@ export async function miscRoutes(fastify: FastifyInstance) {
                  to_char(date_trunc(${truncUnit}, timezone(${timezone}, timestamp::timestamptz)), ${fmt}) AS "bucketStart",
                  to_char(date_trunc(${truncUnit}, timezone(${timezone}, timestamp::timestamptz)), ${lbl}) AS label,
                  COUNT(*)::int AS count
-          FROM protocol_hits WHERE timestamp >= ${startDate} AND timestamp <= ${endDate}
+          FROM protocol_hits WHERE timestamp >= ${startDate} AND timestamp <= ${endDate} ${scope.cond('sensor_id')}
           GROUP BY 1, 2, 3 ORDER BY 3
         `),
       ])
@@ -166,16 +169,17 @@ export async function miscRoutes(fastify: FastifyInstance) {
     })
   })
 
-  fastify.get('/stats/geo', () =>
-    withCache(fastify.cache, 'stats:geo', GEO_TTL, () =>
+  fastify.get('/stats/geo', (request) => {
+    const scope = parseSensorScope(request.query as Record<string, unknown>)
+    return withCache(fastify.cache, `stats:geo:${scope.cacheSuffix}`, GEO_TTL, () =>
       fastify.prismaRead.$queryRaw<{ srcIp: string; loginSuccess: boolean | null }[]>(Prisma.sql`
         SELECT src_ip AS "srcIp", BOOL_OR(login_success IS TRUE) AS "loginSuccess"
         FROM sessions
-        WHERE started_at >= NOW() - INTERVAL '90 days'
+        WHERE started_at >= NOW() - INTERVAL '90 days' ${scope.cond('sensor_id')}
         GROUP BY src_ip
       `)
     )
-  )
+  })
 
   fastify.get('/stats/session-commands', async (request) => {
     const { limit = '500' } = request.query as Record<string, string>

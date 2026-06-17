@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import type { FastifyInstance } from 'fastify'
 import { withCache } from '../../lib/cache-helper.js'
+import { parseSensorScope, type SensorScope } from '../../lib/sensor-scope.js'
 
 const KPI_TRENDS_TTL = 600
 
@@ -21,7 +22,7 @@ function deltaPct(current: number, previous: number): number | null {
  * bounds/series/counts pattern from cross-sensor-timeline so empty hours
  * render as 0 instead of being dropped.
  */
-function sparkSql(table: string, tsCol: string, start: Date, end: Date) {
+function sparkSql(table: string, tsCol: string, start: Date, end: Date, scope: SensorScope) {
   return Prisma.sql`
     WITH bounds AS (
       SELECT date_trunc('hour', ${start}::timestamptz) AS s,
@@ -31,7 +32,7 @@ function sparkSql(table: string, tsCol: string, start: Date, end: Date) {
     counts AS (
       SELECT date_trunc('hour', ${Prisma.raw(tsCol)}::timestamptz) AS b, COUNT(*)::int AS count
       FROM ${Prisma.raw(table)}
-      WHERE ${Prisma.raw(tsCol)} >= ${start} AND ${Prisma.raw(tsCol)} <= ${end}
+      WHERE ${Prisma.raw(tsCol)} >= ${start} AND ${Prisma.raw(tsCol)} <= ${end} ${scope.cond('sensor_id')}
       GROUP BY 1
     )
     SELECT COALESCE(counts.count, 0)::int AS count
@@ -40,8 +41,9 @@ function sparkSql(table: string, tsCol: string, start: Date, end: Date) {
 }
 
 export async function kpiTrendsRoute(fastify: FastifyInstance) {
-  fastify.get('/stats/kpi-trends', () =>
-    withCache(fastify.cache, 'stats:kpi-trends', KPI_TRENDS_TTL, async () => {
+  fastify.get('/stats/kpi-trends', (request) => {
+    const scope = parseSensorScope(request.query as Record<string, unknown>)
+    return withCache(fastify.cache, `stats:kpi-trends:${scope.cacheSuffix}`, KPI_TRENDS_TTL, async () => {
       const now = new Date()
       const curStart = new Date(now.getTime() - 24 * 60 * 60 * 1000)
       const prevStart = new Date(now.getTime() - 48 * 60 * 60 * 1000)
@@ -52,18 +54,18 @@ export async function kpiTrendsRoute(fastify: FastifyInstance) {
       const windowCount = (table: string, tsCol: string, start: Date, end: Date) =>
         fastify.prismaRead.$queryRaw<CountRow[]>(Prisma.sql`
           SELECT COUNT(*)::bigint AS count FROM ${Prisma.raw(table)}
-          WHERE ${Prisma.raw(tsCol)} >= ${start} AND ${Prisma.raw(tsCol)} <= ${end}
+          WHERE ${Prisma.raw(tsCol)} >= ${start} AND ${Prisma.raw(tsCol)} <= ${end} ${scope.cond('sensor_id')}
         `)
 
       // Unique IPs across all three sources in a window.
       const uniqueIpCount = (start: Date, end: Date) =>
         fastify.prismaRead.$queryRaw<CountRow[]>(Prisma.sql`
           SELECT COUNT(DISTINCT src_ip)::bigint AS count FROM (
-            SELECT src_ip FROM sessions      WHERE started_at >= ${start} AND started_at <= ${end}
+            SELECT src_ip FROM sessions      WHERE started_at >= ${start} AND started_at <= ${end} ${scope.cond('sensor_id')}
             UNION ALL
-            SELECT src_ip FROM web_hits      WHERE timestamp  >= ${start} AND timestamp  <= ${end}
+            SELECT src_ip FROM web_hits      WHERE timestamp  >= ${start} AND timestamp  <= ${end} ${scope.cond('sensor_id')}
             UNION ALL
-            SELECT src_ip FROM protocol_hits WHERE timestamp  >= ${start} AND timestamp  <= ${end}
+            SELECT src_ip FROM protocol_hits WHERE timestamp  >= ${start} AND timestamp  <= ${end} ${scope.cond('sensor_id')}
           ) u
         `)
 
@@ -76,13 +78,13 @@ export async function kpiTrendsRoute(fastify: FastifyInstance) {
           series AS (SELECT generate_series(s, e, interval '1 hour') AS b FROM bounds),
           rows AS (
             SELECT date_trunc('hour', started_at::timestamptz) AS b, src_ip FROM sessions
-              WHERE started_at >= ${start} AND started_at <= ${end}
+              WHERE started_at >= ${start} AND started_at <= ${end} ${scope.cond('sensor_id')}
             UNION ALL
             SELECT date_trunc('hour', timestamp::timestamptz) AS b, src_ip FROM web_hits
-              WHERE timestamp >= ${start} AND timestamp <= ${end}
+              WHERE timestamp >= ${start} AND timestamp <= ${end} ${scope.cond('sensor_id')}
             UNION ALL
             SELECT date_trunc('hour', timestamp::timestamptz) AS b, src_ip FROM protocol_hits
-              WHERE timestamp >= ${start} AND timestamp <= ${end}
+              WHERE timestamp >= ${start} AND timestamp <= ${end} ${scope.cond('sensor_id')}
           ),
           counts AS (SELECT b, COUNT(DISTINCT src_ip)::int AS count FROM rows GROUP BY b)
           SELECT COALESCE(counts.count, 0)::int AS count
@@ -101,15 +103,15 @@ export async function kpiTrendsRoute(fastify: FastifyInstance) {
       ] = await Promise.all([
         windowCount('sessions', 'started_at', curStart, now),
         windowCount('sessions', 'started_at', prevStart, curStart),
-        fastify.prismaRead.$queryRaw<SparkRow[]>(sparkSql('sessions', 'started_at', curStart, now)),
+        fastify.prismaRead.$queryRaw<SparkRow[]>(sparkSql('sessions', 'started_at', curStart, now, scope)),
 
         windowCount('web_hits', 'timestamp', curStart, now),
         windowCount('web_hits', 'timestamp', prevStart, curStart),
-        fastify.prismaRead.$queryRaw<SparkRow[]>(sparkSql('web_hits', 'timestamp', curStart, now)),
+        fastify.prismaRead.$queryRaw<SparkRow[]>(sparkSql('web_hits', 'timestamp', curStart, now, scope)),
 
         windowCount('protocol_hits', 'timestamp', curStart, now),
         windowCount('protocol_hits', 'timestamp', prevStart, curStart),
-        fastify.prismaRead.$queryRaw<SparkRow[]>(sparkSql('protocol_hits', 'timestamp', curStart, now)),
+        fastify.prismaRead.$queryRaw<SparkRow[]>(sparkSql('protocol_hits', 'timestamp', curStart, now, scope)),
 
         uniqueIpCount(curStart, now),
         uniqueIpCount(prevStart, curStart),
@@ -117,17 +119,17 @@ export async function kpiTrendsRoute(fastify: FastifyInstance) {
 
         fastify.prismaRead.$queryRaw<ProtoCountRow[]>(Prisma.sql`
           SELECT protocol, COUNT(*)::bigint AS count FROM protocol_hits
-          WHERE timestamp >= ${curStart} AND timestamp <= ${now} GROUP BY protocol
+          WHERE timestamp >= ${curStart} AND timestamp <= ${now} ${scope.cond('sensor_id')} GROUP BY protocol
         `),
         fastify.prismaRead.$queryRaw<ProtoCountRow[]>(Prisma.sql`
           SELECT protocol, COUNT(*)::bigint AS count FROM protocol_hits
-          WHERE timestamp >= ${prevStart} AND timestamp <= ${curStart} GROUP BY protocol
+          WHERE timestamp >= ${prevStart} AND timestamp <= ${curStart} ${scope.cond('sensor_id')} GROUP BY protocol
         `),
         fastify.prismaRead.$queryRaw<ProtoSparkRow[]>(Prisma.sql`
           SELECT protocol, COALESCE(counts.count, 0)::int AS count
           FROM (
             SELECT DISTINCT protocol FROM protocol_hits
-            WHERE timestamp >= ${prevStart} AND timestamp <= ${now}
+            WHERE timestamp >= ${prevStart} AND timestamp <= ${now} ${scope.cond('sensor_id')}
           ) protos
           CROSS JOIN (
             WITH bounds AS (
@@ -139,7 +141,7 @@ export async function kpiTrendsRoute(fastify: FastifyInstance) {
           ) hrs
           LEFT JOIN (
             SELECT protocol, date_trunc('hour', timestamp::timestamptz) AS b, COUNT(*)::int AS count
-            FROM protocol_hits WHERE timestamp >= ${curStart} AND timestamp <= ${now}
+            FROM protocol_hits WHERE timestamp >= ${curStart} AND timestamp <= ${now} ${scope.cond('sensor_id')}
             GROUP BY 1, 2
           ) counts USING (protocol, b)
           ORDER BY protos.protocol, hrs.b
@@ -189,5 +191,5 @@ export async function kpiTrendsRoute(fastify: FastifyInstance) {
         protocols,
       }
     })
-  )
+  })
 }

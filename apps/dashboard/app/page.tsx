@@ -29,6 +29,7 @@ import { lookupIp, geolocateIps } from "@/lib/geo"
 import { readConfig } from "@/lib/server-config"
 import { getServerT } from "@/lib/i18n/server"
 import { fetchAttackerIntel } from "@/lib/attacker-intel"
+import { effectiveSensorScope } from "@/lib/tenant-scope"
 import { NoveltyStatsView } from "@/components/insights/novelty-stats"
 import { AttackerIntelView } from "@/components/insights/attacker-intel"
 import { BotRatioView } from "@/components/insights/bot-ratio"
@@ -139,9 +140,10 @@ function buildCampaignGeo(
 
 async function OverviewSection() {
   const t = await getServerT()
+  const { sensorIds } = await effectiveSensorScope()
   let overview
   try {
-    overview = await fetchHoneypotOverview()
+    overview = await fetchHoneypotOverview(sensorIds)
   } catch {
     return <SectionError title={t("dash.error.metrics")} />
   }
@@ -151,7 +153,7 @@ async function OverviewSection() {
   const empty = { current: 0, previous: 0, deltaPct: null, spark: [] as number[] }
   let trends: KpiTrends = { events: empty, sshSessions: empty, webHits: empty, uniqueIps: empty }
   try {
-    trends = await fetchKpiTrends()
+    trends = await fetchKpiTrends(sensorIds)
   } catch {
     // degrade silently — deltas show "—"
   }
@@ -213,9 +215,10 @@ async function OverviewSection() {
 
 async function CrossTimelineSection({ timezone }: { timezone: string }) {
   const t = await getServerT()
+  const { sensorIds } = await effectiveSensorScope()
   let crossTimeline
   try {
-    crossTimeline = await fetchCrossSensorTimeline({ range: "day", timezone })
+    crossTimeline = await fetchCrossSensorTimeline({ range: "day", timezone, sensorIds })
   } catch {
     return <SectionError title={t("dash.error.crossSensor")} />
   }
@@ -224,9 +227,10 @@ async function CrossTimelineSection({ timezone }: { timezone: string }) {
 
 async function GlobeSection() {
   const t = await getServerT()
+  const { sensorIds } = await effectiveSensorScope()
   let geoData
   try {
-    geoData = await fetchGeoSummary()
+    geoData = await fetchGeoSummary(sensorIds)
   } catch {
     return <SectionError title={t("dash.error.map")} />
   }
@@ -235,9 +239,10 @@ async function GlobeSection() {
 
 async function MitreSection() {
   const t = await getServerT()
+  const { sensorIds } = await effectiveSensorScope()
   let matrix
   try {
-    matrix = await fetchMitreMatrix()
+    matrix = await fetchMitreMatrix(sensorIds)
   } catch {
     return <SectionError title={t("dash.error.mitre")} />
   }
@@ -246,9 +251,10 @@ async function MitreSection() {
 
 async function InsightsSection() {
   const t = await getServerT()
+  const { sensorIds } = await effectiveSensorScope()
   let insights
   try {
-    insights = await fetchDashboardInsights()
+    insights = await fetchDashboardInsights(sensorIds)
   } catch {
     return <SectionError title={t("dash.error.sshAnalysis")} />
   }
@@ -273,8 +279,9 @@ async function NoveltySection() {
 
 async function AttackerIntelSection() {
   const t = await getServerT()
+  const { sensorIds } = await effectiveSensorScope()
   try {
-    const geoData = await fetchGeoSummary()
+    const geoData = await fetchGeoSummary(sensorIds)
     const activeIps = geoData.map((r) => r.srcIp).filter(Boolean)
     const intel = await fetchAttackerIntel(activeIps)
     return <AttackerIntelView intel={intel} />
@@ -285,8 +292,9 @@ async function AttackerIntelSection() {
 
 async function BotRatioSection() {
   const t = await getServerT()
+  const { sensorIds } = await effectiveSensorScope()
   try {
-    const ratio = await fetchBotRatio()
+    const ratio = await fetchBotRatio(sensorIds)
     return <BotRatioView ratio={ratio} />
   } catch {
     return <SectionError title={t("dash.error.botRatio")} />

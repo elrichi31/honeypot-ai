@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import type { FastifyInstance } from 'fastify'
 import { withCache } from '../../lib/cache-helper.js'
+import { parseSensorScope } from '../../lib/sensor-scope.js'
 import {
   TECHNIQUE_META,
   TACTIC_ORDER,
@@ -18,7 +19,12 @@ export async function mitreMatrixRoute(fastify: FastifyInstance) {
   fastify.get('/stats/mitre-matrix', (request) => {
     const q = request.query as Record<string, string | undefined>
     const days = Math.min(Math.max(Number(q.days) || DEFAULT_DAYS, 1), 365)
-    const cacheKey = `stats:mitre-matrix:${days}`
+    const scope = parseSensorScope(request.query as Record<string, unknown>)
+    const cacheKey = `stats:mitre-matrix:${days}:${scope.cacheSuffix}`
+    // events has no sensor_id; scope it via its parent session.
+    const eventsScope = scope.all
+      ? Prisma.empty
+      : Prisma.sql`AND session_id IN (SELECT id FROM sessions WHERE true ${scope.cond('sensor_id')})`
 
     return withCache(fastify.cache, cacheKey, MITRE_TTL, async () => {
       const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
@@ -27,12 +33,12 @@ export async function mitreMatrixRoute(fastify: FastifyInstance) {
       const [webRows, protoRows, sshRows, suricataRows] = await Promise.all([
         fastify.prismaRead.$queryRaw<{ attackType: string; count: bigint }[]>(Prisma.sql`
           SELECT attack_type AS "attackType", COUNT(*)::bigint AS count
-          FROM web_hits WHERE timestamp >= ${cutoff}
+          FROM web_hits WHERE timestamp >= ${cutoff} ${scope.cond('sensor_id')}
           GROUP BY attack_type
         `),
         fastify.prismaRead.$queryRaw<{ protocol: string; eventType: string; count: bigint }[]>(Prisma.sql`
           SELECT protocol, event_type AS "eventType", COUNT(*)::bigint AS count
-          FROM protocol_hits WHERE timestamp >= ${cutoff}
+          FROM protocol_hits WHERE timestamp >= ${cutoff} ${scope.cond('sensor_id')}
           GROUP BY protocol, event_type
         `),
         // SSH: split command rows that look like tool transfers from the rest,
@@ -41,12 +47,12 @@ export async function mitreMatrixRoute(fastify: FastifyInstance) {
           SELECT event_type AS "eventType",
                  (command ~* '\\m(wget|curl|tftp|scp)\\M') AS "isTransfer",
                  COUNT(*)::bigint AS count
-          FROM events WHERE event_ts >= ${cutoff}
+          FROM events WHERE event_ts >= ${cutoff} ${eventsScope}
           GROUP BY event_type, "isTransfer"
         `),
         fastify.prismaRead.$queryRaw<{ category: string; count: bigint }[]>(Prisma.sql`
           SELECT category, COUNT(*)::bigint AS count
-          FROM suricata_alerts WHERE timestamp >= ${cutoff}
+          FROM suricata_alerts WHERE timestamp >= ${cutoff} ${scope.cond('sensor_id')}
           GROUP BY category
         `),
       ])

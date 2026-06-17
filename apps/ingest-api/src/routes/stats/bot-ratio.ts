@@ -1,12 +1,14 @@
 import { Prisma } from '@prisma/client'
 import type { FastifyInstance } from 'fastify'
 import { withCache } from '../../lib/cache-helper.js'
+import { parseSensorScope } from '../../lib/sensor-scope.js'
 
 const BOT_RATIO_TTL = 300
 
 export async function botRatioRoute(fastify: FastifyInstance) {
-  fastify.get('/stats/bot-ratio', () =>
-    withCache(fastify.cache, 'stats:bot-ratio', BOT_RATIO_TTL, async () => {
+  fastify.get('/stats/bot-ratio', (request) => {
+    const scope = parseSensorScope(request.query as Record<string, unknown>)
+    return withCache(fastify.cache, `stats:bot-ratio:${scope.cacheSuffix}`, BOT_RATIO_TTL, async () => {
       const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
 
       type Row = { bot: bigint; human: bigint; unknown: bigint; total: bigint }
@@ -17,7 +19,7 @@ export async function botRatioRoute(fastify: FastifyInstance) {
           COUNT(*) FILTER (WHERE session_type = 'unknown' OR session_type IS NULL)::bigint AS unknown,
           COUNT(*)                                          ::bigint AS total
         FROM sessions
-        WHERE started_at >= ${cutoff}
+        WHERE started_at >= ${cutoff} ${scope.cond('sensor_id')}
       `)
 
       const bot     = Number(row?.bot     ?? 0n)
@@ -29,5 +31,5 @@ export async function botRatioRoute(fastify: FastifyInstance) {
 
       return { bot, human, unknown, total, botPct: pct(bot), humanPct: pct(human), unknownPct: pct(unknown) }
     })
-  )
+  })
 }
