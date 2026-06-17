@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
-import type { Role } from "@/lib/roles-shared"
+import { hasPermission, type Role } from "@/lib/roles-shared"
 import { formatDistanceToNow } from "date-fns"
 import {
   Terminal,
@@ -156,11 +156,6 @@ function useHealthCheck() {
   }, [])
 
   return status
-}
-
-const ROLE_ORDER: Role[] = ["viewer", "analyst", "admin"]
-function hasPermission(userRole: Role, required: Role) {
-  return ROLE_ORDER.indexOf(userRole) >= ROLE_ORDER.indexOf(required)
 }
 
 export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
