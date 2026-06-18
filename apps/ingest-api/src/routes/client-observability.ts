@@ -1,8 +1,17 @@
+import { createHash } from 'node:crypto'
 import { Prisma } from '@prisma/client'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { resolveClientSensors, buildPagination } from '../lib/client-helpers.js'
 import { withCache } from '../lib/cache-helper.js'
+
+// Cached aggregates are keyed by client, but the result depends on which sensors
+// are assigned right now. Fold a short hash of the (sorted) sensor list into the
+// cache key so assigning/unassigning a sensor invalidates the cache immediately
+// instead of serving a stale count/chart until the TTL expires.
+function sensorsToken(sensorIds: string[]): string {
+  return createHash('sha1').update([...sensorIds].sort().join(',')).digest('hex').slice(0, 12)
+}
 
 const slugParam   = z.object({ clientSlug: z.string().trim().min(1) })
 const pageQuery   = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(50) })
@@ -86,7 +95,7 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
     // The COUNT over the 3-table UNION is the expensive part and does not change
     // between pages, so cache it per (client, sensor, source, filters) and only
     // run the page-row query on each pagination click.
-    const countKey = `client:events:count:${cs.clientId}:${query.data.sensorId ?? 'all'}:${source}:${rawIp ?? ''}:${textQ ?? ''}`
+    const countKey = `client:events:count:${cs.clientId}:${sensorsToken(scopedSensorIds)}:${query.data.sensorId ?? 'all'}:${source}:${rawIp ?? ''}:${textQ ?? ''}`
 
     // Whether we can push the ORDER BY/LIMIT into each UNION branch. Only safe
     // without per-column filters (they're applied post-UNION on normalized
@@ -190,7 +199,7 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
     const intervalSql = range === 'day' ? '1 day' : range === 'week' ? '7 days' : '30 days'
     const sids        = Prisma.join(scopedSensorIds)
 
-    const cacheKey = `client:timeline:${cs.clientId}:${query.data.sensorId ?? 'all'}:${range}`
+    const cacheKey = `client:timeline:${cs.clientId}:${sensorsToken(scopedSensorIds)}:${query.data.sensorId ?? 'all'}:${range}`
     const result = await withCache(fastify.cache, cacheKey, 120, async () => {
       // Series are dynamic per client: 'ssh' (from events/sessions), one per real
       // protocol_hits.protocol the client actually has (mssql, smb, ftp, mysql, …),
@@ -267,7 +276,7 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
     const sids   = Prisma.join(cs.sensorIds)
 
     const since = threatsCutoff()
-    const cacheKey = `client:threats:${cs.clientId}:${page}:${pageSize}`
+    const cacheKey = `client:threats:${cs.clientId}:${sensorsToken(cs.sensorIds)}:${page}:${pageSize}`
     const result = await withCache(fastify.cache, cacheKey, 60, async () => {
       const [rows, countRows] = await Promise.all([
         fastify.prismaRead.$queryRaw<ThreatRow[]>`
@@ -322,7 +331,7 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
     const sids = Prisma.join(cs.sensorIds)
 
-    const cacheKey = `client:today:${cs.clientId}`
+    const cacheKey = `client:today:${cs.clientId}:${sensorsToken(cs.sensorIds)}`
     const result = await withCache(fastify.cache, cacheKey, 60, async () => {
       const [metricsRows, protoRows] = await Promise.all([
         fastify.prismaRead.$queryRaw<MetricsRow[]>`

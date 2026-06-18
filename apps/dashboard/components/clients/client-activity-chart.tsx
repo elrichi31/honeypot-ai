@@ -39,6 +39,11 @@ function formatBucketLabel(bucket: string, range: Range) {
   if (range === "month") {
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
   }
+  if (range === "week") {
+    // 7d is bucketed hourly; show date + hour so the axis tracks days, not a
+    // 24h clock that silently repeats every day.
+    return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit" })
+  }
   return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
 }
 
