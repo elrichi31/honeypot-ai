@@ -30,13 +30,13 @@ export class IngestService {
     if (eventCreated && raw.eventid === 'cowrie.login.success') {
       sendDiscordAlert({
         level: 'critical',
-        title: '🔓 Login exitoso en el honeypot',
-        description: `Un atacante autenticó correctamente vía **SSH**`,
+        title: '🔓 Successful login on the honeypot',
+        description: `An attacker authenticated successfully via **SSH**`,
         fields: [
-          { name: 'IP',       value: raw.src_ip ?? 'desconocida', inline: true },
-          { name: 'Usuario',  value: (raw as any).username ?? '—', inline: true },
+          { name: 'IP',       value: raw.src_ip ?? 'unknown', inline: true },
+          { name: 'Username', value: (raw as any).username ?? '—', inline: true },
           { name: 'Password', value: (raw as any).password ?? '—', inline: true },
-          { name: 'Sesión',   value: raw.session, inline: false },
+          { name: 'Session',  value: raw.session, inline: false },
         ],
       })
     }

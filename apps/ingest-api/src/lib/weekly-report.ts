@@ -152,17 +152,17 @@ export async function sendPeriodicReport(prisma: PrismaClient): Promise<void> {
 
   const level = total > 5000 ? 'critical' : total > 1000 ? 'high' : 'info'
   const timeLabel = formatTimeInTimezone(now, timezone)
-  const intervalLabel = reportIntervalHours === 1 ? '1 hora' : `${reportIntervalHours} horas`
+  const intervalLabel = reportIntervalHours === 1 ? '1 hour' : `${reportIntervalHours} hours`
 
   await sendDiscordAlert({
     level,
-    title: `📊 Reporte cada ${intervalLabel} — (as of ${timeLabel})`,
-    description: `**${fmt(total)}** eventos capturados en las últimas ${intervalLabel}.`,
+    title: `📊 Report every ${intervalLabel} — (as of ${timeLabel})`,
+    description: `**${fmt(total)}** events captured in the last ${intervalLabel}.`,
     fields: [
-      { name: '🔐 SSH Honeypot', value: sshLines || 'Sin actividad', inline: false },
+      { name: '🔐 SSH Honeypot', value: sshLines || 'No activity', inline: false },
       { name: '💻 Top Commands', value: commandLines, inline: true },
-      { name: '🕸️ Web Honeypot', value: webLines || 'Sin actividad', inline: false },
-      ...(protocolLines ? [{ name: '📡 Otros Protocolos', value: protocolLines, inline: false }] : []),
+      { name: '🕸️ Web Honeypot', value: webLines || 'No activity', inline: false },
+      ...(protocolLines ? [{ name: '📡 Other Protocols', value: protocolLines, inline: false }] : []),
       ...(stats.highRiskSessions > 0
         ? [{ name: '⚠️ High-Risk IPs', value: `${stats.highRiskSessions} IPs with successful login + active commands`, inline: false }]
         : []),

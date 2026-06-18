@@ -132,18 +132,18 @@ export function analyzeRisk(
   }
 
   let score = 0
-  score += add("Login exitoso", factors.loginSuccess ? 35 : 0)
+  score += add("Successful login", factors.loginSuccess ? 35 : 0)
   score += add(
-    `${commands.length} comandos ejecutados`,
+    `${commands.length} commands executed`,
     commands.length >= 30 ? 15 : commands.length >= 10 ? 8 : commands.length >= 3 ? 3 : 0
   )
-  score += add("Descarga de archivos (wget/curl)", factors.hasDownload ? 20 : 0)
-  score += add("Ejecución de binario descargado", factors.hasBinaryExec ? 20 : 0)
-  score += add("Intento de persistencia", factors.hasPersistence ? 30 : 0)
-  score += add("Reconocimiento del sistema", factors.hasRecon ? 10 : 0)
-  score += add("Movimiento lateral", factors.hasLateralMovement ? 15 : 0)
+  score += add("File download (wget/curl)", factors.hasDownload ? 20 : 0)
+  score += add("Downloaded binary execution", factors.hasBinaryExec ? 20 : 0)
+  score += add("Persistence attempt", factors.hasPersistence ? 30 : 0)
+  score += add("System reconnaissance", factors.hasRecon ? 10 : 0)
+  score += add("Lateral movement", factors.hasLateralMovement ? 15 : 0)
   score += add(
-    `${auths.length} intentos de autenticación`,
+    `${auths.length} authentication attempts`,
     auths.length >= 50 ? 10 : auths.length >= 10 ? 5 : 0
   )
 

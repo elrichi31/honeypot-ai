@@ -165,12 +165,12 @@ export async function enrichIp(ip: string): Promise<IpEnrichment> {
       if (wasNewAbuse && data.abuseConfidenceScore >= 80) {
         sendDiscordAlert({
           level: "critical",
-          title: "🚨 IP altamente maliciosa detectada",
-          description: `**${ip}** tiene un score de abuso de **${data.abuseConfidenceScore}%** en AbuseIPDB`,
+          title: "🚨 Highly malicious IP detected",
+          description: `**${ip}** has an abuse score of **${data.abuseConfidenceScore}%** on AbuseIPDB`,
           fields: [
-            { name: "ISP", value: data.isp || "desconocido", inline: true },
-            { name: "Reportes", value: data.totalReports.toLocaleString('en-US'), inline: true },
-            { name: "País", value: data.countryName || data.countryCode || "—", inline: true },
+            { name: "ISP", value: data.isp || "unknown", inline: true },
+            { name: "Reports", value: data.totalReports.toLocaleString('en-US'), inline: true },
+            { name: "Country", value: data.countryName || data.countryCode || "—", inline: true },
           ],
         })
       }

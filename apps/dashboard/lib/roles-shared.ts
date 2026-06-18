@@ -18,10 +18,10 @@ export const ROLE_LABELS: Record<Role, string> = {
 }
 
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
-  superadmin: "Acceso global a todos los clientes (multi-tenant)",
-  admin: "Acceso total incluyendo usuarios y configuración",
-  analyst: "Gestión de infraestructura y análisis de datos",
-  viewer: "Solo lectura del dashboard",
+  superadmin: "Global access to all clients (multi-tenant)",
+  admin: "Full access including users and configuration",
+  analyst: "Infrastructure management and data analysis",
+  viewer: "Read-only dashboard access",
 }
 
 export const ROLE_COLORS: Record<Role, string> = {

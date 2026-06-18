@@ -57,9 +57,9 @@ export const BOTNET_SIGNATURES: BotnetSignature[] = [
     name: "Outlaw / mdrfckr",
     aliases: ["mdrfckr", "Shellbot", "Dota"],
     description:
-      "Botnet de criptominado (Monero) basada en Perl/Shellbot. Borra ~/.ssh, " +
-      "planta su propia clave pública (tag «mdrfckr») para persistencia, hace " +
-      "recon de CPU/RAM y descarga un minero XMRig.",
+      "Perl/Shellbot-based Monero cryptomining botnet. Wipes ~/.ssh, plants " +
+      "its own public key (tag «mdrfckr») for persistence, fingerprints CPU/RAM " +
+      "and downloads an XMRig miner.",
     category: "cryptominer",
     patterns: [
       /mdrfckr/i,
@@ -78,9 +78,8 @@ export const BOTNET_SIGNATURES: BotnetSignature[] = [
     name: "SSH key persistence kit",
     aliases: ["authorized_keys backdoor"],
     description:
-      "Kit genérico que instala una clave SSH del atacante en authorized_keys " +
-      "para mantener acceso aunque cambie la contraseña. Sin atribución a una " +
-      "familia concreta.",
+      "Generic kit that installs an attacker SSH key in authorized_keys to keep " +
+      "access even if the password changes. Not attributed to a specific family.",
     category: "backdoor",
     patterns: [
       /echo\s+.*ssh-(rsa|ed25519)\s+AAAA.*>>?\s*[^\s]*authorized_keys/i,
@@ -93,8 +92,8 @@ export const BOTNET_SIGNATURES: BotnetSignature[] = [
     name: "XMRig cryptominer",
     aliases: ["xmrig", "stratum miner"],
     description:
-      "Despliegue directo de un minero XMRig apuntando a un pool de minería " +
-      "(stratum). Indica monetización por criptominado.",
+      "Direct deployment of an XMRig miner pointing at a (stratum) mining pool. " +
+      "Indicates monetization via cryptomining.",
     category: "cryptominer",
     patterns: [
       /xmrig/i,

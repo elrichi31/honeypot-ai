@@ -129,14 +129,14 @@ export function buildThreatGraph(
   if (repParts.length > 0) {
     leftNodes.push({
       id: "reputation", type: "threatNode", position: { x: 0, y: 0 },
-      data: { kind: "reputation", label: "Reputación", sub: repParts.join(" · ") },
+      data: { kind: "reputation", label: "Reputation", sub: repParts.join(" · ") },
     })
   }
   const leftPos = sector(leftNodes.length, 300, 180, 80)
   leftNodes.forEach((n, i) => {
     n.position = leftPos(i)
     nodes.push(n)
-    addEdge(ipId, n.id, n.id === "infra" ? "alojado en" : "intel externa")
+    addEdge(ipId, n.id, n.id === "infra" ? "hosted on" : "external intel")
   })
 
   // ── Protocols (up sector) ──────────────────────────────────────────────────
@@ -157,7 +157,7 @@ export function buildThreatGraph(
     }
   }
   if (threat.portScans && threat.portScans.events > 0) {
-    protocolEntries.push({ id: "proto-portscan", label: "Port scan", sub: `${threat.portScans.uniquePorts} puertos` })
+    protocolEntries.push({ id: "proto-portscan", label: "Port scan", sub: `${threat.portScans.uniquePorts} ports` })
   }
   const protoPos = sector(protocolEntries.length, 300, 270, 150)
   protocolEntries.forEach((p, i) => {
@@ -174,9 +174,9 @@ export function buildThreatGraph(
   if (creds.size > 0) {
     nodes.push({
       id: "credentials", type: "threatNode", position: { x: 360, y: -320 },
-      data: { kind: "credential", label: "Credenciales", sub: [...creds].slice(0, 4).join(", ") },
+      data: { kind: "credential", label: "Credentials", sub: [...creds].slice(0, 4).join(", ") },
     })
-    addEdge(protocolEntries[0]?.id ?? ipId, "credentials", "probó")
+    addEdge(protocolEntries[0]?.id ?? ipId, "credentials", "tried")
   }
 
   // ── Behavior categories (down sector) ──────────────────────────────────────
@@ -200,7 +200,7 @@ export function buildThreatGraph(
       data: { kind: "family", label: family.name, sub: family.category, category: "malware_drop" },
     })
     const anchor = activeCats[0] ? `behavior-${activeCats[0][0]}` : ipId
-    addEdge(anchor, "family", "atribuido a")
+    addEdge(anchor, "family", "attributed to")
   }
 
   // ── IoCs (right sector, outer ring). Dedup C2 by host:port. ─────────────────
@@ -219,12 +219,12 @@ export function buildThreatGraph(
   iocs.sshKeys.forEach((k, i) =>
     iocNodes.push({
       id: `ioc-key-${i}`, label: k.comment ? `key · ${k.comment}` : k.algorithm,
-      sub: "clave SSH plantada", copyable: k.raw,
+      sub: "planted SSH key", copyable: k.raw,
     }),
   )
   iocs.malwareHashes.forEach((h, i) =>
     iocNodes.push({
-      id: `ioc-hash-${i}`, label: `${h.slice(0, 12)}…`, sub: "hash SHA-256",
+      id: `ioc-hash-${i}`, label: `${h.slice(0, 12)}…`, sub: "SHA-256 hash",
       copyable: h, href: `https://www.virustotal.com/gui/file/${h}`,
     }),
   )

@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const userId = typeof body?.userId === "string" ? body.userId : ""
   if (!userId) {
-    return NextResponse.json({ error: "userId requerido" }, { status: 400 })
+    return NextResponse.json({ error: "userId is required" }, { status: 400 })
   }
 
   const user = await db.query<{ email: string }>(
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     [userId],
   )
   if (!user.rows[0]) {
-    return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 })
+    return NextResponse.json({ error: "User not found" }, { status: 404 })
   }
 
   const { rowCount } = await db.query(

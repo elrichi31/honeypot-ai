@@ -13,7 +13,7 @@ export async function DELETE(
   const { id } = await params
 
   if (id === auth_check.userId) {
-    return NextResponse.json({ error: "No puedes eliminar tu propia cuenta" }, { status: 400 })
+    return NextResponse.json({ error: "You cannot delete your own account" }, { status: 400 })
   }
 
   const existing = await db.query<{ id: string; email: string; name: string }>(
@@ -22,7 +22,7 @@ export async function DELETE(
   )
 
   if (!existing.rows[0]) {
-    return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 })
+    return NextResponse.json({ error: "User not found" }, { status: 404 })
   }
 
   const target = existing.rows[0]
@@ -55,16 +55,16 @@ export async function PATCH(
   const hasClientId = body && Object.prototype.hasOwnProperty.call(body, "clientId")
 
   if (!body?.name && !body?.role && !hasClientId) {
-    return NextResponse.json({ error: "Se requiere name, role o clientId" }, { status: 400 })
+    return NextResponse.json({ error: "name, role or clientId is required" }, { status: 400 })
   }
 
   if (body?.role && !["superadmin", "admin", "analyst", "viewer"].includes(body.role)) {
-    return NextResponse.json({ error: "Rol inválido" }, { status: 400 })
+    return NextResponse.json({ error: "Invalid role" }, { status: 400 })
   }
 
   // Prevent removing admin-level access from own account
   if (body?.role && id === auth_check.userId && !["admin", "superadmin"].includes(body.role)) {
-    return NextResponse.json({ error: "No puedes quitarte el rol de admin a ti mismo" }, { status: 400 })
+    return NextResponse.json({ error: "You cannot remove your own admin role" }, { status: 400 })
   }
 
   const current = await db.query<{ id: string; name: string; email: string; role: string; clientId: string | null }>(
@@ -73,7 +73,7 @@ export async function PATCH(
   )
 
   if (!current.rows[0]) {
-    return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 })
+    return NextResponse.json({ error: "User not found" }, { status: 404 })
   }
 
   const target = current.rows[0]

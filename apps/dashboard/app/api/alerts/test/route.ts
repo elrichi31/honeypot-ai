@@ -8,11 +8,11 @@ export async function POST() {
 
   await sendDiscordAlert({
     level: "info",
-    title: "🧪 Mensaje de prueba — Honeypot AI",
-    description: "Las alertas de Discord están correctamente configuradas.",
+    title: "🧪 Test message — Honeypot AI",
+    description: "Discord alerts are correctly configured.",
     fields: [
-      { name: "Login SSH exitoso", value: "🔓 Alerta inmediata", inline: true },
-      { name: "IP abuse score ≥ 80%", value: "🚨 Al consultar enrichment", inline: true },
+      { name: "Successful SSH login", value: "🔓 Immediate alert", inline: true },
+      { name: "IP abuse score ≥ 80%", value: "🚨 On enrichment lookup", inline: true },
     ],
   })
   return NextResponse.json({ ok: true })

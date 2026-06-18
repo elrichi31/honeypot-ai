@@ -144,18 +144,18 @@ function CreateUserDialog({
               (global by definition). */}
           {role !== "superadmin" && (
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Tenant (cliente)</label>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Tenant (client)</label>
               <select
                 value={clientId}
                 onChange={(e) => setClientId(e.target.value)}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
               >
-                <option value="">{canSuperadmin ? "Sin asignar (sin acceso a datos)" : "Selecciona un tenant"}</option>
+                <option value="">{canSuperadmin ? "Unassigned (no data access)" : "Select a tenant"}</option>
                 {clients.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
-              <p className="mt-1 text-[10px] text-muted-foreground">El usuario solo verá los datos de este cliente.</p>
+              <p className="mt-1 text-[10px] text-muted-foreground">The user will only see data for this client.</p>
             </div>
           )}
 

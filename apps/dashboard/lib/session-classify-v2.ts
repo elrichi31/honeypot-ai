@@ -44,12 +44,12 @@ export function classify(session: SessionItem): Classification {
 
   // ── Threat-tag labels take priority over generic heuristics ──────────────
   const TAG_CLASSIFICATIONS: Array<{ tag: string; result: Classification }> = [
-    { tag: 'ssh_backdoor',      result: { label: "SSH Backdoor",     icon: KeyRound, color: "text-red-500",     bg: "bg-red-500/15",     summary: `Intentó plantar llave SSH persistente con chattr +ai` } },
-    { tag: 'honeypot_evasion',  result: { label: "Honeypot Evasion", icon: Ghost,    color: "text-purple-400",  bg: "bg-purple-400/15",  summary: `Detectó sandbox/honeypot · buscó datos Telegram/SIM` } },
-    { tag: 'container_escape',  result: { label: "Container Escape", icon: Container, color: "text-orange-500", bg: "bg-orange-500/15",  summary: `Intentó detectar y escapar del entorno de contenedor` } },
-    { tag: 'crypto_mining',     result: { label: "Crypto Miner",     icon: Cpu,      color: "text-yellow-400",  bg: "bg-yellow-400/15",  summary: `Desplegó minero de criptomonedas` } },
-    { tag: 'data_exfil',        result: { label: "Data Exfil",       icon: Database, color: "text-red-400",     bg: "bg-red-400/15",     summary: `Intentó exfiltrar datos del sistema` } },
-    { tag: 'solana_targeting',  result: { label: "Targeted Crypto",  icon: Coins,    color: "text-emerald-400", bg: "bg-emerald-400/15", summary: `Buscó infraestructura Solana (validator, Jito, Firedancer)` } },
+    { tag: 'ssh_backdoor',      result: { label: "SSH Backdoor",     icon: KeyRound, color: "text-red-500",     bg: "bg-red-500/15",     summary: `Tried to plant a persistent SSH key with chattr +ai` } },
+    { tag: 'honeypot_evasion',  result: { label: "Honeypot Evasion", icon: Ghost,    color: "text-purple-400",  bg: "bg-purple-400/15",  summary: `Detected sandbox/honeypot · probed for Telegram/SIM data` } },
+    { tag: 'container_escape',  result: { label: "Container Escape", icon: Container, color: "text-orange-500", bg: "bg-orange-500/15",  summary: `Tried to detect and escape the container environment` } },
+    { tag: 'crypto_mining',     result: { label: "Crypto Miner",     icon: Cpu,      color: "text-yellow-400",  bg: "bg-yellow-400/15",  summary: `Deployed a cryptocurrency miner` } },
+    { tag: 'data_exfil',        result: { label: "Data Exfil",       icon: Database, color: "text-red-400",     bg: "bg-red-400/15",     summary: `Tried to exfiltrate system data` } },
+    { tag: 'solana_targeting',  result: { label: "Targeted Crypto",  icon: Coins,    color: "text-emerald-400", bg: "bg-emerald-400/15", summary: `Probed for Solana infrastructure (validator, Jito, Firedancer)` } },
   ]
 
   if (loggedIn) {
@@ -64,7 +64,7 @@ export function classify(session: SessionItem): Classification {
         icon: Crosshair,
         color: "text-slate-400",
         bg: "bg-slate-400/10",
-        summary: "Abri\u00f3 y cerr\u00f3 r\u00e1pido sin probar credenciales",
+        summary: "Opened and closed quickly without trying credentials",
       }
     }
 
@@ -74,7 +74,7 @@ export function classify(session: SessionItem): Classification {
         icon: Cpu,
         color: "text-orange-400",
         bg: "bg-orange-400/15",
-        summary: `${authAttempts} intentos en r\u00e1faga · acceso denegado`,
+        summary: `${authAttempts} burst attempts · access denied`,
       }
     }
 
@@ -84,7 +84,7 @@ export function classify(session: SessionItem): Classification {
         icon: Cpu,
         color: "text-yellow-400",
         bg: "bg-yellow-400/15",
-        summary: `${authAttempts} credenciales durante ${Math.round(duration / 60)} min`,
+        summary: `${authAttempts} credentials over ${Math.round(duration / 60)} min`,
       }
     }
 
@@ -94,7 +94,7 @@ export function classify(session: SessionItem): Classification {
         icon: Cpu,
         color: "text-amber-400",
         bg: "bg-amber-400/15",
-        summary: `${authAttempts} credenciales probadas · automatizado`,
+        summary: `${authAttempts} credentials tried · automated`,
       }
     }
 
@@ -103,7 +103,7 @@ export function classify(session: SessionItem): Classification {
       icon: Crosshair,
       color: "text-muted-foreground",
       bg: "bg-secondary",
-      summary: "Reconocimiento breve · sin autenticaci\u00f3n exitosa",
+      summary: "Brief recon · no successful authentication",
     }
   }
 
@@ -117,7 +117,7 @@ export function classify(session: SessionItem): Classification {
       icon: Download,
       color: "text-destructive",
       bg: "bg-destructive/15",
-      summary: `Acceso exitoso · ${commandCount} comandos · actividad extensa`,
+      summary: `Successful access · ${commandCount} commands · extensive activity`,
     }
   }
 
@@ -127,7 +127,7 @@ export function classify(session: SessionItem): Classification {
       icon: Eye,
       color: "text-red-400",
       bg: "bg-red-400/15",
-      summary: `Acceso exitoso · ${commandCount} comandos ejecutados`,
+      summary: `Successful access · ${commandCount} commands executed`,
     }
   }
 
@@ -137,7 +137,7 @@ export function classify(session: SessionItem): Classification {
       icon: Eye,
       color: "text-blue-400",
       bg: "bg-blue-400/15",
-      summary: "Acceso exitoso · reconocimiento básico",
+      summary: "Successful access · basic reconnaissance",
     }
   }
 
@@ -147,7 +147,7 @@ export function classify(session: SessionItem): Classification {
       icon: Cpu,
       color: "text-slate-400",
       bg: "bg-slate-400/10",
-      summary: `Script automatizado · ${commandCount} cmd en ${duration}s`,
+      summary: `Automated script · ${commandCount} cmd in ${duration}s`,
     }
   }
 
@@ -156,7 +156,7 @@ export function classify(session: SessionItem): Classification {
     icon: Shield,
     color: "text-green-400",
     bg: "bg-green-400/15",
-    summary: "Acceso exitoso · sin actividad post-login",
+    summary: "Successful access · no post-login activity",
   }
 }
 

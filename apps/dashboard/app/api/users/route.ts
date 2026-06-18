@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null)
   if (!body?.email || !body?.password || !body?.name) {
-    return NextResponse.json({ error: "name, email y password son requeridos" }, { status: 400 })
+    return NextResponse.json({ error: "name, email and password are required" }, { status: 400 })
   }
 
   const { name, email, password } = body as { name: string; email: string; password: string }
@@ -36,14 +36,14 @@ export async function POST(req: NextRequest) {
   const clientId = typeof body.clientId === "string" && body.clientId ? body.clientId : null
 
   if (password.length < 8) {
-    return NextResponse.json({ error: "La contraseña debe tener al menos 8 caracteres" }, { status: 400 })
+    return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 })
   }
 
   try {
     const created = await auth.api.signUpEmail({ body: { name, email, password } })
 
     if (!created?.user) {
-      return NextResponse.json({ error: "No se pudo crear el usuario" }, { status: 500 })
+      return NextResponse.json({ error: "Could not create user" }, { status: 500 })
     }
 
     // Set the requested role (default analyst) and tenant scope.
@@ -65,9 +65,9 @@ export async function POST(req: NextRequest) {
       role,
     }, { status: 201 })
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Error al crear usuario"
+    const message = err instanceof Error ? err.message : "Error creating user"
     if (message.toLowerCase().includes("already") || message.toLowerCase().includes("duplicate") || message.toLowerCase().includes("exist")) {
-      return NextResponse.json({ error: "Ya existe un usuario con ese email" }, { status: 409 })
+      return NextResponse.json({ error: "A user with that email already exists" }, { status: 409 })
     }
     return NextResponse.json({ error: message }, { status: 500 })
   }

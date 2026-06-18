@@ -22,7 +22,7 @@ export async function DELETE(
     [id],
   )
   if (!existing.rows[0]) {
-    return NextResponse.json({ error: "Sesión no encontrada" }, { status: 404 })
+    return NextResponse.json({ error: "Session not found" }, { status: 404 })
   }
 
   await db.query(`DELETE FROM "session" WHERE id = $1`, [id])
