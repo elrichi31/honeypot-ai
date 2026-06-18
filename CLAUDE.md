@@ -14,6 +14,12 @@ Guidance for Claude Code (and contributors) when working in this repo.
 When you add a new plan or note, drop the file in the right folder **and** add a
 one-line entry to that folder's `README.md` index.
 
+**Keep plans up to date as work progresses.** Every time we ship something that
+belongs to a plan in `docs/plans/`, update that plan in the same change to record
+what was done and what's left — date the entry and link the commit. A plan should
+always reflect the current state, never a stale snapshot. This is the single
+source of truth for "where did we leave off".
+
 ## Conventions
 
 - **UI language: English first.** All user-facing strings in the dashboard are
