@@ -24,6 +24,8 @@ graph LR
         I4[POST /ingest/web/event]
         I5[POST /ingest/web/vector]
         I6[POST /ingest/protocol/event]
+        I7[POST /ingest/suricata/alert]
+        I8[POST /ingest/deception/portscan]
     end
     subgraph Sensores
         S1[POST /sensors/heartbeat]
@@ -41,6 +43,16 @@ graph LR
         Q3[GET /web-hits]
         Q4[GET /stats/*]
         Q5[GET /attacks/today]
+        Q6[GET /suricata/*]
+        Q7[GET /malware/artifacts]
+        Q8[GET /deception/*]
+        Q9[GET /alerts]
+    end
+    subgraph Operación
+        O1[GET /monitoring/*]
+        O2[GET /storage/*]
+        O3[GET /api-defense/*]
+        O4[GET /events/live SSE]
     end
     subgraph Administración
         A1[GET /api/users]
@@ -205,6 +217,63 @@ Ingesta un evento de protocolo de red (FTP, MySQL, SMB, port scan, etc.). Usado 
   "data": {}
 }
 ```
+
+---
+
+## Ingesta Suricata (IDS)
+
+### `POST /ingest/suricata/alert`
+
+Ingesta alertas de Suricata en formato EVE JSON. Acepta un objeto único o un array (batch). Las alertas internas de ruido (`SURICATA STREAM`, `SURICATA FLOW`) se descartan y las IPs propias (`SURICATA_OWN_IPS`) se filtran.
+
+**Headers:** `X-Ingest-Token: <secret>`
+
+**Body:**
+```json
+{
+  "sensorId": "suricata-edge-01",
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "src_ip": "1.2.3.4",
+  "src_port": 54321,
+  "dest_ip": "10.0.0.5",
+  "dest_port": 22,
+  "proto": "TCP",
+  "alert": {
+    "signature_id": 2001978,
+    "signature": "ET SCAN Potential SSH Scan",
+    "category": "Attempted Information Leak",
+    "severity": 2,
+    "action": "allowed"
+  }
+}
+```
+
+Ver [Suricata (IDS)](/intelligence/suricata/).
+
+---
+
+## Ingesta red de engaño
+
+### `POST /ingest/deception/portscan`
+
+Ingesta un evento de port scan detectado por un nodo OpenCanary de la red interna de engaño.
+
+**Headers:** `X-Ingest-Token: <secret>`
+
+**Body:**
+```json
+{
+  "id": "ps_abc123",
+  "sensorId": "fake-db",
+  "srcIp": "10.0.1.100",
+  "dstPorts": [22, 3306, 445],
+  "nodeId": "fake-db",
+  "scanType": "tcp",
+  "timestamp": "2024-01-15T10:30:00.000Z"
+}
+```
+
+Los nodos de engaño también reportan interacciones completas vía `POST /ingest/protocol/event` con `data.source = "opencanary"`. Ver [Red de engaño](/intelligence/deception/).
 
 ---
 
@@ -458,6 +527,8 @@ Hits agrupados por IP atacante con totales y tipos de ataque. Soporta paginacion
 
 Todas las IPs con risk score, ordenadas por score DESC.
 
+**Query params:** `q` (busca por IP), `levels` (CSV: `CRITICAL,HIGH,...`), `commands` (filtra por categoría de comando), `crossProtocol` (boolean), `clientSlug` / `sensorId` (scope multi-tenant), `page`, `limit`.
+
 **Respuesta:**
 ```json
 [
@@ -541,6 +612,193 @@ Total de ataques (sesiones SSH + web hits + protocol hits) en las ultimas 24 hor
   "protocol": 24,
   "from": "2024-01-14T10:30:00.000Z",
   "to": "2024-01-15T10:30:00.000Z"
+}
+```
+
+---
+
+## Alertas
+
+### `GET /alerts`
+
+Alertas recientes generadas por el motor de amenazas (IP que cruza umbral CRITICAL/HIGH, breach de un nodo de engaño, sensor offline, etc.). Incluye el conteo de no leídas.
+
+**Query params:** `limit` (default 50, máx 200), `unreadOnly` (boolean), `clientId` (scope multi-tenant).
+
+**Respuesta:**
+```json
+{
+  "alerts": [
+    {
+      "id": "al_123",
+      "alertKey": "threat:1.2.3.4",
+      "level": "critical",
+      "title": "IP crítica detectada",
+      "description": "...",
+      "fields": {},
+      "srcIp": "1.2.3.4",
+      "sensorId": "cowrie-ssh-prod-01",
+      "clientId": "cl_123",
+      "clientName": "Cliente A",
+      "readAt": null,
+      "createdAt": "2024-01-15T10:30:00.000Z"
+    }
+  ],
+  "unreadCount": 3
+}
+```
+
+### `POST /alerts/:id/read`
+Marca una alerta como leída.
+
+### `POST /alerts/read-all`
+Marca como leídas todas las alertas no leídas (scopeado al `clientId` si se pasa).
+
+### `DELETE /alerts/:id`
+Borra una alerta. Un id no cruza tenants.
+
+### `DELETE /alerts`
+Borra todas las alertas (scopeado al `clientId` si se pasa).
+
+Ver [Alertas de Discord](/services/discord-alerts/) y [Multi-tenant](/services/multi-tenant/).
+
+---
+
+## Suricata (IDS)
+
+### `GET /suricata/alerts`
+
+Alertas IDS paginadas.
+
+**Query params:** `page`, `pageSize`, `severity`, `srcIp`, `q` (firma/categoría), `hideNoise` (boolean), `excludeOwnIps` (boolean).
+
+### `GET /suricata/stats`
+
+Estadísticas agregadas por rango: totales, conteo por severidad, top firmas, top IPs y timeline.
+
+**Query params:** `range` (`24h` | `7d` | `30d`).
+
+Ver [Suricata (IDS)](/intelligence/suricata/).
+
+---
+
+## Malware / captura de archivos
+
+### `GET /malware/artifacts`
+
+Lista paginada de archivos capturados (binarios de Dionaea, descargas de Cowrie, uploads de FTP).
+
+**Query params:** `page`, `pageSize`, `q` (hash o tipo de archivo), `sortBy` (`capturedAt` | `size` | `fileType`).
+
+### `GET /malware/artifacts/:md5/download`
+Descarga el binario capturado.
+
+### `GET /malware/artifacts/:md5/lookup`
+Consulta el hash en la API de MalwareBazaar.
+
+Ver [Malware y captura de archivos](/intelligence/malware/).
+
+---
+
+## Red de engaño
+
+### `GET /deception/overview`
+Resumen: nodos totales y online, hits 24h/7d, intentos de auth 24h, IPs internas únicas, último evento.
+
+### `GET /deception/nodes`
+Array de nodos trampa: `sensorId`, `name`, `ip`, `ports`, `online`, `lastSeen`, `hits`, `authAttempts`.
+
+### `GET /deception/killchain`
+Cadenas de ataque correlacionadas (por sesión Cowrie o por IP interna + ventana): IP pública, nodos tocados, duración, pasos.
+
+### `GET /deception/events`
+Eventos de interacción con nodos, paginados. **Query params:** `page`, `limit`, `nodeId`.
+
+### `GET /deception/portscans`
+Port scans internos paginados. **Query params:** `page`, `limit`, `nodeId`.
+
+<Aside type="note">
+Cada endpoint tiene su variante scopeada por cliente en `GET /clients/:clientSlug/deception/*`.
+</Aside>
+
+Ver [Red de engaño](/intelligence/deception/).
+
+---
+
+## Monitoreo
+
+### `GET /monitoring/system`
+Snapshot actual: CPU load (1m/5m/15m), RAM (usada/total/%), uptime e info de Redis (versión, hits/misses, hit rate, ops/seg, clientes conectados).
+
+### `GET /monitoring/history`
+Timeline histórico de CPU y RAM. **Query params:** `range` (`24h` | `7d` | `30d`).
+
+### `GET /monitoring/containers/stats`
+Snapshot de CPU/RAM por contenedor.
+
+### `GET /monitoring/containers/history`
+Timeline de los 6 contenedores más pesados. **Query params:** `range`.
+
+Ver [Monitoreo](/operations/monitoring/).
+
+---
+
+## Almacenamiento y retención
+
+### `GET /storage/stats`
+Uso de disco (total/libre/usado), tamaño de la BD y desglose por tabla.
+
+### `GET /storage/ingestion`
+Timeline de bytes ingeridos por fuente (ssh/web/protocol/defense). **Query params:** `range`.
+
+### `GET /storage/retention`
+Política de retención por tabla: días, habilitado, antigüedad del registro más viejo, filas pendientes de purgar, última y próxima ejecución.
+
+### `PUT /storage/retention/:id`
+Actualiza `retentionDays` o `enabled` de una tabla.
+
+**Headers:** `X-Ingest-Token: <secret>`
+
+Ver [Almacenamiento y retención](/operations/storage/).
+
+---
+
+## Defensa de la API
+
+### `GET /api-defense/events`
+Eventos de ataque contra la propia ingest-api, paginados. **Query params:** `page`, `pageSize`, `attackType`, `ip`.
+
+### `GET /api-defense/summary`
+Stats de hoy: conteo por tipo (`scanner`, `path_probe`, `injection`, `brute_force`), top IPs, total.
+
+### `GET /api-defense/allowlist` · `POST` · `DELETE /:id`
+Gestiona la allowlist de IPs/CIDR confiables.
+
+### `GET /api-defense/blocked` · `POST` · `DELETE /:id`
+Gestiona las IPs bloqueadas (manuales o automáticas).
+
+**Headers (POST/DELETE):** `X-Ingest-Token: <secret>`
+
+Ver [Defensa de la API](/operations/api-defense/).
+
+---
+
+## Ataques en vivo (SSE)
+
+### `GET /events/live`
+
+Stream **Server-Sent Events** (`text/event-stream`) que emite cada ataque conforme se ingiere. Lo consume el mapa de ataques en vivo del dashboard. Envía un heartbeat periódico para mantener la conexión.
+
+**Formato de cada evento:**
+```json
+{
+  "type": "ssh",
+  "ip": "1.2.3.4",
+  "country": "US",
+  "lat": 40.71,
+  "lon": -74.0,
+  "dstPort": 22,
+  "timestamp": "2024-01-15T10:30:00.000Z"
 }
 ```
 

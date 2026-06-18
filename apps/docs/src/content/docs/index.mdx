@@ -23,10 +23,16 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
   <Card title="Web Honeypot" icon="seti:html">
     Flask simula rutas vulnerables (WordPress, `.env`, paneles admin). Detecta SQLi, LFI, CMDi y mas.
   </Card>
-  <Card title="Ingest API" icon="seti:db">
-    Fastify + Prisma recibe, normaliza y persiste cada evento en PostgreSQL con shared secret para autorizacion.
+  <Card title="Multi-protocolo" icon="seti:db">
+    FTP, MySQL, SMB y Dionaea capturan ataques a otros servicios — con captura de uploads de malware.
   </Card>
-  <Card title="Dashboard" icon="laptop">
-    Next.js 15 con overview, sesiones, web attacks, threat intelligence y risk scoring por IP (0–100).
+  <Card title="Red de engaño" icon="puzzle">
+    Nodos trampa OpenCanary internos detectan el movimiento lateral y reconstruyen la kill-chain del atacante.
+  </Card>
+  <Card title="Threat Intelligence" icon="laptop">
+    Risk scoring por IP (0–100), correlación cross-protocol, IDS Suricata e IoCs exportables.
+  </Card>
+  <Card title="Dashboard multi-tenant" icon="laptop">
+    Next.js 16 con overview, sesiones, web attacks, monitoreo y aislamiento de datos por cliente.
   </Card>
 </CardGrid>

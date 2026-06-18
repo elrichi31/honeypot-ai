@@ -24,6 +24,11 @@ graph TD
     WEB --> WEB_IP[/web-attacks/:ip\nDetalle por IP]
     ROOT --> THREATS[/threats\nRisk scoring por IP]
     THREATS --> THREATS_IP[/threats/:ip\nPerfil de amenaza]
+    ROOT --> IOCS[/iocs\nIoCs exportables]
+    ROOT --> SURICATA[/suricata\nAlertas IDS]
+    ROOT --> MALWARE[/malware\nArchivos capturados]
+    ROOT --> DECEPTION[/deception\nRed de engaño]
+    ROOT --> NETWORK[/network\nTopología de red]
     ROOT --> SERVICES[/services\nProtocol hits]
     SERVICES --> SVC_FTP[/services/ftp]
     SERVICES --> SVC_SQL[/services/mysql]
@@ -34,10 +39,14 @@ graph TD
     ROOT --> CREDS[/credentials]
     ROOT --> CMDS[/commands]
     ROOT --> CAMP[/campaigns]
+    ROOT --> MON[/monitoring\nCPU/RAM/Redis]
+    ROOT --> STOR[/storage\nDisco + retención]
+    ROOT --> DEF[/api-defense\nBloqueo de IPs]
     ROOT --> SETTINGS[/settings\nConfiguracion]
     ROOT --> SETUP[/setup\nWizard inicial]
     ROOT --> USERS[/users\nGestion de usuarios]
     ROOT --> AUDIT[/audit\nAudit log]
+    ROOT --> ALERTS[/alerts\nAlertas]
 ```
 
 ---
@@ -100,6 +109,36 @@ Correlacion cross-protocol y risk scoring:
 - filtros por nivel de riesgo
 - columnas de score, protocolos vistos, primera y ultima actividad, pais
 
+Ver [Threat Intelligence](/intelligence/threat-intelligence/) para el detalle del scoring.
+
+### IoCs (`/iocs`)
+
+Indicadores de compromiso exportables (IPs maliciosas con score ≥ MEDIUM y hashes de archivos capturados) en CSV/JSON para alimentar otros sistemas. Ver [IoCs](/intelligence/iocs/).
+
+### Suricata (`/suricata`)
+
+Alertas del IDS Suricata con estadísticas por rango (24h/7d/30d), top firmas, top IPs y timeline. Ver [Suricata (IDS)](/intelligence/suricata/).
+
+### Malware (`/malware`)
+
+Catálogo de archivos capturados (binarios de Dionaea, descargas de Cowrie, uploads de FTP) con tipo de archivo, hash, descarga y lookup en MalwareBazaar. Ver [Malware y captura de archivos](/intelligence/malware/).
+
+### Red de engaño (`/deception`)
+
+Vista de la red trampa interna: nodos OpenCanary, su estado, y la **kill-chain** que correlaciona el movimiento lateral de cada atacante entre nodos. Ver [Red de engaño](/intelligence/deception/).
+
+### Monitoreo (`/monitoring`)
+
+Salud del servidor en tiempo (casi) real: CPU, RAM, caché Redis y métricas por contenedor. Se actualiza cada 60s. Ver [Monitoreo](/operations/monitoring/).
+
+### Almacenamiento (`/storage`)
+
+Uso de disco, tamaño de la BD por tabla, ingesta proyectada y la política de retención editable por tabla. Ver [Almacenamiento y retención](/operations/storage/).
+
+### Defensa de la API (`/api-defense`)
+
+Visibilidad y bloqueo de los ataques contra la propia ingest-api (scanners, inyecciones, fuerza bruta), con allowlist y blocklist. Ver [Defensa de la API](/operations/api-defense/).
+
 ### Protocol Hits (`/services`)
 
 Actividad de protocolos de red capturados por FTP, MySQL, port-honeypot y Dionaea.
@@ -146,6 +185,10 @@ Flujo sugerido:
 2. entras al cliente
 3. asignas sensores
 4. si quieres, activas forwarding
+
+### Selector de tenant (solo superadmin)
+
+El sidebar incluye un **selector de tenant** visible únicamente para usuarios con rol `superadmin`. Permite ver datos de forma global (todos los clientes) o "entrar" a un cliente concreto. El alcance se persiste en una cookie y todas las vistas que lo respetan filtran sus datos por los sensores de ese cliente. Un usuario que no es superadmin queda siempre atado a su propio cliente. Ver [Multi-tenant](/services/multi-tenant/).
 
 ### Configuracion (`/settings`)
 

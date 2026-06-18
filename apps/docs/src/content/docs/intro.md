@@ -35,13 +35,22 @@ El objetivo es observar comportamiento real de atacantes: que credenciales prueb
 ## Funcionalidades principales
 
 - **Dashboard en tiempo real** — sesiones, comandos, credenciales, campanas, web attacks, amenazas
+- **Mapa de ataques en vivo** — stream SSE que pinta cada ataque en el mapa conforme sucede
 - **Sensor health monitoring** — estado online/offline de todos los sensores con heartbeat cada 30s
-- **Multi-sensor** — Cowrie, web-honeypot, Galah, Dionaea, ftp/mysql/port-honeypot en paralelo
+- **Multi-sensor** — Cowrie, web-honeypot, Galah, Dionaea, ftp/mysql/port-honeypot, Suricata y OpenCanary en paralelo
 - **Clasificacion de sesiones** — Bot, Bot Script, Scanner, Brute-Force, Interactive, Recon, Malware Dropper
 - **Risk scoring por IP** — score 0-100 basado en comandos, protocolos y comportamiento cross-protocol
+- **Detección de intrusiones (IDS)** — alertas Suricata con reglas ET Open, severidades y top firmas
+- **Red de engaño** — nodos trampa internos que reconstruyen la kill-chain del movimiento lateral
+- **Captura de malware** — binarios de Dionaea, descargas de Cowrie y uploads de FTP, con lookup en MalwareBazaar
+- **IoCs exportables** — IPs maliciosas y hashes en CSV/JSON
 - **IP Enrichment** — AbuseIPDB e ipinfo.io (ASN, geolocalizacion, privacy flags)
 - **AI threat analysis** — resumen de sesiones con OpenAI, TTPs y nivel de peligro
 - **Alertas Discord** — notificacion instantanea con breakdown de riesgo y cooldown por IP
+- **Multi-tenant** — aislamiento de datos por cliente; el superadmin ve global o por tenant
+- **Monitoreo del servidor** — CPU, RAM, Redis y contenedores
+- **Almacenamiento y retención** — tamaño de la BD por tabla y purga automática configurable
+- **Defensa de la API** — bloqueo de scanners/inyecciones/fuerza bruta contra la propia ingest-api
 - **Attack heatmap** — mapa de calor 7x24 de cuando atacan mas
 - **Gestion de usuarios** — crear y eliminar cuentas de acceso al dashboard con contrasenas hasheadas
 - **Audit log** — registro completo de quien creo, modifico o elimino que recurso y cuando

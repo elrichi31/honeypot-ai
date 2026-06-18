@@ -10,11 +10,13 @@ graph TD
     subgraph Sensores
         C[Cowrie\nSSH/Telnet :22]
         W[Web Honeypot\nHTTP :80]
-        G[Galah\nHTTP+AI :8080]
+        G[Galah\nHTTP+IA :8080]
         D[Dionaea\nFTP/SMB/MySQL/MSSQL\nRPC/TFTP/MQTT/PPTP]
-        FTP[FTP Honeypot :21]
+        FTP[FTP Honeypot :21\nfull-interaction + uploads]
         SQL[MySQL Honeypot :3306]
         PORT[Port Honeypot]
+        OC[OpenCanary\nred de engaño 10.0.1.0/24]
+        SUR[Suricata\nIDS / EVE JSON]
     end
 
     subgraph Shippers
@@ -38,6 +40,8 @@ graph TD
     FTP -->|POST /ingest/protocol/event| API
     SQL -->|POST /ingest/protocol/event| API
     PORT -->|POST /ingest/protocol/event| API
+    OC -->|POST /ingest/deception/portscan\n+ /ingest/protocol/event| API
+    SUR -->|POST /ingest/suricata/alert| API
     VC -->|POST /ingest/cowrie/vector| API
     VG -->|POST /ingest/web/vector| API
     DS -->|POST /ingest/protocol/event| API
@@ -45,7 +49,12 @@ graph TD
     API --> DB
     DB --> DASH
     API -->|alertas de amenazas| DISC
+    API -->|stream SSE /events/live| DASH
 ```
+
+La plataforma es **multi-tenant**: cada sensor pertenece a un cliente y el
+aislamiento de datos se aplica en el servidor por `sensor_id`. Ver
+[Multi-tenant](/services/multi-tenant/).
 
 ---
 
@@ -247,6 +256,48 @@ sequenceDiagram
     DASH->>I: GET /sensors
     I->>DASH: [{id, name, protocol, online, lastSeen, eventCount}]
 ```
+
+### Pipeline Suricata (IDS → ingest-api)
+
+```mermaid
+sequenceDiagram
+    participant A as Atacante
+    participant S as Suricata (IDS)
+    participant SH as Shipper EVE
+    participant I as ingest-api
+    participant D as PostgreSQL
+
+    A->>S: Trafico de red
+    S->>S: Match contra reglas ET Open
+    S-->>S: Escribe alerta en eve.json
+    SH->>S: tail eve.json
+    SH->>I: POST /ingest/suricata/alert\n(batch, X-Ingest-Token)
+    I->>I: Descarta ruido (SURICATA STREAM/FLOW)\ny filtra IPs propias
+    I->>D: INSERT suricata_alerts
+```
+
+Ver [Suricata (IDS)](/intelligence/suricata/).
+
+### Pipeline red de engaño (OpenCanary → ingest-api)
+
+```mermaid
+sequenceDiagram
+    participant A as Atacante
+    participant C as Cowrie (SSH)
+    participant N as Nodo OpenCanary\n(fake-db, fake-cache...)
+    participant I as ingest-api
+    participant D as PostgreSQL
+
+    A->>C: Login SSH exitoso
+    A->>A: Lee /etc/hosts con IPs internas 10.0.1.x
+    A->>N: Intenta moverse lateralmente (SSH/MySQL/SMB)
+    N->>I: POST /ingest/protocol/event\n(data.source = opencanary)
+    N->>I: POST /ingest/deception/portscan
+    I->>D: INSERT protocol_hits + deception_portscans
+    Note over I,D: La kill-chain correlaciona por session_id\no por IP interna + ventana temporal
+```
+
+Ver [Red de engaño](/intelligence/deception/).
 
 ### Multi-cliente y forwarding
 
