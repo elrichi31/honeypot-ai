@@ -18,6 +18,12 @@ export const PROTOCOL_CHIP_CLASS: Record<string, string> = {
   ftp: "text-yellow-400 border-yellow-500/40 bg-yellow-500/10",
   mysql: "text-purple-400 border-purple-500/40 bg-purple-500/10",
   "port-scan": "text-sky-400 border-sky-500/40 bg-sky-500/10",
+  smb: "text-orange-400 border-orange-500/40 bg-orange-500/10",
+  mssql: "text-pink-400 border-pink-500/40 bg-pink-500/10",
+  rpc: "text-indigo-400 border-indigo-500/40 bg-indigo-500/10",
+  tftp: "text-lime-400 border-lime-500/40 bg-lime-500/10",
+  mqtt: "text-teal-400 border-teal-500/40 bg-teal-500/10",
+  dionaea: "text-red-400 border-red-500/40 bg-red-500/10",
 }
 
 export const PROTOCOL_DOT_CLASS: Record<string, string> = {

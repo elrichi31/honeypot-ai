@@ -2,7 +2,7 @@
 
 import { Globe, Map as MapIcon, Maximize2, Minimize2 } from "lucide-react"
 import type React from "react"
-import { PROTOCOL_CHIP_CLASS, getProtocolChipClass } from "@/lib/protocol-colors"
+import { getProtocolChipClass } from "@/lib/protocol-colors"
 import type { ViewMode } from "@/components/live-attack-map-types"
 
 interface Props {
@@ -31,10 +31,17 @@ export function LiveAttackControls(props: Props) {
   )
 }
 
+// Always show these core protocols even at 0, so the map reflects the whole
+// sensor fleet. Any other protocol that actually sends an event (e.g. a new
+// dionaea service) is appended dynamically from the live stats.
+const CORE_CHIPS = ["ssh", "http", "ftp", "mysql", "smb", "port-scan"]
+
 function ProtocolChips({ stats }: { stats: Record<string, number> }) {
+  const dynamic = Object.keys(stats).filter((t) => !CORE_CHIPS.includes(t))
+  const types = [...CORE_CHIPS, ...dynamic.sort()]
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {(Object.keys(PROTOCOL_CHIP_CLASS) as Array<keyof typeof PROTOCOL_CHIP_CLASS>).map((type) => (
+      {types.map((type) => (
         <div key={type} className={`flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-medium tracking-wide ${getProtocolChipClass(type)}`}>
           <span className="uppercase opacity-60">{type}</span>
           <span className="font-bold">{(stats[type] ?? 0).toLocaleString()}</span>
