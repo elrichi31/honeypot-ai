@@ -273,6 +273,9 @@ services:
       # var/lib/cowrie/downloads inside the cowrie_var volume; expose them so the
       # malware view can list + serve them alongside the Dionaea binaries.
       COWRIE_DOWNLOADS_PATH: /cowrie/lib/cowrie/downloads
+      # Our FTP honeypot saves uploads (MD5-named + .meta.json) here; expose them
+      # to the malware view alongside Dionaea/Cowrie artifacts.
+      FTP_CAPTURES_PATH: /ftp-captures
       SURICATA_OWN_IPS: ${SURICATA_OWN_IPS:-}
     group_add:
       - "112"
@@ -280,6 +283,7 @@ services:
       - dashboard_data:/app/data
       - dionaea_var:/dionaea:ro
       - cowrie_var:/cowrie:ro
+      - ftp_captures:/ftp-captures:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
       test:
@@ -374,7 +378,7 @@ services:
       ingest-api:
         condition: service_healthy
     ports:
-      - "21:21"
+      # FTP (21) is served by the dedicated ftp-honeypot, not dionaea.
       - "42:42"
       - "8081:81"
       - "69:69/udp"
@@ -388,7 +392,6 @@ services:
       - ./sensors/dionaea/log_json.yaml:/opt/dionaea/etc/dionaea/ihandlers/log_json.yaml:ro
       - ./sensors/dionaea/emu_scripts.yaml:/opt/dionaea/etc/dionaea/ihandlers/emu_scripts.yaml:ro
       - ./sensors/dionaea/services-enabled/epmap.yaml:/opt/dionaea/etc/dionaea/services-enabled/epmap.yaml:ro
-      - ./sensors/dionaea/services-enabled/ftp.yaml:/opt/dionaea/etc/dionaea/services-enabled/ftp.yaml:ro
       - ./sensors/dionaea/services-enabled/http.yaml:/opt/dionaea/etc/dionaea/services-enabled/http.yaml:ro
       - ./sensors/dionaea/services-enabled/mirror.yaml:/opt/dionaea/etc/dionaea/services-enabled/mirror.yaml:ro
       - ./sensors/dionaea/services-enabled/mqtt.yaml:/opt/dionaea/etc/dionaea/services-enabled/mqtt.yaml:ro
@@ -428,11 +431,10 @@ services:
       SENSOR_VERSION: ${SENSOR_VERSION_DIONAEA:-dionaea}
       SENSOR_IP: ${HONEYPOT_IP:-}
       SENSOR_HOST: dionaea
-      # 3306 is served by the dedicated mysql-honeypot (realistic MySQL 5.7 greeting),
-      # not dionaea — keep it out of dionaea's port list so the dionaea fingerprint
-      # never re-attaches to MySQL.
-      SENSOR_PORTS: "21 42 135 1433 1723 1883 8081"
-      SENSOR_PROBE_PORTS: "21 42 135 1433 1723 1883 81"
+      # 3306 -> dedicated mysql-honeypot, 21 -> dedicated ftp-honeypot. Keep both
+      # out of dionaea's port list so those fingerprints never re-attach to dionaea.
+      SENSOR_PORTS: "42 135 1433 1723 1883 8081"
+      SENSOR_PROBE_PORTS: "42 135 1433 1723 1883 81"
       DIONAEA_LOG_PATH: /opt/dionaea/var/lib/dionaea/dionaea.json
       DIONAEA_OFFSET_FILE: /state/dionaea.offset
       READ_FROM_END: "1"
@@ -558,6 +560,45 @@ services:
           cpus: "0.5"
           pids: 128
 
+  ftp-honeypot:
+    <<: *service-defaults
+    logging: *json-logging
+    build:
+      context: ./sensors/ftp-honeypot
+    container_name: ftp-honeypot
+    cap_add:
+      - NET_BIND_SERVICE
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+    environment:
+      INGEST_API_URL: http://ingest-api:3000
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      PORT: "21"
+      DST_PORT: "21"
+      SENSOR_ID: ${SENSOR_ID_FTP:-ftp-01}
+      SENSOR_NAME: FTP Honeypot
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
+      SENSOR_IP: ${HONEYPOT_IP:-}
+      SENSOR_HOST: ftp-honeypot
+      FTP_CAPTURES_DIR: /captures
+      PASV_PORT_MIN: "50000"
+      PASV_PORT_MAX: "50019"
+    ports:
+      - "21:21"
+      - "50000-50019:50000-50019"
+    volumes:
+      - ftp_captures:/captures
+    networks:
+      - edge
+      - honeypot_ingest
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          pids: 128
+
   dashboard:
     <<: *service-defaults
     logging: *json-logging
@@ -656,6 +697,7 @@ volumes:
   suricata_logs:
   smb_share:
   smb_captures:
+  ftp_captures:
 
 networks:
   edge:
