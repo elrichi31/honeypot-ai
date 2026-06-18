@@ -57,15 +57,27 @@ SERVICES: dict[int, str] = {
 BANNERS: dict[int, bytes] = {
     6379:  b"-ERR unknown command 'PING'\r\n",
     9200:  (
+        # A real ES node banner: neutral node/cluster names and a current version.
+        # "cluster_name":"honeypot" was a dead giveaway in scanner output.
         b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n'
-        b'{"name":"node-1","cluster_name":"honeypot","version":{"number":"7.17.0"}}\n'
+        b'{"name":"es-data-01","cluster_name":"prod-search","version":'
+        b'{"number":"8.13.4","lucene_version":"9.10.0"},"tagline":"You Know, for Search"}\n'
     ),
     2375:  (
-        b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nApi-Version: 1.41\r\n\r\n'
-        b'{"ID":"abc123def456","Containers":3,"Images":12,"Version":"20.10.7"}\n'
+        # Plausible recent Docker Engine version + realistic-looking ids.
+        b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nApi-Version: 1.43\r\n\r\n'
+        b'{"Platform":{"Name":"Docker Engine - Community"},"Version":"26.1.4",'
+        b'"ApiVersion":"1.45","Os":"linux","Arch":"amd64","KernelVersion":"5.15.0-91-generic"}\n'
     ),
-    8888:  b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<html><body>Admin Panel</body></html>",
-    9090:  b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<html></html>",
+    8888:  (
+        b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nServer: nginx/1.24.0\r\n\r\n"
+        b"<!DOCTYPE html><html><head><title>Dashboard</title></head>"
+        b"<body><h1>Internal Dashboard</h1></body></html>"
+    ),
+    9090:  (
+        b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nServer: Cockpit/295\r\n\r\n"
+        b"<!DOCTYPE html><html><head><title>Cockpit</title></head><body></body></html>"
+    ),
 }
 
 

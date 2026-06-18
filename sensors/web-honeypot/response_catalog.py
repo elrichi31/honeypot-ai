@@ -36,7 +36,7 @@ PAYLOADS_DIR = BASE_DIR / "payloads"
 # ---------------------------------------------------------------------------
 
 _CANARY_DB_USER = "techcorp_app"
-_CANARY_DB_PASSWORD = "techcorp-db-password-example"  # static fallback
+_CANARY_DB_PASSWORD = "Tc0rp!db_Pr0d_2024"  # static fallback (no telltale '-example' suffix)
 
 # Generated fresh at process start — never stored, never logged.
 _HONEYTOKEN_SECRET = secrets.token_bytes(32)
@@ -125,10 +125,10 @@ def _sitemap(_m, _q, _b) -> tuple[str, str, int]:
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-        "  <url><loc>https://example.com/</loc><priority>1.0</priority></url>\n"
-        "  <url><loc>https://example.com/about</loc></url>\n"
-        "  <url><loc>https://example.com/contact</loc></url>\n"
-        "  <url><loc>https://example.com/blog</loc></url>\n"
+        "  <url><loc>https://techcorp-solutions.com/</loc><priority>1.0</priority></url>\n"
+        "  <url><loc>https://techcorp-solutions.com/about</loc></url>\n"
+        "  <url><loc>https://techcorp-solutions.com/contact</loc></url>\n"
+        "  <url><loc>https://techcorp-solutions.com/blog</loc></url>\n"
         "</urlset>"
     )
     return (xml, "application/xml", 200)
@@ -136,10 +136,10 @@ def _sitemap(_m, _q, _b) -> tuple[str, str, int]:
 
 def _security_txt(_m, _q, _b) -> tuple[str, str, int]:
     txt = (
-        "Contact: mailto:security@example.com\n"
-        "Expires: 2026-01-01T00:00:00.000Z\n"
+        "Contact: mailto:security@techcorp-solutions.com\n"
+        "Expires: 2027-01-01T00:00:00.000Z\n"
         "Preferred-Languages: en\n"
-        "Canonical: https://example.com/.well-known/security.txt\n"
+        "Canonical: https://techcorp-solutions.com/.well-known/security.txt\n"
     )
     return (txt, "text/plain", 200)
 
@@ -195,14 +195,14 @@ def _wp_config(_m, _q, _b) -> tuple[str, str, int]:
 
 
 def _wp_json_users(_m, _q, _b) -> tuple[str, str, int]:
-    users = [{"id": 1, "name": "admin", "slug": "admin", "link": "https://example.com/author/admin/",
+    users = [{"id": 1, "name": "admin", "slug": "admin", "link": "https://techcorp-solutions.com/author/admin/",
               "avatar_urls": {"24": "https://secure.gravatar.com/avatar/?d=mm&s=24"}}]
     return (json.dumps(users), "application/json", 200)
 
 
 def _wp_json_posts(_m, _q, _b) -> tuple[str, str, int]:
     posts = [{"id": 1, "date": "2024-11-14T08:32:17", "slug": "hello-world", "status": "publish",
-              "type": "post", "link": "https://example.com/hello-world/",
+              "type": "post", "link": "https://techcorp-solutions.com/hello-world/",
               "title": {"rendered": "Hello world!"}, "author": 1}]
     return (json.dumps(posts), "application/json", 200)
 
@@ -557,15 +557,22 @@ def _jenkins_api(_m, _q, _b) -> tuple[str, str, int]:
 
 
 def _ssh_private_key(_m, _q, _b) -> tuple[str, str, int]:
-    """Fake RSA private key — frequently targeted by credential harvesters."""
-    fake_key = (
+    """Decoy OpenSSH private key — a high-value bait for credential harvesters.
+    The base64 looks like a real key but is non-functional; obvious 'fake'/'notreal'
+    tokens would tip off the attacker, so the body is plausible-looking gibberish."""
+    decoy_key = (
         "-----BEGIN OPENSSH PRIVATE KEY-----\n"
-        "b3BlbnNzaC1rZXktdjEAAAAA" + "A" * 40 + "AAAAA\n"
-        "AAABAQC2randomfakekeydata" + "B" * 40 + "randomdata\n"
-        "notarealkey" + "C" * 40 + "fakefakefake\n"
+        "b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABlwAAAAdzc2gtcn\n"
+        "NhAAAAAwEAAQAAAYEAwK7mX9vQ2xR7tY4wN8zL6jF1cB5dA0sE3gI9kM2nO4Uq8pH5fZ2x\n"
+        "EYyw16qQ0SmWRnhQZNvOj8eNQO5n5lVUWp1oambUZ0665JxPOOHBwq2aYy5H3KUsSeQ18H\n"
+        "sBCI2qhX2BnOV2Y2Ln0fKOIXxxCeTVuPs4eN5oVqQcgZEYtCJmrTo7rIQzNI9Q8YKzGlOH\n"
+        "cperzvV14VTXV66G0he2VNRhxGo2SqTWVlfy9GzCqxC7svuhj44NoZdUE5roInHcmx3iiJ\n"
+        "Gi8G0nhw8XOXWZ7QtBJwZuJoYseWSxiwo90LYb7L4hwF05omkXCBEcBAhRAHmgNJrwclc8\n"
+        "AAAFI3kq9xN5KvcTAAAAB3NzaC1yc2EAAAGBAMCu5l/b0NsUe2OPDfMy6kxGMsNdkbIeQk\n"
+        "mnTZPFvyMjcT8dsRGMsNeqkNEplkZ4UGTbzo/HjUDuZ+ZVVFqdaGpm1GdOuuScTzjhwcKt\n"
         "-----END OPENSSH PRIVATE KEY-----\n"
     )
-    return (fake_key, "text/plain", 200)
+    return (decoy_key, "text/plain", 200)
 
 
 def _web_config(_m, _q, _b) -> tuple[str, str, int]:

@@ -428,8 +428,11 @@ services:
       SENSOR_VERSION: ${SENSOR_VERSION_DIONAEA:-dionaea}
       SENSOR_IP: ${HONEYPOT_IP:-}
       SENSOR_HOST: dionaea
-      SENSOR_PORTS: "21 42 135 1433 1723 1883 3306 8081"
-      SENSOR_PROBE_PORTS: "21 42 135 1433 1723 1883 3306 81"
+      # 3306 is served by the dedicated mysql-honeypot (realistic MySQL 5.7 greeting),
+      # not dionaea — keep it out of dionaea's port list so the dionaea fingerprint
+      # never re-attaches to MySQL.
+      SENSOR_PORTS: "21 42 135 1433 1723 1883 8081"
+      SENSOR_PROBE_PORTS: "21 42 135 1433 1723 1883 81"
       DIONAEA_LOG_PATH: /opt/dionaea/var/lib/dionaea/dionaea.json
       DIONAEA_OFFSET_FILE: /state/dionaea.offset
       READ_FROM_END: "1"
