@@ -305,10 +305,11 @@ async def handle(reader, writer):
                 await loop.run_in_executor(
                     None, _send, "auth", src_ip, src_port, username or "", password
                 )
-                # Realistic login: reject the first attempt, then accept — mimics a
-                # real server (and a single 530 avoids the "always 230" tell) without
-                # locking out the bruteforce wordlists we want to capture.
-                if attempts >= 2 or (username or "").lower() in ("anonymous", "ftp"):
+                # Accept on the first attempt. Single-shot uploaders (curl -T, most
+                # malware droppers) give up after one 530, so rejecting the first
+                # try silently killed every upload — the whole point of this sensor.
+                # An empty password is the one case a real server always refuses.
+                if password:
                     authed = True
                     await reply("230 Login successful.\r\n")
                 else:
