@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { Activity } from "lucide-react"
 import {
@@ -15,21 +15,24 @@ import { Surface } from "@/components/ui/surface"
 
 type Range = "day" | "week" | "month"
 
-type Bucket = {
-  bucket: string
-  ssh: number
-  protocol: number
-  web: number
-  total: number
-}
-
-const chartConfig = {
-  ssh:      { label: "SSH",      color: "hsl(190 80% 50%)" },
-  protocol: { label: "Protocol", color: "hsl(220 70% 60%)" },
-  web:      { label: "Web",      color: "hsl(145 60% 50%)" },
-} satisfies ChartConfig
+// One row per bucket, with a dynamic per-protocol count keyed by protocol name.
+type Bucket = { bucket: string; total: number; [protocol: string]: number | string }
+type TimelineResponse = { protocols: string[]; buckets: Bucket[] }
 
 const RANGE_LABELS: Record<Range, string> = { day: "24h", week: "7d", month: "30d" }
+
+// Evenly-spaced hues so any number of dynamic protocols gets a distinct, stable color.
+function protocolColor(index: number, total: number) {
+  const hue = Math.round((index * 360) / Math.max(total, 1))
+  return `hsl(${hue} 70% 55%)`
+}
+
+// Build a chart config from the protocols the client actually has in this window.
+function buildChartConfig(protocols: string[]): ChartConfig {
+  return Object.fromEntries(
+    protocols.map((p, i) => [p, { label: p.toUpperCase(), color: protocolColor(i, protocols.length) }]),
+  )
+}
 
 function formatBucketLabel(bucket: string, range: Range) {
   const d = new Date(bucket)
@@ -43,6 +46,7 @@ type Props = { clientSlug: string }
 
 export function ClientActivityChart({ clientSlug }: Props) {
   const [range, setRange] = useState<Range>("week")
+  const [protocols, setProtocols] = useState<string[]>([])
   const [data, setData]   = useState<Bucket[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -50,17 +54,16 @@ export function ClientActivityChart({ clientSlug }: Props) {
     setLoading(true)
     fetch(`/api/clients/${clientSlug}/timeline?range=${range}`)
       .then(r => r.json())
-      .then((rows: unknown) => {
-        const arr = Array.isArray(rows) ? rows : []
-        setData(arr.map((r: Bucket) => ({
-          ...r,
-          label: formatBucketLabel(r.bucket, range),
-        })))
+      .then((res: TimelineResponse) => {
+        const buckets = Array.isArray(res?.buckets) ? res.buckets : []
+        setProtocols(Array.isArray(res?.protocols) ? res.protocols : [])
+        setData(buckets.map(b => ({ ...b, label: formatBucketLabel(b.bucket, range) })))
       })
-      .catch(() => setData([]))
+      .catch(() => { setProtocols([]); setData([]) })
       .finally(() => setLoading(false))
   }, [clientSlug, range])
 
+  const chartConfig = useMemo(() => buildChartConfig(protocols), [protocols])
   const xInterval = range === "month" ? 3 : range === "week" ? 6 : 3
   const totalEvents = data.reduce((s, b) => s + b.total, 0)
 
@@ -99,7 +102,7 @@ export function ClientActivityChart({ clientSlug }: Props) {
         <div className="h-[200px] flex items-center justify-center">
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-cyan-400" />
         </div>
-      ) : data.length === 0 ? (
+      ) : data.length === 0 || protocols.length === 0 ? (
         <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground">
           No events recorded yet
         </div>
@@ -107,7 +110,7 @@ export function ClientActivityChart({ clientSlug }: Props) {
         <ChartContainer config={chartConfig} className="aspect-auto h-[200px]">
           <AreaChart data={data}>
             <defs>
-              {(["ssh", "protocol", "web"] as const).map(key => (
+              {protocols.map(key => (
                 <linearGradient key={key} id={`grad-${key}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%"  stopColor={`var(--color-${key})`} stopOpacity={0.25} />
                   <stop offset="95%" stopColor={`var(--color-${key})`} stopOpacity={0} />
@@ -119,7 +122,7 @@ export function ClientActivityChart({ clientSlug }: Props) {
             <YAxis axisLine={false} tickLine={false} width={30} tick={{ fontSize: 11 }} />
             <ChartTooltip content={<ChartTooltipContent />} />
             <ChartLegend content={<ChartLegendContent />} />
-            {(["ssh", "protocol", "web"] as const).map(key => (
+            {protocols.map(key => (
               <Area
                 key={key}
                 type="monotone"

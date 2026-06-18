@@ -22,7 +22,7 @@ type LogRow = {
   password: string | null; session_id: string | null; extra: string | null
 }
 type ThreatRow = { src_ip: string; total_events: bigint; sources: string; last_seen: Date; login_successes: bigint; protocols: string }
-type BucketRow  = { bucket: Date; ssh: bigint; protocol: bigint; web: bigint }
+type BucketRow  = { bucket: Date; protocol: string; count: bigint }
 type MetricsRow = { total_events: number; unique_ips: number; login_successes: number }
 
 function parseJson(s: string | null) {
@@ -192,37 +192,60 @@ export async function clientObservabilityRoutes(fastify: FastifyInstance) {
 
     const cacheKey = `client:timeline:${cs.clientId}:${query.data.sensorId ?? 'all'}:${range}`
     const result = await withCache(fastify.cache, cacheKey, 120, async () => {
-      // Pre-aggregate per branch by bucket before the outer GROUP BY. The old shape
-      // UNION ALL'd ~1M raw (ts, source) rows and globally sorted/aggregated them
-      // (~2.5s). Each branch now collapses to one row per bucket against its own
-      // timestamp index, so the outer aggregate only sees a few hundred rows
-      // (measured ~2.5s -> ~0.6s, byte-identical results).
+      // Series are dynamic per client: 'ssh' (from events/sessions), one per real
+      // protocol_hits.protocol the client actually has (mssql, smb, ftp, mysql, …),
+      // and 'http' (web). Aggregate by (bucket, protocol) and pivot in JS so only
+      // the protocols present in the window show up — no hardcoded 3-series shape.
+      //
+      // Each branch pre-aggregates against its own timestamp index before the outer
+      // GROUP BY, so the outer aggregate only sees a few hundred rows instead of
+      // sorting ~1M raw rows (measured ~2.5s -> sub-second).
       const rows = await fastify.prismaRead.$queryRaw<BucketRow[]>`
-        SELECT bucket, SUM(ssh) AS ssh, SUM(protocol) AS protocol, SUM(web) AS web
+        SELECT bucket, protocol, SUM(count) AS count
         FROM (
-          SELECT date_trunc(${bucketUnit}, e.event_ts) AS bucket,
-                 COUNT(*) AS ssh, 0::bigint AS protocol, 0::bigint AS web
+          SELECT date_trunc(${bucketUnit}, e.event_ts) AS bucket, 'ssh'::text AS protocol, COUNT(*) AS count
           FROM events e JOIN sessions s ON s.id = e.session_id
           WHERE s.sensor_id IN (${sids}) AND e.event_ts >= NOW() - ${intervalSql}::interval
           GROUP BY 1
           UNION ALL
-          SELECT date_trunc(${bucketUnit}, ph.timestamp), 0::bigint, COUNT(*), 0::bigint
+          SELECT date_trunc(${bucketUnit}, ph.timestamp), ph.protocol, COUNT(*)
           FROM protocol_hits ph
           WHERE ph.sensor_id IN (${sids}) AND ph.timestamp >= NOW() - ${intervalSql}::interval
-          GROUP BY 1
+          GROUP BY 1, 2
           UNION ALL
-          SELECT date_trunc(${bucketUnit}, wh.timestamp), 0::bigint, 0::bigint, COUNT(*)
+          SELECT date_trunc(${bucketUnit}, wh.timestamp), 'http'::text, COUNT(*)
           FROM web_hits wh
           WHERE wh.sensor_id IN (${sids}) AND wh.timestamp >= NOW() - ${intervalSql}::interval
           GROUP BY 1
         ) AS combined
-        GROUP BY bucket ORDER BY bucket ASC
+        GROUP BY bucket, protocol ORDER BY bucket ASC
       `
-      return rows.map(r => ({
-        bucket: r.bucket,
-        ssh: Number(r.ssh), protocol: Number(r.protocol), web: Number(r.web),
-        total: Number(r.ssh) + Number(r.protocol) + Number(r.web),
-      }))
+
+      // Pivot (bucket, protocol, count) into one row per bucket with a dynamic
+      // per-protocol map, and collect the set of protocols actually present.
+      const protocols = new Set<string>()
+      const byBucket = new Map<number, { bucket: Date; counts: Record<string, number>; total: number }>()
+      for (const r of rows) {
+        protocols.add(r.protocol)
+        const key = r.bucket.getTime()
+        let b = byBucket.get(key)
+        if (!b) { b = { bucket: r.bucket, counts: {}, total: 0 }; byBucket.set(key, b) }
+        const n = Number(r.count)
+        b.counts[r.protocol] = (b.counts[r.protocol] ?? 0) + n
+        b.total += n
+      }
+
+      const orderedProtocols = [...protocols].sort()
+      const buckets = [...byBucket.values()]
+        .sort((a, b) => a.bucket.getTime() - b.bucket.getTime())
+        .map(b => ({
+          bucket: b.bucket,
+          total: b.total,
+          // Zero-fill so every bucket carries every present protocol (stable chart series)
+          ...Object.fromEntries(orderedProtocols.map(p => [p, b.counts[p] ?? 0])),
+        }))
+
+      return { protocols: orderedProtocols, buckets }
     })
 
     return reply.send(result)
