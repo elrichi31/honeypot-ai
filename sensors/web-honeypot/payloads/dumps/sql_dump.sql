@@ -1,6 +1,6 @@
--- MySQL dump 10.19  Distrib 10.6.14-MariaDB, for debian-linux-gnu (x86_64)
+-- MySQL dump 10.13  Distrib 5.7.44, for Linux (x86_64)
 -- Host: db-primary.internal    Database: techcorp_prod
--- Server version	10.6.14-MariaDB-0ubuntu0.22.04.1
+-- Server version	5.7.44-log
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;

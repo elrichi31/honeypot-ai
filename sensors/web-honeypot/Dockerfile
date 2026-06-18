@@ -2,7 +2,12 @@ FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PORT=8080
+    PORT=8080 \
+    # Gunicorn stamps its own "Server: gunicorn" header at the WSGI layer, which
+    # contradicts the Apache/PHP identity the app advertises (gunicorn never serves
+    # PHP — a dead giveaway). Gunicorn reads SERVER_SOFTWARE for that header, so
+    # override it to match the facade. The app still sets the full Apache string.
+    SERVER_SOFTWARE="Apache/2.4.57 (Ubuntu)"
 
 WORKDIR /app
 

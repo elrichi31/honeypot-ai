@@ -55,7 +55,6 @@ SERVICES: dict[int, str] = {
 
 # Realistic banners to fingerprint attacker tools
 BANNERS: dict[int, bytes] = {
-    6379:  b"-ERR unknown command 'PING'\r\n",
     9200:  (
         # A real ES node banner: neutral node/cluster names and a current version.
         # "cluster_name":"honeypot" was a dead giveaway in scanner output.
@@ -234,6 +233,85 @@ async def handle_vnc(reader, writer, src_ip, src_port, port):
     )
 
 
+# ── Redis / RESP ─────────────────────────────────────────────────────────────
+# A static "-ERR unknown command 'PING'" reply to every input is a dead giveaway:
+# a real Redis answers PING with +PONG, INFO with a server dump, etc. We speak just
+# enough RESP to look like an unauthenticated open Redis (the juicy misconfig an
+# attacker hopes for) while capturing the commands they run.
+REDIS_INFO = (
+    "# Server\r\nredis_version:7.2.4\r\nredis_mode:standalone\r\nos:Linux 5.15.0-91-generic x86_64\r\n"
+    "arch_bits:64\r\nprocess_id:1\r\ntcp_port:6379\r\nuptime_in_seconds:2847193\r\n"
+    "# Clients\r\nconnected_clients:1\r\n"
+    "# Memory\r\nused_memory_human:1.04M\r\nmaxmemory_human:0B\r\n"
+    "# Keyspace\r\ndb0:keys=14,expires=2,avg_ttl=0\r\n"
+)
+
+
+def _redis_reply(cmd: str, args: list[str]) -> bytes:
+    c = cmd.upper()
+    if c == "PING":
+        return b"+PONG\r\n" if not args else b"$%d\r\n%s\r\n" % (len(args[0]), args[0].encode())
+    if c == "INFO":
+        body = REDIS_INFO.encode()
+        return b"$%d\r\n%s\r\n" % (len(body), body)
+    if c == "COMMAND":
+        return b"*0\r\n"
+    if c in ("AUTH",):  # open instance: accept so they think they're in
+        return b"+OK\r\n"
+    if c in ("SELECT", "CONFIG", "CLIENT", "HELLO"):
+        return b"+OK\r\n"
+    if c in ("GET", "HGET"):
+        return b"$-1\r\n"  # nil
+    if c in ("SET", "DEL", "EXPIRE", "FLUSHALL", "FLUSHDB"):
+        return b"+OK\r\n"
+    if c == "KEYS":
+        return b"*0\r\n"
+    if c in ("QUIT",):
+        return b"+OK\r\n"
+    return b"-ERR unknown command '%s'\r\n" % c.encode()
+
+
+def _parse_resp(buf: bytes) -> list[str]:
+    """Best-effort RESP / inline parse → [cmd, arg, ...]. Returns [] if incomplete."""
+    text = buf.decode("latin-1", "replace").strip()
+    if not text:
+        return []
+    if text[0] == "*":  # RESP array
+        toks, lines = [], text.split("\r\n")
+        i = 1
+        while i < len(lines):
+            if lines[i].startswith("$"):
+                i += 1
+                if i < len(lines):
+                    toks.append(lines[i])
+            i += 1
+        return toks
+    return text.split()  # inline command
+
+
+async def handle_redis(reader, writer, src_ip, src_port, port):
+    captured: list[str] = []
+    try:
+        for _ in range(20):  # cap commands per session
+            data = await asyncio.wait_for(reader.read(4096), timeout=8)
+            if not data:
+                break
+            toks = _parse_resp(data)
+            if not toks:
+                continue
+            captured.append(" ".join(toks)[:200])
+            writer.write(_redis_reply(toks[0], toks[1:]))
+            await writer.drain()
+            if toks[0].upper() == "QUIT":
+                break
+    except (asyncio.TimeoutError, Exception):
+        pass
+    extra = {"protocolName": "redis", "commands": captured}
+    await asyncio.get_event_loop().run_in_executor(
+        None, _send, src_ip, src_port, port, "", "connect", None, None, extra
+    )
+
+
 # ── RDP / X.224 handshake ────────────────────────────────────────────────────
 # The very first RDP packet (X.224 Connection Request) often carries the target
 # username in clear text as a routing token: "Cookie: mstshash=<user>\r\n", plus
@@ -293,6 +371,8 @@ def make_handler(port: int):
                 await handle_vnc(reader, writer, src_ip, src_port, port)
             elif port == 3389:
                 await handle_rdp(reader, writer, src_ip, src_port, port)
+            elif port == 6379:
+                await handle_redis(reader, writer, src_ip, src_port, port)
             else:
                 # Generic: optionally send a service banner, then capture whatever
                 # the client sends.
