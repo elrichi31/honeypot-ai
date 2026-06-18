@@ -70,6 +70,7 @@ export function ClientActivityChart({ clientSlug }: Props) {
 
   const chartConfig = useMemo(() => buildChartConfig(protocols), [protocols])
   const xInterval = range === "month" ? 3 : range === "week" ? 6 : 3
+  const tilted = range !== "day"
   const totalEvents = data.reduce((s, b) => s + b.total, 0)
 
   return (
@@ -123,7 +124,19 @@ export function ClientActivityChart({ clientSlug }: Props) {
               ))}
             </defs>
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="label" axisLine={false} tickLine={false} interval={xInterval} tick={{ fontSize: 11 }} />
+            <XAxis
+              dataKey="label"
+              axisLine={false}
+              tickLine={false}
+              interval={xInterval}
+              tick={{ fontSize: 11 }}
+              // 7d/30d labels carry a date and overlap when horizontal — tilt them
+              // and reserve height so they stay readable.
+              angle={tilted ? -35 : 0}
+              textAnchor={tilted ? "end" : "middle"}
+              height={tilted ? 56 : 30}
+              tickMargin={tilted ? 8 : 4}
+            />
             <YAxis axisLine={false} tickLine={false} width={30} tick={{ fontSize: 11 }} />
             <ChartTooltip content={<ChartTooltipContent />} />
             <ChartLegend content={<ChartLegendContent />} />
