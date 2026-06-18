@@ -20,6 +20,17 @@ Ordered "outside in":
 Rule: a new page needs a sidebar entry in `astro.config.mjs`. Validate with
 `cd apps/docs && npm run build` (Starlight fails the build on broken slugs).
 
+## Theme
+
+The docs site is themed to match the dashboard (`apps/dashboard`) so both feel
+like one product: **dark-only**, near-black background, blue accent, Geist
+typography. Theme tokens live in `apps/docs/src/styles/theme.css` (wired via
+`customCss` in `astro.config.mjs`); they translate the dashboard's oklch palette
+from `apps/dashboard/app/globals.css` into Starlight's `--sl-color-*` tokens.
+Geist comes from `@fontsource-variable/geist[-mono]` (self-hosted, no Google
+request). The theme selector is hidden — there is no light variant on purpose.
+If the dashboard palette changes, update `theme.css` to keep them in sync.
+
 ## Done
 
 - **2026-06-18 — Full docs pass (commit ee262fe).** Reorganized the sidebar
@@ -28,6 +39,9 @@ Rule: a new page needs a sidebar entry in `astro.config.mjs`. Validate with
   pages: threat-intelligence, iocs, suricata, malware, deception (intelligence/);
   monitoring, storage, api-defense (operations/); multi-tenant, ftp-mysql
   (services/). Build validated: 35 pages, no broken slugs.
+- **2026-06-18 — Theme aligned with the dashboard.** Added
+  `src/styles/theme.css` (dark-only palette + Geist via @fontsource), wired it
+  through `customCss`, hid the theme selector. Build re-validated.
 
 ## Debt / TODO
 

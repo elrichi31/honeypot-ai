@@ -8,6 +8,7 @@ export default defineConfig({
 		starlight({
 			title: 'Honeypot Platform',
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/elrichi31/honeypot-ai' }],
+			customCss: ['./src/styles/theme.css'],
 			head: [
 				{
 					tag: 'link',
