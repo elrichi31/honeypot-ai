@@ -15,7 +15,7 @@ const protocolEventSchema = z.object({
   srcIp: z.string().min(1),
   srcPort: z.number().int().nullable().optional(),
   dstPort: z.number().int(),
-  eventType: z.enum(['connect', 'auth', 'command']),
+  eventType: z.enum(['connect', 'auth', 'command', 'file.upload', 'file.download']),
   username: z.string().nullable().optional(),
   password: z.string().nullable().optional(),
   data: z.record(z.unknown()).default({}),
