@@ -138,7 +138,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
     return reply.send(await withCache(fastify.cache, cacheKey, 1800, async () => {
     const isSmb = q.protocol === 'smb'
 
-    const [totals, topIps, topPorts, topUsernames, topPasswords, topCommands, topServices, topDatabases, topDomains, topShares, topNativeOS, topNtlmHashes] = await Promise.all([
+    const [totals, topIps, topPorts, topUsernames, topPasswords, topCommands, topServices, topDatabases, topDomains, topShares, topNativeOS, topNtlmHashes, eventBreakdown, topCredentials] = await Promise.all([
       fastify.prismaRead.$queryRaw<Array<{
         total: number; unique_ips: number; auth_attempts: number; command_events: number; last_seen: Date | null;
       }>>`
@@ -256,6 +256,24 @@ export async function protocolRoutes(fastify: FastifyInstance) {
             LIMIT 10
           `
         : Promise.resolve([]),
+      // Event-type breakdown (connect / auth / command / file.upload / file.download)
+      fastify.prismaRead.$queryRaw<Array<{ event_type: string; count: number }>>`
+        SELECT event_type, COUNT(*)::int AS count
+        FROM protocol_hits
+        WHERE protocol = ${q.protocol}
+        GROUP BY event_type
+        ORDER BY count DESC
+      `,
+      // Credential pairs actually tried together (more useful than separate lists)
+      fastify.prismaRead.$queryRaw<Array<{ username: string; password: string; count: number }>>`
+        SELECT username, password, COUNT(*)::int AS count
+        FROM protocol_hits
+        WHERE protocol = ${q.protocol} AND event_type = 'auth'
+          AND username IS NOT NULL AND password IS NOT NULL AND password <> ''
+        GROUP BY username, password
+        ORDER BY count DESC
+        LIMIT 12
+      `,
     ])
 
     const total = totals[0]
@@ -269,6 +287,8 @@ export async function protocolRoutes(fastify: FastifyInstance) {
         topShares:     (topShares     as Array<{ share: string; count: number }>).map(r => ({ share: r.share, count: r.count })),
         topNativeOS:   (topNativeOS   as Array<{ native_os: string; count: number }>).map(r => ({ nativeOS: r.native_os, count: r.count })),
         topNtlmHashes: (topNtlmHashes as Array<{ ntlm_hash: string; username: string; count: number }>).map(r => ({ ntlmHash: r.ntlm_hash, username: r.username, count: r.count })),
+        eventBreakdown: eventBreakdown.map(r => ({ eventType: r.event_type, count: r.count })),
+        topCredentials: topCredentials.map(r => ({ username: r.username, password: r.password, count: r.count })),
       }
     }))
   })

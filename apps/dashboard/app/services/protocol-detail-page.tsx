@@ -23,6 +23,14 @@ const BADGES: Record<string, string> = {
   connect:    "bg-slate-400/20 text-slate-400",
   auth:       "bg-orange-400/20 text-orange-400",
   command:    "bg-green-400/20 text-green-400",
+  "file.upload":   "bg-rose-400/20 text-rose-400",
+  "file.download": "bg-cyan-400/20 text-cyan-400",
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
 }
 
 const COPY: Record<ProtocolKind, { title: string; description: string }> = {
@@ -107,6 +115,64 @@ function RankingCard({
   )
 }
 
+// Compact per-event-type counters (connect / auth / command / file.upload / …),
+// so the mix of activity is visible at a glance without counting the table.
+const EVENT_STYLE: Record<string, string> = {
+  connect:         "text-slate-300",
+  auth:            "text-orange-400",
+  command:         "text-emerald-400",
+  "file.upload":   "text-rose-400",
+  "file.download": "text-cyan-400",
+}
+
+function EventBreakdown({ rows }: { rows: { eventType: string; count: number }[] }) {
+  return (
+    <Surface className="p-4">
+      <h2 className="mb-3 text-sm font-semibold text-foreground">Event breakdown</h2>
+      <div className="flex flex-wrap gap-3">
+        {rows.map((row) => (
+          <div key={row.eventType} className="flex items-baseline gap-2 rounded-lg border border-border bg-muted/30 px-3 py-1.5">
+            <span className={`font-mono text-sm font-bold ${EVENT_STYLE[row.eventType] ?? "text-foreground"}`}>
+              {row.count.toLocaleString()}
+            </span>
+            <span className="font-mono text-[11px] text-muted-foreground">{row.eventType}</span>
+          </div>
+        ))}
+      </div>
+    </Surface>
+  )
+}
+
+// Credential pairs actually tried together — far more useful for intel than two
+// separate username/password lists (you see admin:admin123, root:123456, …).
+function CredentialPairsCard({ rows }: { rows: { username: string; password: string; count: number }[] }) {
+  return (
+    <Surface>
+      <div className="border-b border-border px-4 py-3">
+        <h2 className="text-sm font-semibold text-foreground">Credential pairs</h2>
+      </div>
+      {rows.length === 0 ? (
+        <p className="px-4 py-6 text-sm text-muted-foreground">No credential pairs captured yet</p>
+      ) : (
+        <div className="divide-y divide-border/40">
+          {rows.map((row) => (
+            <div key={`${row.username}:${row.password}`} className="flex items-center gap-3 px-4 py-2.5">
+              <p className="min-w-0 flex-1 truncate font-mono text-xs">
+                <span className="text-orange-300/90">{row.username || "∅"}</span>
+                <span className="text-muted-foreground"> : </span>
+                <span className="text-red-300/90">{row.password}</span>
+              </p>
+              <span className="rounded bg-muted px-2 py-0.5 text-xs font-semibold text-foreground">
+                {row.count.toLocaleString()}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Surface>
+  )
+}
+
 export function ProtocolDetailPage({
   protocol,
   insights,
@@ -154,6 +220,12 @@ export function ProtocolDetailPage({
         <StatCard icon={Clock} label="Last seen" value={formatDate(insights.totals.lastSeen)} color="text-slate-300" bg="bg-slate-400/10" />
       </div>
 
+      {(insights.eventBreakdown?.length ?? 0) > 0 && (
+        <div className="mb-6">
+          <EventBreakdown rows={insights.eventBreakdown ?? []} />
+        </div>
+      )}
+
       <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <RankingCard
           title="Top source IPs"
@@ -196,11 +268,15 @@ export function ProtocolDetailPage({
 
       {hasCredentials && (
         <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <RankingCard
-            title="Attempted passwords"
-            empty="No passwords captured yet"
-            rows={insights.topPasswords.map((row) => ({ label: row.password, count: row.count }))}
-          />
+          {(insights.topCredentials?.length ?? 0) > 0 ? (
+            <CredentialPairsCard rows={insights.topCredentials ?? []} />
+          ) : (
+            <RankingCard
+              title="Attempted passwords"
+              empty="No passwords captured yet"
+              rows={insights.topPasswords.map((row) => ({ label: row.password, count: row.count }))}
+            />
+          )}
           <RankingCard
             title={isFtp ? "FTP commands" : isMysql ? "Target databases" : isSmb ? "SMB shares / paths" : "Commands"}
             empty="No data captured yet"
@@ -297,7 +373,19 @@ export function ProtocolDetailPage({
                       </span>
                     </TableCell>
                     <TableCell className="max-w-[24rem] whitespace-normal">
-                      {isPortScan ? (
+                      {(hit.event_type === "file.upload" || hit.event_type === "file.download") ? (
+                          <div className="min-w-0">
+                            <p className="truncate font-mono text-xs text-foreground" title={dataValue(hit.data, "fileName") ?? undefined}>
+                              {dataValue(hit.data, "fileName") ?? dataValue(hit.data, "command") ?? "-"}
+                            </p>
+                            <p className="truncate font-mono text-[11px] text-muted-foreground">
+                              {[
+                                typeof hit.data?.size === "number" && formatBytes(hit.data.size as number),
+                                dataValue(hit.data, "md5") && `md5: ${(dataValue(hit.data, "md5") as string).slice(0, 12)}…`,
+                              ].filter(Boolean).join(" · ") || (hit.username ? `user: ${hit.username}` : "-")}
+                            </p>
+                          </div>
+                        ) : isPortScan ? (
                           <div className="min-w-0">
                             <p className="font-mono text-xs text-foreground">{service ?? "unknown service"}</p>
                             {portDetail ? (

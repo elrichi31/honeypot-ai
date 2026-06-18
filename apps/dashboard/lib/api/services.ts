@@ -53,6 +53,9 @@ export interface ProtocolInsights {
   topShares?: { share: string; count: number }[]
   topNativeOS?: { nativeOS: string; count: number }[]
   topNtlmHashes?: { ntlmHash: string; username: string; count: number }[]
+  // Event-type breakdown + credential pairs (present for all protocols)
+  eventBreakdown?: { eventType: string; count: number }[]
+  topCredentials?: { username: string; password: string; count: number }[]
 }
 
 export interface Sensor {
