@@ -10,10 +10,12 @@ import { cn } from "@/lib/utils"
 import { Flag } from "@/components/ui/flag"
 import { ShieldX } from "lucide-react"
 import { type IpGroup } from "@/lib/session-classify-v2"
+import { useT } from "@/components/locale-provider"
 import { SessionRow } from "./session-row"
 
 export function IpSessionGroup({ group }: { group: IpGroup }) {
   const [expanded, setExpanded] = useState(false)
+  const t = useT()
   const cls = group.worstClassification
   const Icon = cls.icon
   const isBot = group.sessionTypes.has("bot") && !group.sessionTypes.has("human")
@@ -44,30 +46,30 @@ export function IpSessionGroup({ group }: { group: IpGroup }) {
               </span>
             )}
             <span className="inline-flex items-center gap-1 rounded-full bg-destructive/20 px-2 py-0.5 text-xs font-medium text-destructive">
-              <ShieldX className="h-3 w-3" /> Comprometido
+              <ShieldX className="h-3 w-3" /> {t("sessions.badge.compromised")}
             </span>
             {isBot && !isHuman && (
               <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-2 py-0.5 text-xs font-medium text-orange-400">
-                <Bot className="h-3 w-3" /> Bot
+                <Bot className="h-3 w-3" /> {t("sessions.badge.bot")}
               </span>
             )}
             {isHuman && (
               <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 px-2 py-0.5 text-xs font-medium text-blue-400">
-                <User className="h-3 w-3" /> Human
+                <User className="h-3 w-3" /> {t("sessions.badge.human")}
               </span>
             )}
             <span className={cn("inline-flex items-center gap-1 rounded-full border border-transparent px-2 py-0.5 text-xs font-medium", cls.bg, cls.color)}>
               <Icon className="h-3 w-3" />
-              {cls.label}
+              {t(`sessions.class.${cls.key}.label`)}
             </span>
             {sessionCount > 1 && (
               <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
-                {sessionCount} sesiones
+                {t("sessions.badge.sessions", { n: sessionCount })}
               </span>
             )}
           </div>
 
-          <p className="mt-1 text-xs text-muted-foreground">{cls.summary}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t(cls.summaryKey, cls.summaryVars)}</p>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">

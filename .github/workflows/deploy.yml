@@ -1,0 +1,52 @@
+name: Deploy
+
+on:
+  # Se dispara cuando el workflow "CI" termina en master.
+  # Solo despliega si CI pasó — si CI falló, este workflow no corre.
+  workflow_run:
+    workflows: [CI]
+    branches: [master]
+    types: [completed]
+
+# Solo un deploy a la vez — si hay dos pushes seguidos el segundo espera.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    # Condición clave: solo si CI completó con éxito.
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+            cd ~/honeypot-ai
+
+            echo "==> Pulling latest code..."
+            git pull origin master
+
+            echo "==> Building and restarting services..."
+            docker compose -f docker-compose.prod.single-host.yml pull --ignore-pull-failures
+            docker compose -f docker-compose.prod.single-host.yml up --build -d
+
+            echo "==> Running DB migrations..."
+            docker compose -f docker-compose.prod.single-host.yml exec -T ingest-api \
+              npx prisma migrate deploy
+
+            echo "==> Cleaning up old images..."
+            docker image prune -f
+
+            echo "==> Deploy complete."

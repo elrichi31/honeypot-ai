@@ -10,7 +10,8 @@ import { NavTransitionProvider, useNavTransitionOptional } from "@/lib/use-nav-t
 import { cn } from "@/lib/utils"
 import { Surface } from "@/components/ui/surface"
 import { countryFlag } from "@/lib/formatting"
-import { groupScans, groupSessionsByIp, type SessionItem } from "@/lib/session-classify-v2"
+import { groupScans, groupSessionsByIp, type SessionItem, type ClassificationKey } from "@/lib/session-classify-v2"
+import { useT } from "@/components/locale-provider"
 import { SessionRow } from "./session-row"
 import { ScanGroupRow } from "./scan-group-row"
 import { IpSessionGroup } from "./ip-session-group"
@@ -61,6 +62,7 @@ function SessionsTableInner({
   clientSlug,
   sensorId,
 }: SessionsTableProps) {
+  const t = useT()
   const pathname = usePathname()
   const { pushParams } = useNavTransitionOptional()
   const [filters, setFilters] = useState<Filters>({ search: "", country: "", classification: "" })
@@ -89,17 +91,21 @@ function SessionsTableInner({
   }, [tab, ipGroups, scanSessions])
 
   const availableClasses = useMemo(() => {
-    const seen = new Set<string>()
-    for (const group of ipGroups) seen.add(group.worstClassification.label)
-    return [...seen].sort()
-  }, [ipGroups])
+    const seen = new Set<ClassificationKey>()
+    for (const group of ipGroups) seen.add(group.worstClassification.key)
+    // Sort by the localized label so the dropdown reads alphabetically in the
+    // user's language; the option value stays the stable key.
+    return [...seen].sort((a, b) =>
+      t(`sessions.class.${a}.label`).localeCompare(t(`sessions.class.${b}.label`)),
+    )
+  }, [ipGroups, t])
 
   const filteredGroups2 = useMemo(
     () =>
       ipGroups.filter((group) => {
         if (filters.search && !group.srcIp.includes(filters.search)) return false
         if (filters.country && group.country !== filters.country) return false
-        if (filters.classification && group.worstClassification.label !== filters.classification) return false
+        if (filters.classification && group.worstClassification.key !== filters.classification) return false
         return true
       }),
     [ipGroups, filters],
@@ -303,7 +309,7 @@ function SessionsTableInner({
               <option value="">All types</option>
               {availableClasses.map((classification) => (
                 <option key={classification} value={classification}>
-                  {classification}
+                  {t(`sessions.class.${classification}.label`)}
                 </option>
               ))}
             </select>
@@ -337,7 +343,7 @@ function SessionsTableInner({
             )}
             {filters.classification && (
               <span className="flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-xs text-primary">
-                {filters.classification}
+                {t(`sessions.class.${filters.classification as ClassificationKey}.label`)}
                 <button type="button" onClick={() => setFilter("classification", "")}>
                   <X className="h-3 w-3" />
                 </button>

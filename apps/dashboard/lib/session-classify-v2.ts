@@ -1,4 +1,27 @@
 import { Cpu, Eye, Download, Shield, Crosshair, KeyRound, Ghost, Container, Database, Coins, type LucideIcon } from "lucide-react"
+import type { TranslationKey } from "@/lib/i18n/dictionaries"
+
+// Stable, non-translatable identifier for each classification. This is the logic
+// key used for severity ranking (see SEVERITY_ORDER / worstOf) and to look up the
+// localized label/summary at render time — never translate it. The visible text
+// lives in dicts/sessions.ts under `sessions.class.<key>.{label,summary}`.
+export type ClassificationKey =
+  | "sshBackdoor"
+  | "honeypotEvasion"
+  | "containerEscape"
+  | "cryptoMiner"
+  | "dataExfil"
+  | "targetedCrypto"
+  | "portProbe"
+  | "burstBrute"
+  | "slowBrute"
+  | "credSpray"
+  | "scanner"
+  | "malwareDropper"
+  | "interactive"
+  | "recon"
+  | "botScript"
+  | "loginOnly"
 
 export interface SessionItem {
   id: string
@@ -21,11 +44,15 @@ export interface SessionItem {
 }
 
 export interface Classification {
-  label: string
+  /** Stable logic/lookup key. Render the label via `sessions.class.<key>.label`. */
+  key: ClassificationKey
   icon: LucideIcon
   color: string
   bg: string
-  summary: string
+  /** Translation key for the summary line. */
+  summaryKey: TranslationKey
+  /** Interpolation values for {var} placeholders in the summary, when any. */
+  summaryVars?: Record<string, string | number>
 }
 
 function authRatePerMinute(session: SessionItem): number {
@@ -44,12 +71,12 @@ export function classify(session: SessionItem): Classification {
 
   // ── Threat-tag labels take priority over generic heuristics ──────────────
   const TAG_CLASSIFICATIONS: Array<{ tag: string; result: Classification }> = [
-    { tag: 'ssh_backdoor',      result: { label: "SSH Backdoor",     icon: KeyRound, color: "text-red-500",     bg: "bg-red-500/15",     summary: `Tried to plant a persistent SSH key with chattr +ai` } },
-    { tag: 'honeypot_evasion',  result: { label: "Honeypot Evasion", icon: Ghost,    color: "text-purple-400",  bg: "bg-purple-400/15",  summary: `Detected sandbox/honeypot · probed for Telegram/SIM data` } },
-    { tag: 'container_escape',  result: { label: "Container Escape", icon: Container, color: "text-orange-500", bg: "bg-orange-500/15",  summary: `Tried to detect and escape the container environment` } },
-    { tag: 'crypto_mining',     result: { label: "Crypto Miner",     icon: Cpu,      color: "text-yellow-400",  bg: "bg-yellow-400/15",  summary: `Deployed a cryptocurrency miner` } },
-    { tag: 'data_exfil',        result: { label: "Data Exfil",       icon: Database, color: "text-red-400",     bg: "bg-red-400/15",     summary: `Tried to exfiltrate system data` } },
-    { tag: 'solana_targeting',  result: { label: "Targeted Crypto",  icon: Coins,    color: "text-emerald-400", bg: "bg-emerald-400/15", summary: `Probed for Solana infrastructure (validator, Jito, Firedancer)` } },
+    { tag: 'ssh_backdoor',      result: { key: "sshBackdoor",     icon: KeyRound, color: "text-red-500",     bg: "bg-red-500/15",     summaryKey: "sessions.class.sshBackdoor.summary" } },
+    { tag: 'honeypot_evasion',  result: { key: "honeypotEvasion", icon: Ghost,    color: "text-purple-400",  bg: "bg-purple-400/15",  summaryKey: "sessions.class.honeypotEvasion.summary" } },
+    { tag: 'container_escape',  result: { key: "containerEscape", icon: Container, color: "text-orange-500", bg: "bg-orange-500/15",  summaryKey: "sessions.class.containerEscape.summary" } },
+    { tag: 'crypto_mining',     result: { key: "cryptoMiner",     icon: Cpu,      color: "text-yellow-400",  bg: "bg-yellow-400/15",  summaryKey: "sessions.class.cryptoMiner.summary" } },
+    { tag: 'data_exfil',        result: { key: "dataExfil",       icon: Database, color: "text-red-400",     bg: "bg-red-400/15",     summaryKey: "sessions.class.dataExfil.summary" } },
+    { tag: 'solana_targeting',  result: { key: "targetedCrypto",  icon: Coins,    color: "text-emerald-400", bg: "bg-emerald-400/15", summaryKey: "sessions.class.targetedCrypto.summary" } },
   ]
 
   if (loggedIn) {
@@ -60,50 +87,53 @@ export function classify(session: SessionItem): Classification {
   if (!loggedIn) {
     if (authAttempts === 0 && session.eventCount <= 3) {
       return {
-        label: "Port probe",
+        key: "portProbe",
         icon: Crosshair,
         color: "text-slate-400",
         bg: "bg-slate-400/10",
-        summary: "Opened and closed quickly without trying credentials",
+        summaryKey: "sessions.class.portProbe.summary",
       }
     }
 
     if (authAttempts >= 30 || authRate >= 20) {
       return {
-        label: "Burst brute-force",
+        key: "burstBrute",
         icon: Cpu,
         color: "text-orange-400",
         bg: "bg-orange-400/15",
-        summary: `${authAttempts} burst attempts · access denied`,
+        summaryKey: "sessions.class.burstBrute.summary",
+        summaryVars: { authAttempts },
       }
     }
 
     if (authAttempts >= 12 && duration >= 1800) {
       return {
-        label: "Slow brute-force",
+        key: "slowBrute",
         icon: Cpu,
         color: "text-yellow-400",
         bg: "bg-yellow-400/15",
-        summary: `${authAttempts} credentials over ${Math.round(duration / 60)} min`,
+        summaryKey: "sessions.class.slowBrute.summary",
+        summaryVars: { authAttempts, min: Math.round(duration / 60) },
       }
     }
 
     if (authAttempts >= 8) {
       return {
-        label: "Credential spray",
+        key: "credSpray",
         icon: Cpu,
         color: "text-amber-400",
         bg: "bg-amber-400/15",
-        summary: `${authAttempts} credentials tried · automated`,
+        summaryKey: "sessions.class.credSpray.summary",
+        summaryVars: { authAttempts },
       }
     }
 
     return {
-      label: "Scanner",
+      key: "scanner",
       icon: Crosshair,
       color: "text-muted-foreground",
       bg: "bg-secondary",
-      summary: "Brief recon · no successful authentication",
+      summaryKey: "sessions.class.scanner.summary",
     }
   }
 
@@ -113,50 +143,53 @@ export function classify(session: SessionItem): Classification {
 
   if (duration >= 1800 || (commandCount > 20 && !isAutomated)) {
     return {
-      label: "Malware dropper",
+      key: "malwareDropper",
       icon: Download,
       color: "text-destructive",
       bg: "bg-destructive/15",
-      summary: `Successful access · ${commandCount} commands · extensive activity`,
+      summaryKey: "sessions.class.malwareDropper.summary",
+      summaryVars: { commandCount },
     }
   }
 
   if (commandCount > 8 && !isAutomated) {
     return {
-      label: "Interactive",
+      key: "interactive",
       icon: Eye,
       color: "text-red-400",
       bg: "bg-red-400/15",
-      summary: `Successful access · ${commandCount} commands executed`,
+      summaryKey: "sessions.class.interactive.summary",
+      summaryVars: { commandCount },
     }
   }
 
   if (commandCount > 0 && !isAutomated) {
     return {
-      label: "Recon",
+      key: "recon",
       icon: Eye,
       color: "text-blue-400",
       bg: "bg-blue-400/15",
-      summary: "Successful access · basic reconnaissance",
+      summaryKey: "sessions.class.recon.summary",
     }
   }
 
   if (commandCount > 0) {
     return {
-      label: "Bot Script",
+      key: "botScript",
       icon: Cpu,
       color: "text-slate-400",
       bg: "bg-slate-400/10",
-      summary: `Automated script · ${commandCount} cmd in ${duration}s`,
+      summaryKey: "sessions.class.botScript.summary",
+      summaryVars: { commandCount, duration },
     }
   }
 
   return {
-    label: "Login only",
+    key: "loginOnly",
     icon: Shield,
     color: "text-green-400",
     bg: "bg-green-400/15",
-    summary: "Successful access · no post-login activity",
+    summaryKey: "sessions.class.loginOnly.summary",
   }
 }
 
@@ -211,28 +244,28 @@ export function groupSessionsByIp(sessions: SessionItem[]): IpGroup[] {
   )
 }
 
-const SEVERITY_ORDER = [
-  "Malware dropper",
-  "Container Escape",
-  "Crypto Miner",
-  "Data Exfil",
-  "Targeted Crypto",
-  "SSH Backdoor",
-  "Honeypot Evasion",
-  "Burst brute-force",
-  "Slow brute-force",
-  "Interactive",
-  "Credential spray",
-  "Bot Script",
-  "Recon",
-  "Scanner",
-  "Port probe",
-  "Login only",
+const SEVERITY_ORDER: ClassificationKey[] = [
+  "malwareDropper",
+  "containerEscape",
+  "cryptoMiner",
+  "dataExfil",
+  "targetedCrypto",
+  "sshBackdoor",
+  "honeypotEvasion",
+  "burstBrute",
+  "slowBrute",
+  "interactive",
+  "credSpray",
+  "botScript",
+  "recon",
+  "scanner",
+  "portProbe",
+  "loginOnly",
 ]
 
 function worstOf(a: Classification, b: Classification): Classification {
-  const ai = SEVERITY_ORDER.indexOf(a.label)
-  const bi = SEVERITY_ORDER.indexOf(b.label)
+  const ai = SEVERITY_ORDER.indexOf(a.key)
+  const bi = SEVERITY_ORDER.indexOf(b.key)
   if (ai === -1) return b
   if (bi === -1) return a
   return ai <= bi ? a : b

@@ -11,11 +11,13 @@ import {
 import { formatDuration } from "@/lib/formatting"
 import { Flag } from "@/components/ui/flag"
 import { type ScanGroup } from "@/lib/session-classify-v2"
+import { useT } from "@/components/locale-provider"
 
 const CRED_PREVIEW = 5
 
 export function ScanGroupRow({ group }: { group: ScanGroup }) {
   const [expanded, setExpanded] = useState(false)
+  const t = useT()
   const hasCredentials = group.credentials.length > 0
 
   return (
@@ -46,7 +48,7 @@ export function ScanGroupRow({ group }: { group: ScanGroup }) {
             </span>
             {group.isBot && (
               <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-2 py-0.5 text-xs font-medium text-orange-400">
-                <Bot className="h-3 w-3" /> Bot
+                <Bot className="h-3 w-3" /> {t("sessions.badge.bot")}
               </span>
             )}
             <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-muted-foreground">

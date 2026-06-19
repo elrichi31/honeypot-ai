@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  # ── ingest-api ──────────────────────────────────────────────────────────────
+  ingest-api:
+    name: ingest-api — test + tsc
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/ingest-api
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: honeypot
+          POSTGRES_PASSWORD: honeypot
+          POSTGRES_DB: honeypot_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://honeypot:honeypot@localhost:5432/honeypot_test
+      INGEST_SHARED_SECRET: test-secret
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/ingest-api/package-lock.json
+
+      - run: npm ci
+
+      - name: Run DB migrations
+        run: npx prisma migrate deploy
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test
+
+  # ── dashboard ───────────────────────────────────────────────────────────────
+  dashboard:
+    name: dashboard — test + lint + tsc
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/dashboard
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/dashboard/package-lock.json
+
+      - run: npm ci
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
+
+  # ── Build check (asegura que el build de Next.js no está roto) ─────────────
+  dashboard-build:
+    name: dashboard — next build
+    runs-on: ubuntu-latest
+    needs: dashboard
+    defaults:
+      run:
+        working-directory: apps/dashboard
+    env:
+      # Variables mínimas para que next build no explote en build time
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+      DATABASE_URL: postgresql://placeholder:placeholder@localhost/placeholder
+      BETTER_AUTH_SECRET: ci-placeholder-secret-32-chars-xxxx
+      BETTER_AUTH_URL: http://localhost:3001
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/dashboard/package-lock.json
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build

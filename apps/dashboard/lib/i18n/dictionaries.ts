@@ -24,6 +24,7 @@ import * as defense from "./dicts/defense"
 import * as clients from "./dicts/clients"
 import * as sensors from "./dicts/sensors"
 import * as infra from "./dicts/infra"
+import * as sessions from "./dicts/sessions"
 
 export const LOCALES = ["en", "es"] as const
 export type Locale = (typeof LOCALES)[number]
@@ -47,6 +48,7 @@ const en = {
   ...clients.en,
   ...sensors.en,
   ...infra.en,
+  ...sessions.en,
 } as const
 
 export type TranslationKey = keyof typeof en
@@ -64,6 +66,7 @@ const es: Record<TranslationKey, string> = {
   ...clients.es,
   ...sensors.es,
   ...infra.es,
+  ...sessions.es,
 }
 
 export const dictionaries: Record<Locale, Record<TranslationKey, string>> = { en, es }

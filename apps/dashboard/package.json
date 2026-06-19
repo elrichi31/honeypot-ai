@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "test": "tsx --test lib/**/*.test.ts",
     "migrate": "node --env-file=.env migrate-auth.mjs"
   },
   "dependencies": {
@@ -79,6 +80,7 @@
     "@types/topojson-specification": "^1.0.5",
     "postcss": "^8.5",
     "tailwindcss": "^4.2.0",
+    "tsx": "^4.22.4",
     "tw-animate-css": "1.3.3",
     "typescript": "5.7.3"
   }

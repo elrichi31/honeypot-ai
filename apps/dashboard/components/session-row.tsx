@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils"
 import { formatDuration } from "@/lib/formatting"
 import { Flag } from "@/components/ui/flag"
 import { classify, type SessionItem } from "@/lib/session-classify-v2"
+import { useT } from "@/components/locale-provider"
 import { EventTimeline } from "./event-timeline"
 import type { HoneypotEvent } from "@/lib/api"
 
@@ -29,6 +30,7 @@ export function SessionRow({ session }: { session: SessionItem }) {
       .finally(() => setLoading(false))
   }, [expanded, events, session.id])
 
+  const t = useT()
   const cls = classify(session)
   const Icon = cls.icon
 
@@ -56,20 +58,20 @@ export function SessionRow({ session }: { session: SessionItem }) {
               </span>
             )}
             <span className="inline-flex items-center gap-1 rounded-full bg-destructive/20 px-2 py-0.5 text-xs font-medium text-destructive">
-              <ShieldX className="h-3 w-3" /> Comprometido
+              <ShieldX className="h-3 w-3" /> {t("sessions.badge.compromised")}
             </span>
             {session.sessionType === 'bot' && (
               <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-2 py-0.5 text-xs font-medium text-orange-400">
-                <Bot className="h-3 w-3" /> Bot
+                <Bot className="h-3 w-3" /> {t("sessions.badge.bot")}
               </span>
             )}
             <span className={cn("inline-flex items-center gap-1 rounded-full border border-transparent px-2 py-0.5 text-xs font-medium", cls.bg, cls.color)}>
               <Icon className="h-3 w-3" />
-              {cls.label}
+              {t(`sessions.class.${cls.key}.label`)}
             </span>
           </div>
 
-          <p className="mt-1 text-xs text-muted-foreground">{cls.summary}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t(cls.summaryKey, cls.summaryVars)}</p>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
@@ -123,7 +125,7 @@ export function SessionRow({ session }: { session: SessionItem }) {
           ) : events && events.length > 0 ? (
             <EventTimeline events={events} />
           ) : (
-            <p className="py-4 text-center text-sm text-muted-foreground">Sin eventos registrados.</p>
+            <p className="py-4 text-center text-sm text-muted-foreground">{t("sessions.empty.noEvents")}</p>
           )}
         </div>
       )}
