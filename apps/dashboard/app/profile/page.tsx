@@ -7,7 +7,8 @@ import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useSession } from "@/lib/auth-client"
-import { ROLE_LABELS, type Role } from "@/lib/roles-shared"
+import { ROLE_LABEL_KEYS, type Role } from "@/lib/roles-shared"
+import { useT } from "@/components/locale-provider"
 
 function initialsOf(name?: string | null, email?: string | null) {
   const source = name?.trim() || email?.trim() || "?"
@@ -29,6 +30,7 @@ function Field({ icon: Icon, label, value }: { icon: React.ElementType; label: s
 }
 
 export default function ProfilePage() {
+  const t = useT()
   const { data: session } = useSession()
   const user = session?.user
   const [role, setRole] = useState<Role | null>(null)
@@ -63,7 +65,7 @@ export default function ProfilePage() {
             {role && (
               <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-border bg-background/40 px-2 py-0.5 text-[11px] text-muted-foreground">
                 <Shield className="h-3 w-3" />
-                {ROLE_LABELS[role] ?? role}
+                {ROLE_LABEL_KEYS[role] ? t(ROLE_LABEL_KEYS[role]) : role}
               </span>
             )}
           </div>
@@ -72,7 +74,7 @@ export default function ProfilePage() {
         <div className="grid gap-3 sm:grid-cols-2">
           <Field icon={UserIcon} label="Name" value={user?.name ?? "—"} />
           <Field icon={Mail} label="Email" value={user?.email ?? "—"} />
-          <Field icon={Shield} label="Role" value={role ? (ROLE_LABELS[role] ?? role) : "—"} />
+          <Field icon={Shield} label="Role" value={role ? (ROLE_LABEL_KEYS[role] ? t(ROLE_LABEL_KEYS[role]) : role) : "—"} />
         </div>
 
         <Surface padded>

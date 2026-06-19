@@ -5,7 +5,7 @@ import { NextResponse } from "next/server"
 import { hasPermission, type Role } from "@/lib/roles-shared"
 
 export type { Role } from "@/lib/roles-shared"
-export { ROLE_ORDER, hasPermission, ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_COLORS, SCOPE_NONE, resolveScopeClientId } from "@/lib/roles-shared"
+export { ROLE_ORDER, hasPermission, ROLE_LABEL_KEYS, ROLE_DESCRIPTION_KEYS, ROLE_COLORS, SCOPE_NONE, resolveScopeClientId } from "@/lib/roles-shared"
 
 export type AuthOk = {
   ok: true

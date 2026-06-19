@@ -9,7 +9,8 @@ import { Users, UserPlus, Trash2, X, Eye, EyeOff, ShieldCheck } from "lucide-rea
 import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
 import { useSession } from "@/lib/auth-client"
-import { ROLE_LABELS, ROLE_COLORS, ROLE_DESCRIPTIONS, hasPermission, type Role } from "@/lib/roles-shared"
+import { ROLE_LABEL_KEYS, ROLE_COLORS, ROLE_DESCRIPTION_KEYS, hasPermission, type Role } from "@/lib/roles-shared"
+import { useT } from "@/components/locale-provider"
 
 type User = {
   id: string
@@ -29,10 +30,11 @@ type ClientLite = { id: string; name: string }
 const ASSIGNABLE_ROLES: Role[] = ["admin", "analyst", "viewer"]
 
 function RoleBadge({ role }: { role: string }) {
+  const t = useT()
   const color = ROLE_COLORS[role as Role] ?? "bg-muted text-muted-foreground"
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${color}`}>
-      {ROLE_LABELS[role as Role] ?? role}
+      {ROLE_LABEL_KEYS[role as Role] ? t(ROLE_LABEL_KEYS[role as Role]) : role}
     </span>
   )
 }
@@ -48,6 +50,7 @@ function CreateUserDialog({
   clients: ClientLite[]
   canSuperadmin: boolean
 }) {
+  const t = useT()
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -130,10 +133,10 @@ function CreateUserDialog({
                       : "border-border hover:bg-accent/50"
                   }`}>
                   <div className={`text-xs font-medium ${role === r ? "text-primary-foreground" : "text-foreground"}`}>
-                    {ROLE_LABELS[r]}
+                    {t(ROLE_LABEL_KEYS[r])}
                   </div>
                   <div className={`text-[10px] leading-tight mt-0.5 ${role === r ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                    {ROLE_DESCRIPTIONS[r]}
+                    {t(ROLE_DESCRIPTION_KEYS[r])}
                   </div>
                 </button>
               ))}
@@ -224,6 +227,7 @@ function DeleteConfirmDialog({ user, onClose, onDeleted }: { user: User; onClose
 }
 
 export default function UsersPage() {
+  const t = useT()
   const { data: session } = useSession()
   const [users, setUsers] = useState<User[]>([])
   const [me, setMe] = useState<Me | null>(null)
@@ -309,7 +313,7 @@ export default function UsersPage() {
         {(canSuperadmin ? (["superadmin", ...ASSIGNABLE_ROLES] as Role[]) : ASSIGNABLE_ROLES).map((r) => (
           <Surface key={r} className="flex items-center gap-2 px-4 py-3">
             <RoleBadge role={r} />
-            <span className="text-xs text-muted-foreground">{ROLE_DESCRIPTIONS[r]}</span>
+            <span className="text-xs text-muted-foreground">{t(ROLE_DESCRIPTION_KEYS[r])}</span>
           </Surface>
         ))}
       </div>
@@ -358,7 +362,7 @@ export default function UsersPage() {
                           className="rounded-lg border border-border bg-card px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
                         >
                           {(canSuperadmin ? (["superadmin", ...ASSIGNABLE_ROLES] as Role[]) : ASSIGNABLE_ROLES).map((r) => (
-                            <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                            <option key={r} value={r}>{t(ROLE_LABEL_KEYS[r])}</option>
                           ))}
                         </select>
                       ) : (

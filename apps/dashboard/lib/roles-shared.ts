@@ -10,18 +10,20 @@ export function hasPermission(userRole: Role, requiredRole: Role): boolean {
   return ROLE_ORDER.indexOf(userRole) >= ROLE_ORDER.indexOf(requiredRole)
 }
 
-export const ROLE_LABELS: Record<Role, string> = {
-  superadmin: "Super Admin",
-  admin: "Admin",
-  analyst: "Analyst",
-  viewer: "Viewer",
+import type { TranslationKey } from "@/lib/i18n/dictionaries"
+
+export const ROLE_LABEL_KEYS: Record<Role, TranslationKey> = {
+  superadmin: "users.role.superadmin.label",
+  admin: "users.role.admin.label",
+  analyst: "users.role.analyst.label",
+  viewer: "users.role.viewer.label",
 }
 
-export const ROLE_DESCRIPTIONS: Record<Role, string> = {
-  superadmin: "Global access to all clients (multi-tenant)",
-  admin: "Full access including users and configuration",
-  analyst: "Infrastructure management and data analysis",
-  viewer: "Read-only dashboard access",
+export const ROLE_DESCRIPTION_KEYS: Record<Role, TranslationKey> = {
+  superadmin: "users.role.superadmin.description",
+  admin: "users.role.admin.description",
+  analyst: "users.role.analyst.description",
+  viewer: "users.role.viewer.description",
 }
 
 export const ROLE_COLORS: Record<Role, string> = {
