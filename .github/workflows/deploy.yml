@@ -36,7 +36,8 @@ jobs:
             cd ~/honeypot-ai
 
             echo "==> Pulling latest code..."
-            git pull origin master
+            git fetch origin master
+            git reset --hard origin/master
 
             echo "==> Building and restarting services..."
             docker compose -f docker-compose.prod.single-host.yml pull --ignore-pull-failures
