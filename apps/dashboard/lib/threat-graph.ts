@@ -1,6 +1,7 @@
 import type { ThreatDetail } from "./api/types"
 import type { IpEnrichment } from "./ip-enrichment"
 import { detectBotnetFamily, extractIocsFromCommands } from "./botnet-signatures"
+import type { TranslationKey } from "./i18n/dictionaries"
 
 /**
  * Pure builder that turns a ThreatDetail (+ optional IP enrichment) into a
@@ -25,6 +26,8 @@ export type ThreatNodeKind =
 export interface ThreatNodeData {
   kind: ThreatNodeKind
   label: string
+  /** when set, the render site translates this key instead of rendering label directly */
+  labelKey?: TranslationKey
   sub?: string
   /** category key for color lookup (command category, attack type, etc.) */
   category?: string
@@ -129,7 +132,7 @@ export function buildThreatGraph(
   if (repParts.length > 0) {
     leftNodes.push({
       id: "reputation", type: "threatNode", position: { x: 0, y: 0 },
-      data: { kind: "reputation", label: "Reputation", sub: repParts.join(" · ") },
+      data: { kind: "reputation", label: "Reputation", labelKey: "threatIntel.graph.reputation", sub: repParts.join(" · ") },
     })
   }
   const leftPos = sector(leftNodes.length, 300, 180, 80)

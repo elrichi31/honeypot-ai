@@ -1,4 +1,5 @@
 import type { HoneypotEvent } from "./api/types"
+import type { TranslationKey } from "./i18n/dictionaries"
 
 /**
  * Botnet-family attribution + IoC extraction for SSH sessions.
@@ -26,9 +27,12 @@ export type BotnetCategory =
 export interface BotnetSignature {
   id: string
   name: string
+  nameKey: TranslationKey
   aliases: string[]
   description: string
+  descriptionKey: TranslationKey
   category: BotnetCategory
+  categoryKey: TranslationKey
   /** A family matches when at least `minMatches` distinct patterns hit. */
   patterns: RegExp[]
   minMatches: number
@@ -38,9 +42,12 @@ export interface BotnetSignature {
 export interface BotnetMatch {
   id: string
   name: string
+  nameKey: TranslationKey
   aliases: string[]
   description: string
+  descriptionKey: TranslationKey
   category: BotnetCategory
+  categoryKey: TranslationKey
   /** Human-readable snippets of the patterns that fired — explains the verdict. */
   matchedPatterns: string[]
   /** matched count / total patterns, 0–1. */
@@ -55,12 +62,15 @@ export const BOTNET_SIGNATURES: BotnetSignature[] = [
   {
     id: "outlaw",
     name: "Outlaw / mdrfckr",
+    nameKey: "threatIntel.family.outlaw.name",
     aliases: ["mdrfckr", "Shellbot", "Dota"],
     description:
       "Perl/Shellbot-based Monero cryptomining botnet. Wipes ~/.ssh, plants " +
       "its own public key (tag «mdrfckr») for persistence, fingerprints CPU/RAM " +
       "and downloads an XMRig miner.",
+    descriptionKey: "threatIntel.family.outlaw.description",
     category: "cryptominer",
+    categoryKey: "threatIntel.category.cryptominer",
     patterns: [
       /mdrfckr/i,
       /chattr\s+-ia\s+\.ssh/i,
@@ -76,11 +86,14 @@ export const BOTNET_SIGNATURES: BotnetSignature[] = [
   {
     id: "ssh_key_persistence",
     name: "SSH key persistence kit",
+    nameKey: "threatIntel.family.ssh_key_persistence.name",
     aliases: ["authorized_keys backdoor"],
     description:
       "Generic kit that installs an attacker SSH key in authorized_keys to keep " +
       "access even if the password changes. Not attributed to a specific family.",
+    descriptionKey: "threatIntel.family.ssh_key_persistence.description",
     category: "backdoor",
+    categoryKey: "threatIntel.category.backdoor",
     patterns: [
       /echo\s+.*ssh-(rsa|ed25519)\s+AAAA.*>>?\s*[^\s]*authorized_keys/i,
       />>?\s*~?\/?\.ssh\/authorized_keys/i,
@@ -90,11 +103,14 @@ export const BOTNET_SIGNATURES: BotnetSignature[] = [
   {
     id: "xmrig_miner",
     name: "XMRig cryptominer",
+    nameKey: "threatIntel.family.xmrig_miner.name",
     aliases: ["xmrig", "stratum miner"],
     description:
       "Direct deployment of an XMRig miner pointing at a (stratum) mining pool. " +
       "Indicates monetization via cryptomining.",
+    descriptionKey: "threatIntel.family.xmrig_miner.description",
     category: "cryptominer",
+    categoryKey: "threatIntel.category.cryptominer",
     patterns: [
       /xmrig/i,
       /stratum\+tcp:\/\//i,
@@ -121,9 +137,12 @@ export function detectBotnetFamily(commands: string[]): BotnetMatch | null {
     const candidate: BotnetMatch = {
       id: sig.id,
       name: sig.name,
+      nameKey: sig.nameKey,
       aliases: sig.aliases,
       description: sig.description,
+      descriptionKey: sig.descriptionKey,
       category: sig.category,
+      categoryKey: sig.categoryKey,
       matchedPatterns: matched.map((p) => p.source),
       confidence: matched.length / sig.patterns.length,
       references: sig.references ?? [],

@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect } from "react"
+import { useT } from "@/components/locale-provider"
 import {
   ReactFlow,
   Background,
@@ -54,6 +55,7 @@ const KIND_ACCENT: Record<ThreatNodeKind, string> = {
 const FOUR_SIDES = [Position.Top, Position.Right, Position.Bottom, Position.Left] as const
 
 function ThreatNode({ data }: NodeProps<Node<ThreatNodeData>>) {
+  const t = useT()
   const Icon = KIND_ICON[data.kind]
   const isCenter = data.kind === "ip"
 
@@ -88,7 +90,7 @@ function ThreatNode({ data }: NodeProps<Node<ThreatNodeData>>) {
       <div className="flex items-center gap-1.5">
         <Icon className="h-3.5 w-3.5 shrink-0" />
         <span className={`truncate font-mono ${isCenter ? "text-sm font-semibold" : "text-xs"}`}>
-          {data.label}
+          {data.labelKey ? t(data.labelKey) : data.label}
         </span>
       </div>
       {data.sub && <p className="mt-0.5 truncate text-[10px] opacity-70">{data.sub}</p>}
