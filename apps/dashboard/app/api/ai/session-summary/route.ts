@@ -4,6 +4,12 @@ import { getOpenAiKey } from "@/lib/server-config"
 import { analyzeRisk, preClassify } from "@/lib/risk-score"
 import type { HoneypotEvent, ApiSession } from "@/lib/api"
 import { requireRole } from "@/lib/roles"
+import { getServerLocale } from "@/lib/i18n/server"
+
+const LOCALE_LANGUAGE: Record<string, string> = {
+  en: "English",
+  es: "Spanish",
+}
 
 export interface SessionAnalysis {
   summary: string
@@ -25,10 +31,13 @@ export async function POST(req: NextRequest) {
   const auth_check = await requireRole("analyst")
   if (!auth_check.ok) return auth_check.response
 
+  const locale = await getServerLocale()
+  const language = LOCALE_LANGUAGE[locale] ?? "English"
+
   const apiKey = getOpenAiKey()
   if (!apiKey) {
     return NextResponse.json(
-      { error: "OpenAI API key not configured. Ve a Settings para agregarlo." },
+      { error: "OpenAI API key not configured. Go to Settings to add it." },
       { status: 503 }
     )
   }
@@ -52,34 +61,36 @@ export async function POST(req: NextRequest) {
     .map((e) => `${e.username}:${e.password} → ${e.success ? "OK" : "FAIL"}`)
 
   // ---------- OpenAI prompt ----------
-  const prompt = `Eres un analista de ciberseguridad revisando una sesión de un honeypot SSH.
+  const none = locale === "es" ? "ninguno" : "none"
+  const prompt = `You are a cybersecurity analyst reviewing an SSH honeypot session.
+Respond ONLY in ${language}. All text fields in the JSON output must be in ${language}.
 
-## Datos de la sesión
-- IP origen: ${session.srcIp}
-- Cliente SSH: ${session.clientVersion ?? "desconocido"}
-- HASSH: ${session.hassh ?? "desconocido"}
-- Login exitoso: ${session.loginSuccess ? "SÍ" : "NO"}
-- Duración: ${session.endedAt ? `${Math.round((new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()) / 1000)}s` : "activa"}
+## Session data
+- Source IP: ${session.srcIp}
+- SSH client: ${session.clientVersion ?? "unknown"}
+- HASSH: ${session.hassh ?? "unknown"}
+- Successful login: ${session.loginSuccess ? "YES" : "NO"}
+- Duration: ${session.endedAt ? `${Math.round((new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()) / 1000)}s` : "active"}
 
-## Intentos de autenticación (${risk.factors.authAttempts} total)
-${authAttempts.join("\n") || "ninguno"}
+## Authentication attempts (${risk.factors.authAttempts} total)
+${authAttempts.join("\n") || none}
 
-## Comandos ejecutados (${commands.length} total)
-${commands.slice(0, 25).join("\n") || "ninguno"}
+## Executed commands (${commands.length} total)
+${commands.slice(0, 25).join("\n") || none}
 
-## Análisis algorítmico previo
-- Risk score calculado: ${risk.score}/100 (${risk.level})
-- Clasificación sugerida: ${hint}
-- Factores detectados:
-${risk.breakdown.map((b) => `  • ${b.label} (+${b.points}pts)`).join("\n") || "  • ninguno"}
+## Algorithmic pre-analysis
+- Calculated risk score: ${risk.score}/100 (${risk.level})
+- Suggested classification: ${hint}
+- Detected factors:
+${risk.breakdown.map((b) => `  • ${b.label} (+${b.points}pts)`).join("\n") || `  • ${none}`}
 
-## Tu tarea
-Devuelve ÚNICAMENTE un JSON válido con esta estructura exacta (sin markdown, sin texto extra):
+## Your task
+Return ONLY valid JSON with this exact structure (no markdown, no extra text):
 {
-  "summary": "descripción en español de 2-3 oraciones sobre qué hizo el atacante y su comportamiento",
-  "classification": "una de: brute-force bot | opportunistic scanner | interactive operator | malware dropper | recon-only | credential stuffing",
-  "keyIndicators": ["indicador 1", "indicador 2", "indicador 3"],
-  "recommendation": "qué se debe hacer o vigilar, en español, 1-2 oraciones"
+  "summary": "2-3 sentence description of what the attacker did and their behavior",
+  "classification": "one of: brute-force bot | opportunistic scanner | interactive operator | malware dropper | recon-only | credential stuffing",
+  "keyIndicators": ["indicator 1", "indicator 2", "indicator 3"],
+  "recommendation": "what should be done or monitored, 1-2 sentences"
 }`
 
   try {
@@ -96,7 +107,7 @@ Devuelve ÚNICAMENTE un JSON válido con esta estructura exacta (sin markdown, s
     const ai = JSON.parse(raw)
 
     const result: SessionAnalysis = {
-      summary: ai.summary ?? "No se pudo generar resumen.",
+      summary: ai.summary ?? "",
       classification: ai.classification ?? hint,
       riskScore: risk.score,
       riskLevel: risk.level,
