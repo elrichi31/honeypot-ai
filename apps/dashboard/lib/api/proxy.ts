@@ -1,50 +1,91 @@
 import { NextResponse } from "next/server"
+import { getApiUrl } from "./client"
 
-const apiBase = () =>
-  process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
+export { getApiUrl }
 
-const DEFAULT_TIMEOUT_MS = 8000
+const DEFAULT_TIMEOUT_MS = 10000
+
+/** Auth header for ingest-api routes guarded by the shared secret. */
+export function ingestHeaders(withJsonBody = true): Record<string, string> {
+  return {
+    ...(withJsonBody ? { "Content-Type": "application/json" } : {}),
+    ...(process.env.INGEST_SHARED_SECRET
+      ? { "X-Ingest-Token": process.env.INGEST_SHARED_SECRET }
+      : {}),
+  }
+}
+
+export type ProxyResult =
+  | { ok: true; status: number; data: unknown }
+  | { ok: false; status: number; error: string }
 
 /**
- * Proxy a GET request to the ingest-api backend and relay its JSON response.
+ * Core proxy primitive. Fetches `${getApiUrl()}${path}` with a bounded timeout
+ * and parses the JSON body defensively. Never throws — network failures, timeouts,
+ * and non-JSON bodies are returned as `{ ok: false }` with a clear status code.
  *
- * Centralizes the safe-proxy pattern:
- *  - A failed connection or a non-JSON error body is turned into a clean 502
- *    instead of an opaque 500 thrown by `res.json()`.
- *  - The request is bounded by a timeout so a saturated backend can't hang the
- *    dashboard indefinitely; on timeout we return 503 and the page degrades to
- *    an empty/error state instead of freezing the browser.
- *
- * `path` must start with "/" (e.g. "/storage/stats").
+ * `path` must start with "/" (e.g. "/alerts").
+ */
+export async function proxyRaw(
+  path: string,
+  init: RequestInit & { timeoutMs?: number } = {},
+): Promise<ProxyResult> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, ...fetchInit } = init
+  let res: Response
+  try {
+    res = await fetch(`${getApiUrl()}${path}`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
+      ...fetchInit,
+    })
+  } catch (err) {
+    const timedOut = err instanceof Error && err.name === "TimeoutError"
+    return {
+      ok: false,
+      status: timedOut ? 504 : 502,
+      error: timedOut ? "Ingest API timed out" : "Could not reach ingest API",
+    }
+  }
+
+  const text = await res.text()
+  let data: unknown = null
+  if (text) {
+    try {
+      data = JSON.parse(text)
+    } catch {
+      return {
+        ok: false,
+        status: res.ok ? 502 : res.status,
+        error: `Ingest API returned a non-JSON response (status ${res.status})`,
+      }
+    }
+  }
+
+  if (!res.ok) {
+    const error =
+      (data && typeof data === "object" && "error" in data && typeof (data as Record<string, unknown>).error === "string"
+        ? (data as Record<string, unknown>).error as string
+        : null) ?? `Ingest API error (status ${res.status})`
+    return { ok: false, status: res.status, error }
+  }
+
+  return { ok: true, status: res.status, data }
+}
+
+/**
+ * Thin adapter over `proxyRaw` that converts the result into a `NextResponse`.
+ * Use in route handlers that just relay the backend response unchanged.
  */
 export async function proxyGet(
   path: string,
-  init?: { headers?: Record<string, string>; timeoutMs?: number },
+  init?: RequestInit & { timeoutMs?: number },
 ): Promise<NextResponse> {
-  let res: Response
-  try {
-    res = await fetch(`${apiBase()}${path}`, {
-      cache: "no-store",
-      headers: init?.headers,
-      signal: AbortSignal.timeout(init?.timeoutMs ?? DEFAULT_TIMEOUT_MS),
-    })
-  } catch (err) {
-    // AbortSignal.timeout fires a TimeoutError; treat that as 503 (backend busy)
-    // and anything else (connection refused, DNS, etc.) as 502 (unreachable).
-    const isTimeout = err instanceof DOMException && err.name === "TimeoutError"
-    return NextResponse.json(
-      { error: isTimeout ? "Backend timed out" : "Backend unreachable" },
-      { status: isTimeout ? 503 : 502 },
-    )
+  const result = await proxyRaw(path, init)
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
-
-  const data = await res.json().catch(() => null)
-  if (data === null) {
-    return NextResponse.json(
-      { error: `Backend returned a non-JSON response (status ${res.status})` },
-      { status: res.ok ? 502 : res.status },
-    )
-  }
-
-  return NextResponse.json(data, { status: res.status })
+  return NextResponse.json(result.data, { status: result.status })
 }
+
+/** Alias for `proxyGet` — use when the caller passes a non-GET `method` in init. */
+export const proxyResponse = proxyGet
