@@ -382,7 +382,7 @@ export default function UsersPage() {
                           onChange={(e) => handleTenantChange(user.id, e.target.value)}
                           className="rounded-lg border border-border bg-card px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
                         >
-                          <option value="">{canSuperadmin ? "Sin asignar" : "Selecciona tenant"}</option>
+                          <option value="">{canSuperadmin ? t("users.tenant.unassigned") : t("users.tenant.select")}</option>
                           {clients.map((c) => (
                             <option key={c.id} value={c.id}>{c.name}</option>
                           ))}

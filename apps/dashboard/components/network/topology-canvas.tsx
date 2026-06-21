@@ -22,6 +22,7 @@ import { RfClientLabel }               from "./rf-client-label"
 import { SensorPanel }                 from "./sensor-panel"
 import { StatsBar }                    from "./stats-bar"
 import { buildGroups }                 from "./utils"
+import { useT }                        from "@/components/locale-provider"
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
 const NODE_W      = 118
@@ -87,7 +88,7 @@ function buildGraph(sensors: Sensor[]): { nodes: Node[]; edges: Edge[] } {
       id:        clientId,
       type:      "clientLabel",
       position:  { x: startX + groupW / 2, y: CLIENT_Y },
-      data:      { label: group.name, online: anyOnline },
+      data:      { label: group.name, groupKey: group.key, online: anyOnline },
       draggable: true,
       zIndex: 15,
     })

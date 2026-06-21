@@ -12,7 +12,7 @@ export function buildGroups(sensors: Sensor[]): Group[] {
   for (const s of sensors) {
     const key = s.clientId ?? "__unassigned__"
     if (!map.has(key)) {
-      map.set(key, { key, name: s.clientName ?? "Sin cliente", slug: s.clientSlug, external: [], internal: [] })
+      map.set(key, { key, name: s.clientName ?? "", slug: s.clientSlug, external: [], internal: [] })
     }
     const g = map.get(key)!
     if (isPrivateIp(s.ip)) g.internal.push(s)

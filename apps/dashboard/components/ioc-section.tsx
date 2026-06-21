@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import { Copy, Check, Download, Search, Crosshair, Biohazard } from "lucide-react"
 import { Surface } from "@/components/ui/surface"
+import { useT } from "@/components/locale-provider"
 import { toPlainList, toCsv, toStixBundle, type IocEntry, type IocType } from "@/lib/ioc-export"
 
 // Icon + per-row metadata are resolved here (a Client Component) by `kind`,
@@ -60,6 +61,7 @@ export function IocSection({
   entries: IocEntry[]
   fileBase: string                         // e.g. "honeypot-ips"
 }) {
+  const t = useT()
   const Icon = KIND_ICON[kind]
   const [q, setQ] = useState("")
   const [showAll, setShowAll] = useState(false)
@@ -105,7 +107,7 @@ export function IocSection({
       </div>
 
       {entries.length === 0 ? (
-        <p className="p-6 text-center text-sm text-muted-foreground">Sin indicadores de este tipo.</p>
+        <p className="p-6 text-center text-sm text-muted-foreground">{t("iocs.section.empty")}</p>
       ) : (
         <>
           <div className="border-b border-border p-3">

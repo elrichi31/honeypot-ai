@@ -4,6 +4,9 @@
 import type { TranslationKey } from "../dictionaries"
 
 export const en = {
+  "users.tenant.unassigned": "Unassigned",
+  "users.tenant.select": "Select tenant",
+
   "users.role.superadmin.label": "Super Admin",
   "users.role.admin.label": "Admin",
   "users.role.analyst.label": "Analyst",
@@ -16,6 +19,9 @@ export const en = {
 } as const
 
 export const es: Record<keyof typeof en, string> = {
+  "users.tenant.unassigned": "Sin asignar",
+  "users.tenant.select": "Selecciona tenant",
+
   "users.role.superadmin.label": "Super Admin",
   "users.role.admin.label": "Admin",
   "users.role.analyst.label": "Analista",

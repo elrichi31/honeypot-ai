@@ -6,6 +6,7 @@ export const en = {
   "iocs.subtitle": "{ips} malicious IPs · {hashes} malware hashes — copy or export to your firewall / SIEM",
   "iocs.section.ips": "Malicious IPs",
   "iocs.section.hashes": "Malware hashes",
+  "iocs.section.empty": "No indicators of this type.",
 } as const
 
 export const es: Record<keyof typeof en, string> = {
@@ -13,4 +14,5 @@ export const es: Record<keyof typeof en, string> = {
   "iocs.subtitle": "{ips} IPs maliciosas · {hashes} hashes de malware — copia o exporta a tu firewall / SIEM",
   "iocs.section.ips": "IPs maliciosas",
   "iocs.section.hashes": "Hashes de malware",
+  "iocs.section.empty": "Sin indicadores de este tipo.",
 }
