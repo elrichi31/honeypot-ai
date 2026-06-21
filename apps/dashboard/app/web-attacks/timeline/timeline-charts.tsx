@@ -11,6 +11,7 @@ import {
 import type { ChartConfig } from "@/components/ui/chart"
 import { ATTACK_COLORS_HEX as ATTACK_COLORS, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack-types"
 import { Surface } from "@/components/ui/surface"
+import { useT } from "@/components/locale-provider"
 
 const timelineChartConfig: ChartConfig = Object.fromEntries(
   Object.entries(ATTACK_COLORS).map(([key, color]) => [
@@ -26,6 +27,7 @@ interface Props {
 }
 
 export function TimelineCharts({ days, attackTypes, byAttackType }: Props) {
+  const t = useT()
   const pieData = byAttackType.map((a) => ({
     name:  a.attackType,
     value: a.count,
@@ -95,8 +97,8 @@ export function TimelineCharts({ days, attackTypes, byAttackType }: Props) {
 
         {/* Ranking numérico */}
         <Surface padded>
-          <h3 className="mb-1 font-semibold text-foreground">Ranking de ataques</h3>
-          <p className="mb-4 text-xs text-muted-foreground">Ordenado por frecuencia · all-time</p>
+          <h3 className="mb-1 font-semibold text-foreground">{t("webAttacks.timeline.rankingTitle")}</h3>
+          <p className="mb-4 text-xs text-muted-foreground">{t("webAttacks.timeline.rankingSubtitle")}</p>
           <div className="space-y-3">
             {byAttackType.map((a, i) => {
               const total = byAttackType.reduce((s, x) => s + x.count, 0)

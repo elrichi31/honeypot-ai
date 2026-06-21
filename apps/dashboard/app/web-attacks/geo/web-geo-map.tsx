@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useT } from "@/components/locale-provider"
 import {
   ComposableMap,
   Geographies,
@@ -34,6 +35,7 @@ function getColor(hits: number, max: number): string {
 const DEFAULT_CENTER: [number, number] = [0, 10]
 
 export function WebGeoMap({ countries, totalHits }: { countries: WebCountryAttack[]; totalHits: number }) {
+  const t = useT()
   const [tooltip, setTooltip] = useState<WebCountryAttack | null>(null)
   const [position, setPosition] = useState<{ coordinates: [number, number]; zoom: number }>({
     coordinates: DEFAULT_CENTER,
@@ -146,8 +148,8 @@ export function WebGeoMap({ countries, totalHits }: { countries: WebCountryAttac
           {countries.length === 0 && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
               <Globe className="h-8 w-8 text-white/20" />
-              <p className="text-sm font-medium text-white/40">Sin datos geolocalizables</p>
-              <p className="text-xs text-white/25">Las IPs privadas/Docker no tienen geo</p>
+              <p className="text-sm font-medium text-white/40">{t("webAttacks.geo.noData")}</p>
+              <p className="text-xs text-white/25">{t("webAttacks.geo.noDataHint")}</p>
             </div>
           )}
         </div>
@@ -158,7 +160,7 @@ export function WebGeoMap({ countries, totalHits }: { countries: WebCountryAttac
         <Surface className="overflow-hidden">
           <div className="border-b border-border p-4">
             <h3 className="font-semibold text-foreground">Ranking by country</h3>
-            <p className="text-xs text-muted-foreground">Ordenado por total de hits · click en una IP para ver su detalle</p>
+            <p className="text-xs text-muted-foreground">{t("webAttacks.geo.tableSubtitle")}</p>
           </div>
           <div className="max-h-[480px] overflow-y-auto">
             <table className="w-full text-sm">
@@ -168,8 +170,8 @@ export function WebGeoMap({ countries, totalHits }: { countries: WebCountryAttac
                   <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Country</th>
                   <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Hits</th>
                   <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Unique IPs</th>
-                  <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Top amenaza</th>
-                  <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">% del total</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">{t("webAttacks.geo.col.topThreat")}</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">{t("webAttacks.geo.col.pctOfTotal")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

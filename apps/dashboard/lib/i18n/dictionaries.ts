@@ -27,6 +27,7 @@ import * as infra from "./dicts/infra"
 import * as sessions from "./dicts/sessions"
 import * as users from "./dicts/users"
 import * as threatIntel from "./dicts/threat-intel"
+import * as webAttacks from "./dicts/web-attacks"
 
 export const LOCALES = ["en", "es"] as const
 export type Locale = (typeof LOCALES)[number]
@@ -53,6 +54,7 @@ const en = {
   ...sessions.en,
   ...users.en,
   ...threatIntel.en,
+  ...webAttacks.en,
 } as const
 
 export type TranslationKey = keyof typeof en
@@ -73,6 +75,7 @@ const es: Record<TranslationKey, string> = {
   ...sessions.es,
   ...users.es,
   ...threatIntel.es,
+  ...webAttacks.es,
 }
 
 export const dictionaries: Record<Locale, Record<TranslationKey, string>> = { en, es }
