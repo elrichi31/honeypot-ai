@@ -1,8 +1,8 @@
-// Sensors — i18n strings (en + es).
+// Sensors — inventory, card, badges, delete dialog, actions, stats, add dialog.
 // Part of the namespaced dictionary; combined in ../dictionaries.ts.
 
 export const en = {
-  // ── Sensors (infrastructure) ───────────────────────────────────────────────
+  // ── Inventory ──────────────────────────────────────────────────────────────
   "sensors.title": "Sensors",
   "sensors.subtitle": "Honeypot sensors grouped by client, with heartbeat updates every 30 seconds.",
   "sensors.networkMap": "Network Map",
@@ -15,14 +15,16 @@ export const en = {
   "sensors.count": "{n} sensor",
   "sensors.countPlural": "{n} sensors",
   "sensors.openClient": "Open client",
-  // deception network card
+
+  // ── Deception network card ─────────────────────────────────────────────────
   "sensors.deception.title": "Deception Network",
   "sensors.deception.nodes": "nodes",
   "sensors.deception.events": "{n} events",
   "sensors.deception.viewNetwork": "View network",
   "sensors.deception.ports": "ports {ports}",
   "sensors.deception.online": "online",
-  // sensor card
+
+  // ── Sensor card ────────────────────────────────────────────────────────────
   "sensors.card.couldNotDelete": "Could not delete: {error}",
   "sensors.card.error": "Error {status}",
   "sensors.card.couldNotConnect": "Could not connect",
@@ -31,7 +33,8 @@ export const en = {
   "sensors.card.control.started": "Started",
   "sensors.card.control.restarted": "Restarted",
   "sensors.card.control.error": "Error",
-  // sensor header / badges
+
+  // ── Badges ─────────────────────────────────────────────────────────────────
   "sensors.badge.online": "Online",
   "sensors.badge.offline": "Offline",
   "sensors.badge.running": "Running",
@@ -43,63 +46,29 @@ export const en = {
   "sensors.badge.remoteNoSignal": "Remote · no signal",
   "sensors.remote.activeTitle": "Sensor on another host — reporting heartbeats. Its container is not managed from here.",
   "sensors.remote.noSignalTitle": "Sensor on another host — no recent heartbeats.",
-  // delete sensor dialog
+
+  // ── Delete dialog ──────────────────────────────────────────────────────────
   "sensors.delete.button": "Delete sensor",
   "sensors.delete.title": "Delete sensor?",
   "sensors.delete.descPrefix": "This will remove ",
   "sensors.delete.descKept": "Events already collected from this sensor are kept and stay searchable.",
   "sensors.delete.descReregister": " If the sensor is still running it will re-register on the next heartbeat.",
   "sensors.delete.cancel": "Cancel",
-  // sensor actions
+
+  // ── Actions ────────────────────────────────────────────────────────────────
   "sensors.action.start": "Start",
   "sensors.action.stop": "Stop",
   "sensors.action.restart": "Restart",
-  // sensor stats
+
+  // ── Stats ──────────────────────────────────────────────────────────────────
   "sensors.stats.ipInternal": "Internal IP",
   "sensors.stats.ipExternal": "External IP",
   "sensors.stats.ip": "IP",
   "sensors.stats.events": "Events",
   "sensors.stats.lastSeen": "Last seen",
   "sensors.stats.sensorId": "Sensor ID",
-  // sensor config dialog
-  "sensors.config.title": "Configure SSH Honeypot",
-  "sensors.config.description": "Changes are applied on the next Cowrie restart (triggered automatically within ~15s).",
-  "sensors.config.loading": "Loading config…",
-  "sensors.config.section.identity": "Identity",
-  "sensors.config.section.sshBanner": "SSH Banner",
-  "sensors.config.section.kernel": "Kernel Info",
-  "sensors.config.section.timeouts": "Session Timeouts",
-  "sensors.config.section.credentials": "Accepted Credentials",
-  "sensors.config.field.hostname": "Hostname",
-  "sensors.config.field.hostname.hint": "Shown in the shell prompt after login",
-  "sensors.config.field.hardwarePlatform": "Hardware Platform",
-  "sensors.config.field.hardwarePlatform.hint": "Returned by uname -m",
-  "sensors.config.field.sshVersion": "SSH Version String",
-  "sensors.config.field.sshVersion.hint": "Sent during the SSH handshake — attackers fingerprint servers by this",
-  "sensors.config.field.kernelVersion": "Kernel Version",
-  "sensors.config.field.kernelVersion.hint": "Returned by uname -r",
-  "sensors.config.field.kernelBuild": "Kernel Build String",
-  "sensors.config.field.kernelBuild.hint": "Returned by uname -v",
-  "sensors.config.field.interactiveTimeout": "Interactive Timeout (s)",
-  "sensors.config.field.interactiveTimeout.hint": "Idle session closes after this many seconds",
-  "sensors.config.field.authTimeout": "Authentication Timeout (s)",
-  "sensors.config.field.authTimeout.hint": "Time allowed to complete authentication",
-  "sensors.config.field.usernames": "Usernames",
-  "sensors.config.field.usernames.hint": "Press Enter or click Add to add each username",
-  "sensors.config.field.passwords": "Passwords",
-  "sensors.config.field.passwords.hint": "Minimum 8 characters each (enforced by Cowrie)",
-  "sensors.config.credentials.total": "Every username gets every password. Total entries: {total}",
-  "sensors.config.tagInput.add": "Add",
-  "sensors.config.tagInput.noSpaces": "No spaces allowed",
-  "sensors.config.tagInput.minLength": "Minimum 8 characters",
-  "sensors.config.saved": "Config saved. Cowrie will apply it and restart automatically within ~15 seconds.",
-  "sensors.config.loadError": "Could not load the configuration",
-  "sensors.config.saveError": "Failed to save. Try again.",
-  "sensors.config.resetDefaults": "Reset defaults",
-  "sensors.config.cancel": "Cancel",
-  "sensors.config.saving": "Saving…",
-  "sensors.config.saveApply": "Save & Apply",
-  // add sensor dialog
+
+  // ── Add sensor dialog ──────────────────────────────────────────────────────
   "sensors.add.button": "Add sensor",
   "sensors.add.title": "Deploy a sensor",
   "sensors.add.selectSensors": "Select sensors",
@@ -119,7 +88,6 @@ export const en = {
 } as const
 
 export const es: Record<keyof typeof en, string> = {
-  // ── Sensors (infrastructure) ───────────────────────────────────────────────
   "sensors.title": "Sensores",
   "sensors.subtitle": "Sensores honeypot agrupados por cliente, con actualizaciones de latido cada 30 segundos.",
   "sensors.networkMap": "Mapa de red",
@@ -132,14 +100,14 @@ export const es: Record<keyof typeof en, string> = {
   "sensors.count": "{n} sensor",
   "sensors.countPlural": "{n} sensores",
   "sensors.openClient": "Abrir cliente",
-  // deception network card
+
   "sensors.deception.title": "Red de engaño",
   "sensors.deception.nodes": "nodos",
   "sensors.deception.events": "{n} eventos",
   "sensors.deception.viewNetwork": "Ver red",
   "sensors.deception.ports": "puertos {ports}",
   "sensors.deception.online": "en línea",
-  // sensor card
+
   "sensors.card.couldNotDelete": "No se pudo eliminar: {error}",
   "sensors.card.error": "Error {status}",
   "sensors.card.couldNotConnect": "No se pudo conectar",
@@ -148,7 +116,7 @@ export const es: Record<keyof typeof en, string> = {
   "sensors.card.control.started": "Iniciado",
   "sensors.card.control.restarted": "Reiniciado",
   "sensors.card.control.error": "Error",
-  // sensor header / badges
+
   "sensors.badge.online": "En línea",
   "sensors.badge.offline": "Desconectado",
   "sensors.badge.running": "En ejecución",
@@ -160,63 +128,25 @@ export const es: Record<keyof typeof en, string> = {
   "sensors.badge.remoteNoSignal": "Remoto · sin señal",
   "sensors.remote.activeTitle": "Sensor en otro host — enviando latidos. Su contenedor no se gestiona desde aquí.",
   "sensors.remote.noSignalTitle": "Sensor en otro host — sin latidos recientes.",
-  // delete sensor dialog
+
   "sensors.delete.button": "Eliminar sensor",
   "sensors.delete.title": "¿Eliminar sensor?",
   "sensors.delete.descPrefix": "Esto eliminará ",
   "sensors.delete.descKept": "Los eventos ya recolectados de este sensor se conservan y siguen siendo consultables.",
   "sensors.delete.descReregister": " Si el sensor sigue en ejecución, se volverá a registrar en el siguiente latido.",
   "sensors.delete.cancel": "Cancelar",
-  // sensor actions
+
   "sensors.action.start": "Iniciar",
   "sensors.action.stop": "Detener",
   "sensors.action.restart": "Reiniciar",
-  // sensor stats
+
   "sensors.stats.ipInternal": "IP interna",
   "sensors.stats.ipExternal": "IP externa",
   "sensors.stats.ip": "IP",
   "sensors.stats.events": "Eventos",
   "sensors.stats.lastSeen": "Visto por última vez",
   "sensors.stats.sensorId": "ID de sensor",
-  // sensor config dialog
-  "sensors.config.title": "Configurar honeypot SSH",
-  "sensors.config.description": "Los cambios se aplican en el próximo reinicio de Cowrie (se activa automáticamente en ~15s).",
-  "sensors.config.loading": "Cargando configuración…",
-  "sensors.config.section.identity": "Identidad",
-  "sensors.config.section.sshBanner": "Banner SSH",
-  "sensors.config.section.kernel": "Información del kernel",
-  "sensors.config.section.timeouts": "Tiempos de sesión",
-  "sensors.config.section.credentials": "Credenciales aceptadas",
-  "sensors.config.field.hostname": "Nombre del host",
-  "sensors.config.field.hostname.hint": "Se muestra en el prompt del shell tras iniciar sesión",
-  "sensors.config.field.hardwarePlatform": "Plataforma de hardware",
-  "sensors.config.field.hardwarePlatform.hint": "Devuelto por uname -m",
-  "sensors.config.field.sshVersion": "Cadena de versión SSH",
-  "sensors.config.field.sshVersion.hint": "Se envía durante el handshake SSH — los atacantes identifican servidores por esto",
-  "sensors.config.field.kernelVersion": "Versión del kernel",
-  "sensors.config.field.kernelVersion.hint": "Devuelto por uname -r",
-  "sensors.config.field.kernelBuild": "Cadena de compilación del kernel",
-  "sensors.config.field.kernelBuild.hint": "Devuelto por uname -v",
-  "sensors.config.field.interactiveTimeout": "Tiempo de espera interactivo (s)",
-  "sensors.config.field.interactiveTimeout.hint": "La sesión inactiva se cierra tras estos segundos",
-  "sensors.config.field.authTimeout": "Tiempo de espera de autenticación (s)",
-  "sensors.config.field.authTimeout.hint": "Tiempo permitido para completar la autenticación",
-  "sensors.config.field.usernames": "Nombres de usuario",
-  "sensors.config.field.usernames.hint": "Pulsa Enter o haz clic en Añadir para agregar cada usuario",
-  "sensors.config.field.passwords": "Contraseñas",
-  "sensors.config.field.passwords.hint": "Mínimo 8 caracteres cada una (aplicado por Cowrie)",
-  "sensors.config.credentials.total": "Cada usuario recibe cada contraseña. Total de entradas: {total}",
-  "sensors.config.tagInput.add": "Añadir",
-  "sensors.config.tagInput.noSpaces": "No se permiten espacios",
-  "sensors.config.tagInput.minLength": "Mínimo 8 caracteres",
-  "sensors.config.saved": "Configuración guardada. Cowrie la aplicará y se reiniciará automáticamente en ~15 segundos.",
-  "sensors.config.loadError": "No se pudo cargar la configuración",
-  "sensors.config.saveError": "Error al guardar. Inténtalo de nuevo.",
-  "sensors.config.resetDefaults": "Restablecer valores",
-  "sensors.config.cancel": "Cancelar",
-  "sensors.config.saving": "Guardando…",
-  "sensors.config.saveApply": "Guardar y aplicar",
-  // add sensor dialog
+
   "sensors.add.button": "Añadir sensor",
   "sensors.add.title": "Desplegar un sensor",
   "sensors.add.selectSensors": "Seleccionar sensores",

@@ -13,16 +13,22 @@
 // together there. New namespaces just need an import + spread below.
 
 import * as sidebar from "./dicts/sidebar"
-import * as settings from "./dicts/settings"
+import * as settingsCommon from "./dicts/settings-common"
+import * as settingsInfra from "./dicts/settings-infra"
+import * as settingsAlerts from "./dicts/settings-alerts"
+import * as settingsEnrichment from "./dicts/settings-enrichment"
 import * as credentials from "./dicts/credentials"
-import * as dashboard from "./dicts/dashboard"
+import * as dashboardKpi from "./dicts/dashboard-kpi"
+import * as dashboardAnalysis from "./dicts/dashboard-analysis"
 import * as threats from "./dicts/threats"
 import * as iocs from "./dicts/iocs"
 import * as malware from "./dicts/malware"
 import * as suricata from "./dicts/suricata"
 import * as defense from "./dicts/defense"
-import * as clients from "./dicts/clients"
-import * as sensors from "./dicts/sensors"
+import * as clientsCore from "./dicts/clients-core"
+import * as clientsDetail from "./dicts/clients-detail"
+import * as sensorsCore from "./dicts/sensors-core"
+import * as sensorsConfig from "./dicts/sensors-config"
 import * as infra from "./dicts/infra"
 import * as sessions from "./dicts/sessions"
 import * as users from "./dicts/users"
@@ -40,16 +46,22 @@ export const LOCALE_LABELS: Record<Locale, string> = {
 
 const en = {
   ...sidebar.en,
-  ...settings.en,
+  ...settingsCommon.en,
+  ...settingsInfra.en,
+  ...settingsAlerts.en,
+  ...settingsEnrichment.en,
   ...credentials.en,
-  ...dashboard.en,
+  ...dashboardKpi.en,
+  ...dashboardAnalysis.en,
   ...threats.en,
   ...iocs.en,
   ...malware.en,
   ...suricata.en,
   ...defense.en,
-  ...clients.en,
-  ...sensors.en,
+  ...clientsCore.en,
+  ...clientsDetail.en,
+  ...sensorsCore.en,
+  ...sensorsConfig.en,
   ...infra.en,
   ...sessions.en,
   ...users.en,
@@ -61,16 +73,22 @@ export type TranslationKey = keyof typeof en
 
 const es: Record<TranslationKey, string> = {
   ...sidebar.es,
-  ...settings.es,
+  ...settingsCommon.es,
+  ...settingsInfra.es,
+  ...settingsAlerts.es,
+  ...settingsEnrichment.es,
   ...credentials.es,
-  ...dashboard.es,
+  ...dashboardKpi.es,
+  ...dashboardAnalysis.es,
   ...threats.es,
   ...iocs.es,
   ...malware.es,
   ...suricata.es,
   ...defense.es,
-  ...clients.es,
-  ...sensors.es,
+  ...clientsCore.es,
+  ...clientsDetail.es,
+  ...sensorsCore.es,
+  ...sensorsConfig.es,
   ...infra.es,
   ...sessions.es,
   ...users.es,

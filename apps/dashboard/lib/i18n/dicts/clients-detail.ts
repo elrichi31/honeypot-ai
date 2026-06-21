@@ -1,78 +1,8 @@
-// Clients — i18n strings (en + es).
+// Clients — logs viewer, session modal, sensor assignment, installer catalog, OVA download.
 // Part of the namespaced dictionary; combined in ../dictionaries.ts.
 
 export const en = {
-  // ── Clients (infrastructure) ───────────────────────────────────────────────
-  "clients.title": "Clients",
-  "clients.subtitle": "Create tenants and map each sensor to the right customer.",
-  "clients.inventory.title": "Client Inventory",
-  "clients.inventory.subtitle": "Create clients first, then open each one to assign unassigned sensors.",
-  "clients.add": "Add Client",
-  "clients.created": "Client {name} created.",
-  "clients.none": "No clients created yet.",
-  // card
-  "clients.card.edit": "Edit client",
-  "clients.card.delete": "Delete client",
-  "clients.card.noDescription": "No description yet.",
-  "clients.card.forwarding": "Forwarding",
-  "clients.card.disabled": "disabled",
-  "clients.card.sensors": "Sensors",
-  "clients.card.online": "Online",
-  "clients.card.events": "Events",
-  "clients.card.open": "Open →",
-  // create dialog
-  "clients.create.title": "Create Client",
-  "clients.create.description": "Create the tenant first. Sensor assignment happens inside the client detail.",
-  "clients.create.name": "Name",
-  "clients.create.slug": "Slug",
-  "clients.create.code": "Client Code",
-  "clients.create.descriptionLabel": "Description",
-  "clients.create.descriptionPlaceholder": "Optional notes about this customer or deployment.",
-  "clients.create.forwardUrl": "Forward URL",
-  "clients.create.error": "Could not create client (error {status})",
-  "clients.create.connError": "Could not connect to the server",
-  "clients.create.cancel": "Cancel",
-  "clients.create.creating": "Creating...",
-  "clients.create.submit": "Create Client",
-  // delete dialog
-  "clients.delete.title": "Delete Client",
-  "clients.delete.descPrefix": "This will permanently delete ",
-  "clients.delete.descSuffix": " and unassign all its sensors. This action cannot be undone.",
-  "clients.delete.error": "Error {status}: could not delete client",
-  "clients.delete.netError": "Network error while trying to delete the client",
-  "clients.delete.cancel": "Cancel",
-  "clients.delete.deleting": "Deleting...",
-  "clients.delete.submit": "Delete Client",
-  // edit dialog
-  "clients.edit.title": "Edit Client",
-  "clients.edit.description": "Update the client details. The slug cannot be changed.",
-  "clients.edit.name": "Name",
-  "clients.edit.code": "Client Code",
-  "clients.edit.slug": "Slug",
-  "clients.edit.description.label": "Description",
-  "clients.edit.forwardUrl": "Forward URL",
-  "clients.edit.cancel": "Cancel",
-  "clients.edit.saving": "Saving...",
-  "clients.edit.submit": "Save Changes",
-  // stats bar
-  "clients.stats.eventsToday": "Events today",
-  "clients.stats.uniqueIps": "Unique IPs",
-  "clients.stats.loginSuccesses": "Login successes",
-  "clients.stats.topProtocol": "Top protocol",
-  // alerts
-  "clients.alerts.title": "Alerts",
-  "clients.alerts.ips": "{n} IPs",
-  "clients.alerts.critical": "{n} critical",
-  "clients.alerts.high": "{n} high",
-  "clients.alerts.noData": "No data",
-  "clients.alerts.noThreats": "No threats detected",
-  "clients.alerts.col.risk": "RISK",
-  "clients.alerts.col.sourceIp": "SOURCE IP",
-  "clients.alerts.col.sources": "SOURCES",
-  "clients.alerts.col.events": "EVENTS",
-  "clients.alerts.col.lastSeen": "LAST SEEN",
-  "clients.alerts.page": "Page {page} of {total} · {ips} IPs",
-  // logs viewer
+  // ── Logs viewer ────────────────────────────────────────────────────────────
   "clients.logs.title": "Logs",
   "clients.logs.events": "{n} events",
   "clients.logs.loading": "Loading…",
@@ -81,7 +11,8 @@ export const en = {
   "clients.logs.noEvents": "No events found",
   "clients.logs.fullEvent": "full event",
   "clients.logs.page": "Page {page} of {total} · {n} total",
-  // session modal
+
+  // ── Session modal ──────────────────────────────────────────────────────────
   "clients.session.loading": "Loading…",
   "clients.session.loadError": "Could not load session details.",
   "clients.session.field.username": "Username",
@@ -96,7 +27,8 @@ export const en = {
   "clients.session.stats.blocked": "Blocked",
   "clients.session.stats.outcome": "outcome",
   "clients.session.noEvents": "No events recorded for this session.",
-  // sensor assignment
+
+  // ── Sensor assignment ──────────────────────────────────────────────────────
   "clients.assignment.assigned.title": "Assigned Sensors",
   "clients.assignment.assigned.subtitle": "Sensors currently linked to this client.",
   "clients.assignment.assigned.empty.title": "No sensors assigned yet",
@@ -115,7 +47,8 @@ export const en = {
   "clients.assignment.sensor.unassignError": "Could not unassign the sensor.",
   "clients.assignment.deception.result": "Assigned {ok}/{total} deception nodes. {error}",
   "clients.assignment.deception.resultAll": "Assigned all {ok} deception nodes to {client}.",
-  // sensor catalog
+
+  // ── Sensor installer catalog ───────────────────────────────────────────────
   "clients.catalog.trigger.title": "Sensor Installers",
   "clients.catalog.trigger.subtitle": "Download ready-to-run installers — telemetry and server config already embedded.",
   "clients.catalog.trigger.installed": "{n} installed",
@@ -129,7 +62,8 @@ export const en = {
   "clients.catalog.standalone.title": "Standalone sensors",
   "clients.catalog.standalone.download": "Download .env",
   "clients.catalog.standalone.redownload": "Re-download",
-  // ova download
+
+  // ── OVA download ───────────────────────────────────────────────────────────
   "clients.ova.button": "Download OVA Package",
   "clients.ova.title": "OVA Sensor Package — {name}",
   "clients.ova.description": "Select the honeypots to enable. The generated OVA already has the token embedded — just import it into VMware and boot.",
@@ -150,77 +84,6 @@ export const en = {
 } as const
 
 export const es: Record<keyof typeof en, string> = {
-  // ── Clients (infrastructure) ───────────────────────────────────────────────
-  "clients.title": "Clientes",
-  "clients.subtitle": "Crea inquilinos y asigna cada sensor al cliente correcto.",
-  "clients.inventory.title": "Inventario de clientes",
-  "clients.inventory.subtitle": "Crea primero los clientes y luego abre cada uno para asignar los sensores sin asignar.",
-  "clients.add": "Añadir cliente",
-  "clients.created": "Cliente {name} creado.",
-  "clients.none": "Aún no se ha creado ningún cliente.",
-  // card
-  "clients.card.edit": "Editar cliente",
-  "clients.card.delete": "Eliminar cliente",
-  "clients.card.noDescription": "Aún sin descripción.",
-  "clients.card.forwarding": "Reenvío",
-  "clients.card.disabled": "desactivado",
-  "clients.card.sensors": "Sensores",
-  "clients.card.online": "En línea",
-  "clients.card.events": "Eventos",
-  "clients.card.open": "Abrir →",
-  // create dialog
-  "clients.create.title": "Crear cliente",
-  "clients.create.description": "Crea primero el inquilino. La asignación de sensores se hace dentro del detalle del cliente.",
-  "clients.create.name": "Nombre",
-  "clients.create.slug": "Slug",
-  "clients.create.code": "Código de cliente",
-  "clients.create.descriptionLabel": "Descripción",
-  "clients.create.descriptionPlaceholder": "Notas opcionales sobre este cliente o despliegue.",
-  "clients.create.forwardUrl": "URL de reenvío",
-  "clients.create.error": "No se pudo crear el cliente (error {status})",
-  "clients.create.connError": "No se pudo conectar con el servidor",
-  "clients.create.cancel": "Cancelar",
-  "clients.create.creating": "Creando...",
-  "clients.create.submit": "Crear cliente",
-  // delete dialog
-  "clients.delete.title": "Eliminar cliente",
-  "clients.delete.descPrefix": "Esto eliminará permanentemente ",
-  "clients.delete.descSuffix": " y desasignará todos sus sensores. Esta acción no se puede deshacer.",
-  "clients.delete.error": "Error {status}: no se pudo eliminar el cliente",
-  "clients.delete.netError": "Error de red al intentar eliminar el cliente",
-  "clients.delete.cancel": "Cancelar",
-  "clients.delete.deleting": "Eliminando...",
-  "clients.delete.submit": "Eliminar cliente",
-  // edit dialog
-  "clients.edit.title": "Editar cliente",
-  "clients.edit.description": "Actualiza los datos del cliente. El slug no se puede cambiar.",
-  "clients.edit.name": "Nombre",
-  "clients.edit.code": "Código de cliente",
-  "clients.edit.slug": "Slug",
-  "clients.edit.description.label": "Descripción",
-  "clients.edit.forwardUrl": "URL de reenvío",
-  "clients.edit.cancel": "Cancelar",
-  "clients.edit.saving": "Guardando...",
-  "clients.edit.submit": "Guardar cambios",
-  // stats bar
-  "clients.stats.eventsToday": "Eventos hoy",
-  "clients.stats.uniqueIps": "IPs únicas",
-  "clients.stats.loginSuccesses": "Inicios de sesión exitosos",
-  "clients.stats.topProtocol": "Protocolo principal",
-  // alerts
-  "clients.alerts.title": "Alertas",
-  "clients.alerts.ips": "{n} IPs",
-  "clients.alerts.critical": "{n} críticas",
-  "clients.alerts.high": "{n} altas",
-  "clients.alerts.noData": "Sin datos",
-  "clients.alerts.noThreats": "No se detectaron amenazas",
-  "clients.alerts.col.risk": "RIESGO",
-  "clients.alerts.col.sourceIp": "IP ORIGEN",
-  "clients.alerts.col.sources": "FUENTES",
-  "clients.alerts.col.events": "EVENTOS",
-  "clients.alerts.col.lastSeen": "ÚLTIMA VEZ",
-  "clients.alerts.page": "Página {page} de {total} · {ips} IPs",
-  // logs viewer
   "clients.logs.title": "Registros",
   "clients.logs.events": "{n} eventos",
   "clients.logs.loading": "Cargando…",
@@ -229,7 +92,7 @@ export const es: Record<keyof typeof en, string> = {
   "clients.logs.noEvents": "No se encontraron eventos",
   "clients.logs.fullEvent": "evento completo",
   "clients.logs.page": "Página {page} de {total} · {n} en total",
-  // session modal
+
   "clients.session.loading": "Cargando…",
   "clients.session.loadError": "No se pudieron cargar los detalles de la sesión.",
   "clients.session.field.username": "Usuario",
@@ -244,7 +107,7 @@ export const es: Record<keyof typeof en, string> = {
   "clients.session.stats.blocked": "Bloqueado",
   "clients.session.stats.outcome": "resultado",
   "clients.session.noEvents": "No hay eventos registrados para esta sesión.",
-  // sensor assignment
+
   "clients.assignment.assigned.title": "Sensores asignados",
   "clients.assignment.assigned.subtitle": "Sensores actualmente vinculados a este cliente.",
   "clients.assignment.assigned.empty.title": "Aún no hay sensores asignados",
@@ -263,7 +126,7 @@ export const es: Record<keyof typeof en, string> = {
   "clients.assignment.sensor.unassignError": "No se pudo desasignar el sensor.",
   "clients.assignment.deception.result": "Asignados {ok}/{total} nodos de engaño. {error}",
   "clients.assignment.deception.resultAll": "Todos los {ok} nodos de engaño asignados a {client}.",
-  // sensor catalog
+
   "clients.catalog.trigger.title": "Instaladores de sensores",
   "clients.catalog.trigger.subtitle": "Descarga instaladores listos para usar — telemetría y configuración del servidor ya incluidas.",
   "clients.catalog.trigger.installed": "{n} instalado{s}",
@@ -277,7 +140,7 @@ export const es: Record<keyof typeof en, string> = {
   "clients.catalog.standalone.title": "Sensores independientes",
   "clients.catalog.standalone.download": "Descargar .env",
   "clients.catalog.standalone.redownload": "Volver a descargar",
-  // ova download
+
   "clients.ova.button": "Descargar paquete OVA",
   "clients.ova.title": "Paquete OVA — {name}",
   "clients.ova.description": "Selecciona los honeypots a activar. El OVA generado ya tiene el token incluido — simplemente impórtalo en VMware y arráncalo.",
