@@ -1,91 +1,25 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { CheckCircle, Eye, EyeOff, Loader2, ShieldCheck, Activity } from "lucide-react"
+import { CheckCircle, Loader2, ShieldCheck, Activity } from "lucide-react"
 import { apiFetch } from "@/lib/client-fetch"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Surface } from "@/components/ui/surface"
 import { useT } from "@/components/locale-provider"
-import { CardHeader, SaveFeedback, type SaveStatus } from "./setting-card"
+import { CardHeader, SaveFeedback, SecretField, type SaveStatus } from "./setting-card"
 
-interface KeyRowProps {
-  id: string
-  label: string
-  placeholder: string
-  hint: string
-  value: string
-  hasKey: boolean
-  loading: boolean
-  onChange: (v: string) => void
-  onSave: () => void
-  onClear: () => void
-  status: SaveStatus
-  error: string
-}
-
-function KeyRow({ id, label, placeholder, hint, value, hasKey, loading, onChange, onSave, onClear, status, error }: KeyRowProps) {
+// Plain-text URL row (not a secret, no show/hide toggle)
+function UrlRow({
+  id, label, placeholder, hint, value, loading, onChange, onSave, status, error,
+}: {
+  id: string; label: string; placeholder: string; hint: string
+  value: string; loading: boolean
+  onChange: (v: string) => void; onSave: () => void
+  status: SaveStatus; error: string
+}) {
   const t = useT()
-  const [show, setShow] = useState(false)
-
-  return (
-    <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          {loading ? (
-            <div className="flex h-10 items-center rounded-md border border-border bg-secondary px-3 text-sm text-muted-foreground">
-              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> {t("set.common.loading")}
-            </div>
-          ) : (
-            <Input
-              id={id}
-              type={show ? "text" : "password"}
-              placeholder={placeholder}
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && onSave()}
-              className="pr-10 font-mono text-sm"
-            />
-          )}
-          {!loading && (
-            <button type="button" onClick={() => setShow(!show)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-              {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          )}
-        </div>
-        <Button onClick={onSave} disabled={status === "saving" || loading} className="bg-primary text-primary-foreground hover:bg-primary/90">
-          {status === "saving"
-            ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />{t("set.common.saving")}</>
-            : status === "saved"
-            ? <><CheckCircle className="mr-1.5 h-3.5 w-3.5" />{t("set.common.saved")}</>
-            : t("set.common.save")}
-        </Button>
-        {hasKey && <Button variant="outline" onClick={onClear}>{t("set.common.clear")}</Button>}
-      </div>
-      <SaveFeedback status={status} error={error} />
-      <p className="text-xs text-muted-foreground">{hint}</p>
-    </div>
-  )
-}
-
-interface TextRowProps {
-  id: string
-  label: string
-  placeholder: string
-  hint: string
-  value: string
-  loading: boolean
-  onChange: (v: string) => void
-  onSave: () => void
-  status: SaveStatus
-  error: string
-}
-
-function TextRow({ id, label, placeholder, hint, value, loading, onChange, onSave, status, error }: TextRowProps) {
-  const t = useT()
-
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
@@ -170,6 +104,7 @@ function VtQuotaWidget({ quota }: { quota: VtQuota }) {
 
 export function EnrichmentForm() {
   const t = useT()
+
   const [abuseKey, setAbuseKey] = useState("")
   const [hasAbuseKey, setHasAbuseKey] = useState(false)
   const [abuseStatus, setAbuseStatus] = useState<SaveStatus>("loading")
@@ -251,11 +186,8 @@ export function EnrichmentForm() {
   }
 
   async function saveKey(
-    field: string,
-    value: string,
-    setStatus: (s: SaveStatus) => void,
-    setError: (e: string) => void,
-    setHas: (b: boolean) => void,
+    field: string, value: string,
+    setStatus: (s: SaveStatus) => void, setError: (e: string) => void, setHas: (b: boolean) => void,
   ) {
     return saveField({ [field]: value }, setStatus, setError, () => setHas(!!value.trim()))
   }
@@ -273,7 +205,8 @@ export function EnrichmentForm() {
   const anyConfigured = hasAbuseKey || hasIpinfoKey || hasSpectraToken || hasVtKey
   const badge = anyConfigured ? (
     <span className="flex items-center gap-1 rounded-full bg-success/20 px-2 py-0.5 text-xs text-success">
-      <CheckCircle className="h-3 w-3" /> {[hasAbuseKey && "AbuseIPDB", hasIpinfoKey && "ipinfo", hasSpectraToken && "Spectra Analyze", hasVtKey && "VirusTotal"].filter(Boolean).join(" · ")}
+      <CheckCircle className="h-3 w-3" />
+      {[hasAbuseKey && "AbuseIPDB", hasIpinfoKey && "ipinfo", hasSpectraToken && "Spectra Analyze", hasVtKey && "VirusTotal"].filter(Boolean).join(" · ")}
     </span>
   ) : undefined
 
@@ -282,13 +215,13 @@ export function EnrichmentForm() {
       <CardHeader icon={ShieldCheck} iconBg="bg-cyan-500/20" iconColor="text-cyan-400" title={t("set.enrichment.title")} description={t("set.enrichment.description")} badge={badge} />
 
       <div className="space-y-5 p-4">
-        <KeyRow
+        <SecretField
           id="abuseipdb-key"
           label={t("set.enrichment.abuseLabel")}
           placeholder={t("set.enrichment.abusePlaceholder")}
           hint={t("set.enrichment.abuseHint")}
           value={abuseKey}
-          hasKey={hasAbuseKey}
+          hasValue={hasAbuseKey}
           loading={abuseStatus === "loading"}
           onChange={setAbuseKey}
           onSave={() => saveKey("abuseipdbApiKey", abuseKey, setAbuseStatus, setAbuseError, setHasAbuseKey)}
@@ -299,13 +232,13 @@ export function EnrichmentForm() {
 
         <div className="border-t border-border" />
 
-        <KeyRow
+        <SecretField
           id="ipinfo-key"
           label={t("set.enrichment.ipinfoLabel")}
           placeholder={t("set.enrichment.ipinfoPlaceholder")}
           hint={t("set.enrichment.ipinfoHint")}
           value={ipinfoKey}
-          hasKey={hasIpinfoKey}
+          hasValue={hasIpinfoKey}
           loading={ipinfoStatus === "loading"}
           onChange={setIpinfoKey}
           onSave={() => saveKey("ipinfoApiKey", ipinfoKey, setIpinfoStatus, setIpinfoError, setHasIpinfoKey)}
@@ -316,7 +249,7 @@ export function EnrichmentForm() {
 
         <div className="border-t border-border" />
 
-        <TextRow
+        <UrlRow
           id="spectra-url"
           label={t("set.enrichment.spectraUrlLabel")}
           placeholder={t("set.enrichment.spectraUrlPlaceholder")}
@@ -331,13 +264,13 @@ export function EnrichmentForm() {
 
         <div className="border-t border-border" />
 
-        <KeyRow
+        <SecretField
           id="spectra-token"
           label={t("set.enrichment.spectraTokenLabel")}
           placeholder={t("set.enrichment.spectraTokenPlaceholder")}
           hint={t("set.enrichment.spectraTokenHint")}
           value={spectraToken}
-          hasKey={hasSpectraToken}
+          hasValue={hasSpectraToken}
           loading={spectraTokenStatus === "loading"}
           onChange={setSpectraToken}
           onSave={() => saveKey("spectraAnalyzeToken", spectraToken, setSpectraTokenStatus, setSpectraTokenError, setHasSpectraToken)}
@@ -348,13 +281,13 @@ export function EnrichmentForm() {
 
         <div className="border-t border-border" />
 
-        <KeyRow
+        <SecretField
           id="vt-key"
           label="VirusTotal API Key"
           placeholder="your-virustotal-key"
           hint="Free tier: 4 req/min · 500 req/day · 15,500 req/month · virustotal.com/gui/home/apikey"
           value={vtKey}
-          hasKey={hasVtKey}
+          hasValue={hasVtKey}
           loading={vtStatus === "loading"}
           onChange={setVtKey}
           onSave={() => saveKey("virustotalApiKey", vtKey, setVtStatus, setVtError, setHasVtKey)}

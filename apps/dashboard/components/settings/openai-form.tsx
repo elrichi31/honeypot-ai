@@ -1,65 +1,15 @@
 "use client"
 
-import { apiFetch } from "@/lib/client-fetch"
-
-import { useState, useEffect } from "react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Sparkles, Eye, EyeOff, CheckCircle, Loader2 } from "lucide-react"
-import { SaveFeedback, CardHeader, type SaveStatus } from "./setting-card"
+import { Sparkles, CheckCircle } from "lucide-react"
+import { CardHeader, SecretField, useConfigField } from "./setting-card"
 import { Surface } from "@/components/ui/surface"
 import { useT } from "@/components/locale-provider"
 
 export function OpenAiForm() {
   const t = useT()
-  const [key, setKey] = useState("")
-  const [showKey, setShowKey] = useState(false)
-  const [hasKey, setHasKey] = useState(false)
-  const [status, setStatus] = useState<SaveStatus>("loading")
-  const [error, setError] = useState("")
+  const field = useConfigField({ key: "openaiApiKey", hasKey: "hasKey", prePopulate: true })
 
-  useEffect(() => {
-    apiFetch("/api/config")
-      .then((r) => r.json())
-      .then((data) => {
-        setHasKey(data.hasKey)
-        setKey(data.hasKey ? data.openaiApiKey : "")
-        setStatus("idle")
-      })
-      .catch(() => setStatus("idle"))
-  }, [])
-
-  async function save() {
-    setStatus("saving")
-    setError("")
-    try {
-      const res = await apiFetch("/api/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ openaiApiKey: key }),
-      })
-      if (!res.ok) throw new Error()
-      setHasKey(!!key.trim())
-      setStatus("saved")
-      setTimeout(() => setStatus("idle"), 3000)
-    } catch {
-      setError(t("set.common.couldNotSaveServer"))
-      setStatus("error")
-    }
-  }
-
-  function clear() {
-    setKey("")
-    setHasKey(false)
-    apiFetch("/api/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ openaiApiKey: "" }),
-    })
-  }
-
-  const badge = hasKey ? (
+  const badge = field.hasValue ? (
     <span className="flex items-center gap-1 rounded-full bg-success/20 px-2 py-0.5 text-xs text-success">
       <CheckCircle className="h-3 w-3" /> {t("set.common.configured")}
     </span>
@@ -70,39 +20,20 @@ export function OpenAiForm() {
       <CardHeader icon={Sparkles} iconBg="bg-primary/20" iconColor="text-primary" title={t("set.openai.title")} description={t("set.openai.description")} badge={badge} />
 
       <div className="space-y-4 p-4">
-        <div className="space-y-2">
-          <Label htmlFor="openai-key">{t("set.openai.keyLabel")}</Label>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              {status === "loading" ? (
-                <div className="flex h-10 items-center rounded-md border border-border bg-secondary px-3 text-sm text-muted-foreground">
-                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> {t("set.common.loading")}
-                </div>
-              ) : (
-                <Input
-                  id="openai-key"
-                  type={showKey ? "text" : "password"}
-                  placeholder="sk-..."
-                  value={key}
-                  onChange={(e) => setKey(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && save()}
-                  className="pr-10 font-mono text-sm"
-                />
-              )}
-              {status !== "loading" && (
-                <button type="button" onClick={() => setShowKey(!showKey)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                  {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              )}
-            </div>
-            <Button onClick={save} disabled={status === "saving" || status === "loading"} className="bg-primary text-primary-foreground hover:bg-primary/90">
-              {status === "saving" ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> {t("set.common.saving")}</> : status === "saved" ? <><CheckCircle className="mr-1.5 h-3.5 w-3.5" /> {t("set.common.saved")}</> : t("set.common.save")}
-            </Button>
-            {hasKey && <Button variant="outline" onClick={clear}>{t("set.common.clear")}</Button>}
-          </div>
-          <SaveFeedback status={status} error={error} />
-          <p className="text-xs text-muted-foreground">{t("set.openai.keyHint")}</p>
-        </div>
+        <SecretField
+          id="openai-key"
+          label={t("set.openai.keyLabel")}
+          placeholder="sk-..."
+          hint={t("set.openai.keyHint")}
+          value={field.value}
+          hasValue={field.hasValue}
+          loading={field.status === "loading"}
+          status={field.status}
+          error={field.error}
+          onChange={field.setValue}
+          onSave={() => field.save()}
+          onClear={field.clear}
+        />
 
         <div className="rounded-lg border border-border bg-secondary/50 p-3 text-xs text-muted-foreground">
           <p className="mb-1 font-medium text-foreground">{t("set.common.howItWorks")}</p>

@@ -51,7 +51,7 @@ defaults are chosen carefully (proxyGet defaults 8s no-auth; proxyJson 10s
 
 ---
 
-## 2. Extract the "secret field" settings form — **Composition / reusable component**
+## 2. ✅ Extract the "secret field" settings form — **Composition / reusable component** *(done 2026-06-21)*
 
 **Smell.** Four settings forms are ~90% identical:
 [`openai-form.tsx`](../../apps/dashboard/components/settings/openai-form.tsx),
@@ -76,12 +76,19 @@ and status. Each form shrinks to a declarative call:
 **Win.** ~110 lines/form × 4 → one component + one hook. Bug fixes (e.g. the
 "don't save the masked `•` value back" guard) live in one place instead of four.
 
-**Files.** New `components/settings/secret-field.tsx` + `lib/use-config-field.ts`;
-rewrite the 4 forms.
+**Files.** `SecretField` component + `useConfigField` hook added to
+`components/settings/setting-card.tsx`. All 4 forms rewritten.
+`tsc --noEmit` passes clean.
 
 **Risk.** Low-medium. Each form has small quirks (Discord has a "send test"
 button, openai pre-populates the masked key, enrichment has multiple fields).
 Keep those bits in the form; only the shared secret-input mechanics move out.
+
+**Done.** `SecretField` handles show/hide toggle, loading skeleton, save/clear
+buttons, Enter-to-save, and `disableSave` guard (ingest-secret dirty flag).
+`useConfigField(key, hasKey, prePopulate?)` encapsulates GET-on-mount + save +
+clear for single-key forms. `enrichment-form` drops its local `KeyRow` and uses
+`SecretField` directly for its 4 secret rows.
 
 ---
 
