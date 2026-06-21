@@ -2,6 +2,7 @@
 
 import { useMemo } from "react"
 import type { WebHourlyCell } from "@/lib/api"
+import { heatmapColor, HEATMAP_LEGEND_STEPS } from "@/lib/heatmap-color"
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 
@@ -31,15 +32,6 @@ export function HourlyHeatmap({ cells }: { cells: WebHourlyCell[] }) {
     return <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
   }
 
-  // Map a count to an opacity bucket so faint activity stays visible.
-  const intensity = (count: number): string => {
-    if (count === 0) return "bg-muted/20"
-    const ratio = count / max
-    if (ratio > 0.66) return "bg-warning"
-    if (ratio > 0.33) return "bg-warning/60"
-    if (ratio > 0.1) return "bg-warning/35"
-    return "bg-warning/20"
-  }
 
   return (
     <div className="overflow-x-auto">
@@ -59,7 +51,8 @@ export function HourlyHeatmap({ cells }: { cells: WebHourlyCell[] }) {
               {row.hours.map((count, h) => (
                 <div
                   key={h}
-                  className={`h-4 flex-1 rounded-sm ${intensity(count)}`}
+                  className="h-4 flex-1 rounded-sm"
+                  style={{ backgroundColor: heatmapColor(count, max) }}
                   title={`${row.day} ${String(h).padStart(2, "0")}:00 UTC · ${count} hits`}
                 />
               ))}
@@ -68,10 +61,9 @@ export function HourlyHeatmap({ cells }: { cells: WebHourlyCell[] }) {
         ))}
         <div className="mt-3 flex items-center justify-end gap-1.5 text-[10px] text-muted-foreground">
           <span>less</span>
-          <div className="h-3 w-3 rounded-sm bg-muted/20" />
-          <div className="h-3 w-3 rounded-sm bg-warning/35" />
-          <div className="h-3 w-3 rounded-sm bg-warning/60" />
-          <div className="h-3 w-3 rounded-sm bg-warning" />
+          {HEATMAP_LEGEND_STEPS.map((bg) => (
+            <div key={bg} className="h-3 w-3 rounded-sm" style={{ backgroundColor: bg }} />
+          ))}
           <span>more</span>
         </div>
       </div>

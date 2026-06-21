@@ -5,30 +5,17 @@ import { Grid3x3 } from "lucide-react"
 import { useT } from "@/components/locale-provider"
 import type { MitreMatrix } from "@/lib/api"
 import { Surface } from "@/components/ui/surface"
+import { heatmapColor } from "@/lib/heatmap-color"
 
 type Props = { matrix: MitreMatrix }
 
-// Heatmap: cold (dark navy) → warm (teal) → hot (bright amber/orange)
 function cellStyle(count: number, max: number): React.CSSProperties {
+  const bg = heatmapColor(count, max)
   const ratio = max > 0 ? count / max : 0
-  // Interpolate through 3 stops: 0 → navy, 0.5 → teal, 1 → amber
-  let r: number, g: number, b: number
-  if (ratio < 0.5) {
-    const t = ratio / 0.5
-    r = Math.round(14 + t * (20 - 14))
-    g = Math.round(30 + t * (184 - 30))
-    b = Math.round(63 + t * (166 - 63))
-  } else {
-    const t = (ratio - 0.5) / 0.5
-    r = Math.round(20 + t * (245 - 20))
-    g = Math.round(184 + t * (158 - 184))
-    b = Math.round(166 + t * (11 - 166))
-  }
-  const textColor = ratio > 0.55 ? "#0f172a" : "#f1f5f9"
   return {
-    backgroundColor: `rgb(${r},${g},${b})`,
-    color: textColor,
-    borderColor: `rgba(${r},${g},${b},0.3)`,
+    backgroundColor: bg,
+    color: ratio > 0.55 ? "#fecaca" : "#f1f5f9",
+    borderColor: bg,
   }
 }
 

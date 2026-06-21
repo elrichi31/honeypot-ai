@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react"
 import { Loader2, Flame } from "lucide-react"
 import { useT } from "@/components/locale-provider"
 import { Surface } from "@/components/ui/surface"
+import { heatmapColor, HEATMAP_LEGEND_STEPS } from "@/lib/heatmap-color"
 
 interface Cell { dow: number; hour: number; count: number }
 interface HeatmapData {
@@ -17,15 +18,6 @@ interface HeatmapData {
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 const HOUR_LABELS = ["12a", "3a", "6a", "9a", "12p", "3p", "6p", "9p"]
 
-function cellColor(count: number, max: number): string {
-  if (count === 0 || max === 0) return "bg-secondary/40"
-  const ratio = count / max
-  if (ratio < 0.15) return "bg-blue-900/60"
-  if (ratio < 0.30) return "bg-indigo-700/70"
-  if (ratio < 0.50) return "bg-yellow-600/80"
-  if (ratio < 0.75) return "bg-orange-500"
-  return "bg-destructive"
-}
 
 const DAYS_ORDER = [1, 2, 3, 4, 5, 6, 0] // Mon→Sun
 
@@ -102,8 +94,8 @@ export function AttackHeatmap({ days = 90 }: { days?: number }) {
                   return (
                     <div
                       key={h}
-                      className={`flex-1 rounded-[2px] cursor-default transition-opacity hover:opacity-80 ${cellColor(count, data.maxCount)}`}
-                      style={{ aspectRatio: "1 / 1.1" }}
+                      className="flex-1 rounded-[2px] cursor-default transition-opacity hover:opacity-80"
+                      style={{ aspectRatio: "1 / 1.1", backgroundColor: heatmapColor(count, data.maxCount) }}
                       onMouseEnter={e => {
                         const rect = (e.target as HTMLElement).getBoundingClientRect()
                         const containerRect = containerRef.current!.getBoundingClientRect()
@@ -126,8 +118,11 @@ export function AttackHeatmap({ days = 90 }: { days?: number }) {
             return (
               <div key={h} className="flex-1 flex items-end">
                 <div
-                  className={`w-full rounded-t-[1px] ${h === peakHour ? "bg-orange-400" : "bg-muted-foreground/30"}`}
-                  style={{ height: `${Math.max(pct, 2)}%` }}
+                  className="w-full rounded-t-[1px]"
+                  style={{
+                    height: `${Math.max(pct, 2)}%`,
+                    backgroundColor: h === peakHour ? "rgba(127,29,29,1)" : "rgba(127,29,29,0.25)",
+                  }}
                 />
               </div>
             )
@@ -138,8 +133,8 @@ export function AttackHeatmap({ days = 90 }: { days?: number }) {
         {/* Legend */}
         <div className="mt-3 flex items-center gap-2 pl-9">
           <span className="text-[10px] text-muted-foreground">{t("dash.heatmap.less")}</span>
-          {["bg-secondary/40", "bg-blue-900/60", "bg-indigo-700/70", "bg-yellow-600/80", "bg-orange-500", "bg-destructive"].map(c => (
-            <div key={c} className={`h-3 w-5 rounded-[2px] ${c}`} />
+          {HEATMAP_LEGEND_STEPS.map((bg) => (
+            <div key={bg} className="h-3 w-5 rounded-[2px]" style={{ backgroundColor: bg }} />
           ))}
           <span className="text-[10px] text-muted-foreground">{t("dash.heatmap.more")}</span>
         </div>
