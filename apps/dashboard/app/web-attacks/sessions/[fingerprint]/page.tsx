@@ -298,12 +298,16 @@ export default async function SessionDetailPage({
             <h3 className="text-sm font-semibold text-foreground">Activity over session</h3>
             <span className="ml-auto text-xs text-muted-foreground">{activityBuckets.length} time buckets</span>
           </div>
-          <div className="flex items-end gap-px h-14">
+          <div className="flex items-end gap-px h-20">
             {activityBuckets.map((b, i) => {
-              const pct = (b.count / maxBucket) * 100
+              const logMax = Math.log1p(maxBucket)
+              const pct = logMax > 0 ? (Math.log1p(b.count) / logMax) * 100 : 0
               return (
                 <div key={i} className="group relative flex-1 flex flex-col items-center justify-end" title={`${b.label} - ${b.count} hits`}>
-                  <div className="w-full rounded-sm bg-cyan-500/60 group-hover:bg-cyan-400 transition-colors" style={{ height: `${Math.max(pct, b.count > 0 ? 4 : 0)}%` }} />
+                  <div
+                    className={`w-full rounded-sm transition-colors ${b.count > 0 ? "bg-cyan-500/60 group-hover:bg-cyan-400" : "bg-border/30"}`}
+                    style={{ height: `${b.count > 0 ? Math.max(pct, 6) : 2}%` }}
+                  />
                 </div>
               )
             })}
