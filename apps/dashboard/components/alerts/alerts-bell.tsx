@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
+import { usePathname } from "next/navigation"
 import { Bell } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -9,9 +10,11 @@ import { useLiveStream, type AlertStreamEvent } from "@/hooks/use-live-stream"
 import { useT } from "@/components/locale-provider"
 
 // Unread-alert indicator for the sidebar header. Fetches the unread count on
-// mount, then bumps in real-time when new alerts arrive via SSE.
+// mount, bumps in real-time when new alerts arrive via SSE, and resets to 0
+// when the user navigates to /alerts (considered "seen").
 export function AlertsBell() {
   const t = useT()
+  const pathname = usePathname()
   const [unread, setUnread] = useState<number | null>(null)
 
   useEffect(() => {
@@ -25,14 +28,23 @@ export function AlertsBell() {
     return () => { cancelled = true }
   }, [])
 
+  // Reset badge when the user is on the alerts page
+  useEffect(() => {
+    if (pathname === "/alerts") setUnread(0)
+  }, [pathname])
+
   useLiveStream({
     onAlert: useCallback((event: AlertStreamEvent) => {
-      setUnread((prev) => (prev ?? 0) + 1)
+      // Don't bump if already on the alerts page — they see it immediately
+      setUnread((prev) => {
+        if (pathname === "/alerts") return prev ?? 0
+        return (prev ?? 0) + 1
+      })
       toast.warning(event.title, {
         description: event.srcIp ? `Source: ${event.srcIp}` : undefined,
         duration: 6000,
       })
-    }, []),
+    }, [pathname]),
   })
 
   const count = unread ?? 0

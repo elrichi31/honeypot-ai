@@ -36,7 +36,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { AlertsBell } from "@/components/alerts/alerts-bell"
-import { LiveAttackBadge } from "@/components/live-attack-badge"
+import { LiveAttackWidget } from "@/components/live-attack-badge"
 import { TenantSwitcher } from "@/components/tenant-switcher"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useSidebarCollapse } from "@/components/sidebar-collapse-context"
@@ -244,12 +244,9 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
           </div>
           {!collapsed && (
             <>
-              <div className="flex flex-1 items-center gap-2">
-                <div>
-                  <p className="font-semibold text-sidebar-foreground">HoneyTrap</p>
-                  <p className="text-[11px] text-muted-foreground">{t("sidebar.tagline")}</p>
-                </div>
-                <LiveAttackBadge />
+              <div className="flex-1">
+                <p className="font-semibold text-sidebar-foreground">HoneyTrap</p>
+                <p className="text-[11px] text-muted-foreground">{t("sidebar.tagline")}</p>
               </div>
               <AlertsBell />
               {!mobile && (
@@ -381,6 +378,8 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
             )
           })}
         </nav>
+
+        {!collapsed && <LiveAttackWidget />}
 
         {/* Footer — user card and the ingest health status share one row so the
             avatar and the "Ingest API online" dot sit at the same height. The
