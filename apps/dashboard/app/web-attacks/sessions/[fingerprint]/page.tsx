@@ -302,11 +302,15 @@ export default async function SessionDetailPage({
             {activityBuckets.map((b, i) => {
               const logMax = Math.log1p(maxBucket)
               const pct = logMax > 0 ? (Math.log1p(b.count) / logMax) * 100 : 0
+              const height = b.count > 0 ? Math.max(pct, 6) : 2
               return (
                 <div key={i} className="group relative flex-1 flex flex-col items-center justify-end" title={`${b.label} - ${b.count} hits`}>
                   <div
-                    className={`w-full rounded-sm transition-colors ${b.count > 0 ? "bg-cyan-500/60 group-hover:bg-cyan-400" : "bg-border/30"}`}
-                    style={{ height: `${b.count > 0 ? Math.max(pct, 6) : 2}%` }}
+                    className="w-full rounded-sm transition-colors"
+                    style={{
+                      height: `${height}%`,
+                      backgroundColor: b.count > 0 ? "rgb(6 182 212 / 0.6)" : "rgb(255 255 255 / 0.08)",
+                    }}
                   />
                 </div>
               )
