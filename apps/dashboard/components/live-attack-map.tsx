@@ -158,7 +158,9 @@ function useArcExpiry(setLiveArcs: React.Dispatch<React.SetStateAction<LiveArc[]
 
 function parseLiveEvent(data: string, addAttack: (event: RawEvent) => void) {
   try {
-    addAttack(JSON.parse(data) as RawEvent)
+    const event = JSON.parse(data) as RawEvent
+    if (event.type === "alert" || event.type === "sensor-heartbeat") return
+    addAttack(event)
   } catch {
     return
   }
