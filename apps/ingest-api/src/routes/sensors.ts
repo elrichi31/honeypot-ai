@@ -6,6 +6,7 @@ import { clearSensorOfflineAlert } from '../lib/threat-alerts.js'
 import { normalizeIp, normalizeSlug } from '../lib/sensor-utils.js'
 import { resolveClientId, querySensors, probeSensorPorts, formatSensor } from '../lib/sensor-queries.js'
 import { withCache } from '../lib/cache-helper.js'
+import { eventBus, type SensorHeartbeatEvent } from '../lib/event-bus.js'
 
 const cowrieConfigSchema = z.object({
   hostname:               z.string().min(1).max(64).default('web-prod-01'),
@@ -67,6 +68,10 @@ async function handleHeartbeat(fastify: FastifyInstance, request: FastifyRequest
   `
 
   void clearSensorOfflineAlert(fastify.prisma, d.sensorId)
+
+  const hb: SensorHeartbeatEvent = { type: 'sensor-heartbeat', sensorId: d.sensorId, timestamp: now.toISOString() }
+  eventBus.emit('sensor-heartbeat', hb)
+
   return reply.status(200).send({ ok: true })
 }
 

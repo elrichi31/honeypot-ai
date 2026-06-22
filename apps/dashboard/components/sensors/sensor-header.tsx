@@ -10,6 +10,7 @@ import { getProtocolMeta } from "@/lib/sensor-display"
 import type { Sensor } from "@/lib/api"
 import { useT } from "@/components/locale-provider"
 import type { TranslationKey } from "@/lib/i18n/dictionaries"
+import { useSensorLive } from "./sensor-live-context"
 
 function OnlineBadge() {
   const t = useT()
@@ -146,6 +147,9 @@ export function SensorHeader({
   const meta = getProtocolMeta(sensor.protocol)
   const Icon = meta.icon
   const hasContainer = !!sensor.probeHost
+  const { isLive } = useSensorLive()
+  // A live heartbeat received this session overrides a stale DB online=false
+  const effectiveOnline = sensor.online || isLive(sensor.sensorId)
   return (
     <div className="flex items-start justify-between gap-2">
       <div className="flex items-center gap-2.5 min-w-0">
@@ -159,14 +163,14 @@ export function SensorHeader({
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {isRemote
-          ? <RemoteBadge online={sensor.online} />
+          ? <RemoteBadge online={effectiveOnline} />
           // Docker status is only authoritative when the heartbeat agrees the
           // sensor is alive. If the heartbeat is stale (online=false) but Docker
           // reports "running", the container is a zombie — show Offline so the
           // operator knows the honeypot isn't actually sending data.
-          : hasContainer && dockerStatus && sensor.online
+          : hasContainer && dockerStatus && effectiveOnline
             ? <DockerStatusBadge status={dockerStatus} />
-            : !sensor.online
+            : !effectiveOnline
               ? <OfflineBadge />
               : sensor.degraded
                 ? <DegradedBadge />

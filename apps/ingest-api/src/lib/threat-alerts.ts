@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client'
+import { eventBus, type AlertEvent } from './event-bus.js'
 import { computeRiskScore } from './risk-score.js'
 import { sendDiscordAlert } from './discord.js'
 import { sendCrowdStrikeAlert } from './crowdstrike.js'
@@ -259,6 +260,15 @@ async function persistAlert(prisma: PrismaClient, payload: AlertPayload): Promis
         clientId,
       },
     })
+    const ev: AlertEvent = {
+      type: 'alert',
+      level: payload.level,
+      title: payload.title,
+      srcIp: srcIp ?? null,
+      sensorId: sensorId ?? null,
+      timestamp: new Date().toISOString(),
+    }
+    eventBus.emit('alert', ev)
   } catch (error) {
     console.warn(`[alerts] failed to persist alert ${payload.key}: ${error instanceof Error ? error.message : String(error)}`)
   }

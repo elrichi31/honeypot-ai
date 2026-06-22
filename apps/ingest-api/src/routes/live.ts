@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { eventBus, type AttackEvent } from '../lib/event-bus.js'
+import { eventBus, type LiveEvent } from '../lib/event-bus.js'
 
 export async function liveRoutes(fastify: FastifyInstance) {
   fastify.get('/events/live', (request, reply) => {
@@ -14,16 +14,20 @@ export async function liveRoutes(fastify: FastifyInstance) {
     })
     res.write(':\n\n')
 
-    const listener = (event: AttackEvent) => {
+    const send = (event: LiveEvent) => {
       res.write(`data: ${JSON.stringify(event)}\n\n`)
     }
 
-    eventBus.on('attack', listener)
+    eventBus.on('attack', send)
+    eventBus.on('alert', send)
+    eventBus.on('sensor-heartbeat', send)
 
     const heartbeat = setInterval(() => res.write(':\n\n'), 25_000)
 
     request.raw.on('close', () => {
-      eventBus.off('attack', listener)
+      eventBus.off('attack', send)
+      eventBus.off('alert', send)
+      eventBus.off('sensor-heartbeat', send)
       clearInterval(heartbeat)
     })
   })

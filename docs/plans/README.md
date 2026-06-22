@@ -11,6 +11,7 @@ progresses, and link the relevant commit hashes so the history stays traceable.
 - [I18N.md](I18N.md) — i18n system, the English-first convention, the 2026-06-18 Spanish cleanup, and remaining debt (move literals into dicts, AI prompt locale, backend strings).
 - [DOCS.md](DOCS.md) — the documentation site schema, what's been documented, and the rule that features ship with docs.
 - [CICD.md](CICD.md) — CI/CD pipeline: GitHub Actions → VPS auto-redeploy, secrets, and how to move to a new VPS.
+- [REALTIME_STREAM.md](REALTIME_STREAM.md) — SSE stream extended to alert+heartbeat; 3 live features: attack badge, alert bell+toast, sensor live-dot.
 - [DESIGN_PATTERNS.md](DESIGN_PATTERNS.md) — refactor backlog: 4 prioritized design-pattern opportunities to cut duplication (proxy-helper merge, secret-field component, config registry, scoped-route HOF) with smell/pattern/files/risk for each.
 
 ## Conventions

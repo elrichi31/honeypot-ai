@@ -6,6 +6,7 @@ import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
 import { SensorCard } from "@/components/sensors/sensor-card"
 import { DeceptionNetworkCard } from "@/components/sensors/deception-network-card"
+import { SensorsLiveWrapper } from "@/components/sensors/sensors-live-wrapper"
 import { fetchSensors } from "@/lib/api"
 import { readConfig } from "@/lib/server-config"
 import { getServerT } from "@/lib/i18n/server"
@@ -110,6 +111,7 @@ export default async function SensorsPage() {
           </p>
         </Surface>
       ) : (
+        <SensorsLiveWrapper>
         <div className="space-y-8">
           {groups.map((group) => (
             <section key={group.slug ?? "unassigned"} className="space-y-4">
@@ -161,6 +163,7 @@ export default async function SensorsPage() {
             </section>
           ))}
         </div>
+        </SensorsLiveWrapper>
       )}
     </PageShell>
   )
