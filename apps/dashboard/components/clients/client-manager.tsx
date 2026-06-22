@@ -1,14 +1,13 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Building2, Plus } from "lucide-react"
+import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { Client, Sensor } from "@/lib/api"
 import { ClientCard } from "./client-card"
 import { CreateClientDialog } from "./create-client-dialog"
 import { EditClientDialog } from "./edit-client-dialog"
 import { DeleteClientDialog } from "./delete-client-dialog"
-import { Surface } from "@/components/ui/surface"
 import { useT } from "@/components/locale-provider"
 
 type Props = {
@@ -21,7 +20,6 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
   const [clients, setClients] = useState(initialClients)
   const [editClient, setEditClient] = useState<Client | null>(null)
   const [deleteClient, setDeleteClient] = useState<Client | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
 
   const clientStats = useMemo(() => {
     const stats = new Map<string, { sensors: number; online: number; events: number }>()
@@ -45,68 +43,48 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
 
   return (
     <div className="space-y-6">
-      <Surface className="p-5 space-y-4">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-400/10">
-              <Building2 className="h-5 w-5 text-emerald-400" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">{t("clients.inventory.title")}</h2>
-              <p className="text-sm text-muted-foreground">
-                {t("clients.inventory.subtitle")}
-              </p>
-            </div>
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">{t("clients.inventory.subtitle")}</p>
+        <CreateClientDialog
+          trigger={
+            <Button size="sm" className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              {t("clients.add")}
+            </Button>
+          }
+          onCreated={(client) => setClients((prev) => sortedInsert(prev, client))}
+        />
+      </div>
+
+      {clients.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t("clients.none")}</p>
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {clients.map((client) => (
+              <ClientCard
+                key={client.id}
+                client={client}
+                stats={clientStats.get(client.id) ?? { sensors: 0, online: 0, events: 0 }}
+                onEdit={setEditClient}
+                onDelete={setDeleteClient}
+              />
+            ))}
           </div>
 
-          <CreateClientDialog
-            trigger={
-              <Button className="gap-2 self-start md:self-auto">
-                <Plus className="h-4 w-4" />
-                {t("clients.add")}
-              </Button>
-            }
-            onCreated={(client) => {
-              setClients((prev) => sortedInsert(prev, client))
-              setMessage(t("clients.created", { name: client.name }))
-            }}
+          <EditClientDialog
+            client={editClient}
+            onClose={() => setEditClient(null)}
+            onSaved={(updated) => setClients((prev) => sortedInsert(prev, updated))}
           />
-        </div>
 
-        {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
-
-        {clients.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("clients.none")}</p>
-        ) : (
-          <>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {clients.map((client) => (
-                <ClientCard
-                  key={client.id}
-                  client={client}
-                  stats={clientStats.get(client.id) ?? { sensors: 0, online: 0, events: 0 }}
-                  onEdit={setEditClient}
-                  onDelete={setDeleteClient}
-                />
-              ))}
-            </div>
-
-            <EditClientDialog
-              client={editClient}
-              onClose={() => setEditClient(null)}
-              onSaved={(updated) =>
-                setClients((prev) => sortedInsert(prev, updated))
-              }
-            />
-
-            <DeleteClientDialog
-              client={deleteClient}
-              onClose={() => setDeleteClient(null)}
-              onDeleted={(id) => setClients((prev) => prev.filter((c) => c.id !== id))}
-            />
-          </>
-        )}
-      </Surface>
+          <DeleteClientDialog
+            client={deleteClient}
+            onClose={() => setDeleteClient(null)}
+            onDeleted={(id) => setClients((prev) => prev.filter((c) => c.id !== id))}
+          />
+        </>
+      )}
     </div>
   )
 }

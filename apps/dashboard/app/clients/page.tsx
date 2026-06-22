@@ -22,9 +22,6 @@ export default async function ClientsPage() {
     <PageShell>
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-foreground">{t("clients.title")}</h1>
-        <p className="text-sm text-muted-foreground">
-          {t("clients.subtitle")}
-        </p>
       </div>
 
       <ClientManager initialClients={clients} initialSensors={sensors} />
