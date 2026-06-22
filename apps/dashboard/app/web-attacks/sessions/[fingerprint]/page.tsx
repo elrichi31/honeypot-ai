@@ -298,7 +298,7 @@ export default async function SessionDetailPage({
             <h3 className="text-sm font-semibold text-foreground">Activity over session</h3>
             <span className="ml-auto text-xs text-muted-foreground">{activityBuckets.length} time buckets</span>
           </div>
-          <div className="flex items-end gap-px h-20">
+          <div className="flex items-end gap-px" style={{ height: "80px" }}>
             {activityBuckets.map((b, i) => {
               const logMax = Math.log1p(maxBucket)
               const pct = logMax > 0 ? (Math.log1p(b.count) / logMax) * 100 : 0

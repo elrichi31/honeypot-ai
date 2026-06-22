@@ -25,8 +25,8 @@ import { detectBotnetFamily, extractIocs, hasThreatIntel } from "@/lib/botnet-si
 import { fetchSession, fetchThreat } from "@/lib/api"
 import { RiskBadge } from "@/components/risk-badge"
 import { StatCard } from "@/components/stat-card"
-import { IpEnrichment } from "@/components/ip-enrichment"
 import { Surface } from "@/components/ui/surface"
+import { IpThreatRow } from "@/components/ip-threat-row"
 import type { IpEnrichment as IpEnrichmentData } from "@/app/api/enrich/[ip]/route"
 
 async function readEnrichmentCache(ip: string): Promise<IpEnrichmentData | null> {
@@ -274,7 +274,18 @@ export default async function SessionReplayPage({
 
           {/* Right column: timeline + AI */}
           <div className="space-y-6 xl:col-span-2">
-            <IpEnrichment ip={session.srcIp} initialData={enrichmentCache} autoFetch={false} />
+            <Surface className="overflow-hidden">
+              <div className="border-b border-border px-4 py-3">
+                <h3 className="font-semibold text-foreground">Threat Intelligence</h3>
+              </div>
+              <IpThreatRow
+                ip={session.srcIp}
+                count={events.length}
+                attackTypes={[]}
+                location={null}
+                initialData={enrichmentCache}
+              />
+            </Surface>
             {showThreatIntel && <ThreatIntelCard family={botnetFamily} iocs={iocs} />}
             <AiSummary session={session} events={events} />
 
