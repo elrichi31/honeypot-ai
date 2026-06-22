@@ -48,20 +48,26 @@ export default function AlertsPage() {
 
   // The active tenant scope lives in the global switcher (a cookie the server
   // reads), so we just refetch when it changes — no ?clientId needed here.
-  const fetchAlerts = useCallback(async () => {
+  // AbortController cancels any in-flight request when the tenant changes,
+  // preventing stale responses from overwriting fresh data.
+  const fetchAlerts = useCallback(() => {
+    const controller = new AbortController()
     setLoading(true)
-    try {
-      const res = await fetch(`/api/alerts?limit=100`)
-      if (res.ok) setData(await res.json())
-      else toast.error("Could not load alerts")
-    } catch {
-      toast.error("Network error while loading alerts")
-    } finally {
-      setLoading(false)
-    }
+    fetch(`/api/alerts?limit=100`, { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+      .then((body) => setData(body))
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return
+        toast.error("Could not load alerts")
+      })
+      .finally(() => setLoading(false))
+    return controller
   }, [])
 
-  useEffect(() => { fetchAlerts() }, [fetchAlerts, tenantId])
+  useEffect(() => {
+    const controller = fetchAlerts()
+    return () => controller.abort()
+  }, [fetchAlerts, tenantId])
 
   async function markRead(id: string) {
     // Optimistic: flip the row to read immediately.

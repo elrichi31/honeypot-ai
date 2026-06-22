@@ -16,6 +16,7 @@ import { formatTs } from "@/lib/formatting"
 import { JsonTree } from "@/components/clients/json-tree"
 import { Surface } from "@/components/ui/surface"
 import { useT } from "@/components/locale-provider"
+import { isPrivateIp } from "@/lib/ip"
 
 type LogSource = "all" | "ssh" | "protocol" | "web"
 
@@ -118,7 +119,8 @@ export function ClientLogsViewer({ clientSlug, sensors = [] }: Props) {
       .then(r => r.json())
       .then((data: unknown) => {
         const d = data && typeof data === "object" ? data as Record<string, unknown> : {}
-        setItems(Array.isArray(d.items) ? d.items : [])
+        const raw: LogEntry[] = Array.isArray(d.items) ? d.items : []
+        setItems(raw.filter(e => !isPrivateIp(e.srcIp ?? "")))
         setMeta(d.pagination && typeof d.pagination === "object" ? d.pagination as PaginationMeta : null)
       })
       .catch(() => { setItems([]); setMeta(null) })
