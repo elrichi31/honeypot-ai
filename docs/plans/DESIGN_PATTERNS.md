@@ -92,7 +92,7 @@ clear for single-key forms. `enrichment-form` drops its local `KeyRow` and uses
 
 ---
 
-## 3. Declarative config schema — **Registry / Strategy** (backend of #2)
+## 3. ✅ Declarative config schema — **Registry / Strategy** *(done 2026-06-21)*
 
 **Smell.** [`app/api/config/route.ts`](../../apps/dashboard/app/api/config/route.ts)
 hand-writes ~20 `if ("x" in body) config.x = ...` lines on POST, plus a parallel
@@ -119,9 +119,16 @@ lists. The mask guard and clamp logic are written once. Removes a whole class of
 a test asserting every secret is masked on GET and the `•` guard holds. Worth a
 `*.test.ts` before/after to prove equivalence.
 
+**Done.** `CONFIG_FIELDS` registry added to `lib/server-config.ts` alongside
+`SECRET_FIELD_KEYS` (derived set). `route.ts` GET and POST now loop over the
+registry: GET auto-masks secrets and resolves env fallbacks; POST validates by
+type, clamps numbers, guards the `•` value, and derives the audit exclude-list
+from `SECRET_FIELD_KEYS`. Legacy response key names (`hasKey`, `hasDiscordWebhook`,
+`hasVirusTotalKey`) kept for backward compat. `tsc --noEmit` passes clean.
+
 ---
 
-## 4. Standardize scoped-list route handlers — **Template Method / higher-order handler**
+## 4. ⏸ Standardize scoped-list route handlers — **Template Method / higher-order handler** *(deferred)*
 
 **Smell.** The multi-tenant list routes (alerts, threats, defense, clients/*)
 each repeat the same skeleton: `requireRole` → `effectiveScope(auth)` → build a
@@ -144,6 +151,14 @@ Collapses each scoped route to a single line; kills the duplicated
 **Files.** New `lib/api/scoped-route.ts`; migrate the scoped routes under
 `app/api/alerts`, `app/api/threats`, `app/api/defense`, `app/api/clients`. Pairs
 naturally with the multi-tenant rollout.
+
+**Deferred (2026-06-21).** The 3 existing routes using `effectiveScope` are all
+bespoke: `alerts/route.ts` has GET+DELETE with forwarded QP, `alerts/read-all`
+has POST with no request body, `alerts/[id]` has DELETE with dynamic params.
+None are pure GET-list routes. The multi-tenant work that would create enough
+uniform routes to justify a HOF hasn't landed yet — implementing this now would
+be speculative abstraction. Revisit when at least 4–5 pure GET-list endpoints
+share the same skeleton (alongside the multi-tenant rollout, as the plan says).
 
 **Risk.** Medium. Higher-order route handlers can obscure per-route quirks
 (custom query params, POST bodies). Start with the pure GET-list routes; leave

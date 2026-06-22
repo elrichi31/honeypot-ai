@@ -8,6 +8,9 @@ import {
   getSpectraAnalyzeToken,
   getSpectraAnalyzeUrl,
   getVirusTotalKey,
+  CONFIG_FIELDS,
+  SECRET_FIELD_KEYS,
+  AppConfig,
 } from "@/lib/server-config"
 import { getVtQuota } from "@/lib/virustotal"
 import { logAudit } from "@/lib/audit"
@@ -18,49 +21,60 @@ function maskKey(key: string | undefined): string {
   return `${key.slice(0, 6)}${"•".repeat(20)}`
 }
 
+// Resolves the effective value for a field: config → env fallback → default.
+function resolvedValue(field: (typeof CONFIG_FIELDS)[number], config: AppConfig): unknown {
+  const raw = config[field.key]
+  if (raw !== undefined && raw !== null) return raw
+  if (field.envFallback) {
+    const env = process.env[field.envFallback]
+    if (env !== undefined) {
+      return field.type === "number" ? Number(env) || field.defaultValue : env
+    }
+  }
+  return field.defaultValue
+}
+
 export async function GET() {
   const auth_check = await requireRole("viewer")
   if (!auth_check.ok) return auth_check.response
 
-  const key = getOpenAiKey()
-  const vtKey = getVirusTotalKey()
+  // Resolve env-overridden values for secret fields so masking uses the same
+  // source as the getter functions (config file takes priority, then env).
+  const effectiveSecrets: Partial<Record<keyof AppConfig, string | undefined>> = {
+    openaiApiKey: getOpenAiKey(),
+    discordWebhookUrl: getDiscordWebhookUrl(),
+    ingestSecret: getIngestSecret() || undefined,
+    spectraAnalyzeToken: getSpectraAnalyzeToken(),
+    virustotalApiKey: getVirusTotalKey(),
+  }
+
   const config = readConfig()
+  const vtKey = effectiveSecrets.virustotalApiKey
   const vtQuota = vtKey ? await getVtQuota().catch(() => null) : null
 
-  return NextResponse.json({
-    openaiApiKey: key ? maskKey(key) : "",
-    hasKey: !!key,
-    abuseipdbApiKey: config.abuseipdbApiKey ? maskKey(config.abuseipdbApiKey) : "",
-    hasAbuseipdbKey: !!config.abuseipdbApiKey,
-    ipinfoApiKey: config.ipinfoApiKey ? maskKey(config.ipinfoApiKey) : "",
-    hasIpinfoKey: !!config.ipinfoApiKey,
-    spectraAnalyzeUrl: getSpectraAnalyzeUrl() ?? "",
-    spectraAnalyzeToken: getSpectraAnalyzeToken() ? maskKey(getSpectraAnalyzeToken()) : "",
-    hasSpectraAnalyzeToken: !!getSpectraAnalyzeToken(),
-    virustotalApiKey: vtKey ? maskKey(vtKey) : "",
-    hasVirusTotalKey: !!vtKey,
-    vtQuota,
-    hasDiscordWebhook: !!getDiscordWebhookUrl(),
-    honeypotIp: config.honeypotIp ?? process.env.HONEYPOT_IP ?? "",
-    sshPort: config.sshPort ?? (Number(process.env.HONEYPOT_SSH_PORT) || 22),
-    ingestPort: config.ingestPort ?? (Number(process.env.HONEYPOT_INGEST_PORT) || 8022),
-    ingestApiUrl: config.ingestApiUrl ?? process.env.INTERNAL_API_URL ?? "http://localhost:3000",
-    ingestSecret: getIngestSecret() ? maskKey(getIngestSecret()) : "",
-    hasIngestSecret: !!getIngestSecret(),
-    sessionDurationHours: config.sessionDurationHours ?? 8,
-    timezone: config.timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC",
-    alertMinLevel: config.alertMinLevel ?? "critical",
-    alertCooldownMinutes: config.alertCooldownMinutes ?? 60,
-    alertEnabledTypes: {
-      threatScore: config.alertEnabledTypes?.threatScore ?? true,
-      multiService: config.alertEnabledTypes?.multiService ?? true,
-      authBurst: config.alertEnabledTypes?.authBurst ?? true,
-      postAuth: config.alertEnabledTypes?.postAuth ?? true,
-      attackChain: config.alertEnabledTypes?.attackChain ?? true,
-      sensorOffline: config.alertEnabledTypes?.sensorOffline ?? true,
-    },
-    reportIntervalHours: config.reportIntervalHours ?? 8,
-  })
+  const response: Record<string, unknown> = {}
+
+  for (const field of CONFIG_FIELDS) {
+    const k = field.key as string
+    if (field.secret) {
+      const val = effectiveSecrets[field.key] ?? (resolvedValue(field, config) as string | undefined)
+      response[k] = val ? maskKey(val) : ""
+      response[`has${k[0].toUpperCase()}${k.slice(1)}`] = !!val
+    } else {
+      response[k] = resolvedValue(field, config)
+    }
+  }
+
+  // Rename the auto-generated boolean keys to the legacy names consumers expect.
+  response.hasKey = response.hasOpenaiApiKey
+  delete response.hasOpenaiApiKey
+  response.hasDiscordWebhook = response.hasDiscordWebhookUrl
+  delete response.hasDiscordWebhookUrl
+  response.hasVirusTotalKey = response.hasVirustotalApiKey
+  delete response.hasVirustotalApiKey
+  response.vtQuota = vtQuota
+
+  return NextResponse.json(response)
 }
 
 export async function POST(req: NextRequest) {
@@ -70,52 +84,41 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const config = readConfig()
 
-  if ("openaiApiKey" in body) {
-    if (typeof body.openaiApiKey !== "string")
-      return NextResponse.json({ error: "Invalid key" }, { status: 400 })
-    config.openaiApiKey = body.openaiApiKey.trim() || undefined
+  for (const field of CONFIG_FIELDS) {
+    const k = field.key as string
+    if (!(k in body)) continue
+
+    const raw = body[k]
+
+    if (field.type === "secret") {
+      if (typeof raw !== "string")
+        return NextResponse.json({ error: `Invalid value for ${k}` }, { status: 400 })
+      const trimmed = raw.trim()
+      // Guard: never save the masked display value back to disk.
+      if (!trimmed.includes("•"))
+        (config as Record<string, unknown>)[k] = trimmed || undefined
+    } else if (field.type === "number") {
+      let num = Number(raw) || (field.defaultValue as number)
+      if (field.clamp) num = Math.max(field.clamp[0], Math.min(field.clamp[1], num))
+      ;(config as Record<string, unknown>)[k] = num
+    } else if (field.type === "enum") {
+      const val = typeof raw === "string" ? raw : field.defaultValue
+      ;(config as Record<string, unknown>)[k] = field.allowedValues?.includes(val as string)
+        ? val
+        : field.defaultValue
+    } else if (field.type === "object") {
+      if (typeof raw === "object" && raw !== null)
+        (config as Record<string, unknown>)[k] = raw
+    } else {
+      // string | url
+      ;(config as Record<string, unknown>)[k] = typeof raw === "string" ? raw.trim() || undefined : undefined
+    }
   }
-  if ("abuseipdbApiKey" in body) config.abuseipdbApiKey = body.abuseipdbApiKey?.trim() || undefined
-  if ("ipinfoApiKey" in body) config.ipinfoApiKey = body.ipinfoApiKey?.trim() || undefined
-  if ("spectraAnalyzeUrl" in body) config.spectraAnalyzeUrl = body.spectraAnalyzeUrl?.trim() || undefined
-  if ("spectraAnalyzeToken" in body) {
-    if (typeof body.spectraAnalyzeToken !== "string")
-      return NextResponse.json({ error: "Invalid Spectra Analyze token" }, { status: 400 })
-    const trimmed = body.spectraAnalyzeToken.trim()
-    if (!trimmed.includes("•")) config.spectraAnalyzeToken = trimmed || undefined
-  }
-  if ("virustotalApiKey" in body) {
-    if (typeof body.virustotalApiKey !== "string")
-      return NextResponse.json({ error: "Invalid VirusTotal key" }, { status: 400 })
-    const trimmed = body.virustotalApiKey.trim()
-    if (!trimmed.includes("•")) config.virustotalApiKey = trimmed || undefined
-  }
-  if ("discordWebhookUrl" in body) config.discordWebhookUrl = body.discordWebhookUrl?.trim() || undefined
-  if ("honeypotIp" in body) config.honeypotIp = body.honeypotIp?.trim() || undefined
-  if ("sshPort" in body) config.sshPort = Math.max(1, Math.min(65535, Number(body.sshPort) || 22))
-  if ("ingestPort" in body) config.ingestPort = Math.max(1, Math.min(65535, Number(body.ingestPort) || 8022))
-  if ("ingestApiUrl" in body) config.ingestApiUrl = body.ingestApiUrl?.trim() || undefined
-  if ("ingestSecret" in body) {
-    if (typeof body.ingestSecret !== "string")
-      return NextResponse.json({ error: "Invalid secret" }, { status: 400 })
-    const trimmed = body.ingestSecret.trim()
-    // Guard against accidentally saving the masked display value back.
-    if (!trimmed.includes("•")) config.ingestSecret = trimmed || undefined
-  }
-  if ("sessionDurationHours" in body) config.sessionDurationHours = Math.max(1, Math.min(720, Number(body.sessionDurationHours) || 8))
-  if ("timezone" in body) config.timezone = body.timezone?.trim() || undefined
-  if ("alertMinLevel" in body) config.alertMinLevel = body.alertMinLevel === 'high' ? 'high' : 'critical'
-  if ("alertCooldownMinutes" in body) config.alertCooldownMinutes = Math.max(1, Number(body.alertCooldownMinutes) || 60)
-  if ("alertEnabledTypes" in body && typeof body.alertEnabledTypes === 'object') config.alertEnabledTypes = body.alertEnabledTypes
-  if ("reportIntervalHours" in body) config.reportIntervalHours = Number(body.reportIntervalHours) || 0
-  if ("retentionIntervalMinutes" in body) config.retentionIntervalMinutes = Math.max(15, Math.min(1440, Number(body.retentionIntervalMinutes) || 60))
 
   writeConfig(config)
 
   const changedKeys = Object.keys(body).filter((k) =>
-    !["openaiApiKey", "abuseipdbApiKey", "ipinfoApiKey", "spectraAnalyzeToken", "discordWebhookUrl", "ingestSecret"].includes(k)
-      ? true
-      : !!body[k],
+    SECRET_FIELD_KEYS.has(k) ? !!body[k] : true
   )
   await logAudit({
     action: "UPDATE",

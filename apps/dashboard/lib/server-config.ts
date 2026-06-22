@@ -39,6 +39,58 @@ export interface AppConfig {
   retentionIntervalMinutes?: number
 }
 
+// ---------------------------------------------------------------------------
+// Config field registry — single source of truth for every setting.
+// Drives GET (masking, defaults), POST (validation, assignment), and audit
+// (secret-field exclusion). Adding a setting = one entry here, nothing else.
+// ---------------------------------------------------------------------------
+
+type FieldType = "secret" | "string" | "url" | "number" | "enum" | "object"
+
+export interface ConfigFieldDef {
+  key: keyof AppConfig
+  type: FieldType
+  /** secret:true → masked on GET, excluded from audit log values */
+  secret?: boolean
+  /** Fallback env var when the config file has no value */
+  envFallback?: string
+  /** Default when neither config nor env provides a value */
+  defaultValue?: string | number | object
+  /** For type:"number" — clamps the incoming value */
+  clamp?: [number, number]
+  /** For type:"enum" — allowed values */
+  allowedValues?: string[]
+  /** Extra response keys derived from this field (e.g. hasKey, vtQuota) */
+  extraResponseKeys?: string[]
+}
+
+export const CONFIG_FIELDS: ConfigFieldDef[] = [
+  { key: "openaiApiKey",        type: "secret", secret: true },
+  { key: "abuseipdbApiKey",     type: "secret", secret: true },
+  { key: "ipinfoApiKey",        type: "secret", secret: true },
+  { key: "spectraAnalyzeUrl",   type: "url" },
+  { key: "spectraAnalyzeToken", type: "secret", secret: true },
+  { key: "virustotalApiKey",    type: "secret", secret: true },
+  { key: "discordWebhookUrl",   type: "secret", secret: true },
+  { key: "honeypotIp",          type: "string", envFallback: "HONEYPOT_IP", defaultValue: "" },
+  { key: "sshPort",             type: "number", envFallback: "HONEYPOT_SSH_PORT", defaultValue: 22, clamp: [1, 65535] },
+  { key: "ingestPort",          type: "number", envFallback: "HONEYPOT_INGEST_PORT", defaultValue: 8022, clamp: [1, 65535] },
+  { key: "ingestApiUrl",        type: "url",    envFallback: "INTERNAL_API_URL", defaultValue: "http://localhost:3000" },
+  { key: "ingestSecret",        type: "secret", secret: true },
+  { key: "sessionDurationHours",type: "number", defaultValue: 8, clamp: [1, 720] },
+  { key: "timezone",            type: "string", envFallback: "DASHBOARD_TIMEZONE", defaultValue: "UTC" },
+  { key: "alertMinLevel",       type: "enum",   defaultValue: "critical", allowedValues: ["critical", "high"] },
+  { key: "alertCooldownMinutes",type: "number", defaultValue: 60, clamp: [1, Infinity] },
+  { key: "alertEnabledTypes",   type: "object", defaultValue: { threatScore: true, multiService: true, authBurst: true, postAuth: true, attackChain: true, sensorOffline: true } },
+  { key: "reportIntervalHours", type: "number", defaultValue: 8 },
+  { key: "retentionIntervalMinutes", type: "number", defaultValue: 60, clamp: [15, 1440] },
+]
+
+/** Keys that must not be saved in plain text in the audit log */
+export const SECRET_FIELD_KEYS = new Set(
+  CONFIG_FIELDS.filter((f) => f.secret).map((f) => f.key as string)
+)
+
 const CONFIG_PATH = path.join(process.cwd(), "data", "config.json")
 
 function ensureDir() {
