@@ -174,7 +174,7 @@ export default async function SessionDetailPage({
   const hopTimeline = isMultiIp ? buildIpHopTimeline(hits) : []
 
   const enrichments = await Promise.all(
-    srcIps.map(async (ip) => {
+    srcIps.slice(0, 3).map(async (ip) => {
       try { return { ip, data: await enrichIp(ip) } } catch { return { ip, data: null } }
     }),
   )
