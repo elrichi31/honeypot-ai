@@ -13,9 +13,9 @@ import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
 import { Flag } from "@/components/ui/flag"
 import { StatCard } from "@/components/stat-card"
-import { IpEnrichment } from "@/components/ip-enrichment"
 import { AttackTypeBadge } from "@/components/attack-type-badge"
 import { RequestRow, type RequestGroup } from "@/components/web-request-row"
+import { IpThreatRow } from "@/components/ip-threat-row"
 
 function buildActivityBuckets(timestamps: string[], bucketCount = 24) {
   if (timestamps.length === 0) return []
@@ -174,7 +174,7 @@ export default async function SessionDetailPage({
   const hopTimeline = isMultiIp ? buildIpHopTimeline(hits) : []
 
   const enrichments = await Promise.all(
-    srcIps.slice(0, 3).map(async (ip) => {
+    srcIps.map(async (ip) => {
       try { return { ip, data: await enrichIp(ip) } } catch { return { ip, data: null } }
     }),
   )
@@ -347,32 +347,23 @@ export default async function SessionDetailPage({
       )}
 
       <Surface className="mb-6 overflow-hidden">
-        <div className="border-b border-border px-4 py-3">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <h3 className="font-semibold text-foreground">IP addresses used in this session</h3>
-          <p className="text-xs text-muted-foreground">
-            Same passive fingerprint detected across {srcIps.length} IP{srcIps.length > 1 ? "s" : ""}
-            {isMultiIp ? " -- likely VPN or proxy rotation" : ""}
-          </p>
+          <span className="text-[10px] text-muted-foreground">
+            {srcIps.length} IP{srcIps.length > 1 ? "s" : ""}
+            {isMultiIp ? " — same passive fingerprint, likely VPN or proxy rotation" : ""}
+          </span>
         </div>
         <div className="divide-y divide-border">
-          {perIp.map(({ ip, count, attackTypes: ipTypes, firstSeen: ipFirst, lastSeen: ipLast, location }) => (
-            <div key={ip} className="flex items-center justify-between gap-4 px-4 py-3">
-              <div className="flex items-center gap-2 min-w-0">
-                {location?.country && <Flag code={location.country} />}
-                <Link href={`/web-attacks/${encodeURIComponent(ip)}`} className="font-mono text-sm text-blue-400 hover:underline">{ip}</Link>
-                {location?.countryName && <span className="text-xs text-muted-foreground">{location.countryName}</span>}
-              </div>
-              <div className="flex items-center gap-4 text-xs text-muted-foreground shrink-0">
-                <div className="flex flex-wrap gap-1">
-                  {ipTypes.slice(0, 3).map((t) => (
-                    <AttackTypeBadge key={t} type={t} size="xs" />
-                  ))}
-                </div>
-                <span suppressHydrationWarning className="whitespace-nowrap">
-                  {count} hits
-                </span>
-              </div>
-            </div>
+          {perIp.map(({ ip, count, attackTypes: ipTypes, location }) => (
+            <IpThreatRow
+              key={ip}
+              ip={ip}
+              count={count}
+              attackTypes={ipTypes}
+              location={location ?? null}
+              initialData={enrichments.find((e) => e.ip === ip)?.data ?? null}
+            />
           ))}
         </div>
       </Surface>
@@ -445,20 +436,6 @@ export default async function SessionDetailPage({
         </Surface>
       )}
 
-      {enrichments.some((e) => e.data) && (
-        <div className="mb-6 space-y-4">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Threat Intelligence</h2>
-          {enrichments.map(({ ip, data }) => data && (
-            <div key={ip}>
-              <p className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Flag code={lookupIp(ip)?.country ?? ""} />
-                <span className="font-mono">{ip}</span>
-              </p>
-              <IpEnrichment ip={ip} initialData={data} autoFetch={false} />
-            </div>
-          ))}
-        </div>
-      )}
 
       <div className="grid gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-1">
