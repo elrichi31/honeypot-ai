@@ -60,6 +60,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD:-honeypot}@postgres:5432/honeypot_prod
       DIRECT_DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD:-honeypot}@postgres:5432/honeypot_prod
@@ -67,6 +69,7 @@ services:
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       CORS_ALLOWED_ORIGINS: ${BETTER_AUTH_URL:-http://localhost:4000}
       REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
       PORT: "3000"
       HOST: "0.0.0.0"
     healthcheck:
@@ -111,7 +114,11 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
-      CLUSTER_ID: "honeypot-kafka-cluster-01"
+      # Single-node dev cluster: replication factor must be 1 for internal topics
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      CLUSTER_ID: "zvlgl0xUR4uoTnaBlAnzEw"
     ports:
       - "9094:9094"
     volumes:

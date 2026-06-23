@@ -25,6 +25,7 @@ import { malwareRoutes } from './routes/malware.js';
 import { storageRoutes } from './routes/storage.js';
 import { retentionPlugin } from './plugins/retention.js';
 import { matviewRefreshPlugin } from './plugins/matview-refresh.js';
+import kafkaConsumerPlugin from './plugins/kafka-consumer.js';
 import { suricataRoutes } from './routes/suricata.js';
 import { monitoringRoutes } from './routes/monitoring.js';
 import { alertRoutes } from './routes/alerts.js';
@@ -69,6 +70,7 @@ export async function buildApp() {
   });
   await app.register(prismaPlugin);
   await app.register(redisPlugin);
+  await app.register(kafkaConsumerPlugin);
   await app.register(defensePlugin);
 
   const ingestRpmLimit = parseInt(process.env.INGEST_RATE_LIMIT_RPM ?? '300', 10)

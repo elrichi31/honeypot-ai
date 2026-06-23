@@ -22,6 +22,7 @@
     "fastify-plugin": "^5.1.0",
     "geoip-lite": "^2.0.1",
     "ioredis": "^5.11.0",
+    "kafkajs": "^2.2.4",
     "node-cron": "^3.0.3",
     "zod": "^3.24.4"
   },
