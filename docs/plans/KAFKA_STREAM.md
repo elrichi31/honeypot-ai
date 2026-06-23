@@ -302,7 +302,7 @@ Alert src_ip=3.3.3.3, signature="GPL ATTACK_RESPONSE id check returned root", se
 **Verificación:** el archivo existe, está enlazado en el índice, y otra persona
 podría reproducir el flujo solo leyéndolo.
 
-- [ ] Hecho — fecha: ____  commit: ____
+- [x] Hecho — fecha: 2026-06-23  commit: ver abajo
 
 ---
 

@@ -9,6 +9,7 @@ before touching the project.
 
 - [CLOUDFLARE_TUNNEL_SETUP.md](CLOUDFLARE_TUNNEL_SETUP.md) — how the Cloudflare tunnel / platform deploy is wired.
 - [backend-layering.md](backend-layering.md) — Route → Service → Repository convention in ingest-api; which layer owns SQL, cache, and business logic.
+- [kafka-stream.md](kafka-stream.md) — Kafka topology (Vector → Kafka → ingest-api → Postgres), topics, env vars, how to check LAG, and rollback procedure.
 
 ## Key facts (quick reference)
 
