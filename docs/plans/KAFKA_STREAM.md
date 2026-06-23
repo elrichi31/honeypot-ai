@@ -11,7 +11,7 @@ está cubierto aquí, **detente y pregunta** — no improvises.
 | Tema | Decisión |
 |------|----------|
 | **Broker** | Apache Kafka **autohospedado** (no Event Hubs, no Redpanda). En modo KRaft (sin Zookeeper). |
-| **Imagen** | `bitnami/kafka` (soporta KRaft, bien documentada). |
+| **Imagen** | `apache/kafka:3.8.0` (imagen oficial Apache). `bitnami/kafka` no estaba disponible en el registry del host; se usó la oficial que tiene el mismo soporte KRaft. Scripts en `/opt/kafka/bin/`. |
 | **Migración** | **Mantener HTTP + agregar consumer en paralelo.** Los endpoints HTTP de ingesta (`/ingest/...`) siguen vivos. Se agrega un consumer de Kafka que llama **la misma `IngestService`**. Migración sensor por sensor cambiando el sink de Vector. Rollback = volver el sink a HTTP. |
 | **Topics** | **Uno por tipo de sensor:** `honeypot.cowrie`, `honeypot.suricata`. (Dionaea / OpenCanary se añaden cuando tengan ruta de ingesta propia — hoy solo Cowrie y Suricata mandan por Vector.) |
 | **Dev** | Kafka como un servicio **más** en el `docker-compose.yml` raíz existente. `docker compose up` debe levantar todo como hoy. |
@@ -88,7 +88,7 @@ docker compose exec kafka kafka-topics.sh --bootstrap-server localhost:9092 --li
 ```
 Pegar la salida de `docker compose ps kafka` mostrando `healthy`.
 
-- [ ] Hecho — fecha: ____  commit: ____
+- [x] Hecho — fecha: 2026-06-23  commit: 12a2bcf
 
 ---
 
@@ -114,7 +114,7 @@ docker compose exec kafka kafka-topics.sh --bootstrap-server localhost:9092 --de
 ```
 Pegar el `--describe` de ambos topics.
 
-- [ ] Hecho — fecha: ____  commit: ____
+- [x] Hecho — fecha: 2026-06-23  commit: 12a2bcf  (mismo commit que Tarea 0 — cambios en el mismo archivo, no divisibles limpiamente)
 
 ---
 
