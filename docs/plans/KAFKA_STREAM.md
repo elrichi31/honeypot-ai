@@ -3,6 +3,12 @@
 Plan de migración para insertar un broker de streaming (Kafka) entre Vector
 (productor) y el `ingest-api` (consumidor), sin reescribir la lógica de negocio.
 
+> **Estado (2026-06-23):** Tareas 0–7 implementadas. Una **auditoría
+> post-implementación** detectó 5 hallazgos (1 bloqueante: pérdida silenciosa de
+> eventos ante fallo de BD). Ver la sección **Auditoría post-implementación** y
+> las **Tareas 8–12** de remediación. El plan **no** está cerrado hasta que la
+> Tarea 8 esté hecha.
+
 ## Decisiones tomadas (NO re-decidir)
 
 Estas decisiones ya están cerradas. La IA **construye**, no decide. Si algo no
@@ -306,6 +312,206 @@ podría reproducir el flujo solo leyéndolo.
 
 ---
 
+## Auditoría post-implementación (2026-06-23)
+
+Revisión crítica del plan ya "terminado". Se identificaron fallas que **no
+estaban cubiertas** por las tareas 0–7 y que requieren tareas de remediación
+propias. Severidad: 🔴 bloqueante · 🟡 media · 🟢 menor.
+
+| ID | Severidad | Resumen | Tarea de fix |
+|----|-----------|---------|--------------|
+| A-1 | 🔴 | El consumer **traga errores de procesamiento y commitea el offset** → pérdida silenciosa de eventos si Postgres está caído. | Tarea 8 |
+| A-2 | 🟡 | `IngestService.processLine` dispara Discord/forward; si HTTP y Kafka procesan el mismo evento (rollback parcial), se duplican efectos. | Tarea 9 |
+| A-3 | 🟡 | `eveAlertSchema` duplicado (DRY) — ya registrado como TD-3, se salda en la Tarea 10. | Tarea 10 |
+| A-4 | 🟢 | Estado del consumer no visible en `/health` (TD-1); contenedor queda `healthy` aunque el consumer esté muerto. | Tarea 11 |
+| A-5 | 🟢 | Verificación de Tareas 5/6 se hizo inyectando JSON a mano, nunca con un ataque real fluyendo por Cowrie. | Tarea 12 |
+
+Las **Tareas 8–12** abajo resuelven estos puntos. La Tarea 8 es la única
+bloqueante; el resto endurece y limpia.
+
+---
+
+## Tarea 8 — 🔴 No perder eventos ante fallo de procesamiento (re-throw selectivo)
+
+**Problema (A-1):** en `eachMessage`, el `try/catch` que envuelve
+`handleCowrie`/`handleSuricata` captura **cualquier** excepción, la loguea y
+deja que `eachMessage` retorne normal. KafkaJS interpreta el retorno como éxito
+y **commitea el offset**. Si la excepción fue un fallo transitorio de Postgres,
+ese evento queda consumido y se pierde — justo lo que Kafka debía evitar.
+
+**Distinción clave que el código actual NO hace:**
+- **Error de _validación_** (JSON corrupto, zod falla) → el mensaje nunca será
+  válido por más que se reintente → **skip** (descartar, loguear, NO re-lanzar).
+- **Error de _procesamiento_** (Postgres caído, deadlock, timeout) → es
+  transitorio → **re-lanzar** para que KafkaJS NO commitee y reintente la
+  partición desde ese offset.
+
+**Pasos:**
+1. En `handleCowrie` / `handleSuricata` (`plugins/kafka-consumer.ts`): mantener
+   el `safeParse` + `return` en fallo de validación (eso ya está bien y es el
+   comportamiento "skip" correcto). **No** envolver la llamada al servicio en un
+   try/catch que trague — dejar que la excepción del servicio se propague.
+2. En `eachMessage`: separar los dos tipos de fallo:
+   - El `JSON.parse` envuelto (mensaje no-JSON) → **skip** (ya está, se queda).
+   - La llamada a `handleCowrie/handleSuricata` → **quitar** el `try/catch` que
+     hoy traga el error (líneas del `catch` que solo loguean). Si el handler
+     lanza, la excepción debe salir de `eachMessage` → KafkaJS reintenta.
+3. Confirmar que un handler que lanza **no** deja el JSON-parse-skip dentro del
+   mismo try (separar claramente: parse-skip nunca lanza; processing sí puede).
+4. Añadir `retry` config al `consumer.run` o confiar en el `retry` del consumer
+   ya configurado (`retries: 10`). Documentar en `// why` que el re-throw es
+   intencional para no commitear en fallo transitorio.
+5. **Riesgo de "poison pill":** si un mensaje válido-pero-imposible-de-procesar
+   (ej. viola una constraint de forma permanente) lanza siempre, bloquea la
+   partición. Mitigación mínima para este plan: el `createIfNotExists` ya hace
+   los inserts idempotentes y tolera duplicados, así que el único fallo
+   esperado es transitorio (BD). **Anotar como deuda** (DLQ / max-retries por
+   mensaje) que un poison-pill permanente bloquearía la partición — fuera de
+   alcance de esta tarea, pero debe quedar escrito.
+
+**Verificación:**
+```bash
+# 1. Con todo arriba, tirar Postgres a propósito:
+docker compose stop postgres
+# 2. Producir un evento válido por Kafka:
+echo '{"eventid":"cowrie.login.success","timestamp":"2026-03-03T00:00:00Z","src_ip":"4.4.4.4","session":"poisontest","username":"x","password":"y"}' \
+  | docker exec -i honeypot-kafka bash -c 'cat | /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic honeypot.cowrie'
+# 3. Ver que el LAG NO baja a 0 (el evento NO se commitea porque el insert falla):
+docker exec honeypot-kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group ingest-api
+#    → debe mostrar LAG ≥ 1 en la partición de 'poisontest'
+# 4. Levantar Postgres de nuevo:
+docker compose start postgres
+# 5. Esperar y confirmar que el evento SÍ llegó (Kafka reintentó solo) y el LAG bajó a 0:
+docker exec honeypot-postgres psql -U honeypot -d honeypot_prod -c "SELECT s.cowrie_session_id FROM events e JOIN sessions s ON s.id=e.session_id WHERE s.cowrie_session_id='poisontest';"
+```
+Pegar: (a) el `--describe` con LAG ≥ 1 mientras Postgres está caído, y (b) la
+fila de `poisontest` en Postgres tras recuperar. Si el evento se perdió (LAG
+bajó a 0 con Postgres caído y la fila nunca aparece), el fix **no** funcionó.
+
+- [ ] Hecho — fecha: ____  commit: ____
+
+---
+
+## Tarea 9 — 🟡 Evitar doble-efecto entre HTTP y Kafka (Discord/forward)
+
+**Problema (A-2):** `IngestService.processLine` dispara `sendDiscordAlert` en
+login success y `forwardClientEventBySensorId` en cada evento. Mientras HTTP y
+Kafka coexistan (la migración del plan los mantiene en paralelo), si **el mismo
+evento** entra por ambos caminos, los efectos externos se duplican aunque el
+insert en BD sea idempotente (Discord no lo es).
+
+**Aclaración de alcance:** en operación normal cada sensor manda por **un solo**
+camino (HTTP _o_ Kafka, no ambos), así que el doble-efecto solo ocurre durante
+un rollback parcial o un error de config. Por eso es 🟡, no 🔴.
+
+**Pasos:**
+1. Confirmar que la idempotencia de Discord/forward depende de `eventCreated`
+   (ya es así: ambos efectos están dentro de `if (eventCreated)`). Como
+   `createIfNotExists` devuelve `eventCreated=false` en duplicados, **si el
+   mismo evento entra dos veces, el segundo no dispara Discord**. → Verificar
+   que esto realmente se cumple end-to-end (test abajo).
+2. Si la verificación muestra que el segundo SÍ dispara (porque entró por dos
+   caminos antes de que el primero commiteara), documentar la condición de
+   carrera como deuda y decidir: o (a) aceptar el riesgo (solo en rollback), o
+   (b) mover Discord/forward fuera de `processLine` a una capa que dedupe por
+   `cowrieEventId` con Redis. **Para este plan, (a) + deuda escrita** salvo que
+   la verificación demuestre duplicación en operación normal.
+
+**Verificación:**
+```bash
+# Producir el MISMO login.success por HTTP y por Kafka casi a la vez:
+TOKEN="${INGEST_SHARED_SECRET}"
+EVENT='{"eventid":"cowrie.login.success","timestamp":"2026-03-04T00:00:00Z","src_ip":"6.6.6.6","session":"dualpath","username":"a","password":"b"}'
+curl -s -XPOST http://localhost:3000/ingest/cowrie/event -H "X-Ingest-Token: $TOKEN" -H 'Content-Type: application/json' -d "$EVENT"
+echo "$EVENT" | docker exec -i honeypot-kafka bash -c 'cat | /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic honeypot.cowrie'
+# Confirmar UNA sola fila y (manualmente) UNA sola alerta de Discord:
+docker exec honeypot-postgres psql -U honeypot -d honeypot_prod -c "SELECT count(*) FROM events e JOIN sessions s ON s.id=e.session_id WHERE s.cowrie_session_id='dualpath' AND e.event_type='auth.success';"
+```
+Pegar el `count` (debe ser 1) y confirmar cuántas alertas de Discord llegaron.
+
+- [ ] Hecho — fecha: ____  commit: ____
+
+---
+
+## Tarea 10 — 🟡 Saldar TD-3: un solo `eveAlertSchema` (DRY)
+
+**Problema (A-3 / TD-3):** el schema de alerta Suricata está duplicado entre
+`routes/suricata.ts` y `plugins/kafka-consumer.ts`. Viola DRY (CLAUDE.md).
+
+**Pasos:**
+1. Mover la definición de `eveAlertSchema` a un único lugar exportado. Opción
+   preferida: `modules/suricata/suricata.schema.ts` (junto a su dominio) o
+   `schemas/index.ts` si se prefiere centralizar. Exportarlo.
+2. Importarlo en `routes/suricata.ts` y en `plugins/kafka-consumer.ts`; borrar
+   las dos copias inline.
+3. Confirmar que el tipo `z.infer<typeof eveAlertSchema>` que usa
+   `SuricataService.persistAlerts` sigue siendo el mismo.
+
+**Verificación:**
+```bash
+cd apps/ingest-api && npx tsc --noEmit   # debe pasar sin errores
+# Re-correr la verificación de la Tarea 6 (alert Suricata por Kafka → Postgres)
+# para confirmar que no se rompió nada.
+```
+Pegar `exit 0` de tsc y la fila del alert en Postgres.
+
+- [ ] Hecho — fecha: ____  commit: ____  (cierra TD-3)
+
+---
+
+## Tarea 11 — 🟢 Exponer estado del consumer en /health (saldar TD-1)
+
+**Problema (A-4 / TD-1):** si el consumer muere permanentemente, el contenedor
+sigue `healthy` y nadie lo nota.
+
+**Pasos:**
+1. En `plugins/kafka-consumer.ts`, mantener un flag de estado del consumer
+   (`running` / `crashed`), actualizado por los eventos del consumer
+   (`consumer.on('consumer.crash')`, `'group_join'`, `'stop'`). Decorar
+   `fastify.kafkaConsumerHealthy` (o similar).
+2. En el route `/health`, incluir el estado del consumer en la respuesta. Si
+   `KAFKA_BROKERS` no está definido, reportar `kafka: "disabled"` (no degradar
+   el health). Si está definido pero el consumer está crashed, reportar
+   `kafka: "unhealthy"` — decidir si eso debe hacer fallar el healthcheck del
+   contenedor (recomendado: sí, para que se reinicie).
+
+**Verificación:**
+```bash
+curl -s http://localhost:3000/health | jq .
+# Debe incluir el estado del consumer. Con Kafka arriba → healthy/running.
+```
+Pegar la respuesta de `/health` mostrando el estado del consumer.
+
+- [ ] Hecho — fecha: ____  commit: ____  (cierra TD-1)
+
+---
+
+## Tarea 12 — 🟢 Verificación end-to-end con un ataque real de Cowrie
+
+**Problema (A-5):** las Tareas 5/6 se verificaron inyectando JSON a mano, nunca
+con tráfico real fluyendo por el honeypot.
+
+**Pasos:**
+1. Con todo el stack arriba, conectarse al honeypot Cowrie real por SSH:
+   `ssh root@localhost -p 2222` y probar credenciales (las de `userdb.txt`).
+2. Ejecutar algún comando dentro de la sesión simulada.
+3. Confirmar el flujo completo **sin inyección manual**:
+   Cowrie escribe `cowrie.json` → Vector lo lee → publica a `honeypot.cowrie`
+   → consumer procesa → Postgres.
+
+**Verificación:**
+```bash
+# Tras el login SSH real y un comando:
+docker exec honeypot-kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group ingest-api
+# LAG ~0, y los eventos de la sesión real en Postgres:
+docker exec honeypot-postgres psql -U honeypot -d honeypot_prod -c "SELECT s.cowrie_session_id, e.event_type, s.src_ip FROM events e JOIN sessions s ON s.id=e.session_id ORDER BY e.id DESC LIMIT 10;"
+```
+Pegar los eventos de la sesión SSH real llegando a Postgres vía Kafka.
+
+- [ ] Hecho — fecha: ____  commit: ____
+
+---
+
 ## Deuda técnica
 
 Registro vivo de todo lo que quede a medias, con atajos, hardcodeado o sin
@@ -333,7 +539,7 @@ Plantilla por entrada:
 - **Dónde:** `apps/ingest-api/src/plugins/kafka-consumer.ts`
 - **Cómo se arregla:** agregar un flag `isConnected` al plugin y exponerlo en el health check.
 - **Bloquea producción:** no
-- **Estado:** abierta
+- **Estado:** abierta → **se salda en la Tarea 11** (ver Auditoría 2026-06-23).
 
 ### TD-4 — Vector carga demo config si no se especifica --config explícito
 - **Tarea origen:** Tarea 5
@@ -351,7 +557,40 @@ Plantilla por entrada:
 - **Dónde:** `apps/ingest-api/src/routes/suricata.ts:6-26` y `apps/ingest-api/src/plugins/kafka-consumer.ts:13-33`
 - **Cómo se arregla:** mover el schema a `schemas/index.ts` (o a `modules/suricata/`) y exportarlo, importarlo en ambos sitios.
 - **Bloquea producción:** no (los schemas son idénticos hoy)
-- **Estado:** abierta
+- **Estado:** abierta → **se salda en la Tarea 10** (ver Auditoría 2026-06-23).
+
+### TD-5 — Sin DLQ ni max-retries por mensaje (poison-pill bloquea partición)
+- **Tarea origen:** Tarea 8 (auditoría)
+- **Qué se hizo:** la Tarea 8 hace que el consumer re-lance en error de
+  procesamiento para no perder eventos en fallos transitorios de BD. Efecto
+  secundario: un mensaje válido pero permanentemente imposible de procesar
+  (poison-pill) haría que KafkaJS reintente para siempre, bloqueando esa
+  partición.
+- **Qué falta / riesgo:** no hay dead-letter queue ni tope de reintentos por
+  mensaje. Hoy el único fallo esperado es transitorio (Postgres), porque los
+  inserts son idempotentes (`createIfNotExists`), así que el riesgo real es bajo
+  — pero existe.
+- **Dónde:** `apps/ingest-api/src/plugins/kafka-consumer.ts` (`eachMessage`).
+- **Cómo se arregla:** tras N reintentos de un mismo offset, publicar el mensaje
+  a un topic `honeypot.cowrie.dlq` / `honeypot.suricata.dlq` y commitear para
+  desbloquear la partición. Requiere un producer en el plugin.
+- **Bloquea producción:** no (riesgo bajo dada la idempotencia actual).
+- **Estado:** abierta.
+
+### TD-6 — Doble-efecto Discord/forward en rollback parcial HTTP+Kafka
+- **Tarea origen:** Tarea 9 (auditoría)
+- **Qué se hizo:** se verificó que Discord/forward dependen de `eventCreated`, de
+  modo que un duplicado por BD no los re-dispara. Pero si el mismo evento entra
+  por HTTP y Kafka **antes** de que el primero commitee, ambos pueden ver
+  `eventCreated=true` y disparar efectos externos dos veces.
+- **Qué falta / riesgo:** solo ocurre en rollback parcial / mala config (un
+  sensor mandando por dos caminos). En operación normal cada sensor usa un solo
+  sink. Por eso se aceptó el riesgo en vez de añadir dedupe.
+- **Dónde:** `IngestService.processLine` (Discord/forward dentro de `if (eventCreated)`).
+- **Cómo se arregla:** dedupe de efectos externos por `cowrieEventId` con un
+  `SET NX` en Redis con TTL corto antes de disparar Discord/forward.
+- **Bloquea producción:** no.
+- **Estado:** abierta (a confirmar/cerrar según verificación de la Tarea 9).
 
 ### TD-2 — OFFSETS_TOPIC_REPLICATION_FACTOR=1 hardcodeado en compose
 - **Tarea origen:** Tarea 0
