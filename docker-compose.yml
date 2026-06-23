@@ -148,7 +148,8 @@ services:
     image: timberio/vector:0.40.0-alpine
     container_name: vector
     restart: unless-stopped
-    # Explicitly pass our config file so vector doesn't fall back to the demo vector.yaml
+    # --config explicit: the image ships a demo vector.yaml in /etc/vector/ that
+    # the default entrypoint loads. Pointing directly at our toml overrides it.
     command: ["--config", "/etc/vector/vector.toml"]
     depends_on:
       - cowrie
