@@ -83,7 +83,17 @@ export default fp(async (fastify: FastifyInstance) => {
 
   const consumer = kafka.consumer({
     groupId: 'ingest-api',
-    retry: { retries: 10, initialRetryTime: 3000, maxRetryTime: 30000 },
+    retry: {
+      retries: 10,
+      initialRetryTime: 3000,
+      maxRetryTime: 30000,
+      // Always restart the consumer after a crash. A processing error re-thrown
+      // from eachMessage (e.g. Postgres down) must not permanently stop the
+      // consumer — it should keep retrying the uncommitted offset until the
+      // backend recovers. Without this, a non-retriable-classified error (some
+      // Prisma errors) would crash the consumer for good and stall ingestion.
+      restartOnFailure: async () => true,
+    },
   })
 
   consumer.on('consumer.crash', ({ payload }) => {
@@ -103,6 +113,15 @@ export default fp(async (fastify: FastifyInstance) => {
       await consumer.subscribe({ topics: ['honeypot.cowrie', 'honeypot.suricata'], fromBeginning: true })
       await consumer.run({
         eachMessage: async ({ topic, message }) => {
+          // Two failure classes are handled differently on purpose:
+          //  - Validation failure (non-JSON, zod reject): the message will never
+          //    be valid no matter how often we retry → skip (log + return), which
+          //    lets kafkajs commit the offset.
+          //  - Processing failure (Postgres down, deadlock, timeout): transient →
+          //    re-throw so kafkajs does NOT commit and re-delivers from this
+          //    offset once the backend recovers. Swallowing it here would commit
+          //    the offset and silently drop the event — the exact failure mode
+          //    Kafka is meant to prevent.
           const raw = (() => {
             try { return JSON.parse(message.value?.toString() ?? '') }
             catch { return null }
@@ -111,13 +130,11 @@ export default fp(async (fastify: FastifyInstance) => {
             fastify.log.warn({ topic, value: message.value?.toString() }, 'Kafka message is not valid JSON — skipping')
             return
           }
-          try {
-            if (topic === 'honeypot.cowrie') await handleCowrie(raw, fastify)
-            else if (topic === 'honeypot.suricata') await handleSuricata(raw, fastify)
-          } catch (err) {
-            // Log and continue — a single bad message must not kill the consumer or stall the partition
-            fastify.log.error({ err, topic }, 'Kafka message processing error')
-          }
+          // No try/catch around the handlers: validation skips are handled inside
+          // them (safeParse + return); any thrown error is a processing failure
+          // and must propagate so the offset is not committed.
+          if (topic === 'honeypot.cowrie') await handleCowrie(raw, fastify)
+          else if (topic === 'honeypot.suricata') await handleSuricata(raw, fastify)
         },
       })
     } catch (err) {
