@@ -13,7 +13,7 @@ progresses, and link the relevant commit hashes so the history stays traceable.
 - [CICD.md](CICD.md) — CI/CD pipeline: GitHub Actions → VPS auto-redeploy, secrets, and how to move to a new VPS.
 - [REALTIME_STREAM.md](REALTIME_STREAM.md) — SSE stream extended to alert+heartbeat; 3 live features: attack badge, alert bell+toast, sensor live-dot.
 - [DESIGN_PATTERNS.md](DESIGN_PATTERNS.md) — refactor backlog: 4 prioritized design-pattern opportunities to cut duplication (proxy-helper merge, secret-field component, config registry, scoped-route HOF) with smell/pattern/files/risk for each.
-- [KAFKA_STREAM.md](KAFKA_STREAM.md) — insertar Kafka (autohospedado, KRaft) entre Vector y el ingest-api, manteniendo HTTP como fallback. Tareas 0–7 hechas; auditoría detectó 5 hallazgos → Tareas 8–12 de remediación. Tarea 8 (bloqueante: pérdida silenciosa de eventos ante fallo de BD) resuelta y verificada; quedan 9–12 no bloqueantes.
+- [KAFKA_STREAM.md](KAFKA_STREAM.md) — insertar Kafka (autohospedado, KRaft) entre Vector y el ingest-api, manteniendo HTTP como fallback. **Completo**: Tareas 0–12 hechas y verificadas (incl. auditoría post-impl: re-throw sin pérdida de eventos, DRY del schema, /health/kafka, E2E con ataque SSH real). Deudas no bloqueantes abiertas: TD-2/4/5/6.
 - [LAYERING_REFACTOR.md](LAYERING_REFACTOR.md) — sacar el SQL crudo de los ~25 routes del ingest-api y unificar la convención Route→Service→Repository en `modules/<dominio>/`. Incremental, un dominio por tarea, verificando que la respuesta HTTP no cambie.
 
 ## Conventions

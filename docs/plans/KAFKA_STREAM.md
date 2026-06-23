@@ -3,12 +3,12 @@
 Plan de migración para insertar un broker de streaming (Kafka) entre Vector
 (productor) y el `ingest-api` (consumidor), sin reescribir la lógica de negocio.
 
-> **Estado (2026-06-23):** Tareas 0–7 implementadas. Una **auditoría
-> post-implementación** detectó 5 hallazgos. **Tareas 8, 9, 10 y 11 resueltas y
-> verificadas** (7cd6e90, verificación, 094b80a, 0d635ef). La Tarea 8 (bloqueante)
-> y TD-1/TD-3 están cerradas. **Solo queda la Tarea 12** (no bloqueante:
-> verificación E2E con un ataque SSH real contra Cowrie). Ver **Auditoría
-> post-implementación**.
+> **Estado (2026-06-23): PLAN COMPLETO.** Tareas 0–12 hechas y verificadas. La
+> auditoría post-implementación detectó 5 hallazgos (A-1 a A-5), todos resueltos
+> (Tareas 8–12). Deudas TD-1 y TD-3 cerradas. Quedan abiertas, **sin bloquear
+> producción**: TD-2 (replication factor prod), TD-4 (Vector demo config), TD-5
+> (DLQ/poison-pill), TD-6 (carrera HTTP↔Kafka residual). Hallazgo ajeno detectado:
+> bug de auth preexistente en Cowrie (ver Tarea 12, debe ser issue propio).
 
 ## Decisiones tomadas (NO re-decidir)
 
@@ -325,7 +325,7 @@ propias. Severidad: 🔴 bloqueante · 🟡 media · 🟢 menor.
 | A-2 | 🟡 | `IngestService.processLine` dispara Discord/forward; si HTTP y Kafka procesan el mismo evento (rollback parcial), se duplican efectos. | Tarea 9 ✅ (verificado, sin doble-efecto normal; residual en TD-6) |
 | A-3 | 🟡 | `eveAlertSchema` duplicado (DRY) — ya registrado como TD-3, se salda en la Tarea 10. | Tarea 10 ✅ (094b80a) |
 | A-4 | 🟢 | Estado del consumer no visible en `/health` (TD-1); contenedor queda `healthy` aunque el consumer esté muerto. | Tarea 11 ✅ (0d635ef) |
-| A-5 | 🟢 | Verificación de Tareas 5/6 se hizo inyectando JSON a mano, nunca con un ataque real fluyendo por Cowrie. | Tarea 12 (pendiente) |
+| A-5 | 🟢 | Verificación de Tareas 5/6 se hizo inyectando JSON a mano, nunca con un ataque real fluyendo por Cowrie. | Tarea 12 ✅ (ataque SSH real → Postgres, LAG 0) |
 
 Las **Tareas 8–12** abajo resuelven estos puntos. La Tarea 8 es la única
 bloqueante; el resto endurece y limpia.
@@ -547,7 +547,34 @@ docker exec honeypot-postgres psql -U honeypot -d honeypot_prod -c "SELECT s.cow
 ```
 Pegar los eventos de la sesión SSH real llegando a Postgres vía Kafka.
 
-- [ ] Hecho — fecha: ____  commit: ____
+**Resultado verificado (2026-06-23):** se lanzó un cliente SSH real
+(`openssh-client` en un contenedor en la red del compose) contra `cowrie:2222`.
+Cowrie generó eventos reales que fluyeron **sin inyección manual** por todo el
+pipeline (`Cowrie → cowrie.json → Vector → honeypot.cowrie → consumer → Postgres`):
+```
+   src_ip    |   event_type    | cowrie_session_id
+-------------+-----------------+-------------------
+ 172.18.0.10 | client.kex      | 1a68e4bd518f
+ 172.18.0.10 | client.version  | 1a68e4bd518f
+ 172.18.0.10 | session.connect | 1a68e4bd518f
+ 172.18.0.10 | session.closed  | 1a68e4bd518f
+```
+LAG = 0 en las 3 particiones de `honeypot.cowrie`. **El flujo E2E con tráfico
+real queda probado.** (El _login_ no completó por un bug **preexistente de Cowrie**
+en la carga de `userdb.txt` — ver nota abajo —, ajeno al pipeline de Kafka; los
+eventos de conexión real igualmente recorrieron todo el camino, que es lo que A-5
+pedía verificar.)
+
+> **Nota fuera de alcance — bug de auth en Cowrie:** los logs de Cowrie muestran
+> `[HoneyPotSSHUserAuthServer#critical] Error checking auth` con traceback en
+> `core/auth.py:55 load`. La autenticación crashea al cargar `userdb.txt`, así que
+> ningún login (ni real ni de botnet) tiene éxito → no se capturan comandos
+> post-auth. **No es parte del plan de Kafka** pero es un hallazgo serio para el
+> honeypot: hoy Cowrie no acepta logins. Debería abrirse como issue propio
+> (revisar si `patch_auth.py` se aplicó en el build actual y el encoding de
+> `userdb.txt`).
+
+- [x] Hecho — fecha: 2026-06-23  commit: (verificación E2E, sin cambio de código)
 
 ---
 
