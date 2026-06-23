@@ -4,10 +4,10 @@ Plan de migración para insertar un broker de streaming (Kafka) entre Vector
 (productor) y el `ingest-api` (consumidor), sin reescribir la lógica de negocio.
 
 > **Estado (2026-06-23):** Tareas 0–7 implementadas. Una **auditoría
-> post-implementación** detectó 5 hallazgos (1 bloqueante: pérdida silenciosa de
-> eventos ante fallo de BD). Ver la sección **Auditoría post-implementación** y
-> las **Tareas 8–12** de remediación. El plan **no** está cerrado hasta que la
-> Tarea 8 esté hecha.
+> post-implementación** detectó 5 hallazgos. La **Tarea 8 (bloqueante: pérdida
+> silenciosa de eventos ante fallo de BD) ya está resuelta y verificada**
+> (commit 7cd6e90). Quedan abiertas las Tareas 9–12 (no bloqueantes:
+> endurecimiento y limpieza). Ver **Auditoría post-implementación**.
 
 ## Decisiones tomadas (NO re-decidir)
 
@@ -320,7 +320,7 @@ propias. Severidad: 🔴 bloqueante · 🟡 media · 🟢 menor.
 
 | ID | Severidad | Resumen | Tarea de fix |
 |----|-----------|---------|--------------|
-| A-1 | 🔴 | El consumer **traga errores de procesamiento y commitea el offset** → pérdida silenciosa de eventos si Postgres está caído. | Tarea 8 |
+| A-1 | 🔴 | El consumer **traga errores de procesamiento y commitea el offset** → pérdida silenciosa de eventos si Postgres está caído. | Tarea 8 ✅ (7cd6e90) |
 | A-2 | 🟡 | `IngestService.processLine` dispara Discord/forward; si HTTP y Kafka procesan el mismo evento (rollback parcial), se duplican efectos. | Tarea 9 |
 | A-3 | 🟡 | `eveAlertSchema` duplicado (DRY) — ya registrado como TD-3, se salda en la Tarea 10. | Tarea 10 |
 | A-4 | 🟢 | Estado del consumer no visible en `/health` (TD-1); contenedor queda `healthy` aunque el consumer esté muerto. | Tarea 11 |
@@ -388,7 +388,22 @@ Pegar: (a) el `--describe` con LAG ≥ 1 mientras Postgres está caído, y (b) l
 fila de `poisontest` en Postgres tras recuperar. Si el evento se perdió (LAG
 bajó a 0 con Postgres caído y la fila nunca aparece), el fix **no** funcionó.
 
-- [ ] Hecho — fecha: ____  commit: ____
+**Resultado verificado (2026-06-23):**
+```
+# (a) Postgres caído, evento producido → NO commiteado:
+honeypot.cowrie   1   CURRENT 3   LOG-END 4   LAG 1
+# consumer reintentando offset 3 con PrismaClientKnownRequestError P1001
+
+# (b) Postgres recuperado → Kafka reintentó solo → procesado:
+honeypot.cowrie   1   CURRENT 4   LOG-END 4   LAG 0
+ cowrie_session_id |  event_type  | src_ip
+-------------------+--------------+---------
+ poisontest        | auth.success | 4.4.4.4
+```
+Cero pérdida. Implementación: re-throw selectivo en `eachMessage` (validación
+= skip/commit; procesamiento = throw/no-commit) + `restartOnFailure: () => true`.
+
+- [x] Hecho — fecha: 2026-06-23  commit: 7cd6e90
 
 ---
 
