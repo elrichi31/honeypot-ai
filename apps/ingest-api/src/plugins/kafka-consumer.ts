@@ -4,33 +4,11 @@ import type { FastifyInstance } from 'fastify'
 import { cowrieRawEventSchema } from '../schemas/index.js'
 import { IngestService } from '../modules/ingest/ingest.service.js'
 import { SuricataService } from '../modules/suricata/suricata.service.js'
+import { eveAlertSchema } from '../modules/suricata/suricata.schema.js'
 import type { CowrieRawEvent } from '../types/index.js'
 import { eventBus } from '../lib/event-bus.js'
 import { lookupGeo } from '../lib/geo.js'
 import { scheduleThreatAlert } from '../lib/threat-alerts.js'
-import { z } from 'zod'
-
-const eveAlertSchema = z.object({
-  timestamp: z.string(),
-  flow_id: z.number().optional(),
-  in_iface: z.string().optional(),
-  event_type: z.literal('alert'),
-  src_ip: z.string().default(''),
-  src_port: z.number().int().optional(),
-  dest_ip: z.string().default(''),
-  dest_port: z.number().int().optional(),
-  proto: z.string().default(''),
-  sensor_id: z.string().default(''),
-  alert: z.object({
-    action: z.string().default('allowed'),
-    gid: z.number().optional(),
-    signature_id: z.number().int().default(0),
-    rev: z.number().optional(),
-    signature: z.string().default(''),
-    category: z.string().default(''),
-    severity: z.number().int().min(1).max(4).default(3),
-  }),
-})
 
 function emitSsh(ip: string) {
   const geo = lookupGeo(ip)
