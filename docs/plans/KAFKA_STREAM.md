@@ -258,7 +258,14 @@ docker compose exec kafka kafka-consumer-groups.sh --bootstrap-server localhost:
 Pegar la salida de `--describe --group ingest-api` mostrando LAG bajo, y
 confirmar (psql o dashboard) que el evento llegó.
 
-- [ ] Hecho — fecha: ____  commit: ____
+```
+honeypot.cowrie  partition 0  LAG 0
+honeypot.cowrie  partition 1  LAG 0
+honeypot.cowrie  partition 2  LAG 0
+```
+vectorkafka10 → event_type: auth.success, src_ip: 1.1.1.1 en Postgres ✓
+
+- [x] Hecho — fecha: 2026-06-23  commit: 5801a59
 
 ---
 
@@ -321,6 +328,15 @@ Plantilla por entrada:
 - **Dónde:** `apps/ingest-api/src/plugins/kafka-consumer.ts`
 - **Cómo se arregla:** agregar un flag `isConnected` al plugin y exponerlo en el health check.
 - **Bloquea producción:** no
+- **Estado:** abierta
+
+### TD-4 — Vector carga demo config si no se especifica --config explícito
+- **Tarea origen:** Tarea 5
+- **Qué se hizo:** `timberio/vector:0.40.0-alpine` trae un `vector.yaml` de demo en `/etc/vector/` que el entrypoint carga por defecto (`--config /etc/vector/vector.yaml`). Se añadió `command: ["--config", "/etc/vector/vector.toml"]` al servicio en compose para forzar solo nuestro config.
+- **Qué falta / riesgo:** si alguien quita el `command` del compose, Vector vuelve al demo config silenciosamente — el sink Kafka deja de funcionar sin errores obvios.
+- **Dónde:** `docker-compose.yml` servicio `vector`
+- **Cómo se arregla:** documentar en las notas de operación (Tarea 7). Alternativa más robusta: montar el toml en `/etc/vector/vector.yaml` en vez de `vector.toml`.
+- **Bloquea producción:** no (el compose ya tiene el fix)
 - **Estado:** abierta
 
 ### TD-3 — eveAlertSchema duplicado entre suricata.ts y kafka-consumer.ts
