@@ -1,4 +1,4 @@
-import { buildCompose, type ServiceKey } from "@/lib/sensor-compose-builder"
+﻿import { buildCompose, type ServiceKey } from "@/lib/sensor-compose-builder"
 
 export function buildScript(
   deployId: string,
@@ -74,9 +74,29 @@ function sshPortStep(services: ServiceKey[]) {
 }
 
 const SSH_PORT_STEP = `
-# Move real sshd to port 8022 so Cowrie can claim port 22
+# Move real sshd to port 8022 so Cowrie can claim port 22.
+# Opens 8022 first, verifies it responds, then closes 22 — so a failure
+# at any step leaves SSH accessible and the backup restores the original state.
 if ss -tlnp | grep -q ':22 '; then
   echo "==> Moving sshd to port 8022 to free port 22 for Cowrie..."
+
+  # Backup original config
+  cp /etc/ssh/sshd_config /etc/ssh/sshd_config.pre-honeypot
+
+  _ssh_rollback() {
+    echo "ERROR: sshd port move failed — restoring original config..." >&2
+    cp /etc/ssh/sshd_config.pre-honeypot /etc/ssh/sshd_config
+    rm -f /etc/systemd/system/ssh.socket.d/override.conf
+    systemctl daemon-reload
+    systemctl restart ssh.socket 2>/dev/null || systemctl restart sshd 2>/dev/null || true
+    echo "    Original sshd config restored. SSH still on port 22." >&2
+  }
+
+  # Open 8022 in the firewall BEFORE changing the port (so we don't lock ourselves out)
+  if command -v ufw &>/dev/null && ufw status | grep -q 'active'; then
+    ufw allow 8022/tcp comment 'sshd moved by honeypot installer' 2>/dev/null || true
+  fi
+
   sed -i 's/^#*Port .*/Port 8022/' /etc/ssh/sshd_config
   SOCKET_DROP="/etc/systemd/system/ssh.socket.d"
   mkdir -p "$SOCKET_DROP"
@@ -86,8 +106,29 @@ ListenStream=
 ListenStream=8022
 EOF
   systemctl daemon-reload
-  systemctl restart ssh.socket 2>/dev/null || systemctl restart sshd 2>/dev/null || true
+  if ! systemctl restart ssh.socket 2>/dev/null && ! systemctl restart sshd 2>/dev/null; then
+    _ssh_rollback
+    exit 1
+  fi
+
+  # Verify sshd is actually listening on 8022 before declaring success
+  _SSH_VERIFIED=false
+  for _i in 1 2 3 4 5; do
+    if ss -tlnp | grep -q ':8022 '; then
+      _SSH_VERIFIED=true
+      break
+    fi
+    sleep 1
+  done
+
+  if [ "$_SSH_VERIFIED" = "false" ]; then
+    echo "ERROR: sshd did not come up on port 8022 after restart." >&2
+    _ssh_rollback
+    exit 1
+  fi
+
   echo "    sshd is now on port 8022. Reconnect with: ssh <user>@<host> -p 8022"
+  echo "    Original config backed up at: /etc/ssh/sshd_config.pre-honeypot"
 fi
 `
 
@@ -195,4 +236,121 @@ echo ""
 echo "Sensor deployed: $RUNNING container(s) running."
 echo "It will appear in /sensors within 60 seconds."
 echo "Suricata IDS is running on interface: $SURICATA_INTERFACE"
+
+# Install sensor-status helper so the operator can check health at any time
+cat > "$DIR/sensor-status" << 'ENDOFSTATUS'
+#!/usr/bin/env bash
+# Usage: sensor-status [--logs]
+# Quick health check: containers + ingest-api reachability.
+set -euo pipefail
+DIR="/opt/honeypot-sensor"
+RED=$(printf '\x1b[0;31m'); GREEN=$(printf '\x1b[0;32m'); YELLOW=$(printf '\x1b[1;33m')
+RESET=$(printf '\x1b[0m'); BOLD=$(printf '\x1b[1m')
+
+[ -f "$DIR/.env" ] && . "$DIR/.env" 2>/dev/null || true
+
+echo ""
+printf "%b=== Honeypot Sensor Status ===%b\n" "$BOLD" "$RESET"
+echo ""
+
+# --- Container health ---
+printf "%bContainers:%b\n" "$BOLD" "$RESET"
+ALL_OK=true
+while IFS= read -r json_line; do
+  [ -z "$json_line" ] && continue
+  NAME=$(echo "$json_line" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('Service','?'))" 2>/dev/null || echo "?")
+  STATE=$(echo "$json_line" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('State','?'))" 2>/dev/null || echo "?")
+  HEALTH=$(echo "$json_line" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('Health',''))" 2>/dev/null || echo "")
+  if [ "$STATE" = "running" ]; then
+    if [ "$HEALTH" = "unhealthy" ]; then
+      printf "  %b[!]%b  %s (running / unhealthy)\n" "$YELLOW" "$RESET" "$NAME"
+      ALL_OK=false
+    else
+      printf "  %b[+]%b  %s\n" "$GREEN" "$RESET" "$NAME"
+    fi
+  else
+    printf "  %b[-]%b  %s (%s)\n" "$RED" "$RESET" "$NAME" "$STATE"
+    ALL_OK=false
+  fi
+done < <(docker compose -f "$DIR/docker-compose.yml" --env-file "$DIR/.env" ps --format json 2>/dev/null)
+
+echo ""
+
+# --- Ingest-api reachability ---
+printf "%bIngest API:%b\n" "$BOLD" "$RESET"
+INGEST_URL="\${INGEST_API_URL:-}"
+if [ -z "$INGEST_URL" ]; then
+  printf "  %b[!]%b  INGEST_API_URL not set in .env\n" "$YELLOW" "$RESET"
+else
+  HTTP_CODE=$(curl -o /dev/null -s -w "%{http_code}" --max-time 5 "$INGEST_URL/health" 2>/dev/null || echo "000")
+  if [ "$HTTP_CODE" = "200" ]; then
+    printf "  %b[+]%b  %s (HTTP %s)\n" "$GREEN" "$RESET" "$INGEST_URL" "$HTTP_CODE"
+  else
+    printf "  %b[-]%b  %s (HTTP %s - check connectivity or token)\n" "$RED" "$RESET" "$INGEST_URL" "$HTTP_CODE"
+    ALL_OK=false
+  fi
+fi
+
+echo ""
+if $ALL_OK; then
+  printf "%b%bAll checks passed.%b\n" "$GREEN" "$BOLD" "$RESET"
+else
+  printf "%b%bSome checks failed.%b\n" "$YELLOW" "$BOLD" "$RESET"
+  echo "  Logs:    cd $DIR && docker compose logs --tail=50"
+  echo "  Restart: cd $DIR && docker compose up -d"
+fi
+echo ""
+
+if [ "\${1:-}" = "--logs" ]; then
+  printf "%bRecent logs:%b\n" "$BOLD" "$RESET"
+  docker compose -f "$DIR/docker-compose.yml" --env-file "$DIR/.env" logs --no-color --tail=30
+fi
+ENDOFSTATUS
+chmod +x "$DIR/sensor-status"
+ln -sf "$DIR/sensor-status" /usr/local/bin/sensor-status 2>/dev/null || true
+
+# --- Post-install health check ---
+echo ""
+echo "==> Running post-install health check..."
+_INGEST_OK=false
+_INGEST_URL=$(grep 'INGEST_API_URL' "$DIR/docker-compose.yml" 2>/dev/null | head -1 | sed 's/.*INGEST_API_URL[=:][[:space:]]*//' | tr -d '"' || true)
+if [ -n "$_INGEST_URL" ]; then
+  for _i in 1 2 3 4 5 6; do
+    _CODE=$(curl -o /dev/null -s -w "%{http_code}" --max-time 5 "$_INGEST_URL/health" 2>/dev/null || echo "000")
+    if [ "$_CODE" = "200" ]; then
+      _INGEST_OK=true
+      break
+    fi
+    sleep 5
+  done
+  if $_INGEST_OK; then
+    echo "    Ingest API reachable."
+  else
+    echo "WARNING: ingest API did not respond at $_INGEST_URL (HTTP $_CODE)."
+    echo "    Sensors will buffer events. Check connectivity, then run: sensor-status"
+  fi
+fi
+
+_CONTAINERS_OK=true
+EXITED_FINAL=$(docker compose ps --status=exited --format "{{.Service}}" 2>/dev/null || true)
+if [ -n "$EXITED_FINAL" ]; then
+  echo "WARNING: these containers are not running: $EXITED_FINAL"
+  echo "    Run 'sensor-status --logs' to diagnose."
+  _CONTAINERS_OK=false
+fi
+
+echo ""
+if $_INGEST_OK && $_CONTAINERS_OK; then
+  echo "===================================================="
+  echo " Sensor is UP and connected."
+  echo " Dashboard: check /sensors -- it should appear in ~60s"
+  echo " Status:    sensor-status"
+  echo " Logs:      cd $DIR && docker compose logs -f"
+  echo "===================================================="
+else
+  echo "===================================================="
+  echo " Sensor deployed but needs attention."
+  echo " Run 'sensor-status' for details."
+  echo "===================================================="
+fi
 `
