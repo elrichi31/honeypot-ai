@@ -1,7 +1,16 @@
 import { randomUUID } from 'crypto';
+import { Prisma } from '@prisma/client';
 import type { PrismaClient } from '@prisma/client';
 import type { SessionUpsertData } from '../../types/index.js';
 import { detectBot } from '../../lib/bot-detector.js';
+import {
+  summaryQuery,
+  sessionListQuery,
+  scanGroupListQuery,
+  buildWhereSql,
+  type SessionSummaryRow,
+  type SessionListRow,
+} from '../../lib/session-queries.js';
 
 export class SessionRepository {
   constructor(private prisma: PrismaClient) {}
@@ -102,5 +111,76 @@ export class SessionRepository {
     });
 
     return actor;
+  }
+
+  async querySummary(prismaRead: PrismaClient, whereSql: Prisma.Sql): Promise<SessionSummaryRow> {
+    const rows = await prismaRead.$queryRaw<SessionSummaryRow[]>(summaryQuery(whereSql));
+    return rows[0] ?? { total: 0, compromised: 0, blocked: 0, scanGroups: 0, bots: 0, humans: 0 };
+  }
+
+  async queryList(
+    prismaRead: PrismaClient,
+    whereSql: Prisma.Sql,
+    sortDir: 'asc' | 'desc',
+    pageSize: number,
+    offset: number,
+  ): Promise<SessionListRow[]> {
+    return prismaRead.$queryRaw<SessionListRow[]>(sessionListQuery(whereSql, sortDir, pageSize, offset));
+  }
+
+  async queryScanGroupCount(prismaRead: PrismaClient, whereSql: Prisma.Sql): Promise<number> {
+    const rows = await prismaRead.$queryRaw<Array<{ count: number }>>`
+      SELECT COUNT(DISTINCT s.src_ip)::int AS count FROM sessions s ${whereSql}
+    `;
+    return rows[0]?.count ?? 0;
+  }
+
+  async queryScanGroups(
+    prismaRead: PrismaClient,
+    whereSql: Prisma.Sql,
+    pageSize: number,
+    offset: number,
+  ): Promise<SessionListRow[]> {
+    return prismaRead.$queryRaw<SessionListRow[]>(scanGroupListQuery(whereSql, pageSize, offset));
+  }
+
+  async findById(prismaRead: PrismaClient, id: string) {
+    return prismaRead.session.findUnique({
+      where: { id },
+      include: { events: { orderBy: { eventTs: 'asc' } } },
+    });
+  }
+
+  async queryUnclassified(): Promise<Array<{
+    id: string; client_version: string | null; hassh: string | null
+    started_at: Date; ended_at: Date | null; login_success: boolean | null; password: string | null
+  }>> {
+    return this.prisma.$queryRaw`
+      SELECT id, client_version, hassh, started_at, ended_at, login_success, password
+      FROM sessions WHERE session_type = 'unknown' LIMIT 5000
+    `;
+  }
+
+  async queryCommandsForSessions(ids: string[]): Promise<Array<{ session_id: string; command: string | null }>> {
+    return this.prisma.$queryRaw`
+      SELECT session_id, command FROM events
+      WHERE session_id IN (${Prisma.join(ids)}) AND event_type = 'command.input'
+    `;
+  }
+
+  async queryAuthCountForSessions(ids: string[]): Promise<Array<{ session_id: string }>> {
+    return this.prisma.$queryRaw`
+      SELECT session_id FROM events
+      WHERE session_id IN (${Prisma.join(ids)}) AND event_type IN ('auth.success', 'auth.failed')
+    `;
+  }
+
+  async bulkUpdateSessionType(updates: Array<{ id: string; actor: string }>): Promise<void> {
+    const valuesSql = updates.map(u => Prisma.sql`(${u.id}::uuid, ${u.actor}::text)`);
+    await this.prisma.$executeRaw`
+      UPDATE sessions SET session_type = v.actor
+      FROM (VALUES ${Prisma.join(valuesSql)}) AS v(id uuid, actor text)
+      WHERE sessions.id = v.id
+    `;
   }
 }

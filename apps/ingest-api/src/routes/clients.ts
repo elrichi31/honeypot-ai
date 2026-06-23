@@ -1,9 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { ensureIngestToken } from '../lib/ingest-auth.js'
-import { withCache, invalidate } from '../lib/cache-helper.js'
-
-const CLIENTS_CACHE_KEY = 'clients:list'
+import { ClientService } from '../modules/clients/clients.service.js'
 
 const clientSchema = z.object({
   name: z.string().trim().min(1),
@@ -15,95 +13,27 @@ const clientSchema = z.object({
   crowdstrikeApiKey: z.string().trim().default(''),
 })
 
-function slugifyClient(value: string): string {
-  return value
-    .normalize('NFKD')
-    .replace(/[^\w\s-]/g, '')
-    .trim()
-    .toLowerCase()
-    .replace(/[\s_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
-
-function normalizeClientCode(value: string): string {
-  return value
-    .normalize('NFKD')
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_-]+/g, '')
-    .trim()
-    .toUpperCase()
-}
-
-function deriveClientCode(value: string): string {
-  return normalizeClientCode(value).slice(0, 12)
-}
-
 export async function clientRoutes(fastify: FastifyInstance) {
+  const svc = new ClientService(fastify.prisma, fastify.prismaRead)
+
   fastify.get('/clients', async (request, reply) => {
     if (!ensureIngestToken(request, reply)) return reply
-    const clients = await withCache(fastify.cache, CLIENTS_CACHE_KEY, 120, async () => {
-      const rows = await fastify.prisma.$queryRaw<Array<{
-        id: string; name: string; slug: string; code: string; description: string; forward_url: string; crowdstrike_hec_url: string; crowdstrike_api_key: string; created_at: Date
-      }>>`
-        SELECT id, name, slug, code, description, forward_url, crowdstrike_hec_url, crowdstrike_api_key, created_at
-        FROM clients ORDER BY name ASC, created_at ASC
-      `
-      return rows.map((c) => ({
-        id: c.id, name: c.name, slug: c.slug,
-        code: c.code || deriveClientCode(c.slug || c.name),
-        description: c.description, forwardUrl: c.forward_url,
-        crowdstrikeHecUrl: c.crowdstrike_hec_url,
-        crowdstrikeApiKey: c.crowdstrike_api_key,
-        createdAt: c.created_at,
-      }))
-    })
-    return reply.send(clients)
+    return reply.send(await svc.list(fastify.cache))
   })
 
   fastify.post('/clients', async (request, reply) => {
     if (!ensureIngestToken(request, reply)) return reply
-
     const parsed = clientSchema.safeParse(request.body)
     if (!parsed.success) return reply.status(400).send({ error: 'Invalid client payload', details: parsed.error.flatten() })
-
-    const name = parsed.data.name
-    const slug = slugifyClient(parsed.data.slug || name)
-    if (!slug) return reply.status(400).send({ error: 'Invalid client slug' })
-    const code = normalizeClientCode(parsed.data.code || deriveClientCode(slug || name))
-    if (!code) return reply.status(400).send({ error: 'Invalid client code' })
-
-    const { description, forwardUrl, crowdstrikeHecUrl, crowdstrikeApiKey } = parsed.data
-    if (forwardUrl && !/^https?:\/\//i.test(forwardUrl)) {
-      return reply.status(400).send({ error: 'Forward URL must start with http:// or https://' })
-    }
-    if (crowdstrikeHecUrl && !/^https?:\/\//i.test(crowdstrikeHecUrl)) {
-      return reply.status(400).send({ error: 'CrowdStrike HEC URL must start with http:// or https://' })
-    }
-
-    const rows = await fastify.prisma.$queryRaw<Array<{
-      id: string; name: string; slug: string; code: string; description: string; forward_url: string; crowdstrike_hec_url: string; crowdstrike_api_key: string; created_at: Date
-    }>>`
-      INSERT INTO clients (id, name, slug, code, description, forward_url, crowdstrike_hec_url, crowdstrike_api_key, created_at)
-      VALUES (gen_random_uuid()::text, ${name}, ${slug}, ${code}, ${description}, ${forwardUrl}, ${crowdstrikeHecUrl}, ${crowdstrikeApiKey}, ${new Date()})
-      ON CONFLICT (slug) DO UPDATE SET
-        name = EXCLUDED.name, code = EXCLUDED.code,
-        description = EXCLUDED.description, forward_url = EXCLUDED.forward_url,
-        crowdstrike_hec_url = EXCLUDED.crowdstrike_hec_url, crowdstrike_api_key = EXCLUDED.crowdstrike_api_key
-      RETURNING id, name, slug, code, description, forward_url, crowdstrike_hec_url, crowdstrike_api_key, created_at
-    `
-    const c = rows[0]
-    // Drop the cached list so the next GET /clients reflects the new client
-    // immediately, instead of serving the pre-insert list for up to its TTL.
-    await invalidate(fastify.cache, CLIENTS_CACHE_KEY)
-    return reply.send({ id: c.id, name: c.name, slug: c.slug, code: c.code || code, description: c.description, forwardUrl: c.forward_url, crowdstrikeHecUrl: c.crowdstrike_hec_url, crowdstrikeApiKey: c.crowdstrike_api_key, createdAt: c.created_at })
+    const result = await svc.create(fastify.cache, parsed.data)
+    if ('error' in result) return reply.status(result.status).send({ error: result.error })
+    return reply.send(result)
   })
 
   fastify.patch('/clients/:clientId', async (request, reply) => {
     if (!ensureIngestToken(request, reply)) return reply
-
     const params = z.object({ clientId: z.string().trim().min(1) }).safeParse(request.params)
     if (!params.success) return reply.status(400).send({ error: 'Invalid client id' })
-
     const parsed = z.object({
       name: z.string().trim().min(1).optional(),
       code: z.string().trim().optional(),
@@ -113,60 +43,17 @@ export async function clientRoutes(fastify: FastifyInstance) {
       crowdstrikeApiKey: z.string().trim().optional(),
     }).safeParse(request.body)
     if (!parsed.success) return reply.status(400).send({ error: 'Invalid client payload', details: parsed.error.flatten() })
-
-    const currentRows = await fastify.prisma.$queryRaw<Array<{
-      id: string; name: string; slug: string; code: string; description: string; forward_url: string; crowdstrike_hec_url: string; crowdstrike_api_key: string; created_at: Date
-    }>>`
-      SELECT id, name, slug, code, description, forward_url, crowdstrike_hec_url, crowdstrike_api_key, created_at
-      FROM clients WHERE id = ${params.data.clientId} LIMIT 1
-    `
-    const current = currentRows[0]
-    if (!current) return reply.status(404).send({ error: 'Client not found' })
-
-    const nextName             = parsed.data.name ?? current.name
-    const nextCode             = parsed.data.code !== undefined
-      ? normalizeClientCode(parsed.data.code || deriveClientCode(current.slug || nextName))
-      : current.code || deriveClientCode(current.slug || nextName)
-    const nextDescription      = parsed.data.description ?? current.description
-    const nextForwardUrl       = parsed.data.forwardUrl  ?? current.forward_url
-    const nextCrowdstrikeHecUrl = parsed.data.crowdstrikeHecUrl ?? current.crowdstrike_hec_url
-    const nextCrowdstrikeApiKey = parsed.data.crowdstrikeApiKey ?? current.crowdstrike_api_key
-    if (!nextCode) return reply.status(400).send({ error: 'Invalid client code' })
-    if (nextForwardUrl && !/^https?:\/\//i.test(nextForwardUrl)) {
-      return reply.status(400).send({ error: 'Forward URL must start with http:// or https://' })
-    }
-    if (nextCrowdstrikeHecUrl && !/^https?:\/\//i.test(nextCrowdstrikeHecUrl)) {
-      return reply.status(400).send({ error: 'CrowdStrike HEC URL must start with http:// or https://' })
-    }
-
-    const rows = await fastify.prisma.$queryRaw<Array<{
-      id: string; name: string; slug: string; code: string; description: string; forward_url: string; crowdstrike_hec_url: string; crowdstrike_api_key: string; created_at: Date
-    }>>`
-      UPDATE clients SET name = ${nextName}, code = ${nextCode},
-        description = ${nextDescription}, forward_url = ${nextForwardUrl},
-        crowdstrike_hec_url = ${nextCrowdstrikeHecUrl}, crowdstrike_api_key = ${nextCrowdstrikeApiKey}
-      WHERE id = ${params.data.clientId}
-      RETURNING id, name, slug, code, description, forward_url, crowdstrike_hec_url, crowdstrike_api_key, created_at
-    `
-    const c = rows[0]
-    await invalidate(fastify.cache, CLIENTS_CACHE_KEY)
-    return reply.send({ id: c.id, name: c.name, slug: c.slug, code: c.code || nextCode, description: c.description, forwardUrl: c.forward_url, crowdstrikeHecUrl: c.crowdstrike_hec_url, crowdstrikeApiKey: c.crowdstrike_api_key, createdAt: c.created_at })
+    const result = await svc.patch(fastify.cache, params.data.clientId, parsed.data)
+    if ('error' in result) return reply.status(result.status).send({ error: result.error })
+    return reply.send(result)
   })
 
   fastify.delete('/clients/:clientId', async (request, reply) => {
     if (!ensureIngestToken(request, reply)) return reply
-
     const params = z.object({ clientId: z.string().trim().min(1) }).safeParse(request.params)
     if (!params.success) return reply.status(400).send({ error: 'Invalid client id' })
-
-    const existing = await fastify.prisma.$queryRaw<Array<{ id: string }>>`
-      SELECT id FROM clients WHERE id = ${params.data.clientId} LIMIT 1
-    `
-    if (!existing[0]) return reply.status(404).send({ error: 'Client not found' })
-
-    await fastify.prisma.$executeRaw`UPDATE sensors SET client_id = NULL WHERE client_id = ${params.data.clientId}`
-    await fastify.prisma.$executeRaw`DELETE FROM clients WHERE id = ${params.data.clientId}`
-    await invalidate(fastify.cache, CLIENTS_CACHE_KEY)
+    const result = await svc.delete(fastify.cache, params.data.clientId)
+    if (result !== true) return reply.status(result.status).send({ error: result.error })
     return reply.status(204).send()
   })
 }

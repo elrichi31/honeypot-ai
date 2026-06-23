@@ -8,6 +8,7 @@ before touching the project.
 ## Index
 
 - [CLOUDFLARE_TUNNEL_SETUP.md](CLOUDFLARE_TUNNEL_SETUP.md) — how the Cloudflare tunnel / platform deploy is wired.
+- [backend-layering.md](backend-layering.md) — Route → Service → Repository convention in ingest-api; which layer owns SQL, cache, and business logic.
 
 ## Key facts (quick reference)
 

@@ -1,62 +1,19 @@
-import { Prisma } from '@prisma/client'
 import type { FastifyInstance } from 'fastify'
 import { withCache } from '../../lib/cache-helper.js'
 import { parseSensorScope } from '../../lib/sensor-scope.js'
-
-interface SshOverviewRow { sessions: bigint; uniqueIps: bigint; successfulLogins: bigint; lastSeen: Date | null }
-interface WebOverviewRow { hits: bigint; uniqueIps: bigint; lastSeen: Date | null }
-interface WebTopAttackRow { attackType: string }
-interface ProtocolOverviewRow { protocol: string; count: bigint; uniqueIps: bigint; authAttempts: bigint; lastSeen: Date | null }
-interface CountRow { n: bigint }
-interface SparkRow { b: Date; n: number }
-interface ProtoCountRow { protocol: string; n: bigint }
-interface ProtoSparkRow { protocol: string; b: Date; n: number }
+import { MiscRepository } from '../../modules/stats/stats.repository.js'
 
 const OVERVIEW_TTL = 1800
 const GEO_TTL     = 1800
 const TIMELINE_TTL = 600
 
 export async function miscRoutes(fastify: FastifyInstance) {
+  const repo = new MiscRepository(fastify.prismaRead)
+
   fastify.get('/stats/honeypot-overview', (request) => {
     const scope = parseSensorScope(request.query as Record<string, unknown>)
     return withCache(fastify.cache, `stats:honeypot-overview:${scope.cacheSuffix}`, OVERVIEW_TTL, async () => {
-      const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-      const [sshRows, webRows, webTopAttackRows, protocolRows] = await Promise.all([
-        fastify.prismaRead.$queryRaw<SshOverviewRow[]>(Prisma.sql`
-          SELECT COUNT(*)::bigint AS sessions,
-                 COUNT(DISTINCT src_ip)::bigint AS "uniqueIps",
-                 COUNT(*) FILTER (WHERE login_success IS TRUE)::bigint AS "successfulLogins",
-                 MAX(started_at) AS "lastSeen"
-          FROM sessions
-          WHERE started_at >= ${cutoff} ${scope.cond('sensor_id')}
-        `),
-        fastify.prismaRead.$queryRaw<WebOverviewRow[]>(Prisma.sql`
-          SELECT COUNT(*)::bigint AS hits,
-                 COUNT(DISTINCT src_ip)::bigint AS "uniqueIps",
-                 MAX(timestamp) AS "lastSeen"
-          FROM web_hits
-          WHERE timestamp >= ${cutoff} ${scope.cond('sensor_id')}
-        `),
-        fastify.prismaRead.$queryRaw<WebTopAttackRow[]>(Prisma.sql`
-          SELECT attack_type AS "attackType"
-          FROM web_hits
-          WHERE timestamp >= ${cutoff} ${scope.cond('sensor_id')}
-          GROUP BY attack_type
-          ORDER BY COUNT(*) DESC
-          LIMIT 1
-        `),
-        fastify.prismaRead.$queryRaw<ProtocolOverviewRow[]>(Prisma.sql`
-          SELECT protocol,
-                 COUNT(*)::bigint AS count,
-                 COUNT(DISTINCT src_ip)::bigint AS "uniqueIps",
-                 COUNT(*) FILTER (WHERE event_type = 'auth')::bigint AS "authAttempts",
-                 MAX(timestamp) AS "lastSeen"
-          FROM protocol_hits
-          WHERE timestamp >= ${cutoff} ${scope.cond('sensor_id')}
-          GROUP BY protocol
-          ORDER BY COUNT(*) DESC
-        `),
-      ])
+      const [sshRows, webRows, webTopAttackRows, protocolRows] = await repo.getHoneypotOverview(scope)
 
       const ssh = sshRows[0] ?? { sessions: 0n, uniqueIps: 0n, successfulLogins: 0n, lastSeen: null }
       const web = webRows[0] ?? { hits: 0n, uniqueIps: 0n, lastSeen: null }
@@ -97,68 +54,22 @@ export async function miscRoutes(fastify: FastifyInstance) {
       const fmt = range === 'day' ? 'YYYY-MM-DD HH24:MI' : 'YYYY-MM-DD'
       const lbl = range === 'day' ? 'HH24:MI' : 'DD/MM'
 
-      interface BaseBucket { bucketStart: string; label: string; count: number }
-      interface ProtoBucket { protocol: string; bucketStart: string; label: string; count: number }
-
-      const [sshRows, webRows, protoRows] = await Promise.all([
-        fastify.prismaRead.$queryRaw<BaseBucket[]>(Prisma.sql`
-          WITH bounds AS (
-            SELECT date_trunc(${truncUnit}, timezone(${timezone}, ${startDate}::timestamptz)) AS s,
-                   date_trunc(${truncUnit}, timezone(${timezone}, ${endDate}::timestamptz))   AS e
-          ),
-          series AS (SELECT generate_series(s, e, ${Prisma.raw(interval)}) AS b FROM bounds),
-          counts AS (
-            SELECT date_trunc(${truncUnit}, timezone(${timezone}, started_at::timestamptz)) AS b, COUNT(*)::int AS count
-            FROM sessions WHERE started_at >= ${startDate} AND started_at <= ${endDate} ${scope.cond('sensor_id')} GROUP BY 1
-          )
-          SELECT to_char(series.b, ${fmt}) AS "bucketStart", to_char(series.b, ${lbl}) AS label,
-                 COALESCE(counts.count, 0)::int AS count
-          FROM series LEFT JOIN counts USING (b) ORDER BY series.b
-        `),
-        fastify.prismaRead.$queryRaw<BaseBucket[]>(Prisma.sql`
-          WITH bounds AS (
-            SELECT date_trunc(${truncUnit}, timezone(${timezone}, ${startDate}::timestamptz)) AS s,
-                   date_trunc(${truncUnit}, timezone(${timezone}, ${endDate}::timestamptz))   AS e
-          ),
-          series AS (SELECT generate_series(s, e, ${Prisma.raw(interval)}) AS b FROM bounds),
-          counts AS (
-            SELECT date_trunc(${truncUnit}, timezone(${timezone}, timestamp::timestamptz)) AS b, COUNT(*)::int AS count
-            FROM web_hits WHERE timestamp >= ${startDate} AND timestamp <= ${endDate} ${scope.cond('sensor_id')} GROUP BY 1
-          )
-          SELECT to_char(series.b, ${fmt}) AS "bucketStart", to_char(series.b, ${lbl}) AS label,
-                 COALESCE(counts.count, 0)::int AS count
-          FROM series LEFT JOIN counts USING (b) ORDER BY series.b
-        `),
-        fastify.prismaRead.$queryRaw<ProtoBucket[]>(Prisma.sql`
-          SELECT protocol,
-                 to_char(date_trunc(${truncUnit}, timezone(${timezone}, timestamp::timestamptz)), ${fmt}) AS "bucketStart",
-                 to_char(date_trunc(${truncUnit}, timezone(${timezone}, timestamp::timestamptz)), ${lbl}) AS label,
-                 COUNT(*)::int AS count
-          FROM protocol_hits WHERE timestamp >= ${startDate} AND timestamp <= ${endDate} ${scope.cond('sensor_id')}
-          GROUP BY 1, 2, 3 ORDER BY 3
-        `),
-      ])
+      const [sshRows, webRows, protoRows] = await repo.getCrossSensorTimeline(scope, truncUnit, interval, fmt, lbl, startDate, endDate)
 
       type BucketEntry = Record<string, number | string>
       const map = new Map<string, BucketEntry>()
       for (const r of sshRows) map.set(r.bucketStart, { label: r.label, ssh: r.count, web: 0 })
       for (const r of webRows) {
         const e = map.get(r.bucketStart)
-        if (e) {
-          (e as Record<string, number>).web = r.count
-        } else {
-          map.set(r.bucketStart, { label: r.label, ssh: 0, web: r.count })
-        }
+        if (e) (e as Record<string, number>).web = r.count
+        else map.set(r.bucketStart, { label: r.label, ssh: 0, web: r.count })
       }
       const activeProtocols = new Set<string>()
       for (const r of protoRows) {
         activeProtocols.add(r.protocol)
         const e = map.get(r.bucketStart)
-        if (e) {
-          (e as Record<string, number>)[r.protocol] = ((e as Record<string, number>)[r.protocol] ?? 0) + r.count
-        } else {
-          map.set(r.bucketStart, { label: r.label, ssh: 0, web: 0, [r.protocol]: r.count })
-        }
+        if (e) (e as Record<string, number>)[r.protocol] = ((e as Record<string, number>)[r.protocol] ?? 0) + r.count
+        else map.set(r.bucketStart, { label: r.label, ssh: 0, web: 0, [r.protocol]: r.count })
       }
       const protoList = Array.from(activeProtocols)
       for (const e of map.values()) {
@@ -171,27 +82,14 @@ export async function miscRoutes(fastify: FastifyInstance) {
 
   fastify.get('/stats/geo', (request) => {
     const scope = parseSensorScope(request.query as Record<string, unknown>)
-    return withCache(fastify.cache, `stats:geo:${scope.cacheSuffix}`, GEO_TTL, () =>
-      fastify.prismaRead.$queryRaw<{ srcIp: string; loginSuccess: boolean | null }[]>(Prisma.sql`
-        SELECT src_ip AS "srcIp", BOOL_OR(login_success IS TRUE) AS "loginSuccess"
-        FROM sessions
-        WHERE started_at >= NOW() - INTERVAL '90 days' ${scope.cond('sensor_id')}
-        GROUP BY src_ip
-      `)
-    )
+    return withCache(fastify.cache, `stats:geo:${scope.cacheSuffix}`, GEO_TTL, () => repo.getGeo(scope))
   })
 
   fastify.get('/stats/session-commands', async (request) => {
     const { limit = '500' } = request.query as Record<string, string>
     const take = Math.min(Number(limit), 5000)
-    const cacheKey = `stats:session-commands:${take}`
-    return withCache(fastify.cache, cacheKey, 300, async () => {
-      const events = await fastify.prismaRead.event.findMany({
-        where: { eventType: 'command.input', command: { not: null } },
-        select: { sessionId: true, command: true },
-        take,
-        orderBy: { eventTs: 'asc' },
-      })
+    return withCache(fastify.cache, `stats:session-commands:${take}`, 300, async () => {
+      const events = await repo.getSessionCommands(take)
       const result: Record<string, string[]> = {}
       for (const e of events) {
         if (!e.command) continue
@@ -206,17 +104,8 @@ export async function miscRoutes(fastify: FastifyInstance) {
     const query = request.query as Record<string, string | undefined>
     const timezone = query.timezone || 'UTC'
     const days = Math.min(Math.max(parseInt(query.days || '90', 10), 1), 365)
-    const cacheKey = `stats:heatmap:${days}:${timezone.replace(/\//g, '_')}`
-
-    return withCache(fastify.cache, cacheKey, 1200, async () => {
-      interface HeatmapRow { dow: number; hour: number; count: bigint }
-      const rows = await fastify.prismaRead.$queryRaw<HeatmapRow[]>(Prisma.sql`
-        SELECT EXTRACT(DOW  FROM started_at AT TIME ZONE ${timezone})::int AS dow,
-               EXTRACT(HOUR FROM started_at AT TIME ZONE ${timezone})::int AS hour,
-               COUNT(*)::bigint AS count
-        FROM sessions WHERE started_at >= NOW() - (${days} || ' days')::interval
-        GROUP BY dow, hour ORDER BY dow, hour
-      `)
+    return withCache(fastify.cache, `stats:heatmap:${days}:${timezone.replace(/\//g, '_')}`, 1200, async () => {
+      const rows = await repo.getHeatmap(timezone, days)
       const cells = rows.map(r => ({ dow: r.dow, hour: r.hour, count: Number(r.count) }))
       const maxCount = cells.reduce((m, c) => Math.max(m, c.count), 0)
       const totalSessions = cells.reduce((s, c) => s + c.count, 0)

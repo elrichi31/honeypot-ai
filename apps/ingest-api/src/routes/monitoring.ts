@@ -2,6 +2,7 @@ import { readFileSync } from 'fs'
 import type { FastifyInstance } from 'fastify'
 import { sampleContainerStatsLive } from '../lib/docker-stats.js'
 import { withCache } from '../lib/cache-helper.js'
+import { MonitoringService, type Range } from '../modules/monitoring/monitoring.service.js'
 
 function parseMeminfo() {
   try {
@@ -74,15 +75,11 @@ export function readSystemMetrics() {
   }
 }
 
-const RANGE_CONFIG = {
-  '24h': { intervalMinutes: 5,   lookbackMs: 24 * 60 * 60 * 1000 },
-  '7d':  { intervalMinutes: 60,  lookbackMs: 7  * 24 * 60 * 60 * 1000 },
-  '30d': { intervalMinutes: 240, lookbackMs: 30 * 24 * 60 * 60 * 1000 },
-} as const
-
-type Range = keyof typeof RANGE_CONFIG
+const VALID_RANGES = new Set(['24h', '7d', '30d'])
 
 export async function monitoringRoutes(fastify: FastifyInstance) {
+  const svc = new MonitoringService(fastify.prisma)
+
   fastify.get('/monitoring/system', async () => {
     return withCache(fastify.cache, 'monitoring:system', 30, async () => {
       const [memory, loadAvg, uptime, redisRaw] = await Promise.all([
@@ -100,111 +97,17 @@ export async function monitoringRoutes(fastify: FastifyInstance) {
 
   fastify.get('/monitoring/history', async (request) => {
     const { range = '24h' } = request.query as { range?: string }
-    const cfg = RANGE_CONFIG[(range as Range)] ?? RANGE_CONFIG['24h']
-
-    return withCache(fastify.cache, `monitoring:history:${range}`, 120, async () => {
-      const since = new Date(Date.now() - cfg.lookbackMs)
-      const intervalSec = cfg.intervalMinutes * 60
-
-      type BucketRow = {
-        bucket: Date
-        avg_cpu: number
-        avg_ram_pct: number
-        avg_ram_used_kb: number
-        avg_ram_total_kb: number
-      }
-
-      const rows = await fastify.prisma.$queryRaw<BucketRow[]>`
-        SELECT
-          date_bin(
-            (${intervalSec} || ' seconds')::interval,
-            sampled_at,
-            TIMESTAMP '2001-01-01'
-          ) AS bucket,
-          ROUND(AVG(cpu_load_1m)::numeric, 2)::float  AS avg_cpu,
-          ROUND(AVG(ram_pct)::numeric, 1)::float       AS avg_ram_pct,
-          ROUND(AVG(ram_used_kb)::numeric)::int        AS avg_ram_used_kb,
-          ROUND(AVG(ram_total_kb)::numeric)::int       AS avg_ram_total_kb
-        FROM monitoring_snapshots
-        WHERE sampled_at >= ${since}
-        GROUP BY bucket
-        ORDER BY bucket ASC
-      `
-
-      return rows.map(r => ({
-        ts:         r.bucket.toISOString(),
-        cpu:        r.avg_cpu,
-        ramPct:     r.avg_ram_pct,
-        ramUsedKb:  r.avg_ram_used_kb,
-        ramTotalKb: r.avg_ram_total_kb,
-      }))
-    })
+    const r = (VALID_RANGES.has(range) ? range : '24h') as Range
+    return withCache(fastify.cache, `monitoring:history:${r}`, 120, () => svc.getSystemHistory(r))
   })
 
-  // Current container CPU/RAM (live) — cached 30s, avoids 20+ Docker calls + 500ms sleep per request
   fastify.get('/monitoring/containers/stats', async () => {
     return withCache(fastify.cache, 'monitoring:containers:stats', 30, () => sampleContainerStatsLive())
   })
 
-  // Historical container stats — top 6 containers by avg CPU in range
   fastify.get('/monitoring/containers/history', async (request) => {
     const { range = '24h' } = request.query as { range?: string }
-    const cfg = RANGE_CONFIG[(range as Range)] ?? RANGE_CONFIG['24h']
-
-    return withCache(fastify.cache, `monitoring:containers:history:${range}`, 120, async () => {
-      const since = new Date(Date.now() - cfg.lookbackMs)
-      const intervalSec = cfg.intervalMinutes * 60
-
-      type TopRow    = { container: string }
-      type BucketRow = { container: string; bucket: Date; avg_cpu: number; avg_mem_mb: number }
-
-      const tops = await fastify.prisma.$queryRaw<TopRow[]>`
-        SELECT container
-        FROM container_snapshots
-        WHERE sampled_at >= ${since}
-        GROUP BY container
-        ORDER BY AVG(cpu_pct) DESC
-        LIMIT 6
-      `
-      if (tops.length === 0) return []
-
-      const names = tops.map(t => t.container)
-
-      const rows = await fastify.prisma.$queryRaw<BucketRow[]>`
-        SELECT
-          container,
-          date_bin(
-            (${intervalSec} || ' seconds')::interval,
-            sampled_at,
-            TIMESTAMP '2001-01-01'
-          ) AS bucket,
-          ROUND(AVG(cpu_pct)::numeric, 2)::float  AS avg_cpu,
-          ROUND(AVG(mem_mb)::numeric,  1)::float  AS avg_mem_mb
-        FROM container_snapshots
-        WHERE sampled_at >= ${since}
-          AND container = ANY(${names}::text[])
-        GROUP BY container, bucket
-        ORDER BY bucket ASC
-      `
-
-      const bucketMap = new Map<string, Record<string, { cpu: number; mem: number }>>()
-      for (const r of rows) {
-        const ts = r.bucket.toISOString()
-        if (!bucketMap.has(ts)) bucketMap.set(ts, {})
-        bucketMap.get(ts)![r.container] = { cpu: r.avg_cpu, mem: r.avg_mem_mb }
-      }
-
-      return {
-        containers: names,
-        points: Array.from(bucketMap.entries())
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([ts, values]) => ({ ts, ...Object.fromEntries(
-            names.flatMap(n => [
-              [`${n}__cpu`, values[n]?.cpu ?? null],
-              [`${n}__mem`, values[n]?.mem ?? null],
-            ])
-          )})),
-      }
-    })
+    const r = (VALID_RANGES.has(range) ? range : '24h') as Range
+    return withCache(fastify.cache, `monitoring:containers:history:${r}`, 120, () => svc.getContainerHistory(r))
   })
 }

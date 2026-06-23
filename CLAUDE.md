@@ -33,6 +33,10 @@ source of truth for "where did we leave off".
 - **No comments that explain what** — well-named identifiers already do that.
   Only comment the *why* when it is non-obvious (hidden constraint, workaround,
   subtle invariant).
+- **SQL only in repositories** (`ingest-api`). All `$queryRaw`, `$queryRawUnsafe`,
+  `Prisma.sql`, and ORM calls live in `modules/<domain>/<domain>.repository.ts`.
+  Routes are HTTP-only (Zod + auth + `reply.send`). Services hold business logic.
+  See [`docs/project-notes/backend-layering.md`](docs/project-notes/backend-layering.md).
 
 ## Plans discipline
 

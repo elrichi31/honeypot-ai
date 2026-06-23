@@ -1,38 +1,28 @@
-import { Prisma } from '@prisma/client'
 import type { FastifyInstance } from 'fastify'
-import type {
-  InsightWindowRow, FunnelRow, CountrySuccessCandidateRow,
-  CredentialCampaignRow, RecurringIpRow, CommandPatternRow,
-  DepthBucketRow, DepthStatsRow,
-} from './types.js'
 import { withCache } from '../../lib/cache-helper.js'
-import { parseSensorScope, type SensorScope } from '../../lib/sensor-scope.js'
+import { parseSensorScope } from '../../lib/sensor-scope.js'
 import { toNumber, toOffsetISOString } from './utils.js'
+import { DashboardRepository } from '../../modules/stats/stats.repository.js'
 
 const CACHE_TTL = 1800
 
-// events has no sensor_id → scope via its parent session.
-function eventsScopeSql(scope: SensorScope) {
-  return scope.all
-    ? Prisma.empty
-    : Prisma.sql`AND session_id IN (SELECT id FROM sessions WHERE true ${scope.cond('sensor_id')})`
-}
-
 export async function dashboardRoute(fastify: FastifyInstance) {
+  const repo = new DashboardRepository(fastify.prismaRead)
+
   fastify.get('/stats/dashboards', (request) => {
     const scope = parseSensorScope(request.query as Record<string, unknown>)
     return withCache(fastify.cache, `stats:dashboards:${scope.cacheSuffix}`, CACHE_TTL, async () => {
       const [windowRows, funnelRows, countrySuccessCandidates, credentialCampaignRows,
         recurringIpRows, commandPatternRows, depthBucketRows, depthStatsRows] =
         await Promise.all([
-          queryWindow(fastify, scope),
-          queryFunnel(fastify, scope),
-          queryCountrySuccessCandidates(fastify, scope),
-          queryCredentialCampaigns(fastify, scope),
-          queryRecurringIps(fastify, scope),
-          queryCommandPatterns(fastify, scope),
-          queryDepthBuckets(fastify, scope),
-          queryDepthStats(fastify, scope),
+          repo.getWindow(scope),
+          repo.getFunnel(scope),
+          repo.getCountrySuccessCandidates(scope),
+          repo.getCredentialCampaigns(scope),
+          repo.getRecurringIps(scope),
+          repo.getCommandPatterns(scope),
+          repo.getDepthBuckets(scope),
+          repo.getDepthStats(scope),
         ])
 
       const window = windowRows[0] ?? { firstSeen: null, lastSeen: null, totalSessions: 0, uniqueIps: 0 }
@@ -50,143 +40,4 @@ export async function dashboardRoute(fastify: FastifyInstance) {
       }
     })
   })
-}
-
-function queryWindow(fastify: FastifyInstance, scope: SensorScope) {
-  return fastify.prismaRead.$queryRaw<InsightWindowRow[]>(Prisma.sql`
-    SELECT MIN(started_at) AS "firstSeen", MAX(COALESCE(ended_at, started_at)) AS "lastSeen",
-           COUNT(*)::int AS "totalSessions", COUNT(DISTINCT src_ip)::int AS "uniqueIps"
-    FROM sessions WHERE true ${scope.cond('sensor_id')}
-  `)
-}
-
-function queryFunnel(fastify: FastifyInstance, scope: SensorScope) {
-  return fastify.prismaRead.$queryRaw<FunnelRow[]>(Prisma.sql`
-    WITH event_flags AS (
-      SELECT session_id,
-        bool_or(event_type = 'session.connect') AS has_connect,
-        bool_or(event_type IN ('auth.success', 'auth.failed')) AS has_auth,
-        bool_or(event_type = 'auth.success') AS has_success,
-        bool_or(event_type = 'command.input') AS has_command,
-        bool_or(event_type = 'command.input' AND (
-          (command ILIKE '%authorized_keys%' AND (command ILIKE '%chattr%' OR command ILIKE '%ssh-rsa%' OR command ILIKE '%ssh-ed25519%'))
-          OR command ILIKE '%xmrig%' OR command ILIKE '%minerd%' OR command ILIKE '%pool.minexmr%'
-          OR command ILIKE '%stratum+tcp%'
-          OR ((command ILIKE '%wget http%' OR command ILIKE '%curl http%') AND (command ILIKE '%chmod +x%' OR command ILIKE '%/tmp/%'))
-          OR command ILIKE '%crontab%'
-        )) AS has_high_signal_compromise
-      FROM events WHERE true ${eventsScopeSql(scope)} GROUP BY session_id
-    )
-    SELECT COUNT(*) FILTER (WHERE has_connect)::int AS connections,
-           COUNT(*) FILTER (WHERE has_auth)::int AS "authAttempts",
-           COUNT(*) FILTER (WHERE has_success)::int AS "loginSuccess",
-           COUNT(*) FILTER (WHERE has_command)::int AS commands,
-           COUNT(*) FILTER (WHERE has_high_signal_compromise)::int AS "highSignalCompromise"
-    FROM event_flags
-  `)
-}
-
-function queryCountrySuccessCandidates(fastify: FastifyInstance, scope: SensorScope) {
-  const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-  return fastify.prismaRead.$queryRaw<CountrySuccessCandidateRow[]>(Prisma.sql`
-    SELECT src_ip AS "srcIp", COUNT(*)::int AS sessions,
-           COUNT(*) FILTER (WHERE login_success IS TRUE)::int AS successes
-    FROM sessions WHERE started_at >= ${cutoff} ${scope.cond('sensor_id')} GROUP BY src_ip
-  `)
-}
-
-function queryCredentialCampaigns(fastify: FastifyInstance, scope: SensorScope) {
-  return fastify.prismaRead.$queryRaw<CredentialCampaignRow[]>(Prisma.sql`
-    WITH auth_events AS (
-      SELECT date_bin('6 hours', event_ts, TIMESTAMP '2001-01-01') AS bucket_start,
-             username, password, src_ip, success
-      FROM events WHERE event_type IN ('auth.success', 'auth.failed') AND (username IS NOT NULL OR password IS NOT NULL) ${eventsScopeSql(scope)}
-    )
-    SELECT bucket_start AS "bucketStart", username, password,
-           COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount",
-           COUNT(DISTINCT src_ip)::int AS "uniqueIps", ARRAY_AGG(DISTINCT src_ip ORDER BY src_ip) AS ips
-    FROM auth_events GROUP BY bucket_start, username, password
-    HAVING COUNT(DISTINCT src_ip) >= 3
-    ORDER BY "uniqueIps" DESC, attempts DESC, bucket_start DESC LIMIT 20
-  `)
-}
-
-function queryRecurringIps(fastify: FastifyInstance, scope: SensorScope) {
-  const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-  return fastify.prismaRead.$queryRaw<RecurringIpRow[]>(Prisma.sql`
-    WITH per_ip AS (
-      SELECT src_ip, COUNT(*)::int AS total_sessions,
-             COUNT(*) FILTER (WHERE login_success IS FALSE)::int AS failed_sessions,
-             COUNT(*) FILTER (WHERE login_success IS TRUE)::int AS successful_sessions,
-             COUNT(DISTINCT CONCAT(COALESCE(username, ''), ':', COALESCE(password, '')))::int AS credential_count,
-             MIN(started_at) AS first_seen, MAX(started_at) AS last_seen,
-             MIN(started_at) FILTER (WHERE login_success IS FALSE) AS first_failed_at,
-             (ARRAY_AGG(client_version ORDER BY started_at ASC))[1] AS client_version
-      FROM sessions WHERE started_at >= ${cutoff} ${scope.cond('sensor_id')} GROUP BY src_ip
-      HAVING COUNT(*) >= 2 AND COUNT(*) FILTER (WHERE login_success IS FALSE) >= 1
-    ),
-    next_attempt AS (
-      SELECT p.src_ip, MIN(s.started_at) AS next_attempt_at
-      FROM per_ip p INNER JOIN sessions s ON s.src_ip = p.src_ip AND p.first_failed_at IS NOT NULL AND s.started_at > p.first_failed_at ${scope.cond('s.sensor_id')}
-      GROUP BY p.src_ip
-    )
-    SELECT p.src_ip AS "srcIp", p.total_sessions AS "totalSessions", p.failed_sessions AS "failedSessions",
-           p.successful_sessions AS "successfulSessions", p.credential_count AS "credentialCount",
-           p.first_seen AS "firstSeen", p.last_seen AS "lastSeen",
-           CASE WHEN p.first_failed_at IS NOT NULL AND n.next_attempt_at IS NOT NULL
-             THEN FLOOR(EXTRACT(EPOCH FROM (n.next_attempt_at - p.first_failed_at)) / 60)::int
-             ELSE NULL END AS "returnAfterMinutes",
-           p.client_version AS "clientVersion"
-    FROM per_ip p LEFT JOIN next_attempt n ON n.src_ip = p.src_ip
-    ORDER BY "totalSessions" DESC, "credentialCount" DESC, "successfulSessions" DESC LIMIT 20
-  `)
-}
-
-function queryCommandPatterns(fastify: FastifyInstance, scope: SensorScope) {
-  const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-  return fastify.prismaRead.$queryRaw<CommandPatternRow[]>(Prisma.sql`
-    WITH successful_sessions AS (SELECT id, src_ip FROM sessions WHERE login_success IS TRUE AND started_at >= ${cutoff} ${scope.cond('sensor_id')}),
-    ranked_commands AS (
-      SELECT s.id AS session_id, s.src_ip, e.command, ROW_NUMBER() OVER (PARTITION BY s.id ORDER BY e.event_ts ASC) AS rn
-      FROM successful_sessions s INNER JOIN events e ON e.session_id = s.id
-      WHERE e.event_type = 'command.input' AND e.command IS NOT NULL
-    ),
-    per_session AS (
-      SELECT session_id, MAX(src_ip) AS src_ip,
-             array_remove(array_agg(command ORDER BY rn) FILTER (WHERE rn <= 4), NULL) AS commands
-      FROM ranked_commands GROUP BY session_id
-    )
-    SELECT array_to_string(commands, ' -> ') AS sequence, COUNT(*)::int AS sessions, COUNT(DISTINCT src_ip)::int AS "uniqueIps"
-    FROM per_session WHERE array_length(commands, 1) IS NOT NULL
-    GROUP BY sequence ORDER BY sessions DESC, "uniqueIps" DESC, sequence ASC LIMIT 15
-  `)
-}
-
-function queryDepthBuckets(fastify: FastifyInstance, scope: SensorScope) {
-  const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-  return fastify.prismaRead.$queryRaw<DepthBucketRow[]>(Prisma.sql`
-    WITH successful_command_counts AS (
-      SELECT s.id, COUNT(*) FILTER (WHERE e.event_type = 'command.input')::int AS command_count
-      FROM sessions s LEFT JOIN events e ON e.session_id = s.id WHERE s.login_success IS TRUE AND s.started_at >= ${cutoff} ${scope.cond('s.sensor_id')} GROUP BY s.id
-    )
-    SELECT CASE WHEN command_count = 0 THEN '0' WHEN command_count BETWEEN 1 AND 3 THEN '1-3'
-                WHEN command_count BETWEEN 4 AND 10 THEN '4-10' WHEN command_count BETWEEN 11 AND 20 THEN '11-20'
-                ELSE '21+' END AS bucket,
-           COUNT(*)::int AS sessions
-    FROM successful_command_counts GROUP BY bucket
-  `)
-}
-
-function queryDepthStats(fastify: FastifyInstance, scope: SensorScope) {
-  const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-  return fastify.prismaRead.$queryRaw<DepthStatsRow[]>(Prisma.sql`
-    WITH successful_command_counts AS (
-      SELECT s.id, COUNT(*) FILTER (WHERE e.event_type = 'command.input')::int AS command_count
-      FROM sessions s LEFT JOIN events e ON e.session_id = s.id WHERE s.login_success IS TRUE AND s.started_at >= ${cutoff} ${scope.cond('s.sensor_id')} GROUP BY s.id
-    )
-    SELECT ROUND(AVG(command_count)::numeric, 2)::float AS "averageCommands",
-           MAX(command_count)::int AS "maxCommands",
-           COUNT(*) FILTER (WHERE command_count >= 20)::int AS "interactiveSessions"
-    FROM successful_command_counts
-  `)
 }

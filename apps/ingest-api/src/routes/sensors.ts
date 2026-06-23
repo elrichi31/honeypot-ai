@@ -1,11 +1,9 @@
-import { createHash } from 'crypto'
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { ensureIngestToken } from '../lib/ingest-auth.js'
 import { clearSensorOfflineAlert } from '../lib/threat-alerts.js'
-import { normalizeIp, normalizeSlug } from '../lib/sensor-utils.js'
-import { resolveClientId, querySensors, probeSensorPorts, formatSensor } from '../lib/sensor-queries.js'
-import { withCache } from '../lib/cache-helper.js'
+import { normalizeIp } from '../lib/sensor-utils.js'
+import { SensorService } from '../modules/sensors/sensors.service.js'
 import { eventBus, type SensorHeartbeatEvent } from '../lib/event-bus.js'
 
 const cowrieConfigSchema = z.object({
@@ -43,182 +41,76 @@ const assignClientSchema = z.object({
   clientSlug: z.string().trim().nullable().optional(),
 })
 
-async function handleHeartbeat(fastify: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
-  if (!ensureIngestToken(request, reply)) return reply
-
-  const parsed = heartbeatSchema.safeParse(request.body)
-  if (!parsed.success) return reply.status(400).send({ error: 'Invalid heartbeat', details: parsed.error.flatten() })
-
-  const d = parsed.data
-  const now = new Date()
-  const probeHost = d.host || normalizeIp(request.ip ?? '')
-  const probePorts = d.probePorts.length > 0 ? d.probePorts : d.ports
-  const client = await resolveClientId(fastify, { slug: d.clientSlug, name: d.clientName })
-
-  await fastify.prisma.$executeRaw`
-    INSERT INTO sensors (id, sensor_id, client_id, name, protocol, ip, version, ports, probe_ports, probe_host, last_seen, created_at)
-    VALUES (gen_random_uuid()::text, ${d.sensorId}, ${client.id}, ${d.name}, ${d.protocol}, ${d.ip}, ${d.version},
-      CAST(${JSON.stringify(d.ports)} AS jsonb), CAST(${JSON.stringify(probePorts)} AS jsonb),
-      ${probeHost}, ${now}, ${now})
-    ON CONFLICT (sensor_id) DO UPDATE SET
-      client_id = COALESCE(EXCLUDED.client_id, sensors.client_id), name = EXCLUDED.name,
-      protocol = EXCLUDED.protocol, ip = EXCLUDED.ip, version = EXCLUDED.version,
-      ports = EXCLUDED.ports, probe_ports = EXCLUDED.probe_ports,
-      probe_host = EXCLUDED.probe_host, last_seen = EXCLUDED.last_seen
-  `
-
-  void clearSensorOfflineAlert(fastify.prisma, d.sensorId)
-
-  const hb: SensorHeartbeatEvent = { type: 'sensor-heartbeat', sensorId: d.sensorId, timestamp: now.toISOString() }
-  eventBus.emit('sensor-heartbeat', hb)
-
-  return reply.status(200).send({ ok: true })
-}
-
-async function handleListSensors(fastify: FastifyInstance, _request: FastifyRequest, reply: FastifyReply) {
-  const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000)
-  const sensors = await querySensors(fastify)
-
-  // Port probes are TCP connects with a 2s timeout each; unreachable sensors make
-  // GET /sensors hang for seconds. Cache the per-sensor probe result for a short
-  // window. On a cold miss we wait briefly (COLD_WAIT_MS) for the probe — local
-  // sensors usually answer well within that — and only fall back to {} if it
-  // overruns, so the list (and the refresh after a delete) never blocks for long
-  // on an unreachable sensor. The next load, ~instantly, has the warmed status.
-  const COLD: Record<number, boolean> = {}
-  const COLD_WAIT_MS = 1800
-  const portStatuses = await Promise.all(
-    sensors.map(sensor => {
-      const probeKey = `sensor:ports:${sensor.sensor_id}:${sensor.probe_host}:${JSON.stringify(sensor.ports)}`
-      return withCache(fastify.cache, probeKey, 20, () => probeSensorPorts(sensor), COLD, COLD_WAIT_MS)
-    }),
-  )
-  const result = sensors.map((sensor, i) =>
-    formatSensor(sensor, portStatuses[i], sensor.last_seen > twoMinutesAgo)
-  )
-
-  const hasRegisteredSsh = result.some((s) => s.protocol === 'ssh')
-  if (!hasRegisteredSsh) {
-    const [ssh] = await fastify.prisma.$queryRaw<Array<{ count: bigint; last_seen: Date | null }>>`
-      SELECT COUNT(*) AS count, MAX(started_at) AS last_seen FROM sessions
-    `
-    if (ssh && ssh.count > 0n) {
-      result.push({
-        sensorId: 'cowrie-ssh', clientId: null, clientName: null, clientSlug: null,
-        clientCode: '', name: 'SSH Honeypot (Cowrie)', protocol: 'ssh', ip: '-',
-        version: '', ports: [], probeHost: '', eventsTotal: Number(ssh.count),
-        lastSeen: ssh.last_seen ?? new Date(0), createdAt: new Date(0),
-        online: ssh.last_seen ? ssh.last_seen > twoMinutesAgo : false, degraded: false, portStatus: {},
-      })
-    }
-  }
-
-  return reply.send(result)
-}
-
-async function handleAssignClient(fastify: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
-  if (!ensureIngestToken(request, reply)) return reply
-
-  const params = z.object({ sensorId: z.string().min(1) }).safeParse(request.params)
-  const body = assignClientSchema.safeParse(request.body)
-  if (!params.success || !body.success) return reply.status(400).send({ error: 'Invalid assignment payload' })
-
-  let client = { id: null as string | null, name: null as string | null, slug: null as string | null }
-
-  if (body.data.clientId) {
-    client = await resolveClientId(fastify, { id: body.data.clientId })
-    if (!client.id) return reply.status(404).send({ error: 'Client not found' })
-  } else if (body.data.clientSlug) {
-    const slug = normalizeSlug(body.data.clientSlug)
-    if (!slug) return reply.status(400).send({ error: 'Invalid client slug' })
-    const [existing] = await fastify.prisma.$queryRaw<Array<{ id: string; name: string; slug: string }>>`
-      SELECT id, name, slug FROM clients WHERE slug = ${slug} LIMIT 1
-    `
-    client = existing ? { id: existing.id, name: existing.name, slug: existing.slug } : client
-    if (!client.id) return reply.status(404).send({ error: 'Client not found' })
-  }
-
-  // Block moving a sensor from one client to another: the only supported way to
-  // re-home a sensor is to delete and recreate it. Assigning from unassigned
-  // (null) and unassigning back to null are still allowed.
-  const [current] = await fastify.prisma.$queryRaw<Array<{ client_id: string | null }>>`
-    SELECT client_id FROM sensors WHERE sensor_id = ${params.data.sensorId}
-  `
-  if (!current) return reply.status(404).send({ error: 'Sensor not found' })
-  if (current.client_id && client.id && current.client_id !== client.id) {
-    return reply.status(409).send({
-      error: 'Sensor already belongs to another client. Delete and recreate it to move it.',
-    })
-  }
-
-  const [updated] = await fastify.prisma.$queryRaw<Array<{ sensor_id: string }>>`
-    UPDATE sensors SET client_id = ${client.id} WHERE sensor_id = ${params.data.sensorId} RETURNING sensor_id
-  `
-  if (!updated) return reply.status(404).send({ error: 'Sensor not found' })
-
-  return reply.send({ sensorId: updated.sensor_id, clientId: client.id, clientName: client.name, clientSlug: client.slug })
-}
-
-async function handleDeleteSensor(fastify: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
-  if (!ensureIngestToken(request, reply)) return reply
-
-  const params = z.object({ sensorId: z.string().min(1) }).safeParse(request.params)
-  if (!params.success) return reply.status(400).send({ error: 'Invalid sensorId' })
-
-  const [deleted] = await fastify.prisma.$queryRaw<Array<{ sensor_id: string }>>`
-    DELETE FROM sensors WHERE sensor_id = ${params.data.sensorId} RETURNING sensor_id
-  `
-
-  // Idempotent: deleting a sensor that no longer exists still satisfies the
-  // caller's intent (it's gone). The list often shows a stale row after the
-  // heartbeat lapses and the row is pruned, so report success either way and
-  // let the client refresh to drop the phantom card.
-  return reply.send({ deleted: !!deleted, alreadyGone: !deleted, sensorId: params.data.sensorId })
-}
-
-async function handleGetConfig(fastify: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
-  const params = z.object({ sensorId: z.string().min(1) }).safeParse(request.params)
-  if (!params.success) return reply.status(400).send({ error: 'Invalid sensorId' })
-
-  const rows = await fastify.prisma.$queryRaw<Array<{ config: unknown; config_hash: string }>>`
-    SELECT config, config_hash FROM sensor_configs WHERE sensor_id = ${params.data.sensorId}
-  `
-  const row = rows[0]
-  return reply.send({
-    config: row?.config ?? DEFAULT_COWRIE_CONFIG,
-    configHash: row?.config_hash ?? '',
-  })
-}
-
-async function handlePutConfig(fastify: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
-  if (!ensureIngestToken(request, reply)) return reply
-
-  const params = z.object({ sensorId: z.string().min(1) }).safeParse(request.params)
-  const body = cowrieConfigSchema.safeParse(request.body)
-  if (!params.success || !body.success) {
-    return reply.status(400).send({ error: 'Invalid config', details: body.error?.flatten() })
-  }
-
-  const configStr = JSON.stringify(body.data)
-  const hash = createHash('sha256').update(configStr).digest('hex').slice(0, 16)
-
-  await fastify.prisma.$executeRaw`
-    INSERT INTO sensor_configs (sensor_id, config, config_hash, updated_at)
-    VALUES (${params.data.sensorId}, CAST(${configStr} AS jsonb), ${hash}, NOW())
-    ON CONFLICT (sensor_id) DO UPDATE SET
-      config      = EXCLUDED.config,
-      config_hash = EXCLUDED.config_hash,
-      updated_at  = EXCLUDED.updated_at
-  `
-
-  return reply.send({ ok: true, configHash: hash })
-}
-
 export async function sensorRoutes(fastify: FastifyInstance) {
-  fastify.post('/sensors/heartbeat', (req, rep) => handleHeartbeat(fastify, req, rep))
-  fastify.get('/sensors',            (req, rep) => handleListSensors(fastify, req, rep))
-  fastify.put('/sensors/:sensorId/client', (req, rep) => handleAssignClient(fastify, req, rep))
-  fastify.delete('/sensors/:sensorId',     (req, rep) => handleDeleteSensor(fastify, req, rep))
-  fastify.get('/sensors/:sensorId/config', (req, rep) => handleGetConfig(fastify, req, rep))
-  fastify.put('/sensors/:sensorId/config', (req, rep) => handlePutConfig(fastify, req, rep))
+  const svc = new SensorService(fastify.prisma, fastify.prismaRead)
+
+  fastify.post('/sensors/heartbeat', async (request, reply) => {
+    if (!ensureIngestToken(request, reply)) return reply
+
+    const parsed = heartbeatSchema.safeParse(request.body)
+    if (!parsed.success) return reply.status(400).send({ error: 'Invalid heartbeat', details: parsed.error.flatten() })
+
+    const d = parsed.data
+    const now = new Date()
+    const probeHost = d.host || normalizeIp(request.ip ?? '')
+    const probePorts = d.probePorts.length > 0 ? d.probePorts : d.ports
+    const client = await svc.resolveClientId({ slug: d.clientSlug, name: d.clientName })
+
+    await svc.upsertHeartbeat({
+      sensorId: d.sensorId, clientId: client.id, name: d.name, protocol: d.protocol,
+      ip: d.ip, version: d.version, ports: d.ports, probePorts, probeHost, now,
+    })
+
+    void clearSensorOfflineAlert(fastify.prisma, d.sensorId)
+
+    const hb: SensorHeartbeatEvent = { type: 'sensor-heartbeat', sensorId: d.sensorId, timestamp: now.toISOString() }
+    eventBus.emit('sensor-heartbeat', hb)
+
+    return reply.status(200).send({ ok: true })
+  })
+
+  fastify.get('/sensors', async (_request, reply) => {
+    const result = await svc.list(fastify.cache)
+    return reply.send(result)
+  })
+
+  fastify.put('/sensors/:sensorId/client', async (request, reply) => {
+    if (!ensureIngestToken(request, reply)) return reply
+
+    const params = z.object({ sensorId: z.string().min(1) }).safeParse(request.params)
+    const body = assignClientSchema.safeParse(request.body)
+    if (!params.success || !body.success) return reply.status(400).send({ error: 'Invalid assignment payload' })
+
+    const result = await svc.assignClient(params.data.sensorId, body.data)
+    if ('error' in result) return reply.status(result.status).send({ error: result.error })
+    return reply.send({ sensorId: result.sensorId, clientId: result.clientId, clientName: result.clientName, clientSlug: result.clientSlug })
+  })
+
+  fastify.delete('/sensors/:sensorId', async (request, reply) => {
+    if (!ensureIngestToken(request, reply)) return reply
+
+    const params = z.object({ sensorId: z.string().min(1) }).safeParse(request.params)
+    if (!params.success) return reply.status(400).send({ error: 'Invalid sensorId' })
+
+    return reply.send(await svc.delete(params.data.sensorId))
+  })
+
+  fastify.get('/sensors/:sensorId/config', async (request, reply) => {
+    const params = z.object({ sensorId: z.string().min(1) }).safeParse(request.params)
+    if (!params.success) return reply.status(400).send({ error: 'Invalid sensorId' })
+
+    return reply.send(await svc.getConfig(params.data.sensorId, DEFAULT_COWRIE_CONFIG))
+  })
+
+  fastify.put('/sensors/:sensorId/config', async (request, reply) => {
+    if (!ensureIngestToken(request, reply)) return reply
+
+    const params = z.object({ sensorId: z.string().min(1) }).safeParse(request.params)
+    const body = cowrieConfigSchema.safeParse(request.body)
+    if (!params.success || !body.success) {
+      return reply.status(400).send({ error: 'Invalid config', details: body.error?.flatten() })
+    }
+
+    return reply.send(await svc.putConfig(params.data.sensorId, JSON.stringify(body.data)))
+  })
 }
