@@ -277,7 +277,12 @@ vectorkafka10 → event_type: auth.success, src_ip: 1.1.1.1 en Postgres ✓
 **Verificación:** análoga a la Tarea 5 pero con un alert de Suricata y el topic
 `honeypot.suricata`. Confirmar LAG bajo y el alert en Postgres.
 
-- [ ] Hecho — fecha: ____  commit: ____
+```
+honeypot.suricata  partition 0  LAG 0
+```
+Alert src_ip=3.3.3.3, signature="GPL ATTACK_RESPONSE id check returned root", severity=2 en Postgres ✓
+
+- [x] Hecho — fecha: 2026-06-23  commit: 15ad920
 
 ---
 
