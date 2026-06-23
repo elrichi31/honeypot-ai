@@ -193,7 +193,14 @@ docker compose exec postgres psql -U honeypot -d honeypot -c "SELECT session_id,
 ```
 Pegar la fila devuelta por psql (el evento debe existir en la BD).
 
-- [ ] Hecho — fecha: ____  commit: ____
+```
+ cowrie_session_id |  event_type  | src_ip
+-------------------+--------------+---------
+ kafkatest4        | auth.success | 9.9.9.9
+(1 row)
+```
+
+- [x] Hecho — fecha: 2026-06-23  commit: 6377db8
 
 ---
 
@@ -212,7 +219,14 @@ docker compose exec postgres psql -U honeypot -d honeypot -c "SELECT count(*) FR
 ```
 Pegar el `count` (debe ser `1`). Si es >1, **parar** y reportar antes de seguir.
 
-- [ ] Hecho — fecha: ____  commit: ____
+```
+ count
+-------
+     1
+(1 row)
+```
+
+- [x] Hecho — fecha: 2026-06-23  commit: 6377db8  (mismo commit que Tarea 3 — idempotencia garantizada por createIfNotExists en EventRepository, sin código nuevo)
 
 ---
 
@@ -307,6 +321,15 @@ Plantilla por entrada:
 - **Dónde:** `apps/ingest-api/src/plugins/kafka-consumer.ts`
 - **Cómo se arregla:** agregar un flag `isConnected` al plugin y exponerlo en el health check.
 - **Bloquea producción:** no
+- **Estado:** abierta
+
+### TD-3 — eveAlertSchema duplicado entre suricata.ts y kafka-consumer.ts
+- **Tarea origen:** Tarea 3
+- **Qué se hizo:** el schema Zod de validación de alertas Suricata está definido en `routes/suricata.ts` (sin exportar) y replicado en `plugins/kafka-consumer.ts`. Se duplicó para no modificar el route en esta tarea.
+- **Qué falta / riesgo:** si el schema cambia en el route no se propaga al consumer — divergencia silenciosa.
+- **Dónde:** `apps/ingest-api/src/routes/suricata.ts:6-26` y `apps/ingest-api/src/plugins/kafka-consumer.ts:13-33`
+- **Cómo se arregla:** mover el schema a `schemas/index.ts` (o a `modules/suricata/`) y exportarlo, importarlo en ambos sitios.
+- **Bloquea producción:** no (los schemas son idénticos hoy)
 - **Estado:** abierta
 
 ### TD-2 — OFFSETS_TOPIC_REPLICATION_FACTOR=1 hardcodeado en compose
