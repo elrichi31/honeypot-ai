@@ -150,7 +150,11 @@ docker compose logs ingest-api --tail 20           # debe loguear el mensaje rec
 ```
 Pegar la línea de log donde el ingest-api muestra el mensaje recibido.
 
-- [ ] Hecho — fecha: ____  commit: ____
+```
+{"level":30,"time":1782253232830,"pid":146,"topic":"honeypot.cowrie","partition":0,"value":"eventid:cowrie.session.connect ...","msg":"Kafka message received"}
+```
+
+- [x] Hecho — fecha: 2026-06-23  commit: 070cce1
 
 ---
 
@@ -296,7 +300,23 @@ Plantilla por entrada:
 - **Estado:** abierta / saldada (commit ____)
 ```
 
-_Ninguna registrada._
+### TD-1 — Plugin Kafka no bloquea startup de Fastify (setImmediate)
+- **Tarea origen:** Tarea 2
+- **Qué se hizo:** `consumer.connect()` + `subscribe()` + `run()` se ejecutan en un `setImmediate()` para que el plugin no bloquee el registro de Fastify. Si se hace `await` dentro del plugin, Fastify lanza "Plugin did not start in time" porque los reintentos de kafkajs tardan más que el timeout del framework.
+- **Qué falta / riesgo:** si el consumer falla en conectar después del startup, el error solo se loguea — no hay alerta activa. En producción sería bueno exponer el estado del consumer en `/health`.
+- **Dónde:** `apps/ingest-api/src/plugins/kafka-consumer.ts`
+- **Cómo se arregla:** agregar un flag `isConnected` al plugin y exponerlo en el health check.
+- **Bloquea producción:** no
+- **Estado:** abierta
+
+### TD-2 — OFFSETS_TOPIC_REPLICATION_FACTOR=1 hardcodeado en compose
+- **Tarea origen:** Tarea 0
+- **Qué se hizo:** `KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1` y `KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1` se fijaron a 1 porque `apache/kafka` usa 3 por defecto, lo que rompe un cluster de 1 nodo.
+- **Qué falta / riesgo:** en producción (multi-broker) estos valores deben ser ≥3. Si alguien copia el compose a prod sin ajustarlos, el cluster tendrá baja durabilidad.
+- **Dónde:** `docker-compose.yml` servicio `kafka`
+- **Cómo se arregla:** parametrizar con variable de entorno o documentarlo claramente en las notas de producción (Tarea 7).
+- **Bloquea producción:** no (son valores de dev)
+- **Estado:** abierta
 
 ---
 
