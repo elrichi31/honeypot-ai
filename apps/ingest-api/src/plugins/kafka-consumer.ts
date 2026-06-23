@@ -10,6 +10,18 @@ import { eventBus } from '../lib/event-bus.js'
 import { lookupGeo } from '../lib/geo.js'
 import { scheduleThreatAlert } from '../lib/threat-alerts.js'
 
+// 'disabled' = no KAFKA_BROKERS (dev without Kafka, healthy by design)
+// 'connecting' = booting / between crash and rejoin
+// 'running' = joined the group and consuming
+// 'crashed' = consumer crashed (will restart, but currently not consuming)
+export type KafkaConsumerStatus = 'disabled' | 'connecting' | 'running' | 'crashed'
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    kafkaConsumerStatus: () => KafkaConsumerStatus
+  }
+}
+
 function emitSsh(ip: string) {
   const geo = lookupGeo(ip)
   if (!geo) return
@@ -50,8 +62,12 @@ export default fp(async (fastify: FastifyInstance) => {
   const brokers = process.env.KAFKA_BROKERS
   if (!brokers) {
     fastify.log.info('KAFKA_BROKERS not set — Kafka consumer disabled')
+    fastify.decorate('kafkaConsumerStatus', () => 'disabled' as KafkaConsumerStatus)
     return
   }
+
+  let status: KafkaConsumerStatus = 'connecting'
+  fastify.decorate('kafkaConsumerStatus', () => status)
 
   const kafka = new Kafka({
     clientId: 'ingest-api',
@@ -74,7 +90,12 @@ export default fp(async (fastify: FastifyInstance) => {
     },
   })
 
-  consumer.on('consumer.crash', ({ payload }) => {
+  const { GROUP_JOIN, CRASH, STOP, DISCONNECT } = consumer.events
+  consumer.on(GROUP_JOIN, () => { status = 'running' })
+  consumer.on(STOP, () => { status = 'connecting' })
+  consumer.on(DISCONNECT, () => { status = 'connecting' })
+  consumer.on(CRASH, ({ payload }) => {
+    status = 'crashed'
     fastify.log.warn({ err: payload.error }, 'Kafka consumer crashed — will restart')
   })
 
