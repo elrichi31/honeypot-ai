@@ -1,13 +1,15 @@
 # vector/cowrie.toml — Cowrie log shipper
 #
-# Tails cowrie.json, parses each JSON line, and POSTs batches to the ingest-api.
+# Tails cowrie.json, parses each JSON line, and publishes each event to Kafka.
 # Persists read offset to disk → survives container restarts without losing events.
-# Buffers to disk when ingest-api is unreachable → no events dropped on downtime.
+# Buffers to disk when the broker is unreachable → no events dropped on downtime.
 #
 # Environment variables (required):
-#   COWRIE_LOG_PATH      — path to cowrie.json inside the container
-#   INGEST_API_URL       — base URL of ingest-api  (e.g. http://ingest-api:3000)
-#   INGEST_SHARED_SECRET — shared secret for X-Ingest-Token header
+#   COWRIE_LOG_PATH — path to cowrie.json inside the container
+#   KAFKA_BROKERS   — Kafka bootstrap servers (e.g. kafka:9092)
+#
+# ROLLBACK: to revert to HTTP ingestion, comment out [sinks.kafka] and its
+# sub-tables, then uncomment [sinks.ingest_api] and all its sub-tables below.
 
 data_dir = "/var/lib/vector"
 
@@ -28,29 +30,45 @@ source        = '''
   .sensor = "${SENSOR_ID}"
 '''
 
-# ── Sink: POST batches to ingest-api ───────────────────────────────────────
-[sinks.ingest_api]
-type    = "http"
-inputs  = ["parse_event"]
-uri     = "${INGEST_API_URL}/ingest/cowrie/vector"
-method  = "post"
+# ── Sink: publish each event to Kafka ─────────────────────────────────────
+# Each event becomes one Kafka message (no array wrapping).
+[sinks.kafka]
+type              = "kafka"
+inputs            = ["parse_event"]
+bootstrap_servers = "${KAFKA_BROKERS}"
+topic             = "honeypot.cowrie"
+encoding.codec    = "json"
 
-encoding.codec = "json"       # batch → sends as JSON array [event, event, ...]
-
-[sinks.ingest_api.batch]
-max_events   = 100            # flush when 100 events ready
-timeout_secs = 2              # or every 2 seconds, whichever comes first
-
-[sinks.ingest_api.request]
-headers.Content-Type  = "application/json"
-headers.X-Ingest-Token = "${INGEST_SHARED_SECRET}"
-timeout_secs               = 20
-retry_attempts             = 360          # ~1h of retries before giving up
-retry_initial_backoff_secs = 1
-retry_max_duration_secs    = 10
-
-# Disk buffer — survives ingest-api downtime without dropping events
-[sinks.ingest_api.buffer]
+# Disk buffer — survives broker downtime without dropping events
+[sinks.kafka.buffer]
 type      = "disk"
 max_size  = 268435488     # Vector 0.40 minimum disk buffer size
 when_full = "block"       # back-pressure instead of dropping
+
+# ── Sink: POST batches to ingest-api (HTTP fallback — disabled) ────────────
+# To roll back: uncomment everything below and comment out [sinks.kafka] above.
+# Also re-add INGEST_API_URL and INGEST_SHARED_SECRET to the vector env in compose.
+#
+# [sinks.ingest_api]
+# type    = "http"
+# inputs  = ["parse_event"]
+# uri     = "INGEST_API_URL_PLACEHOLDER/ingest/cowrie/vector"
+# method  = "post"
+# encoding.codec = "json"
+#
+# [sinks.ingest_api.batch]
+# max_events   = 100
+# timeout_secs = 2
+#
+# [sinks.ingest_api.request]
+# headers.Content-Type   = "application/json"
+# headers.X-Ingest-Token = "INGEST_SHARED_SECRET_PLACEHOLDER"
+# timeout_secs               = 20
+# retry_attempts             = 360
+# retry_initial_backoff_secs = 1
+# retry_max_duration_secs    = 10
+#
+# [sinks.ingest_api.buffer]
+# type      = "disk"
+# max_size  = 268435488
+# when_full = "block"
