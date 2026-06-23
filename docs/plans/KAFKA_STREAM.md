@@ -4,10 +4,11 @@ Plan de migración para insertar un broker de streaming (Kafka) entre Vector
 (productor) y el `ingest-api` (consumidor), sin reescribir la lógica de negocio.
 
 > **Estado (2026-06-23):** Tareas 0–7 implementadas. Una **auditoría
-> post-implementación** detectó 5 hallazgos. La **Tarea 8 (bloqueante: pérdida
-> silenciosa de eventos ante fallo de BD) ya está resuelta y verificada**
-> (commit 7cd6e90). Quedan abiertas las Tareas 9–12 (no bloqueantes:
-> endurecimiento y limpieza). Ver **Auditoría post-implementación**.
+> post-implementación** detectó 5 hallazgos. **Tareas 8, 9, 10 y 11 resueltas y
+> verificadas** (7cd6e90, verificación, 094b80a, 0d635ef). La Tarea 8 (bloqueante)
+> y TD-1/TD-3 están cerradas. **Solo queda la Tarea 12** (no bloqueante:
+> verificación E2E con un ataque SSH real contra Cowrie). Ver **Auditoría
+> post-implementación**.
 
 ## Decisiones tomadas (NO re-decidir)
 
@@ -321,10 +322,10 @@ propias. Severidad: 🔴 bloqueante · 🟡 media · 🟢 menor.
 | ID | Severidad | Resumen | Tarea de fix |
 |----|-----------|---------|--------------|
 | A-1 | 🔴 | El consumer **traga errores de procesamiento y commitea el offset** → pérdida silenciosa de eventos si Postgres está caído. | Tarea 8 ✅ (7cd6e90) |
-| A-2 | 🟡 | `IngestService.processLine` dispara Discord/forward; si HTTP y Kafka procesan el mismo evento (rollback parcial), se duplican efectos. | Tarea 9 |
-| A-3 | 🟡 | `eveAlertSchema` duplicado (DRY) — ya registrado como TD-3, se salda en la Tarea 10. | Tarea 10 |
-| A-4 | 🟢 | Estado del consumer no visible en `/health` (TD-1); contenedor queda `healthy` aunque el consumer esté muerto. | Tarea 11 |
-| A-5 | 🟢 | Verificación de Tareas 5/6 se hizo inyectando JSON a mano, nunca con un ataque real fluyendo por Cowrie. | Tarea 12 |
+| A-2 | 🟡 | `IngestService.processLine` dispara Discord/forward; si HTTP y Kafka procesan el mismo evento (rollback parcial), se duplican efectos. | Tarea 9 ✅ (verificado, sin doble-efecto normal; residual en TD-6) |
+| A-3 | 🟡 | `eveAlertSchema` duplicado (DRY) — ya registrado como TD-3, se salda en la Tarea 10. | Tarea 10 ✅ (094b80a) |
+| A-4 | 🟢 | Estado del consumer no visible en `/health` (TD-1); contenedor queda `healthy` aunque el consumer esté muerto. | Tarea 11 ✅ (0d635ef) |
+| A-5 | 🟢 | Verificación de Tareas 5/6 se hizo inyectando JSON a mano, nunca con un ataque real fluyendo por Cowrie. | Tarea 12 (pendiente) |
 
 Las **Tareas 8–12** abajo resuelven estos puntos. La Tarea 8 es la única
 bloqueante; el resto endurece y limpia.
@@ -444,7 +445,17 @@ docker exec honeypot-postgres psql -U honeypot -d honeypot_prod -c "SELECT count
 ```
 Pegar el `count` (debe ser 1) y confirmar cuántas alertas de Discord llegaron.
 
-- [ ] Hecho — fecha: ____  commit: ____
+**Resultado verificado (2026-06-23):** entrada secuencial HTTP→Kafka del mismo
+evento. HTTP respondió `{ingested:true, duplicate:false}` (creó la fila y disparó
+efectos). Kafka vio el duplicado (`createIfNotExists` → `eventCreated=false`), por
+lo que **no** entró al bloque `if (eventCreated)` y **no** re-disparó Discord/forward.
+`count(auth.success WHERE session='dualpath')` = **1**. (Discord webhook vacío en
+dev, pero el path de efectos está guardado por `eventCreated`, que es lo que se
+verificó.) Conclusión: sin doble-efecto en operación normal; el único caso residual
+es una carrera exacta HTTP↔Kafka antes del primer insert → documentado en **TD-6**
+(riesgo bajo, solo en rollback parcial, no se añade dedupe en este plan).
+
+- [x] Hecho — fecha: 2026-06-23  commit: (verificación, sin cambio de código — ver TD-6)
 
 ---
 
@@ -470,7 +481,11 @@ cd apps/ingest-api && npx tsc --noEmit   # debe pasar sin errores
 ```
 Pegar `exit 0` de tsc y la fila del alert en Postgres.
 
-- [ ] Hecho — fecha: ____  commit: ____  (cierra TD-3)
+**Resultado verificado (2026-06-23):** `tsc --noEmit` → exit 0. Alert por Kafka
+(`src_ip=5.5.5.5`, "DRY refactor test alert", severity 1) llegó a `suricata_alerts`.
+Schema movido a `modules/suricata/suricata.schema.ts`, importado en route y consumer.
+
+- [x] Hecho — fecha: 2026-06-23  commit: 094b80a  (cierra TD-3)
 
 ---
 
@@ -490,14 +505,23 @@ sigue `healthy` y nadie lo nota.
    `kafka: "unhealthy"` — decidir si eso debe hacer fallar el healthcheck del
    contenedor (recomendado: sí, para que se reinicie).
 
+**Decisión tomada (2026-06-23):** endpoint **separado** `GET /health/kafka` (NO
+en `/health` liveness). Razón: un blip transitorio de Kafka no debe reiniciar el
+proceso entero — la ingesta HTTP sigue viva. Monitoreo externo pollea
+`/health/kafka`; `crashed` → 503 para alertar. `disabled` (sin `KAFKA_BROKERS`)
+es sano por diseño (dev sin Kafka). Estados: `disabled|connecting|running|crashed`.
+
 **Verificación:**
 ```bash
-curl -s http://localhost:3000/health | jq .
-# Debe incluir el estado del consumer. Con Kafka arriba → healthy/running.
+curl -s http://localhost:3000/health/kafka
 ```
-Pegar la respuesta de `/health` mostrando el estado del consumer.
 
-- [ ] Hecho — fecha: ____  commit: ____  (cierra TD-1)
+**Resultado verificado (2026-06-23):** ciclo completo
+`connecting` (startup) → `running` (tras join) → `crashed` + HTTP **503** (Kafka
+caído) → `running` + HTTP **200** (Kafka recuperado, auto-restart). El estado
+refleja la realidad y el consumer se auto-recupera.
+
+- [x] Hecho — fecha: 2026-06-23  commit: 0d635ef  (cierra TD-1)
 
 ---
 
@@ -554,7 +578,7 @@ Plantilla por entrada:
 - **Dónde:** `apps/ingest-api/src/plugins/kafka-consumer.ts`
 - **Cómo se arregla:** agregar un flag `isConnected` al plugin y exponerlo en el health check.
 - **Bloquea producción:** no
-- **Estado:** abierta → **se salda en la Tarea 11** (ver Auditoría 2026-06-23).
+- **Estado:** **saldada (commit 0d635ef)** — `GET /health/kafka` expone el estado del consumer (Tarea 11).
 
 ### TD-4 — Vector carga demo config si no se especifica --config explícito
 - **Tarea origen:** Tarea 5
@@ -572,7 +596,7 @@ Plantilla por entrada:
 - **Dónde:** `apps/ingest-api/src/routes/suricata.ts:6-26` y `apps/ingest-api/src/plugins/kafka-consumer.ts:13-33`
 - **Cómo se arregla:** mover el schema a `schemas/index.ts` (o a `modules/suricata/`) y exportarlo, importarlo en ambos sitios.
 - **Bloquea producción:** no (los schemas son idénticos hoy)
-- **Estado:** abierta → **se salda en la Tarea 10** (ver Auditoría 2026-06-23).
+- **Estado:** **saldada (commit 094b80a)** — schema único en `modules/suricata/suricata.schema.ts` (Tarea 10).
 
 ### TD-5 — Sin DLQ ni max-retries por mensaje (poison-pill bloquea partición)
 - **Tarea origen:** Tarea 8 (auditoría)
@@ -605,7 +629,10 @@ Plantilla por entrada:
 - **Cómo se arregla:** dedupe de efectos externos por `cowrieEventId` con un
   `SET NX` en Redis con TTL corto antes de disparar Discord/forward.
 - **Bloquea producción:** no.
-- **Estado:** abierta (a confirmar/cerrar según verificación de la Tarea 9).
+- **Estado:** abierta — **confirmado en Tarea 9** que NO hay doble-efecto en
+  operación normal (entrada secuencial: el segundo camino ve `eventCreated=false`).
+  El único caso residual es una carrera exacta HTTP↔Kafka antes del primer insert;
+  como cada sensor usa un solo sink, no se implementa el dedupe en este plan.
 
 ### TD-2 — OFFSETS_TOPIC_REPLICATION_FACTOR=1 hardcodeado en compose
 - **Tarea origen:** Tarea 0
