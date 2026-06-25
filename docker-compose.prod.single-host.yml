@@ -94,15 +94,15 @@ services:
       SENSOR_HOST: web-honeypot
       SENSOR_PORTS: "80 8443"
       SENSOR_PROBE_PORTS: "8080 8080"
+      EVENT_LOG_PATH: /var/log/web-honeypot/events.json
     ports:
       - "80:8080"
       - "8443:8080"
-    read_only: true
     networks:
       - edge
       - honeypot_ingest
-    tmpfs:
-      - /tmp
+    volumes:
+      - web_events:/var/log/web-honeypot
     deploy:
       resources:
         limits:
@@ -349,16 +349,28 @@ services:
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var:ro
       - suricata_logs:/tmp/suricata-logs:ro
-      - ./vector/cowrie.toml:/etc/vector/cowrie.toml:ro
-      - ./vector/suricata.toml:/etc/vector/suricata.toml:ro
+      - galah_events:/var/log/galah:ro
+      - web_events:/var/log/web-honeypot:ro
+      - ftp_events:/var/log/ftp-honeypot:ro
+      - mysql_events:/var/log/mysql-honeypot:ro
+      - port_events:/var/log/port-honeypot:ro
+      - smb_events:/var/log/smb-honeypot:ro
+      - ./vector/conf.d:/etc/vector/conf.d
       - vector_data:/var/lib/vector
-    command: ["--config", "/etc/vector/cowrie.toml", "--config", "/etc/vector/suricata.toml"]
+    command: ["--config-dir", "/etc/vector/conf.d/"]
     environment:
       COWRIE_LOG_PATH: /cowrie/cowrie-git/var/log/cowrie/cowrie.json
       SENSOR_ID: ${SENSOR_ID_SSH:-cowrie-ssh-01}
       SURICATA_SENSOR_ID: ${SENSOR_ID_SURICATA:-suricata-01}
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      GALAH_LOG_PATH: /var/log/galah/galah.json
+      WEB_LOG_PATH: /var/log/web-honeypot/events.json
+      FTP_LOG_PATH: /var/log/ftp-honeypot/events.json
+      MYSQL_LOG_PATH: /var/log/mysql-honeypot/events.json
+      PORT_LOG_PATH: /var/log/port-honeypot/events.json
+      SMB_LOG_PATH: /var/log/smb-honeypot/events.json
     networks:
       - honeypot_ingest
     deploy:
@@ -471,8 +483,11 @@ services:
       CLIENT_NAME: ${CLIENT_NAME:-}
       SENSOR_IP: ${HONEYPOT_IP:-}
       SENSOR_HOST: mysql-honeypot
+      EVENT_LOG_PATH: /var/log/mysql-honeypot/events.json
     ports:
       - "3306:3306"
+    volumes:
+      - mysql_events:/var/log/mysql-honeypot
     networks:
       - edge
       - honeypot_ingest
@@ -500,6 +515,7 @@ services:
       CLIENT_SLUG: ${CLIENT_SLUG:-}
       CLIENT_NAME: ${CLIENT_NAME:-}
       SENSOR_IP: ${HONEYPOT_IP:-}
+      EVENT_LOG_PATH: /var/log/port-honeypot/events.json
     ports:
       - "2375:2375"
       - "3389:3389"
@@ -510,6 +526,8 @@ services:
       - "9090:9090"
       - "9200:9200"
       - "27017:27017"
+    volumes:
+      - port_events:/var/log/port-honeypot
     networks:
       - edge
       - honeypot_ingest
@@ -546,11 +564,13 @@ services:
       SMB_SERVER_DOMAIN: ${SMB_SERVER_DOMAIN:-CORP}
       SMB_SHARE_PATH: /share
       SMB_CAPTURE_DIR: /captures
+      EVENT_LOG_PATH: /var/log/smb-honeypot/events.json
     ports:
       - "445:445"
     volumes:
       - smb_share:/share
       - smb_captures:/captures
+      - smb_events:/var/log/smb-honeypot
     networks:
       - edge
       - honeypot_ingest
@@ -585,11 +605,13 @@ services:
       FTP_CAPTURES_DIR: /captures
       PASV_PORT_MIN: "50000"
       PASV_PORT_MAX: "50019"
+      EVENT_LOG_PATH: /var/log/ftp-honeypot/events.json
     ports:
       - "21:21"
       - "50000-50019:50000-50019"
     volumes:
       - ftp_captures:/captures
+      - ftp_events:/var/log/ftp-honeypot
     networks:
       - edge
       - honeypot_ingest
@@ -695,6 +717,12 @@ volumes:
   dashboard_data:
   vector_data:
   suricata_logs:
+  galah_events:
+  web_events:
+  ftp_events:
+  mysql_events:
+  port_events:
+  smb_events:
   smb_share:
   smb_captures:
   ftp_captures:
