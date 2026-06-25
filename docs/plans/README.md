@@ -6,6 +6,8 @@ progresses, and link the relevant commit hashes so the history stays traceable.
 
 ## Index
 
+- [SENSOR_REMOTE_CONTROL.md](SENSOR_REMOTE_CONTROL.md) - WebSocket control plane para sensores: config remota, comandos con ACK, estado en vivo, fallback HTTP, seguridad, auditoria y rollout por fases.
+
 - [MULTI_TENANT_ROADMAP.md](MULTI_TENANT_ROADMAP.md) — multi-tenant rollout to 100%: page→endpoint table, the `effectiveScope` / `parseSensorScope` pattern, suggested order, and verification data.
 - [PLAN_DECEPTION.md](PLAN_DECEPTION.md) — deception network design and plan.
 - [I18N.md](I18N.md) — i18n system, the English-first convention, the 2026-06-18 Spanish cleanup, and remaining debt (move literals into dicts, AI prompt locale, backend strings).

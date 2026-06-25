@@ -60,9 +60,11 @@ export class SensorRepository {
   }
 
   async list(): Promise<SensorRow[]> {
-    // Event counts come from per-table GROUP BYs joined by sensor_id, not a
-    // correlated COUNT subquery per sensor row. Read-only, so route to the replica.
-    return this.prismaRead.$queryRaw<SensorRow[]>`
+    // Sensor heartbeats drive the online/offline badge and must be strongly
+    // consistent. Reading this list from the replica can mark every sensor
+    // offline during replication lag even while heartbeats are arriving on the
+    // primary, so /sensors stays on the primary.
+    return this.prisma.$queryRaw<SensorRow[]>`
       WITH ssh_counts AS (
         SELECT sensor_id, COUNT(*)::bigint AS n FROM sessions GROUP BY sensor_id
       ),

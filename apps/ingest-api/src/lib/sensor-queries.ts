@@ -50,9 +50,11 @@ export async function querySensors(fastify: FastifyInstance): Promise<SensorRow[
   // Event counts come from per-table GROUP BYs joined by sensor_id, not a
   // correlated COUNT subquery per sensor row. The old form re-scanned a big table
   // once for every sensor on every /sensors load (every ~30s); these aggregates
-  // each scan once and the planner can use the sensor_id indexes. Read-only, so
-  // route to the replica.
-  return fastify.prismaRead.$queryRaw<SensorRow[]>`
+  // each scan once and the planner can use the sensor_id indexes. Even though
+  // this is a read, it must stay on the primary because heartbeat freshness
+  // drives online/offline status and replica lag can falsely mark all sensors
+  // offline at once.
+  return fastify.prisma.$queryRaw<SensorRow[]>`
     WITH ssh_counts AS (
       SELECT sensor_id, COUNT(*)::bigint AS n FROM sessions GROUP BY sensor_id
     ),
