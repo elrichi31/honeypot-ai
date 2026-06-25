@@ -336,17 +336,11 @@ def _patch_smb2_negotiate():
         respSMBCommand["SecurityBufferOffset"] = 0x80
 
         blob = SPNEGO_NegTokenInit()
-        supported_mechtypes = []
-        computer = smbServer.getComputerAccountCredentials()
-        if smbServer.getKerberosSupport() and computer["username"]:
-            supported_mechtypes += [
-                TypesMech["MS KRB5 - Microsoft Kerberos 5"],
-                TypesMech["KRB5 - Kerberos 5"],
-                TypesMech["KRB5 - Kerberos 5 - User to User"],
-            ]
-        if smbServer.getNTLMSupport():
-            supported_mechtypes += [TypesMech["NTLMSSP - Microsoft NTLM Security Support Provider"]]
-        blob["MechTypes"] = supported_mechtypes
+        # The low-level SMBSERVER object passed into command handlers doesn't
+        # expose SimpleSMBServer helpers like getComputerAccountCredentials().
+        # Keep negotiation stable and advertise NTLMSSP, which is enough for our
+        # honeypot auth flow and works across modern Windows clients.
+        blob["MechTypes"] = [TypesMech["NTLMSSP - Microsoft NTLM Security Support Provider"]]
 
         respSMBCommand["Buffer"] = blob.getData()
         respSMBCommand["SecurityBufferLength"] = len(respSMBCommand["Buffer"])
