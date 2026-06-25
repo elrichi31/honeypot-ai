@@ -76,6 +76,10 @@ services:
   web-honeypot:
     <<: *service-defaults
     logging: *json-logging
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
     build:
       context: ./sensors/web-honeypot
     container_name: web-honeypot
