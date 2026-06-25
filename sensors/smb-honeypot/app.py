@@ -15,11 +15,14 @@ import threading
 import time
 import traceback
 import uuid
+import calendar
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
 
 from impacket import smb, smb3structs as smb2
+from impacket.nt_errors import STATUS_SUCCESS
 from impacket.smbserver import SMB2Commands, SMBCommands, SimpleSMBServer
+from impacket.spnego import SPNEGO_NegTokenInit, TypesMech
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("smb-honeypot")
@@ -292,6 +295,69 @@ def _patch_impacket_writes():
     SMB2Commands.smb2Close = staticmethod(patched_smb2_close)
 
 
+def _patch_smb2_negotiate():
+    original = SMB2Commands.smb2Negotiate
+
+    def patched_smb2_negotiate(connId, smbServer, recvPacket, isSMB1=False):
+        if isSMB1 is False:
+            return original(connId, smbServer, recvPacket, isSMB1)
+
+        connData = smbServer.getConnectionData(connId, checkStatus=False)
+        respPacket = smb2.SMB2Packet()
+        respPacket["Flags"] = smb2.SMB2_FLAGS_SERVER_TO_REDIR
+        respPacket["Status"] = STATUS_SUCCESS
+        respPacket["CreditRequestResponse"] = 1
+        respPacket["Command"] = smb2.SMB2_NEGOTIATE
+        respPacket["SessionID"] = 0
+        respPacket["MessageID"] = 0
+        respPacket["TreeID"] = 0
+
+        respSMBCommand = smb2.SMB2Negotiate_Response()
+        respSMBCommand["SecurityMode"] = 1
+
+        smb_command = smb.SMBCommand(recvPacket["Data"][0])
+        dialects = [part.strip(b"\x00") for part in smb_command["Data"].split(b"\x02") if part]
+        supports_modern_smb = any(d.startswith((b"SMB 2", b"SMB 3")) for d in dialects)
+        if not supports_modern_smb:
+            raise Exception("SMB2 not supported, fallbacking")
+
+        # Impacket's smbserver currently behaves reliably as an SMB2 server, not a
+        # full SMB3 implementation, so we advertise the highest stable dialect it
+        # can actually serve after accepting newer-client negotiation attempts.
+        respSMBCommand["DialectRevision"] = smb2.SMB2_DIALECT_002
+        respSMBCommand["ServerGuid"] = b"A" * 16
+        respSMBCommand["Capabilities"] = 0
+        respSMBCommand["MaxTransactSize"] = 65536
+        respSMBCommand["MaxReadSize"] = 65536
+        respSMBCommand["MaxWriteSize"] = 65536
+        now_ft = smb.POSIXtoFT(calendar.timegm(time.gmtime()))
+        respSMBCommand["SystemTime"] = now_ft
+        respSMBCommand["ServerStartTime"] = now_ft
+        respSMBCommand["SecurityBufferOffset"] = 0x80
+
+        blob = SPNEGO_NegTokenInit()
+        supported_mechtypes = []
+        computer = smbServer.getComputerAccountCredentials()
+        if smbServer.getKerberosSupport() and computer["username"]:
+            supported_mechtypes += [
+                TypesMech["MS KRB5 - Microsoft Kerberos 5"],
+                TypesMech["KRB5 - Kerberos 5"],
+                TypesMech["KRB5 - Kerberos 5 - User to User"],
+            ]
+        if smbServer.getNTLMSupport():
+            supported_mechtypes += [TypesMech["NTLMSSP - Microsoft NTLM Security Support Provider"]]
+        blob["MechTypes"] = supported_mechtypes
+
+        respSMBCommand["Buffer"] = blob.getData()
+        respSMBCommand["SecurityBufferLength"] = len(respSMBCommand["Buffer"])
+        respPacket["Data"] = respSMBCommand
+
+        smbServer.setConnectionData(connId, connData)
+        return None, [respPacket], STATUS_SUCCESS
+
+    SMB2Commands.smb2Negotiate = staticmethod(patched_smb2_negotiate)
+
+
 def _apply_server_identity(server: SimpleSMBServer):
     cfg = getattr(server, "_SimpleSMBServer__smbConfig", None)
     if cfg is None:
@@ -385,6 +451,7 @@ def main():
     os.makedirs(CAPTURE_DIR, exist_ok=True)
     _seed_decoy_files(SHARE_PATH)
     _patch_impacket_writes()
+    _patch_smb2_negotiate()
 
     log.info("SMB honeypot starting — share=%s path=%s port=%d sensor=%s",
              SHARE_NAME, SHARE_PATH, PORT, SENSOR_ID)
