@@ -22,9 +22,12 @@ export function getProtocolMeta(protocol: string) {
   return PROTOCOL_META[protocol] ?? { label: protocol, icon: Server, color: "text-slate-400", bg: "bg-slate-400/10" }
 }
 
-export function formatRelative(value: string | null | undefined): string {
-  if (!value || new Date(value).getTime() === 0) return "-"
-  const diff = Date.now() - new Date(value).getTime()
+export function formatRelative(value: string | number | Date | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "-"
+  const ts = new Date(value).getTime()
+  if (!Number.isFinite(ts) || ts === 0) return "-"
+  const diff = Date.now() - ts
+  if (diff <= 0) return "now"
   const sec = Math.floor(diff / 1000)
   if (sec < 60) return `${sec}s ago`
   const min = Math.floor(sec / 60)

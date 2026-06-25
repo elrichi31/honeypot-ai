@@ -68,7 +68,7 @@ SENSOR_IP = _detect_ip()
 # ---------------------------------------------------------------------------
 # Ingest
 # ---------------------------------------------------------------------------
-def _post(path: str, payload: dict):
+def _post(path: str, payload: dict) -> tuple[bool, int | None, str | None]:
     body = json.dumps(payload, default=str).encode()
     req = Request(
         f"{INGEST_API_URL}{path}",
@@ -77,9 +77,10 @@ def _post(path: str, payload: dict):
         method="POST",
     )
     try:
-        urlopen(req, timeout=5)
+        with urlopen(req, timeout=5) as resp:
+            return 200 <= getattr(resp, "status", 200) < 300, getattr(resp, "status", 200), None
     except Exception as exc:
-        log.debug("ingest error: %s", exc)
+        return False, None, str(exc)
 
 
 # Attack events are appended as JSONL to EVENT_LOG_PATH; Vector tails this file
@@ -121,7 +122,7 @@ def _send(event_type: str, src_ip: str, src_port: int | None,
 
 
 def _send_heartbeat():
-    _post("/sensors/heartbeat", {
+    return _post("/sensors/heartbeat", {
         "sensorId":   SENSOR_ID,
         "name":       SENSOR_NAME,
         "clientSlug": CLIENT_SLUG,
@@ -138,8 +139,12 @@ def _send_heartbeat():
 def _heartbeat_loop():
     while True:
         try:
-            _send_heartbeat()
-            log.info("heartbeat ok")
+            ok, status, error = _send_heartbeat()
+            if ok:
+                log.info("heartbeat ok status=%s", status)
+            else:
+                detail = error or f"http_status={status}"
+                log.warning("heartbeat failed %s", detail)
         except Exception as exc:
             log.warning("heartbeat error: %s", exc)
         time.sleep(30)

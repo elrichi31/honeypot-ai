@@ -3,6 +3,7 @@
 import { formatRelative } from "@/lib/sensor-display"
 import type { Sensor } from "@/lib/api"
 import { useT } from "@/components/locale-provider"
+import { useSensorLive } from "./sensor-live-context"
 
 function StatCell({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -56,7 +57,13 @@ export function SensorStats({
   clientCode?: string
 }) {
   const t = useT()
+  const { getLastLiveAt } = useSensorLive()
   const sensorIdDisplay = clientCode ? `${sensor.sensorId}-${clientCode}` : sensor.sensorId
+  const liveTs = getLastLiveAt(sensor.sensorId)
+  const effectiveLastSeen =
+    typeof liveTs === "number" && Number.isFinite(liveTs)
+      ? new Date(Math.max(new Date(sensor.lastSeen).getTime() || 0, liveTs))
+      : sensor.lastSeen
   return (
     <div className="grid grid-cols-2 gap-2">
       <IpSection sensor={sensor} isInternal={isInternal} honeypotPublicIp={honeypotPublicIp} />
@@ -64,7 +71,7 @@ export function SensorStats({
         <p className="font-semibold text-sm text-foreground">{sensor.eventsTotal.toLocaleString()}</p>
       </StatCell>
       <StatCell label={t("sensors.stats.lastSeen")}>
-        <p className="text-xs text-foreground">{formatRelative(sensor.lastSeen)}</p>
+        <p className="text-xs text-foreground">{formatRelative(effectiveLastSeen)}</p>
       </StatCell>
       <div className="col-span-2">
         <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">{t("sensors.stats.sensorId")}</p>

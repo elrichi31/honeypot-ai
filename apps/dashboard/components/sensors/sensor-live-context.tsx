@@ -11,9 +11,13 @@ const PRUNE_INTERVAL_MS = 15_000
 
 interface SensorLiveContextValue {
   isLive: (sensorId: string) => boolean
+  getLastLiveAt: (sensorId: string) => number | null
 }
 
-const SensorLiveContext = createContext<SensorLiveContextValue>({ isLive: () => false })
+const SensorLiveContext = createContext<SensorLiveContextValue>({
+  isLive: () => false,
+  getLastLiveAt: () => null,
+})
 
 export function SensorLiveProvider({ children }: { children: React.ReactNode }) {
   const liveSensors = useRef<Map<string, number>>(new Map())
@@ -22,11 +26,8 @@ export function SensorLiveProvider({ children }: { children: React.ReactNode }) 
   useLiveStream({
     onSensorHeartbeat: useCallback((event: SensorHeartbeatStreamEvent) => {
       const ts = Number.isFinite(Date.parse(event.timestamp)) ? Date.parse(event.timestamp) : Date.now()
-      const prev = liveSensors.current.get(event.sensorId)
       liveSensors.current.set(event.sensorId, ts)
-      if (prev === undefined) {
-        bump((n) => n + 1)
-      }
+      bump((n) => n + 1)
     }, []),
   })
 
@@ -51,8 +52,13 @@ export function SensorLiveProvider({ children }: { children: React.ReactNode }) 
     return typeof ts === "number" && Date.now() - ts <= LIVE_WINDOW_MS
   }, [])
 
+  const getLastLiveAt = useCallback((sensorId: string) => {
+    const ts = liveSensors.current.get(sensorId)
+    return typeof ts === "number" ? ts : null
+  }, [])
+
   return (
-    <SensorLiveContext.Provider value={{ isLive }}>
+    <SensorLiveContext.Provider value={{ isLive, getLastLiveAt }}>
       {children}
     </SensorLiveContext.Provider>
   )
