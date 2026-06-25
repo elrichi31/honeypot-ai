@@ -18,7 +18,7 @@ import uuid
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
 
-from impacket import smb, smb2
+from impacket import smb, smb3structs as smb2
 from impacket.smbserver import SMB2Commands, SMBCommands, SimpleSMBServer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
