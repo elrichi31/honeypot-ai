@@ -166,10 +166,8 @@ _STATIC_HEADERS = {
 
 
 def get_real_ip() -> str:
-    """Respect X-Forwarded-For if behind a proxy, fall back to remote addr."""
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    # The honeypot is exposed directly (no trusted reverse proxy in front),
+    # so X-Forwarded-For is attacker-controlled and must never be used.
     return request.remote_addr or "unknown"
 
 
