@@ -80,6 +80,55 @@ function dataValue(data: Record<string, unknown> | null | undefined, key: string
   return typeof value === "string" && value ? value : null
 }
 
+function dataNumberValue(data: Record<string, unknown> | null | undefined, key: string) {
+  const value = data?.[key]
+  return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+function truncateMiddle(value: string, max = 96) {
+  if (value.length <= max) return value
+  const keep = Math.max(12, Math.floor((max - 3) / 2))
+  return `${value.slice(0, keep)}...${value.slice(-keep)}`
+}
+
+function buildPortScanSummary(hit: ProtocolHit) {
+  const service = dataValue(hit.data, "service") ?? "unknown service"
+  const protocolName = dataValue(hit.data, "protocolName")
+  const clientVersion = dataValue(hit.data, "clientVersion")
+  const authType = dataValue(hit.data, "authType")
+  const mstshash = dataValue(hit.data, "mstshash")
+  const requestedSecurity = dataValue(hit.data, "requestedSecurity")
+  const httpMethod = dataValue(hit.data, "httpMethod")
+  const httpPath = dataValue(hit.data, "httpPath")
+  const userAgent = dataValue(hit.data, "userAgent")
+  const hostHeader = dataValue(hit.data, "hostHeader")
+  const authorizationHeader = dataValue(hit.data, "authorizationHeader")
+  const messageLength = dataNumberValue(hit.data, "messageLength")
+  const requestId = dataNumberValue(hit.data, "requestId")
+  const opCode = dataNumberValue(hit.data, "opCode")
+  const targetNamespace = dataValue(hit.data, "targetNamespace")
+  const payloadHex = dataValue(hit.data, "payloadHex")
+
+  const title = protocolName ? `${service} (${protocolName})` : service
+  const lines = [
+    clientVersion && `client: ${clientVersion}`,
+    authType && `auth: ${authType}`,
+    mstshash && `user: ${mstshash}`,
+    requestedSecurity && `sec: ${requestedSecurity}`,
+    httpMethod && `${httpMethod} ${httpPath ?? "/"}`,
+    hostHeader && `host: ${hostHeader}`,
+    userAgent && `ua: ${truncateMiddle(userAgent, 88)}`,
+    authorizationHeader && `authz: ${truncateMiddle(authorizationHeader, 88)}`,
+    targetNamespace && `ns: ${targetNamespace}`,
+    (messageLength !== null || requestId !== null || opCode !== null) &&
+      `mongo len=${messageLength ?? "-"} req=${requestId ?? "-"} op=${opCode ?? "-"}`,
+    hit.event_type === "auth" && hit.password && `pwd-resp: ${truncateMiddle(hit.password, 88)}`,
+    !httpMethod && !targetNamespace && payloadHex && truncateMiddle(payloadHex, 88),
+  ].filter(Boolean) as string[]
+
+  return { title, lines }
+}
+
 function RankingCard({
   title,
   empty,
@@ -345,8 +394,8 @@ export function ProtocolDetailPage({
             ) : (
               hits.map((hit) => {
                 const command = dataValue(hit.data, "command")
-                const service = dataValue(hit.data, "service")
                 const payloadHex = dataValue(hit.data, "payloadHex")
+                const portSummary = isPortScan ? buildPortScanSummary(hit) : null
                 // Enriched handshake fields captured by the protocol-aware port
                 // handlers (VNC/RDP). Shown legibly instead of raw hex.
                 const clientVersion = dataValue(hit.data, "clientVersion")
@@ -387,9 +436,15 @@ export function ProtocolDetailPage({
                           </div>
                         ) : isPortScan ? (
                           <div className="min-w-0">
-                            <p className="font-mono text-xs text-foreground">{service ?? "unknown service"}</p>
-                            {portDetail ? (
-                              <p className="truncate font-mono text-[11px] text-muted-foreground" title={portDetail}>{portDetail}</p>
+                            <p className="font-mono text-xs text-foreground">{portSummary?.title ?? "unknown service"}</p>
+                            {portSummary && portSummary.lines.length > 0 ? (
+                              <div className="space-y-1">
+                                {portSummary.lines.slice(0, 3).map((line) => (
+                                  <p key={line} className="truncate font-mono text-[11px] text-muted-foreground" title={line}>
+                                    {line}
+                                  </p>
+                                ))}
+                              </div>
                             ) : payloadHex ? (
                               <p className="truncate font-mono text-[11px] text-muted-foreground/60" title={payloadHex}>{payloadHex}</p>
                             ) : null}
