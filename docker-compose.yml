@@ -148,20 +148,36 @@ services:
     image: timberio/vector:0.40.0-alpine
     container_name: vector
     restart: unless-stopped
-    # --config explicit: the image ships a demo vector.yaml in /etc/vector/ that
-    # the default entrypoint loads. Pointing directly at our toml overrides it.
-    command: ["--config", "/etc/vector/vector.toml"]
+    command:
+      - "--config-dir"
+      - "/etc/vector/conf.d/"
     depends_on:
       - cowrie
       - kafka
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var:ro
-      - ./vector/cowrie.toml:/etc/vector/vector.toml:ro
+      - suricata_logs:/tmp/suricata-logs:ro
+      - galah_events:/var/log/galah:ro
+      - web_events:/var/log/web-honeypot:ro
+      - ftp_events:/var/log/ftp-honeypot:ro
+      - mysql_events:/var/log/mysql-honeypot:ro
+      - port_events:/var/log/port-honeypot:ro
+      - smb_events:/var/log/smb-honeypot:ro
+      - ./vector/conf.d:/etc/vector/conf.d
       - vector_data:/var/lib/vector
     environment:
       COWRIE_LOG_PATH: /cowrie/cowrie-git/var/log/cowrie/cowrie.json
       SENSOR_ID: ${SENSOR_ID_SSH:-cowrie-ssh-01}
+      SURICATA_SENSOR_ID: ${SENSOR_ID_SURICATA:-suricata-01}
       KAFKA_BROKERS: kafka:9092
+      INGEST_API_URL: http://ingest-api:3000
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
+      GALAH_LOG_PATH: /var/log/galah/galah.json
+      WEB_LOG_PATH: /var/log/web-honeypot/events.json
+      FTP_LOG_PATH: /var/log/ftp-honeypot/events.json
+      MYSQL_LOG_PATH: /var/log/mysql-honeypot/events.json
+      PORT_LOG_PATH: /var/log/port-honeypot/events.json
+      SMB_LOG_PATH: /var/log/smb-honeypot/events.json
 
   web-honeypot:
     build:
@@ -173,7 +189,10 @@ services:
       CLIENT_NAME: ${CLIENT_NAME:-}
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
+      EVENT_LOG_PATH: /var/log/web-honeypot/events.json
       PORT: "8080"
+    volumes:
+      - web_events:/var/log/web-honeypot
     ports:
       - "8080:8080"
     depends_on:
@@ -193,8 +212,11 @@ services:
       CLIENT_NAME: ${CLIENT_NAME:-}
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
+      EVENT_LOG_PATH: /var/log/ftp-honeypot/events.json
       PORT: "2121"   # dev uses non-privileged port
       DST_PORT: "21"
+    volumes:
+      - ftp_events:/var/log/ftp-honeypot
     ports:
       - "2121:2121"
 
@@ -211,8 +233,11 @@ services:
       CLIENT_NAME: ${CLIENT_NAME:-}
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
+      EVENT_LOG_PATH: /var/log/mysql-honeypot/events.json
       PORT: "3307"   # dev uses 3307 to avoid conflict with postgres on 3306
       DST_PORT: "3306"
+    volumes:
+      - mysql_events:/var/log/mysql-honeypot
     ports:
       - "3307:3307"
 
@@ -229,13 +254,37 @@ services:
       CLIENT_NAME: ${CLIENT_NAME:-}
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
+      EVENT_LOG_PATH: /var/log/port-honeypot/events.json
       PORTS: "6379 8888 9090 9200 27017"  # subset for dev
+    volumes:
+      - port_events:/var/log/port-honeypot
     ports:
       - "6379:6379"
       - "8888:8888"
       - "9090:9090"
       - "9200:9200"
       - "27017:27017"
+
+  smb-honeypot:
+    build:
+      context: ./sensors/smb-honeypot
+    container_name: smb-honeypot
+    restart: unless-stopped
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+    environment:
+      CLIENT_SLUG: ${CLIENT_SLUG:-}
+      CLIENT_NAME: ${CLIENT_NAME:-}
+      INGEST_API_URL: http://ingest-api:3000
+      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:-}
+      EVENT_LOG_PATH: /var/log/smb-honeypot/events.json
+      PORT: "4445"   # dev uses non-privileged port (445 requires root/cap)
+      DST_PORT: "445"
+    volumes:
+      - smb_events:/var/log/smb-honeypot
+    ports:
+      - "4445:4445"
 
   dashboard:
     build:
@@ -272,3 +321,10 @@ volumes:
   dashboard_data:
   vector_data:
   kafka_data:
+  suricata_logs:
+  galah_events:
+  web_events:
+  ftp_events:
+  mysql_events:
+  port_events:
+  smb_events:

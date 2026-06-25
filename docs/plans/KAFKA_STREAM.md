@@ -10,6 +10,25 @@ Plan de migración para insertar un broker de streaming (Kafka) entre Vector
 > (DLQ/poison-pill), TD-6 (carrera HTTP↔Kafka residual). Hallazgo ajeno detectado:
 > bug de auth preexistente en Cowrie (ver Tarea 12, debe ser issue propio).
 
+> **Seguimiento (2026-06-25): no-pérdida en los 5 sensores restantes.** Los
+> honeypots web/port/mysql/ftp/smb hacían POST directo *fire-and-forget* (perdían
+> el evento si el POST fallaba). Ahora **escriben log JSON → Vector lo tailea →
+> HTTP sink con buffer en disco** (mismo patrón que Cowrie, pero sink HTTP por
+> ahora). Cierra la única ventana de pérdida real fuera de Kafka. Cambios:
+> - Sensores: `_post(...)` → `_emit(...)` (append JSONL); heartbeat sigue POST
+>   directo. Archivos `sensors/*/app.py`.
+> - Vector: `vector/web-honeypot.toml` y `vector/protocol.toml` (nuevos, molde
+>   `galah.toml`). Cargados en ambos docker-compose con sus volúmenes `:ro`.
+> - Backend: `/ingest/protocol/event` ahora acepta objeto **o** array (Vector
+>   batchea) reusando `processProtocolEvent` — sin duplicar lógica.
+> - Doc: `docs/project-notes/kafka-stream.md` (sección "Sensores que escriben log").
+>
+> **TODO-MULTIHOST:** al pasar a multi-host, cambiar el `sink` de esos 2 toml de
+> `http` a `kafka`, crear topics `honeypot.web` / `honeypot.protocol` y añadir sus
+> handlers al consumer (igual que cowrie/suricata). Los sensores NO se tocan.
+> Relacionado con la decisión de Topics de abajo ("se añaden cuando tengan ruta
+> de ingesta propia") — ahora ya la tienen vía Vector.
+
 ## Decisiones tomadas (NO re-decidir)
 
 Estas decisiones ya están cerradas. La IA **construye**, no decide. Si algo no

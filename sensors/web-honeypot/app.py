@@ -9,6 +9,7 @@ Design goals (inspired by SNARE/TANNER):
 """
 
 import hashlib
+import json
 import logging
 import os
 import secrets
@@ -171,26 +172,26 @@ def get_real_ip() -> str:
     return request.remote_addr or "unknown"
 
 
-def _post_to_ingest(event: dict) -> None:
-    try:
-        headers = {}
-        if INGEST_SHARED_SECRET:
-            headers["X-Ingest-Token"] = INGEST_SHARED_SECRET
-        resp = requests.post(
-            f"{INGEST_URL}/ingest/web/event",
-            json=event,
-            headers=headers,
-            timeout=3,
-        )
-        if resp.status_code not in (200, 201):
-            log.warning("Ingest returned %s: %s", resp.status_code, resp.text[:200])
-    except Exception as exc:
-        log.warning("Ingest send failed: %s", exc)
+# Events are appended as JSONL to EVENT_LOG_PATH; Vector tails this file and
+# ships to the ingest-api with a disk buffer, so an ingest/network outage no
+# longer drops events (they wait on disk and replay on recovery). Flask serves
+# requests across worker threads, so the append is guarded by a lock to keep
+# lines from interleaving.
+EVENT_LOG_PATH = os.environ.get("EVENT_LOG_PATH", "/var/log/web-honeypot/events.json")
+os.makedirs(os.path.dirname(EVENT_LOG_PATH), exist_ok=True)
+_log_lock = threading.Lock()
 
 
 def send_to_ingest(event: dict) -> None:
-    """Non-blocking: fires ingest POST in a daemon thread so the handler returns immediately."""
-    threading.Thread(target=_post_to_ingest, args=(event,), daemon=True).start()
+    """Append the event as one JSON line for Vector to tail. Never blocks on I/O failures."""
+    try:
+        line = json.dumps(event, default=str) + "\n"
+        with _log_lock:
+            with open(EVENT_LOG_PATH, "a") as fh:
+                fh.write(line)
+                fh.flush()
+    except Exception as exc:
+        log.warning("Event log write failed: %s", exc)
 
 
 @app.route("/", defaults={"path": ""}, methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])

@@ -1,0 +1,51 @@
+# vector/protocol.toml - Protocol honeypot event log shipper
+#
+# Tails the events.json (JSONL) of every protocol honeypot — port, mysql, ftp,
+# smb. They all emit the same protocol-event schema, so one source glob + one
+# sink covers them. POSTs in batches to /ingest/protocol/event (which accepts a
+# JSON array); a disk buffer keeps events through an ingest/network outage.
+#
+# Add new protocol honeypots by mounting their log into the glob below — no new
+# config needed.
+
+[sources.protocol_files]
+type       = "file"
+include    = [
+  "${PORT_LOG_PATH}",
+  "${MYSQL_LOG_PATH}",
+  "${FTP_LOG_PATH}",
+  "${SMB_LOG_PATH}",
+]
+read_from  = "end"
+fingerprint.strategy = "device_and_inode"
+
+[transforms.parse_protocol]
+type          = "remap"
+inputs        = ["protocol_files"]
+drop_on_error = true
+source        = '''
+  . = parse_json!(string!(.message))
+'''
+
+[sinks.protocol_ingest]
+type           = "http"
+inputs         = ["parse_protocol"]
+uri            = "${INGEST_API_URL}/ingest/protocol/event"
+method         = "post"
+encoding.codec = "json"
+
+[sinks.protocol_ingest.batch]
+max_events   = 50
+timeout_secs = 2
+
+[sinks.protocol_ingest.request]
+headers.Content-Type  = "application/json"
+headers.X-Ingest-Token = "${INGEST_SHARED_SECRET}"
+retry_attempts = 360
+retry_initial_backoff_secs = 1
+retry_max_duration_secs = 10
+
+[sinks.protocol_ingest.buffer]
+type      = "disk"
+max_size  = 268435488
+when_full = "block"

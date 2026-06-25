@@ -18,6 +18,48 @@ Cada evento viaja como **un mensaje individual** en Kafka (no arrays).
 Vector serializa un evento por mensaje; el consumer lo parsea y llama
 al mismo servicio que usa el endpoint HTTP.
 
+## Sensores que escriben log → Vector → HTTP (no-pérdida sin Kafka aún)
+
+Los 5 honeypots que antes hacían POST directo *fire-and-forget* (perdían el
+evento si el POST fallaba) ahora **escriben una línea JSON por evento** a un log
+que Vector tailea. Vector entrega vía HTTP con **buffer en disco**, así que un
+corte de la API/red ya no pierde eventos: esperan en disco y se reenvían al
+recuperarse. Mismo principio que Cowrie/Suricata, pero con sink HTTP (todavía).
+
+```
+web-honeypot   events.json ──► Vector (web-honeypot.toml) ──► POST /ingest/web/vector
+port/mysql/ftp/smb events.json ─► Vector (protocol.toml) ──► POST /ingest/protocol/event
+```
+
+| Sensor       | Log (en el sensor)            | Config Vector        | Endpoint                  |
+|--------------|-------------------------------|----------------------|---------------------------|
+| web-honeypot | `/var/log/honeypot/events.json` | `web-honeypot.toml`  | `/ingest/web/vector`      |
+| port         | `/var/log/honeypot/events.json` | `protocol.toml`      | `/ingest/protocol/event`  |
+| mysql        | `/var/log/honeypot/events.json` | `protocol.toml`      | `/ingest/protocol/event`  |
+| ftp          | `/var/log/honeypot/events.json` | `protocol.toml`      | `/ingest/protocol/event`  |
+| smb          | `/var/log/honeypot/events.json` | `protocol.toml`      | `/ingest/protocol/event`  |
+
+Detalles:
+- Cada sensor monta un named volume propio (`web_events`, `ftp_events`, …);
+  Vector lo monta `:ro` en `/var/log/<sensor>/events.json` (mount-point distinto,
+  mismo volumen). El path lo pasa la env var `<SENSOR>_LOG_PATH`.
+- El **heartbeat** sigue siendo POST directo a `/sensors/heartbeat` — es estado
+  vivo, no evento de ataque, y no necesita garantía de no-pérdida.
+- La **captura de binarios** (ftp/smb) no cambia: sigue escribiendo
+  `CAPTURES_DIR/{md5}` + `.meta.json`. Solo el *evento* `file.upload` va por el log.
+- `/ingest/protocol/event` acepta **objeto o array**: Vector batchea (array),
+  los sensores que aún POSTean directo (dionaea, opencanary) mandan objeto. Toda
+  la lógica (event-bus, forward, threat/deception alerts) vive en una sola
+  función `processProtocolEvent` — sin duplicar.
+- Idempotente: los endpoints deduplican por `eventId`, así que un reenvío tras
+  recovery no genera duplicados en DB.
+
+> **Migración a Kafka (multi-host):** cuando el deploy pase a multi-host, cambiar
+> el `sink` de `web-honeypot.toml` y `protocol.toml` de `http` a `kafka` (mismo
+> patrón que `cowrie.toml`), crear topics `honeypot.web` y `honeypot.protocol`, y
+> añadir sus handlers al consumer. Los sensores **no se tocan** — ya escriben el
+> log. Ver TODO en el plan KAFKA_STREAM.
+
 ## Topics
 
 | Topic               | Particiones | Replication factor | Productor         | Consumidor              |
@@ -82,25 +124,25 @@ docker exec honeypot-kafka \
 
 ### Cowrie (`vector/cowrie.toml`)
 
-1. Comentar el bloque `[sinks.kafka]` y su `[sinks.kafka.buffer]`.
-2. Descomentar el bloque `[sinks.ingest_api]` y sus sub-tablas, reemplazando
+1. Comentar el bloque `[sinks.cowrie_kafka]` y su `[sinks.cowrie_kafka.buffer]`.
+2. Descomentar el bloque `[sinks.cowrie_ingest_api]` y sus sub-tablas, reemplazando
    los placeholders con las variables reales:
    - `INGEST_API_URL_PLACEHOLDER` → `${INGEST_API_URL}`
    - `INGEST_SHARED_SECRET_PLACEHOLDER` → `${INGEST_SHARED_SECRET}`
-3. En `docker-compose.yml`, servicio `vector`: reemplazar `KAFKA_BROKERS` por
-   `INGEST_API_URL` e `INGEST_SHARED_SECRET`; cambiar `depends_on` de `kafka` a `ingest-api`.
+3. En `vector/conf.d/cowrie.toml`, repetir el mismo cambio si el compose ya usa
+   `--config-dir /etc/vector/conf.d/`.
 4. `docker compose up -d vector`
 
 ### Suricata (`vector/suricata.toml`)
 
-Mismo procedimiento que Cowrie, mismos placeholders.
+Mismo procedimiento que Cowrie, usando `suricata_kafka`.
 
 ## Gotchas
 
-- **Vector carga su demo `vector.yaml` por defecto.** La imagen `timberio/vector:0.40.0-alpine`
-  trae `/etc/vector/vector.yaml` (demo con logs sintéticos). El compose especifica
-  `command: ["--config", "/etc/vector/vector.toml"]` para forzar solo nuestro config.
-  Si se quita ese `command`, Vector silenciosamente vuelve al demo y deja de enviar eventos.
+- **Vector ahora carga desde `conf.d/`.** El compose usa
+  `command: ["--config-dir", "/etc/vector/conf.d/"]`, así que cualquier cambio
+  en los TOML activos debe hacerse dentro de `vector/conf.d/`. Los archivos en
+  `vector/` quedaron como referencia y backup.
 
 - **Variables `${VAR}` en comentarios TOML son expandidas.** Vector expande
   `${...}` en todo el archivo, incluyendo líneas comentadas. Los sinks HTTP

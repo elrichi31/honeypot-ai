@@ -35,13 +35,7 @@ const insightsQuerySchema = z.object({
 export async function protocolRoutes(fastify: FastifyInstance) {
   const svc = new ProtocolService(fastify.prismaRead)
 
-  fastify.post('/ingest/protocol/event', async (request, reply) => {
-    if (!ensureIngestToken(request, reply)) return reply
-
-    const parsed = protocolEventSchema.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ error: 'Invalid event', details: parsed.error.flatten() })
-
-    const d = parsed.data
+  function processProtocolEvent(d: z.infer<typeof protocolEventSchema>): string {
     const sensorId = d.sensorId ?? (typeof d.data?.sensor === 'string' ? d.data.sensor : null)
 
     const id = enqueueProtocolHit({
@@ -68,7 +62,32 @@ export async function protocolRoutes(fastify: FastifyInstance) {
       })
     }
 
-    return reply.status(201).send({ id })
+    return id
+  }
+
+  // Accepts a single event (direct sensor POSTs) or an array (Vector batches the
+  // tailed event log). Both share processProtocolEvent so the event-bus, client
+  // forward, threat- and deception-alert logic lives in exactly one place.
+  fastify.post('/ingest/protocol/event', async (request, reply) => {
+    if (!ensureIngestToken(request, reply)) return reply
+
+    if (Array.isArray(request.body)) {
+      let inserted = 0
+      let invalid = 0
+      for (const item of request.body) {
+        const parsed = protocolEventSchema.safeParse(item)
+        if (!parsed.success) { invalid++; continue }
+        processProtocolEvent(parsed.data)
+        inserted++
+      }
+      if (invalid > 0) fastify.log.warn({ invalid, total: request.body.length }, 'Rejected invalid protocol events')
+      return reply.status(200).send({ inserted, total: request.body.length, invalid })
+    }
+
+    const parsed = protocolEventSchema.safeParse(request.body)
+    if (!parsed.success) return reply.status(400).send({ error: 'Invalid event', details: parsed.error.flatten() })
+
+    return reply.status(201).send({ id: processProtocolEvent(parsed.data) })
   })
 
   fastify.get('/protocol-hits', async (request, reply) => {

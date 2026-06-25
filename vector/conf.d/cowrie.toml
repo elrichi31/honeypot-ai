@@ -1,12 +1,12 @@
-# vector/cowrie.toml — Cowrie log shipper
+# vector/conf.d/cowrie.toml â€” Cowrie log shipper
 #
 # Tails cowrie.json, parses each JSON line, and publishes each event to Kafka.
-# Persists read offset to disk → survives container restarts without losing events.
-# Buffers to disk when the broker is unreachable → no events dropped on downtime.
+# Persists read offset to disk â†’ survives container restarts without losing events.
+# Buffers to disk when the broker is unreachable â†’ no events dropped on downtime.
 #
 # Environment variables (required):
-#   COWRIE_LOG_PATH — path to cowrie.json inside the container
-#   KAFKA_BROKERS   — Kafka bootstrap servers (e.g. kafka:9092)
+#   COWRIE_LOG_PATH â€” path to cowrie.json inside the container
+#   KAFKA_BROKERS   â€” Kafka bootstrap servers (e.g. kafka:9092)
 #
 # ROLLBACK: to revert to HTTP ingestion, comment out [sinks.cowrie_kafka] and
 # its sub-tables, then uncomment [sinks.cowrie_ingest_api] and all its
@@ -14,14 +14,12 @@
 
 data_dir = "/var/lib/vector"
 
-# ── Source: tail cowrie.json ────────────────────────────────────────────────
 [sources.cowrie_file]
 type       = "file"
 include    = ["${COWRIE_LOG_PATH}"]
 read_from  = "end"           # skip history on first run; offset persists after that
 fingerprint.strategy = "device_and_inode"   # handles log rotation correctly
 
-# ── Transform: parse each line as JSON ─────────────────────────────────────
 [transforms.parse_cowrie_event]
 type          = "remap"
 inputs        = ["cowrie_file"]
@@ -31,8 +29,6 @@ source        = '''
   .sensor = "${SENSOR_ID}"
 '''
 
-# ── Sink: publish each event to Kafka ─────────────────────────────────────
-# Each event becomes one Kafka message (no array wrapping).
 [sinks.cowrie_kafka]
 type              = "kafka"
 inputs            = ["parse_cowrie_event"]
@@ -40,17 +36,11 @@ bootstrap_servers = "${KAFKA_BROKERS}"
 topic             = "honeypot.cowrie"
 encoding.codec    = "json"
 
-# Disk buffer — survives broker downtime without dropping events
 [sinks.cowrie_kafka.buffer]
 type      = "disk"
 max_size  = 268435488     # Vector 0.40 minimum disk buffer size
 when_full = "block"       # back-pressure instead of dropping
 
-# ── Sink: POST batches to ingest-api (HTTP fallback — disabled) ────────────
-# To roll back: uncomment everything below and comment out
-# [sinks.cowrie_kafka] above.
-# Also re-add INGEST_API_URL and INGEST_SHARED_SECRET to the vector env in compose.
-#
 # [sinks.cowrie_ingest_api]
 # type    = "http"
 # inputs  = ["parse_cowrie_event"]

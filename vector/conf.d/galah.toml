@@ -1,0 +1,107 @@
+# vector/conf.d/galah.toml - Galah web honeypot log shipper
+#
+# Tails galah.json (JSONL), transforms each event to the web_hits ingest schema,
+# and POSTs to the ingest-api.
+
+[sources.galah_file]
+type = "file"
+include = ["${GALAH_LOG_PATH}"]
+read_from = "end"
+fingerprint.strategy = "device_and_inode"
+
+[transforms.transform_galah]
+type = "remap"
+inputs = ["galah_file"]
+drop_on_error = true
+source = '''
+  . = parse_json!(string!(.message))
+
+  src_ip = replace(string(.srcIP) ?? "unknown", r'^::ffff:', "")
+
+  uri = string(.httpRequest.request) ?? "/"
+  uri_parts = split(uri, "?", limit: 2)
+  path_text = "/"
+  if length(uri_parts) > 0 {
+    path_text = string!(uri_parts[0])
+  }
+
+  query_text = ""
+  if length(uri_parts) > 1 {
+    query_text = string!(uri_parts[1])
+  }
+
+  user_agent = string(.httpRequest.userAgent) ?? ""
+  body = string(.httpRequest.body) ?? ""
+  event_time_raw = string(.eventTime) ?? string(.time) ?? ""
+  event_time_parts = split(event_time_raw, " ")
+  event_date = string!(event_time_parts[0])
+  event_clock = string!(event_time_parts[1])
+  event_offset = string!(event_time_parts[2])
+  event_ts = event_date + "T" + event_clock + slice!(event_offset, 0, 3) + ":" + slice!(event_offset, 3, 5)
+
+  headers = if is_object(.httpRequest.headers) {
+    .httpRequest.headers
+  } else {
+    {}
+  }
+
+  galah_msg = string(.msg) ?? ""
+  headers."x-galah-result" = galah_msg
+
+  galah_error_type = string(.error.type) ?? ""
+  if galah_error_type != "" {
+    headers."x-galah-error-type" = galah_error_type
+  }
+
+  attack_type = "recon"
+  if match(path_text, r'(?i)(union.{0,20}select|select.{0,20}from|insert\s+into|drop\s+table|exec\s*\(|sleep\s*\()') || match(query_text, r'(?i)(union.{0,20}select|sleep\s*\()') {
+    attack_type = "sqli"
+  } else if match(path_text, r'(?i)(<script|javascript:|onerror=|onload=)') || match(query_text, r'(?i)(<script|javascript:)') {
+    attack_type = "xss"
+  } else if match(path_text, r'(?i)(\.\./|%2e%2e%2f|%252e%252e)') || match(query_text, r'(?i)(\.\./|%2e%2e%2f|%252e%252e)') {
+    attack_type = "lfi"
+  } else if match(path_text, r'(?i)(cmd\s*=|exec\s*=|/bin/sh|/bin/bash|system\s*\()') || match(query_text, r'(?i)(cmd\s*=|exec\s*=|/bin/sh|/bin/bash|system\s*\()') || match(body, r'(?i)(/bin/sh|cmd\.exe|wget\s+http|curl\s+http)') {
+    attack_type = "cmdi"
+  } else if match(path_text, r'(?i)(\.env$|\.git/|\.htaccess|wp-config\.php|config\.php|credentials|/\.aws/|/id_rsa|/known_hosts)') {
+    attack_type = "info_disclosure"
+  } else if match(user_agent, r'(?i)(nikto|nmap|sqlmap|masscan|zgrab|nuclei|dirbuster|gobuster|nessus|openvas|python-requests|go-http-client|libwww-perl|scrapy|curl/)') {
+    attack_type = "scanner"
+  } else if match(path_text, r'(?i)(wp-login|wp-admin|xmlrpc\.php|wp-content|wp-includes|wordpress|/api/|/graphql|/rest/|/v[0-9]+/|/swagger|/openapi)') {
+    attack_type = "recon"
+  }
+
+  . = {}
+  .eventId = uuid_v4()
+  .timestamp = event_ts
+  .srcIp = src_ip
+  .method = string(.httpRequest.method) ?? "GET"
+  .path = path_text
+  .query = query_text
+  .userAgent = user_agent
+  .headers = headers
+  .body = body
+  .attackType = attack_type
+'''
+
+[sinks.galah_ingest]
+type = "http"
+inputs = ["transform_galah"]
+uri = "${INGEST_API_URL}/ingest/web/vector"
+method = "post"
+encoding.codec = "json"
+
+[sinks.galah_ingest.batch]
+max_events = 50
+timeout_secs = 2
+
+[sinks.galah_ingest.request]
+headers.Content-Type = "application/json"
+headers.X-Ingest-Token = "${INGEST_SHARED_SECRET}"
+retry_attempts = 360
+retry_initial_backoff_secs = 1
+retry_max_duration_secs = 10
+
+[sinks.galah_ingest.buffer]
+type = "disk"
+max_size = 268435488
+when_full = "block"

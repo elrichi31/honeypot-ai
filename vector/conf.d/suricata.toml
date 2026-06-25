@@ -1,24 +1,22 @@
-# vector/suricata.toml — Suricata EVE JSON alert shipper
+# vector/conf.d/suricata.toml â€” Suricata EVE JSON alert shipper
 #
 # Tails /var/log/suricata/eve.json, filters alert events,
 # and publishes each alert to Kafka (topic: honeypot.suricata).
 #
 # Environment variables (required):
-#   SURICATA_SENSOR_ID — sensor identifier (e.g. suricata-01)
-#   KAFKA_BROKERS      — Kafka bootstrap servers (e.g. kafka:9092)
+#   SURICATA_SENSOR_ID â€” sensor identifier (e.g. suricata-01)
+#   KAFKA_BROKERS      â€” Kafka bootstrap servers (e.g. kafka:9092)
 #
 # ROLLBACK: to revert to HTTP ingestion, comment out [sinks.suricata_kafka] and
 # its sub-tables, then uncomment [sinks.suricata_ingest] and all its sub-tables
-# below. Also re-add INGEST_API_URL and INGEST_SHARED_SECRET to the vector env.
+# below.
 
-# ── Source: tail Suricata EVE JSON ─────────────────────────────────────────
 [sources.suricata_eve]
 type       = "file"
 include    = ["/tmp/suricata-logs/eve.json"]
 read_from  = "end"
 fingerprint.strategy = "device_and_inode"
 
-# ── Transform: parse JSON and filter to alerts only ─────────────────────────
 [transforms.parse_suricata]
 type          = "remap"
 inputs        = ["suricata_eve"]
@@ -32,8 +30,6 @@ source        = '''
   .sensor_id = "${SURICATA_SENSOR_ID}"
 '''
 
-# ── Sink: publish each alert to Kafka ──────────────────────────────────────
-# Each alert becomes one Kafka message (no array wrapping).
 [sinks.suricata_kafka]
 type              = "kafka"
 inputs            = ["parse_suricata"]
@@ -41,17 +37,11 @@ bootstrap_servers = "${KAFKA_BROKERS}"
 topic             = "honeypot.suricata"
 encoding.codec    = "json"
 
-# Disk buffer — survives broker downtime without dropping events
 [sinks.suricata_kafka.buffer]
 type      = "disk"
-max_size  = 268435488     # Vector 0.40 minimum disk buffer size
-when_full = "block"       # back-pressure instead of dropping
+max_size  = 268435488
+when_full = "block"
 
-# ── Sink: POST batches to ingest-api (HTTP fallback — disabled) ────────────
-# To roll back: uncomment everything below and comment out
-# [sinks.suricata_kafka] above.
-# Also re-add INGEST_API_URL and INGEST_SHARED_SECRET to the vector env.
-#
 # [sinks.suricata_ingest]
 # type    = "http"
 # inputs  = ["parse_suricata"]

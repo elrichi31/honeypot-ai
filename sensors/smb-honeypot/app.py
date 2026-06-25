@@ -78,9 +78,30 @@ def _post(path: str, payload: dict):
         log.debug("ingest error: %s", exc)
 
 
+# Attack events are appended as JSONL to EVENT_LOG_PATH; Vector tails this file
+# and ships to the ingest-api with a disk buffer, so an ingest/network outage no
+# longer drops events. Impacket invokes auth callbacks from multiple threads, so
+# the append is guarded by a lock to keep lines from interleaving. The heartbeat
+# stays a direct POST — live state, not events.
+EVENT_LOG_PATH = os.getenv("EVENT_LOG_PATH", "/var/log/smb-honeypot/events.json")
+os.makedirs(os.path.dirname(EVENT_LOG_PATH), exist_ok=True)
+_log_lock = threading.Lock()
+
+
+def _emit(event: dict):
+    try:
+        line = json.dumps(event, default=str) + "\n"
+        with _log_lock:
+            with open(EVENT_LOG_PATH, "a") as fh:
+                fh.write(line)
+                fh.flush()
+    except Exception as exc:
+        log.debug("event log write error: %s", exc)
+
+
 def _send(event_type: str, src_ip: str, src_port: int | None,
           username: str | None = None, extra: dict | None = None):
-    _post("/ingest/protocol/event", {
+    _emit({
         "eventId":   str(uuid.uuid4()),
         "sensorId":  SENSOR_ID,
         "protocol":  "smb",

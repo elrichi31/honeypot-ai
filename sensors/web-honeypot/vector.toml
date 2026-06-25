@@ -1,0 +1,39 @@
+# Web honeypot ships its own Vector config for incremental installs.
+# install.sh copies this file into vector/conf.d/web-honeypot.toml.
+
+[sources.web_file]
+type       = "file"
+include    = ["${WEB_LOG_PATH}"]
+read_from  = "end"
+fingerprint.strategy = "device_and_inode"
+
+[transforms.parse_web]
+type          = "remap"
+inputs        = ["web_file"]
+drop_on_error = true
+source        = '''
+  . = parse_json!(string!(.message))
+'''
+
+[sinks.web_ingest]
+type           = "http"
+inputs         = ["parse_web"]
+uri            = "${INGEST_API_URL}/ingest/web/vector"
+method         = "post"
+encoding.codec = "json"
+
+[sinks.web_ingest.batch]
+max_events   = 50
+timeout_secs = 2
+
+[sinks.web_ingest.request]
+headers.Content-Type  = "application/json"
+headers.X-Ingest-Token = "${INGEST_SHARED_SECRET}"
+retry_attempts = 360
+retry_initial_backoff_secs = 1
+retry_max_duration_secs = 10
+
+[sinks.web_ingest.buffer]
+type      = "disk"
+max_size  = 268435488
+when_full = "block"

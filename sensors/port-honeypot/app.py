@@ -94,6 +94,24 @@ def _post(path: str, payload: dict):
         log.debug("ingest error: %s", exc)
 
 
+# Attack events are appended as JSONL to EVENT_LOG_PATH; Vector tails this file
+# and ships to the ingest-api with a disk buffer, so an ingest/network outage no
+# longer drops events. A single asyncio loop serializes these writes, so no lock
+# is needed. The heartbeat above stays a direct POST — it carries live state, not
+# events, and need not survive an outage.
+EVENT_LOG_PATH = os.getenv("EVENT_LOG_PATH", "/var/log/port-honeypot/events.json")
+os.makedirs(os.path.dirname(EVENT_LOG_PATH), exist_ok=True)
+
+
+def _emit(event: dict):
+    try:
+        with open(EVENT_LOG_PATH, "a") as fh:
+            fh.write(json.dumps(event, default=str) + "\n")
+            fh.flush()
+    except Exception as exc:
+        log.debug("event log write error: %s", exc)
+
+
 def _send(
     src_ip: str,
     src_port: int,
@@ -128,7 +146,7 @@ def _send(
         payload["username"] = username
     if password is not None:
         payload["password"] = password
-    _post("/ingest/protocol/event", payload)
+    _emit(payload)
 
 
 _active_ports: list[int] = []
