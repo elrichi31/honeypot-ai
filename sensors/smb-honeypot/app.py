@@ -18,7 +18,8 @@ import uuid
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
 
-from impacket.smbserver import SimpleSMBServer
+from impacket import smb, smb2
+from impacket.smbserver import SMB2Commands, SMBCommands, SimpleSMBServer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("smb-honeypot")
@@ -173,6 +174,116 @@ def _capture_file(local_path: str, share: str, requested_path: str, src_ip: str)
         return {}
 
 
+def _mark_write(connData: dict, file_id, data_len: int):
+    opened = connData.get("OpenedFiles", {}).get(file_id)
+    if not opened or data_len <= 0:
+        return
+    opened["__written"] = True
+    opened["__bytes_written"] = int(opened.get("__bytes_written", 0)) + data_len
+
+
+def _finalize_capture(connData: dict, file_id, tree_id=None):
+    opened = connData.get("OpenedFiles", {}).get(file_id)
+    if not opened or not opened.get("__written"):
+        return
+
+    file_path = opened.get("FileName")
+    if not file_path or not os.path.isfile(file_path):
+        return
+
+    src_ip = connData.get("ClientIP", "unknown")
+    src_port = connData.get("ClientPort")
+    requested_path = os.path.relpath(file_path, SHARE_PATH)
+    share_name = SHARE_NAME
+    if tree_id is not None:
+        share = connData.get("ConnectedShares", {}).get(tree_id)
+        if isinstance(share, dict):
+            share_name = share.get("shareName") or share.get("name") or share_name
+
+    info = _capture_file(file_path, share_name, requested_path, src_ip)
+    if not info:
+        return
+
+    _send(
+        "file.upload",
+        src_ip,
+        src_port,
+        extra={
+            "shareName": share_name,
+            "requestedPath": requested_path,
+            **info,
+        },
+    )
+
+
+def _patch_impacket_writes():
+    smb1_write = SMBCommands.smbComWrite
+    smb1_write_andx = SMBCommands.smbComWriteAndX
+    smb1_close = SMBCommands.smbComClose
+    smb2_write = SMB2Commands.smb2Write
+    smb2_close = SMB2Commands.smb2Close
+
+    def patched_smb1_write(connId, smbServer, SMBCommand, recvPacket):
+        connData = smbServer.getConnectionData(connId)
+        params = smb.SMBWrite_Parameters(SMBCommand["Parameters"])
+        resp = smb1_write(connId, smbServer, SMBCommand, recvPacket)
+        if recvPacket["Tid"] in connData.get("ConnectedShares", {}) and params["Fid"] in connData.get("OpenedFiles", {}):
+            _mark_write(connData, params["Fid"], int(params["Count"]))
+            smbServer.setConnectionData(connId, connData)
+        return resp
+
+    def patched_smb1_write_andx(connId, smbServer, SMBCommand, recvPacket):
+        connData = smbServer.getConnectionData(connId)
+        if SMBCommand["WordCount"] == 0x0C:
+            writeAndX = smb.SMBWriteAndX_Parameters_Short(SMBCommand["Parameters"])
+            data_len = int(writeAndX["DataLength"])
+            fid = writeAndX["Fid"]
+        else:
+            writeAndX = smb.SMBWriteAndX_Parameters(SMBCommand["Parameters"])
+            data_len = int(writeAndX["DataLength"])
+            fid = writeAndX["Fid"]
+        resp = smb1_write_andx(connId, smbServer, SMBCommand, recvPacket)
+        if recvPacket["Tid"] in connData.get("ConnectedShares", {}) and fid in connData.get("OpenedFiles", {}):
+            _mark_write(connData, fid, data_len)
+            smbServer.setConnectionData(connId, connData)
+        return resp
+
+    def patched_smb1_close(connId, smbServer, SMBCommand, recvPacket):
+        connData = smbServer.getConnectionData(connId)
+        params = smb.SMBClose_Parameters(SMBCommand["Parameters"])
+        _finalize_capture(connData, params["FID"], recvPacket["Tid"])
+        return smb1_close(connId, smbServer, SMBCommand, recvPacket)
+
+    def patched_smb2_write(connId, smbServer, recvPacket):
+        connData = smbServer.getConnectionData(connId)
+        writeRequest = smb2.SMB2Write(recvPacket["Data"])
+        if writeRequest["FileID"].getData() == b"\xff" * 16 and "SMB2_CREATE" in connData.get("LastRequest", {}):
+            file_id = connData["LastRequest"]["SMB2_CREATE"]["FileID"]
+        else:
+            file_id = writeRequest["FileID"].getData()
+        resp = smb2_write(connId, smbServer, recvPacket)
+        if recvPacket["TreeID"] in connData.get("ConnectedShares", {}) and file_id in connData.get("OpenedFiles", {}):
+            _mark_write(connData, file_id, int(writeRequest["Length"]))
+            smbServer.setConnectionData(connId, connData)
+        return resp
+
+    def patched_smb2_close(connId, smbServer, recvPacket):
+        connData = smbServer.getConnectionData(connId)
+        closeRequest = smb2.SMB2Close(recvPacket["Data"])
+        if closeRequest["FileID"].getData() == b"\xff" * 16 and "SMB2_CREATE" in connData.get("LastRequest", {}):
+            file_id = connData["LastRequest"]["SMB2_CREATE"]["FileID"]
+        else:
+            file_id = closeRequest["FileID"].getData()
+        _finalize_capture(connData, file_id, recvPacket["TreeID"])
+        return smb2_close(connId, smbServer, recvPacket)
+
+    SMBCommands.smbComWrite = staticmethod(patched_smb1_write)
+    SMBCommands.smbComWriteAndX = staticmethod(patched_smb1_write_andx)
+    SMBCommands.smbComClose = staticmethod(patched_smb1_close)
+    SMB2Commands.smb2Write = staticmethod(patched_smb2_write)
+    SMB2Commands.smb2Close = staticmethod(patched_smb2_close)
+
+
 # ---------------------------------------------------------------------------
 # Decoy files
 # ---------------------------------------------------------------------------
@@ -233,6 +344,7 @@ def main():
     os.makedirs(SHARE_PATH, exist_ok=True)
     os.makedirs(CAPTURE_DIR, exist_ok=True)
     _seed_decoy_files(SHARE_PATH)
+    _patch_impacket_writes()
 
     log.info("SMB honeypot starting — share=%s path=%s port=%d sensor=%s",
              SHARE_NAME, SHARE_PATH, PORT, SENSOR_ID)
