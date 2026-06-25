@@ -619,8 +619,10 @@ services:
       SENSOR_IP: ${HONEYPOT_IP:-}
       SENSOR_HOST: smb-honeypot
       SMB_SHARE_NAME: ${SMB_SHARE_NAME:-ADMIN$}
-      SMB_SERVER_NAME: ${SMB_SERVER_NAME:-FILESERVER01}
-      SMB_SERVER_DOMAIN: ${SMB_SERVER_DOMAIN:-CORP}
+      SMB_SHARE_COMMENT: ${SMB_SHARE_COMMENT:-TechCorp Remote Admin}
+      SMB_SERVER_NAME: ${SMB_SERVER_NAME:-FS-TECHCORP-01}
+      SMB_SERVER_OS: ${SMB_SERVER_OS:-Windows Server 2022 Standard}
+      SMB_SERVER_DOMAIN: ${SMB_SERVER_DOMAIN:-TECHCORP}
       SMB_SHARE_PATH: /share
       SMB_CAPTURE_DIR: /captures
       EVENT_LOG_PATH: /var/log/smb-honeypot/events.json

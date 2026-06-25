@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SMB Honeypot — full SMBv1/v2 server via Impacket.
+"""SMB Honeypot — full SMB server via Impacket.
 
 Captures NTLM auth (username, domain, OS, NT/LM hashes), share access,
 and file drops using Impacket's official setAuthCallback API.
@@ -41,7 +41,10 @@ VERSION              = "1.0.0"
 CAPTURE_DIR   = os.getenv("SMB_CAPTURE_DIR", "/captures")
 SHARE_NAME    = os.getenv("SMB_SHARE_NAME", "ADMIN$")
 SHARE_PATH    = os.getenv("SMB_SHARE_PATH", "/share")
-SERVER_DOMAIN = os.getenv("SMB_SERVER_DOMAIN", "CORP")
+SHARE_COMMENT = os.getenv("SMB_SHARE_COMMENT", "TechCorp Remote Admin")
+SERVER_NAME   = os.getenv("SMB_SERVER_NAME", "FS-TECHCORP-01")
+SERVER_OS     = os.getenv("SMB_SERVER_OS", "Windows Server 2022 Standard")
+SERVER_DOMAIN = os.getenv("SMB_SERVER_DOMAIN", "TECHCORP")
 
 
 # ---------------------------------------------------------------------------
@@ -284,6 +287,26 @@ def _patch_impacket_writes():
     SMB2Commands.smb2Close = staticmethod(patched_smb2_close)
 
 
+def _apply_server_identity(server: SimpleSMBServer):
+    cfg = getattr(server, "_SimpleSMBServer__smbConfig", None)
+    if cfg is None:
+        return
+
+    cfg.set("global", "server_name", SERVER_NAME)
+    cfg.set("global", "server_os", SERVER_OS)
+    cfg.set("global", "server_domain", SERVER_DOMAIN)
+
+    for attr in ("_SimpleSMBServer__server", "_SimpleSMBServer__srvsServer", "_SimpleSMBServer__wkstServer"):
+        obj = getattr(server, attr, None)
+        if obj is None:
+            continue
+        try:
+            obj.setServerConfig(cfg)
+            obj.processConfigFile()
+        except Exception as exc:
+            log.debug("could not apply SMB identity to %s: %s", attr, exc)
+
+
 # ---------------------------------------------------------------------------
 # Decoy files
 # ---------------------------------------------------------------------------
@@ -291,9 +314,21 @@ def _seed_decoy_files(path: str):
     decoys = {
         "desktop.ini":           b"[.ShellClassInfo]\r\nIconResource=C:\\Windows\\System32\\imageres.dll,-3\r\n",
         "Q4-Budget-2024.xlsx":   b"PK\x03\x04" + b"\x00" * 100,
-        "IT-Passwords-TEMP.txt": b"# Temporary password list\r\nAdmin: Ch@ng3M3!\r\nBackup: B@ckup2024\r\n",
-        "VPN-Config.ovpn":       b"client\r\ndev tun\r\nproto udp\r\nremote vpn.corp.internal 1194\r\n",
-        "network-scan.bat":      b"@echo off\r\nnet view\r\nnltest /domain_trusts\r\n",
+        "IT-Passwords-TEMP.txt": (
+            b"# TechCorp temporary password list\r\n"
+            b"it-admin: TempAdm!n2024\r\n"
+            b"backup-svc: B@ckup_2024!\r\n"
+        ),
+        "VPN-Config.ovpn":       (
+            b"client\r\ndev tun\r\nproto udp\r\n"
+            b"remote vpn.techcorp.internal 1194\r\n"
+        ),
+        "network-scan.bat":      (
+            b"@echo off\r\n"
+            b"net view /domain:TECHCORP\r\n"
+            b"nltest /domain_trusts\r\n"
+            b"ping fs-techcorp-01\r\n"
+        ),
     }
     for name, content in decoys.items():
         fpath = os.path.join(path, name)
@@ -353,7 +388,11 @@ def main():
 
     try:
         server = SimpleSMBServer(listenAddress="0.0.0.0", listenPort=PORT)
-        server.addShare(SHARE_NAME, SHARE_PATH, "File Share")
+        _apply_server_identity(server)
+        server.addShare(SHARE_NAME, SHARE_PATH, SHARE_COMMENT)
+        # Enable SMB2 negotiation so modern clients can connect using SMB2/SMB3
+        # dialects instead of falling back to the older SMB1-only posture.
+        server.setSMB2Support(True)
         server.setSMBChallenge("")          # static challenge — hashes reproducible
         server.setLogFile("/dev/null")      # suppress Impacket's own file log
         # Add a dummy credential so Impacket always runs NTLM verification
@@ -363,7 +402,10 @@ def main():
         # Register our auth interception callback
         server.setAuthCallback(_auth_callback)
 
-        log.info("SMB honeypot ready on :%d share=\\\\localhost\\%s", PORT, SHARE_NAME)
+        log.info(
+            "SMB honeypot ready on :%d share=\\\\%s\\%s smb2=true os=%s domain=%s",
+            PORT, SERVER_NAME, SHARE_NAME, SERVER_OS, SERVER_DOMAIN,
+        )
         server.start()
 
     except Exception as exc:
