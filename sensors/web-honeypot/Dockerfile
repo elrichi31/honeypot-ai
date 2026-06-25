@@ -8,8 +8,8 @@ WORKDIR /app
 
 RUN addgroup --system app && adduser --system --ingroup app app
 
-# su-exec drops privileges after fixing volume mount permissions at runtime
-RUN apt-get update && apt-get install -y --no-install-recommends su-exec && rm -rf /var/lib/apt/lists/*
+# gosu drops privileges after fixing volume mount permissions at runtime
+RUN apt-get update && apt-get install -y --no-install-recommends gosu && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
