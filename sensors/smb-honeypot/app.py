@@ -330,7 +330,7 @@ def _patch_smb2_negotiate():
         respSMBCommand["MaxTransactSize"] = 65536
         respSMBCommand["MaxReadSize"] = 65536
         respSMBCommand["MaxWriteSize"] = 65536
-        now_ft = smb.POSIXtoFT(calendar.timegm(time.gmtime()))
+        now_ft = _posix_to_filetime(calendar.timegm(time.gmtime()))
         respSMBCommand["SystemTime"] = now_ft
         respSMBCommand["ServerStartTime"] = now_ft
         respSMBCommand["SecurityBufferOffset"] = 0x80
@@ -356,6 +356,11 @@ def _patch_smb2_negotiate():
         return None, [respPacket], STATUS_SUCCESS
 
     SMB2Commands.smb2Negotiate = staticmethod(patched_smb2_negotiate)
+
+
+def _posix_to_filetime(epoch_seconds: int) -> int:
+    # Windows FILETIME = 100ns ticks since 1601-01-01 UTC.
+    return int((epoch_seconds + 11644473600) * 10_000_000)
 
 
 def _apply_server_identity(server: SimpleSMBServer):
