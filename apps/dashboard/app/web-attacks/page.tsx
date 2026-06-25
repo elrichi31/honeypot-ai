@@ -14,6 +14,45 @@ import { ClientSensorFilter } from "@/components/client-sensor-filter"
 import { TablePagination } from "@/components/table-pagination"
 import { Surface } from "@/components/ui/surface"
 import { StatCard } from "@/components/ui/stat-card"
+import { db } from "@/lib/db"
+
+const countryNames = new Intl.DisplayNames(["en"], { type: "region" })
+
+async function readGeoCacheForIps(ips: string[]): Promise<Record<string, { country: string; countryName: string }>> {
+  if (ips.length === 0) return {}
+  try {
+    const { rows } = await db.query<{
+      ip: string
+      ipinfo_data: { country?: string | null } | null
+      abuseipdb_data: { countryCode?: string | null; countryName?: string | null } | null
+    }>(
+      `SELECT ip, ipinfo_data, abuseipdb_data
+         FROM ip_enrichment_cache
+        WHERE ip = ANY($1::text[])`,
+      [ips],
+    )
+
+    const geo: Record<string, { country: string; countryName: string }> = {}
+    for (const row of rows) {
+      const country =
+        row.abuseipdb_data?.countryCode?.trim() ||
+        row.ipinfo_data?.country?.trim() ||
+        ""
+      if (!country || country.length !== 2) continue
+
+      geo[row.ip] = {
+        country,
+        countryName:
+          row.abuseipdb_data?.countryName?.trim() ||
+          countryNames.of(country.toUpperCase()) ||
+          country.toUpperCase(),
+      }
+    }
+    return geo
+  } catch {
+    return {}
+  }
+}
 
 function SortableWebTh({
   label, column, sortBy, sortDir, q, type, range, clientSlug, sensorId, pageSize,
@@ -97,9 +136,10 @@ export default async function WebAttacksPage({
     )
   }
 
+  const cachedGeoMap = await readGeoCacheForIps(attackersPage.items.map((a) => a.srcIp))
   const geoMap: Record<string, { country: string; countryName: string } | null> = {}
   for (const attacker of attackersPage.items) {
-    geoMap[attacker.srcIp] = lookupIp(attacker.srcIp)
+    geoMap[attacker.srcIp] = cachedGeoMap[attacker.srcIp] ?? lookupIp(attacker.srcIp)
   }
 
   return (
