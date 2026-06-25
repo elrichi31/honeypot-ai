@@ -1,0 +1,47 @@
+# suricata-http.toml — usado en deploys sin Kafka (single-host prod).
+# En docker-compose.prod.single-host.yml, montar este archivo sobre suricata.toml:
+#   - ./vector/conf.d/suricata-http.toml:/etc/vector/conf.d/suricata.toml:ro
+#
+# Diferencia con suricata.toml: sink HTTP hacia ingest-api en lugar de Kafka.
+
+[sources.suricata_eve]
+type       = "file"
+include    = ["/tmp/suricata-logs/eve.json"]
+read_from  = "end"
+fingerprint.strategy = "device_and_inode"
+
+[transforms.parse_suricata]
+type          = "remap"
+inputs        = ["suricata_eve"]
+drop_on_error = true
+source        = '''
+  . = parse_json!(string!(.message))
+  if .event_type != "alert" {
+    abort
+  }
+  .sensor_id = "${SURICATA_SENSOR_ID}"
+'''
+
+[sinks.suricata_ingest]
+type           = "http"
+inputs         = ["parse_suricata"]
+uri            = "${INGEST_API_URL}/ingest/suricata/alert"
+method         = "post"
+encoding.codec = "json"
+
+[sinks.suricata_ingest.batch]
+max_events   = 50
+timeout_secs = 5
+
+[sinks.suricata_ingest.request]
+headers.Content-Type   = "application/json"
+headers.X-Ingest-Token = "${INGEST_SHARED_SECRET}"
+timeout_secs               = 20
+retry_attempts             = 360
+retry_initial_backoff_secs = 1
+retry_max_duration_secs    = 10
+
+[sinks.suricata_ingest.buffer]
+type      = "disk"
+max_size  = 268435488
+when_full = "block"

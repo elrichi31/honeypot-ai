@@ -356,6 +356,8 @@ services:
       - port_events:/var/log/port-honeypot:ro
       - smb_events:/var/log/smb-honeypot:ro
       - ./vector/conf.d:/etc/vector/conf.d
+      - ./vector/conf.d/cowrie-http.toml:/etc/vector/conf.d/cowrie.toml:ro
+      - ./vector/conf.d/suricata-http.toml:/etc/vector/conf.d/suricata.toml:ro
       - vector_data:/var/lib/vector
     command: ["--config-dir", "/etc/vector/conf.d/"]
     environment:
