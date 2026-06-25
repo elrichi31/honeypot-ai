@@ -132,10 +132,10 @@ echo "════════════════════════�
 echo " 4. MySQL honeypot — puerto 3306"
 echo "═══════════════════════════════════════════════════"
 
-MYSQL_BANNER=$(timeout 5 bash -c "echo '' | nc -w 3 ${HOST} 3306 2>/dev/null | head -c 20 | strings" || true)
+MYSQL_BYTES=$(timeout 5 bash -c "echo '' | nc -w 3 ${HOST} 3306 2>/dev/null | head -c 20 | wc -c | tr -d ' '" || true)
 
-if [[ -n "$MYSQL_BANNER" ]]; then
-    pass "MySQL honeypot responde en :3306 (bytes recibidos)"
+if [[ "${MYSQL_BYTES:-0}" =~ ^[0-9]+$ ]] && [[ "$MYSQL_BYTES" -gt 0 ]]; then
+    pass "MySQL honeypot responde en :3306 (${MYSQL_BYTES} bytes recibidos)"
     wait_vector
     info "Verificar en dashboard: Protocol Hits → MySQL → nuevo evento"
     COUNT=$(protocol_count "mysql")
