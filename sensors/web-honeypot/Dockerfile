@@ -8,21 +8,18 @@ WORKDIR /app
 
 RUN addgroup --system app && adduser --system --ingroup app app
 
+# su-exec drops privileges after fixing volume mount permissions at runtime
+RUN apt-get update && apt-get install -y --no-install-recommends su-exec && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
 RUN chown -R app:app /app && \
-    mkdir -p /var/log/web-honeypot && \
-    chown app:app /var/log/web-honeypot
-
-USER app
+    chmod +x /app/entrypoint.sh
 
 EXPOSE 8080
 
-# gunicorn for production-grade concurrency. Honeypot traffic is bursty and highly
-# concurrent (scanners like gobuster open many simultaneous keep-alive connections),
-# so use threaded workers + a deep listen backlog to avoid the kernel RST-ing
-# connections when all sync workers are busy.
-CMD ["gunicorn", "--config", "gunicorn.conf.py", "app:app"]
+# entrypoint.sh runs as root, chowns the mounted volume dir, then drops to app
+ENTRYPOINT ["/app/entrypoint.sh"]
