@@ -8,6 +8,7 @@ import { sampleContainerStatsForCron } from './docker-stats.js'
 import { buildRecentRollups } from './rollups.js'
 
 const SENSOR_HEALTH_SCHEDULE = '* * * * *'
+const MONITORING_SNAPSHOT_SCHEDULE = '* * * * *'
 // Every 30s (6-field cron with seconds). Drains the threat-evaluation queue off
 // the ingest hot path, so each tick runs a bounded number of heavy aggregate
 // evaluations instead of firing them per-event under load.
@@ -48,7 +49,7 @@ export function initCron(prisma: PrismaClient): void {
   }, { timezone: 'UTC' })
 
   // Sample system metrics every minute for the monitoring timeline
-  cron.schedule(SENSOR_HEALTH_SCHEDULE, async () => {
+  cron.schedule(MONITORING_SNAPSHOT_SCHEDULE, async () => {
     const cutoff = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000)
     try {
       const metrics = readSystemMetrics()

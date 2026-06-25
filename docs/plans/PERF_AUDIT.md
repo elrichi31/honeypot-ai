@@ -1,0 +1,223 @@
+# PERF_AUDIT — auditoría + plan de resolución de rendimiento
+
+**Estado:** Implementado — 2026-06-24. A1, C1, C2, D1, B1, B2, M1, M2 resueltos.
+Pendiente instrumentar (M3/A2/C3/D2) — requieren métricas primero.
+Complementa [MONITORING_PERF.md](MONITORING_PERF.md) (ya resuelve la saturación de
+`dockerd`). Aquí están el resto de cuellos de botella detectados barriendo
+`ingest-api` y `dashboard`, con **el arreglo paso a paso** para cada uno.
+
+Hallazgos verificados con archivo:línea. Las tareas incluyen el código del fix,
+los archivos a tocar y cómo verificar.
+
+> Refinamiento tras lectura de cerca:
+> - El insert por evento **no** es 1×1 ingenuo: `event.repository` ya usa
+>   `createMany({ skipDuplicates })` (1 call) y `session.repository` usa `upsert`
+>   (1 call). El costo real por evento son **dos round-trips secuenciales**
+>   (`session.upsert` → `event.createMany`) + la construcción de objetos por
+>   request.
+> - **A1 aplica al hot-path REAL de producción**: el consumidor de Kafka
+>   ([`kafka-consumer.ts:45`](../../apps/ingest-api/src/plugins/kafka-consumer.ts#L45))
+>   instancia `new IngestService` **por cada mensaje**, no solo el endpoint HTTP
+>   de fallback. Sube la prioridad de A1.
+
+---
+
+## A. Hot-path de ingesta — corre bajo ataque (máxima prioridad)
+
+### A1 — Reusar `IngestService` / `SuricataService` en vez de instanciar por evento ⚠️ ✅ 2026-06-24
+**Evidencia:**
+- Kafka (producción): [`kafka-consumer.ts:45`](../../apps/ingest-api/src/plugins/kafka-consumer.ts#L45)
+  `new IngestService(fastify.prisma)` y [`:57`](../../apps/ingest-api/src/plugins/kafka-consumer.ts#L57)
+  `new SuricataService(...)` — **por mensaje**.
+- HTTP (fallback): [`ingest.ts:37,56,88,135`](../../apps/ingest-api/src/routes/ingest.ts#L37)
+  `new IngestService` **por request**.
+- Contraste: el resto de rutas instancian **una vez** en el closure del plugin
+  (`monitoring.ts:81`, `stats/*`, …).
+
+**Por qué cuesta:** `new IngestService` crea además `new SessionRepository` +
+`new EventRepository` (ver [`ingest.service.ts:15-19`](../../apps/ingest-api/src/modules/ingest/ingest.service.ts#L15-L19)).
+Bajo ataque = miles de eventos → asignación + GC proporcional al volumen, justo
+en el punto más caliente. `IngestService` es **stateless** salvo el `prisma`
+inyectado (verificado: sin estado mutable por request) ⇒ compartir es seguro.
+
+**Arreglo (Kafka):** crear los services una vez al registrar el plugin y pasarlos
+a los handlers.
+```ts
+// kafka-consumer.ts — dentro de fp(async (fastify) => { ... }), tras validar brokers
+const ingestSvc   = new IngestService(fastify.prisma)
+const suricataSvc = new SuricataService(fastify.prisma, fastify.prismaRead)
+// handleCowrie/handleSuricata reciben el svc por parámetro en vez de instanciarlo
+```
+**Arreglo (HTTP):** subir `const service = new IngestService(fastify.prisma)` al
+cuerpo de `ingestRoutes` (una vez) y reusarlo en los 4 handlers.
+
+**Riesgo:** bajo. **Verificación:** suite verde + ingesta de un batch real;
+confirmar mismo conteo de sessions/events. Opcional: medir RSS/GC bajo carga
+sintética antes/después.
+
+### A2 — (Investigación) Colapsar los 2 round-trips por evento ⏳ requiere M3 primero
+**Evidencia:** [`ingest.service.ts:21-28`](../../apps/ingest-api/src/modules/ingest/ingest.service.ts#L21-L28)
+hace `await sessionRepo.upsert(...)` y **luego** `await eventRepo.createIfNotExists(...)`
+— secuencial porque el event necesita el `sessionDbId`. Con Kafka procesando
+mensaje a mensaje, son 2 viajes a Postgres por evento en serie.
+
+**Opciones (medir antes de elegir):**
+1. **Batch a nivel de consumidor.** `eachBatch` de kafkajs en vez de
+   `eachMessage`: agrupar N mensajes, hacer los upserts de sesión y los inserts
+   de evento en 2 `createMany`/transacción por lote. Mayor ganancia, más cambio.
+2. **Pipeline con `protocol-batch` existente.** Ya hay un batcher probado
+   ([`protocol-batch.ts`](../../apps/ingest-api/src/lib/protocol-batch.ts)); evaluar
+   un patrón equivalente para events.
+3. **No tocar** si el throughput actual sobra. Decisión basada en métricas: medir
+   eventos/s sostenibles hoy vs. pico de ataque observado.
+
+**Acción:** primero instrumentar (latencia p50/p99 de `processLine`, lag del
+consumer group). Solo entonces elegir. No especular.
+
+---
+
+## B. Frontend — conexiones SSE
+
+### B1 — Unificar el doble `EventSource` en un provider compartido ✅ 2026-06-24
+**Evidencia:** [`use-live-stream.ts:47`](../../apps/dashboard/hooks/use-live-stream.ts#L47)
+y [`live-attack-map.tsx:128`](../../apps/dashboard/components/live-attack-map.tsx#L128)
+abren **cada uno** `new EventSource("/api/events/live")`. Mapa + sidebar montados
+⇒ 2 conexiones SSE por usuario; el `eventBus` hace fan-out a ambas.
+
+**Arreglo:** un `LiveStreamProvider` (contexto React) que mantiene **una**
+conexión y expone una API de suscripción:
+```tsx
+// components/live-stream-provider.tsx
+const LiveStreamCtx = createContext<{ subscribe: (h: LiveStreamHandlers) => () => void }>(...)
+// abre 1 EventSource en useEffect([]), guarda un Set<handlers>, despacha a todos.
+// useLiveStream() pasa a leer del contexto en vez de abrir su propio ES.
+// live-attack-map deja de crear su ES y usa subscribe({ onAttack }).
+```
+Montar el provider alto en el árbol (layout). Riesgo medio (toca 2 componentes +
+1 nuevo); alto valor en multiusuario. Mantener el contrato de eventos intacto.
+
+**Verificación:** dashboard con mapa + sidebar visibles → contar conexiones a
+`/events/live` en el backend = 1 por usuario.
+
+### B2 — Reconexión SSE con backoff + jitter ✅ 2026-06-24
+**Evidencia:** ni `use-live-stream.ts` ni `live-attack-map.tsx` manejan
+`es.onerror`. EventSource reconecta solo pero sin jitter → al redeploy del
+backend, todos los clientes reconectan a la vez (tormenta).
+
+**Arreglo:** en el provider de B1, `onerror` → cerrar, esperar
+`min(30s, base * 2^intento) + random(0..1s)`, reabrir. Centralizado en un solo
+sitio gracias a B1.
+
+---
+
+## C. Backend — queries y FS
+
+### C1 — `getCowrieDownloadMeta`: escaneo full-table sin LIMIT ✅ 2026-06-24
+**Evidencia:** [`malware.repository.ts:62-76`](../../apps/ingest-api/src/modules/malware/malware.repository.ts#L62-L76)
+`SELECT … FROM events WHERE event_type='file.download' … ORDER BY event_ts DESC`
+**sin LIMIT**, y el JS se queda solo con la primera fila por shasum
+(`if (!meta.has(shasum))`). Trae **toda** la historia de descargas para usar 1
+fila por shasum. `events` es la tabla más grande.
+
+**Arreglo:** que Postgres haga el dedup con `DISTINCT ON`:
+```sql
+SELECT DISTINCT ON (normalized_json->>'shasum')
+       normalized_json->>'shasum' AS shasum,
+       normalized_json->>'url'    AS url,
+       src_ip
+FROM events
+WHERE event_type = 'file.download' AND normalized_json->>'shasum' IS NOT NULL
+ORDER BY normalized_json->>'shasum', event_ts DESC
+```
+Devuelve N shasums únicos en vez de N descargas. Verificar/crear índice que apoye
+el filtro (`event_type, event_ts`) — evaluar índice de expresión sobre el shasum
+si el plan lo pide. SQL se queda en el repository (regla de layering).
+
+**Verificación:** `EXPLAIN ANALYZE` antes/después; filas devueltas y tiempo caen.
+
+### C2 — Lectura de artefactos: concurrencia FS sin acotar + sin caché de tipo ✅ 2026-06-24
+**Evidencia:** [`malware.repository.ts:47-59,91-99`](../../apps/ingest-api/src/modules/malware/malware.repository.ts#L47-L59)
+— `Promise.all` sobre **todos** los archivos: `stat` + abrir + leer 16 bytes +
+leer `.meta.json` por archivo. Con muchos artefactos → ráfaga de file descriptors
+(riesgo EMFILE) y recálculo del `fileType` en cada listado.
+
+**Arreglo:** (a) acotar concurrencia reusando el helper `mapWithConcurrency`
+introducido en MONITORING_PERF (DRY, sin dep nueva); (b) cachear `fileType` por
+`(md5, mtime)` en memoria — el contenido de un artefacto es inmutable. Riesgo bajo.
+
+### C3 — (Verificación) Réplica de lectura e índices en stats ⏳ pendiente auditoría
+**Evidencia:** los repos de `stats/*` ya reciben `fastify.prismaRead` (bien).
+`getHoneypotOverview` ([`stats.repository.ts:35-70`](../../apps/ingest-api/src/modules/stats/stats.repository.ts#L35-L70))
+lanza varias queries en `Promise.all` con cutoff de 90 días sobre
+`sessions`/`web_hits`/`protocol_hits`.
+
+**Acción:** (a) grep de control: que ninguna ruta de stats use `fastify.prisma`
+(escritura) por error; (b) confirmar índices `(sensor_id, started_at)` /
+`(sensor_id, timestamp)` que cubran `WHERE cutoff + scope`; (c) confirmar que las
+páginas más pesadas leen de las matviews (`credential_attempts`,
+`threat_ip_summary`) y no de la tabla cruda. Solo medir + ajustar índices; sin
+reescrituras especulativas.
+
+---
+
+## D. Cron y trabajo de fondo
+
+### D1 — Un `cron.schedule` por responsabilidad ✅ 2026-06-24
+**Evidencia:** [`cron.ts`](../../apps/ingest-api/src/lib/cron.ts) registra
+`SENSOR_HEALTH_SCHEDULE` ('* * * * *') **dos veces** (sensor-health + snapshot de
+sistema). MONITORING_PERF ya saca el de contenedores; rematar separando cada
+trabajo en su propio schedule nombrado para no tener 2 callbacks compitiendo en
+el mismo tick :00.
+
+**Arreglo:** un schedule por trabajo, comentado. Cosmético + evita contención de
+event loop en el mismo segundo. Riesgo nulo.
+
+### D2 — (Opcional) Saltar `matview-refresh` si no hubo inserts
+**Evidencia:** [`matview-refresh.ts:67`](../../apps/ingest-api/src/plugins/matview-refresh.ts#L67)
+refresca 2 matviews cada 5 min **siempre**, aunque las tablas base no cambien.
+
+**Arreglo (solo si las métricas lo justifican):** marca `dirty` puesta por el
+hot-path de ingesta; el refresh la consulta y se salta si está limpia. No
+implementar sin evidencia de que el refresh pese.
+
+---
+
+## Mejoras propuestas (más allá de tapar los hallazgos)
+
+- **M1 — Helper de concurrencia compartido.** ✅ 2026-06-24 — `lib/concurrency.ts`
+  exporta `mapWithConcurrency`; `docker-stats.ts` y `malware.repository.ts` lo importan.
+- **M2 — Instancia de service por plugin como convención explícita.** ✅ 2026-06-24 —
+  documentado en `docs/project-notes/backend-layering.md` (sección Instantiation).
+- **M3 — Métricas de ingesta.** Exponer en `/health` o un endpoint de métricas:
+  eventos/s, lag del consumer group, latencia p50/p99 de `processLine`. Sin esto,
+  A2/D2 son adivinanza; con esto, decisiones con datos. (Habilita medir el efecto
+  de A1.)
+- **M4 — Índice de expresión para el shasum** (apoya C1) si `EXPLAIN` muestra
+  scan secuencial: `CREATE INDEX CONCURRENTLY ... ON events ((normalized_json->>'shasum'))
+  WHERE event_type = 'file.download'`. Una migración, una `CREATE INDEX
+  CONCURRENTLY` por archivo (ver nota de proyecto sobre migraciones concurrentes).
+
+---
+
+## Orden de ejecución sugerido
+
+1. **A1** — hot-path real (Kafka + HTTP), cambio pequeño, riesgo bajo, máximo retorno.
+2. **C1** — query sin techo, arreglo localizado y medible.
+3. **B1 (+B2)** — alto valor multiusuario; B2 sale gratis dentro del provider.
+4. **C2 / D1 / M1 / M2** — pulido y consolidación (DRY).
+5. **A2 / C3 / D2 / M3** — instrumentar primero (M3), decidir con datos.
+
+**Principios:** SQL nuevo solo en repositories; sin dependencias nuevas (reusar
+`mapWithConcurrency`); medir antes de las tareas marcadas "investigación".
+
+## Riesgos / notas
+
+- A1: confirmado que `IngestService` no tiene estado por-request → seguro
+  compartir; igual correr la suite.
+- B1: reestructura el stream del front; aislarlo en un provider para no tocar cada
+  consumidor y centralizar reconexión (B2).
+- C1: validar que `DISTINCT ON` preserva "meta más reciente por shasum" (la
+  semántica que el JS hace hoy con `if (!meta.has)`).
+- A2/D2: **no** implementar sin métricas (M3). El insert ya está razonablemente
+  optimizado; el siguiente paso es batching, que es más invasivo y solo vale si
+  el throughput lo pide.

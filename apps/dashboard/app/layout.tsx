@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { TimezoneProvider } from '@/components/timezone-provider'
 import { LocaleProvider, LOCALE_COOKIE } from '@/components/locale-provider'
+import { LiveStreamProvider } from '@/components/live-stream-provider'
 import { SidebarLayout } from '@/components/sidebar-layout'
 import { Toaster } from '@/components/ui/sonner'
 import { readConfig } from '@/lib/server-config'
@@ -56,7 +57,9 @@ export default async function RootLayout({
       <body className="font-sans antialiased">
         <LocaleProvider initialLocale={locale}>
           <TimezoneProvider timezone={timezone}>
-            <SidebarLayout>{children}</SidebarLayout>
+            <LiveStreamProvider>
+              <SidebarLayout>{children}</SidebarLayout>
+            </LiveStreamProvider>
           </TimezoneProvider>
         </LocaleProvider>
         <Toaster richColors position="top-right" />

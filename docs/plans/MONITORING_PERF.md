@@ -101,21 +101,21 @@ de polling del front).
   [`app/api/monitoring/containers/stats/route.ts`](../../apps/dashboard/app/api/monitoring/containers/stats/route.ts#L7)
   (`CACHE_TTL = 30_000`) — subir a 60_000 para coherencia.
 
-### Tarea 4 — Frecuencia del cron configurable (resolución vs costo) ✅ 2026-06-24
-**Qué:** El cron muestrea cada minuto. Para 24h el front ya agrupa en buckets de
-5 min ([`monitoring.service.ts:5`](../../apps/ingest-api/src/modules/monitoring/monitoring.service.ts#L5)),
-así que 1 min es sobre-muestreo. Pasar a cada 2 min reduce a la mitad la carga de
-fondo sin pérdida visible en el gráfico.
+### Tarea 4 — Snapshot de cron en su propio schedule ✅ 2026-06-24
+**Qué:** El snapshot de monitoreo compartía el `SENSOR_HEALTH_SCHEDULE`. Se separó
+a su propio `MONITORING_SNAPSHOT_SCHEDULE` nombrado
+([`cron.ts`](../../apps/ingest-api/src/lib/cron.ts)) para que cada trabajo tenga su
+propia cadencia explícita.
 
-- En [`cron.ts`](../../apps/ingest-api/src/lib/cron.ts): separar el snapshot de
-  contenedores a su propio `cron.schedule('*/2 * * * *', ...)` (hoy comparte
-  schedule con el sensor-health en `SENSOR_HEALTH_SCHEDULE`).
-- **Decisión a tomar:** ¿el snapshot de sistema (`monitoringSnapshot`) también
-  baja a 2 min, o se queda en 1 min? `readSystemMetrics()` lee `/proc/*` (barato,
-  no toca Docker) ⇒ se puede dejar en 1 min. Solo el de **contenedores** es caro.
+- **Decisión tomada:** se mantiene en **1 min**, no 2. Tras la Tarea 1 el muestreo
+  de contenedores ya **no toca el socket de Docker en el path HTTP** (el live sirve
+  el último snapshot del cron), así que el costo de fondo dejó de ser el problema.
+  `readSystemMetrics()` lee `/proc/*` (barato). La resolución de 1 min se conserva
+  por si más adelante se quiere granularidad fina; bajar a 2 min queda como ajuste
+  trivial (`'*/2 * * * *'`) si el cron aparece costoso en métricas.
 
-**Verificación:** el histórico 24h/7d/30d se ve igual; el gasto de fondo del cron
-de contenedores cae ~50 %.
+**Verificación:** el histórico 24h/7d/30d se ve igual; el pico de `dockerd` ya solo
+ocurre 1×/min (cron) y nunca en el refresco del front.
 
 ### Tarea 5 — (Mejora) Robustez del socket Docker
 **Qué:** `SOCKET_AVAILABLE` se evalúa **una vez al import**

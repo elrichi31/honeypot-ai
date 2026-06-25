@@ -38,10 +38,19 @@ src/
 ## Key patterns
 
 ### Instantiation (KISS, no DI container)
+Services are **stateless** (no per-request mutable state) and must be created
+**once per plugin**, never per-request or per-message. This prevents unnecessary
+allocations on the hot path (especially the Kafka consumer under load).
+
 ```ts
-// In the route:
-const svc = new XService(fastify.prisma, fastify.prismaRead)
+// Inside the plugin closure — one instance shared across all requests/messages:
+export async function xRoutes(fastify: FastifyInstance) {
+  const svc = new XService(fastify.prisma, fastify.prismaRead)
+  fastify.post('/x', async (req, reply) => { ... svc.doSomething() ... })
+}
 ```
+
+Do NOT create `new XService(...)` inside a request handler or `eachMessage` callback.
 
 ### Read replica
 - `fastify.prismaRead` → all SELECT queries

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import type React from "react"
+import { useLiveStream } from "@/hooks/use-live-stream"
+import type { AttackStreamEvent } from "@/hooks/use-live-stream"
 import { LiveAttackControls } from "@/components/live-attack-controls"
 import { LiveAttackGlobe } from "@/components/live-attack-globe"
 import { LiveAttackMap2D } from "@/components/live-attack-map-2d"
@@ -125,12 +127,14 @@ function useFullscreenListener(setIsFullscreen: (value: boolean) => void) {
 function useLiveEvents(loadToday: () => Promise<void>, addAttack: (event: RawEvent) => void, setConnected: (value: boolean) => void) {
   useEffect(() => {
     loadToday()
-    const events = new EventSource("/api/events/live")
-    events.onopen = () => setConnected(true)
-    events.onerror = () => setConnected(false)
-    events.onmessage = (message) => parseLiveEvent(message.data, addAttack)
-    return () => events.close()
-  }, [loadToday, addAttack, setConnected])
+    setConnected(true)
+  }, [loadToday, setConnected])
+
+  useLiveStream({
+    onAttack: useCallback((event: AttackStreamEvent) => {
+      addAttack(event as RawEvent)
+    }, [addAttack]),
+  })
 }
 
 function useDayRollover(todayRef: React.MutableRefObject<string>, loadToday: () => Promise<void>, resetLiveState: () => void) {
@@ -156,15 +160,6 @@ function useArcExpiry(setLiveArcs: React.Dispatch<React.SetStateAction<LiveArc[]
   }, [setLiveArcs])
 }
 
-function parseLiveEvent(data: string, addAttack: (event: RawEvent) => void) {
-  try {
-    const event = JSON.parse(data) as RawEvent
-    if (event.type === "alert" || event.type === "sensor-heartbeat") return
-    addAttack(event)
-  } catch {
-    return
-  }
-}
 
 function applyTodayData(
   data: { attackedCountries: CountryHit[]; sensors: SensorLocation[] },

@@ -1,5 +1,6 @@
 import http from 'http'
 import { existsSync } from 'fs'
+import { mapWithConcurrency } from './concurrency.js'
 
 const SOCKET = existsSync('/host/var/run/docker.sock')
   ? '/host/var/run/docker.sock'
@@ -42,18 +43,6 @@ const cronCache = new Map<string, CachedSnapshot>()
 // Last successful cron sample — served by the live endpoint to avoid Docker socket hits on HTTP requests
 let lastCronStats: { at: number; data: ContainerStat[] } | null = null
 
-async function mapWithConcurrency<T, U>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => Promise<U>,
-): Promise<PromiseSettledResult<U>[]> {
-  const results: PromiseSettledResult<U>[] = []
-  for (let i = 0; i < items.length; i += limit) {
-    const batch = await Promise.allSettled(items.slice(i, i + limit).map(fn))
-    results.push(...batch)
-  }
-  return results
-}
 
 function dockerGet(path: string): Promise<string> {
   return new Promise((resolve, reject) => {

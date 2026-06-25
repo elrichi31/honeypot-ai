@@ -35,26 +35,24 @@ function shouldEvaluateThreat(raw: CowrieRawEvent) {
   )
 }
 
-async function handleCowrie(raw: unknown, fastify: FastifyInstance) {
+async function handleCowrie(raw: unknown, fastify: FastifyInstance, svc: IngestService) {
   const parsed = cowrieRawEventSchema.safeParse(raw)
   if (!parsed.success) {
     fastify.log.warn({ err: parsed.error.flatten() }, 'Kafka cowrie message failed validation — skipping')
     return
   }
   const event = parsed.data as CowrieRawEvent
-  const svc = new IngestService(fastify.prisma)
   const { sessionCreated, eventCreated } = await svc.processLine(event)
   if (sessionCreated && event.src_ip) emitSsh(event.src_ip)
   if (eventCreated && shouldEvaluateThreat(event)) scheduleThreatAlert(fastify.prisma, event.src_ip)
 }
 
-async function handleSuricata(raw: unknown, fastify: FastifyInstance) {
+async function handleSuricata(raw: unknown, fastify: FastifyInstance, svc: SuricataService) {
   const parsed = eveAlertSchema.safeParse(raw)
   if (!parsed.success) {
     fastify.log.warn({ err: parsed.error.flatten() }, 'Kafka suricata message failed validation — skipping')
     return
   }
-  const svc = new SuricataService(fastify.prisma, fastify.prismaRead)
   await svc.persistAlerts([parsed.data])
 }
 
@@ -68,6 +66,9 @@ export default fp(async (fastify: FastifyInstance) => {
 
   let status: KafkaConsumerStatus = 'connecting'
   fastify.decorate('kafkaConsumerStatus', () => status)
+
+  const ingestSvc = new IngestService(fastify.prisma)
+  const suricataSvc = new SuricataService(fastify.prisma, fastify.prismaRead)
 
   const kafka = new Kafka({
     clientId: 'ingest-api',
@@ -132,8 +133,8 @@ export default fp(async (fastify: FastifyInstance) => {
           // No try/catch around the handlers: validation skips are handled inside
           // them (safeParse + return); any thrown error is a processing failure
           // and must propagate so the offset is not committed.
-          if (topic === 'honeypot.cowrie') await handleCowrie(raw, fastify)
-          else if (topic === 'honeypot.suricata') await handleSuricata(raw, fastify)
+          if (topic === 'honeypot.cowrie') await handleCowrie(raw, fastify, ingestSvc)
+          else if (topic === 'honeypot.suricata') await handleSuricata(raw, fastify, suricataSvc)
         },
       })
     } catch (err) {

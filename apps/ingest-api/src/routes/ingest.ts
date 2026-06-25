@@ -21,6 +21,8 @@ function shouldEvaluateThreat(raw: CowrieRawEvent) {
 }
 
 export async function ingestRoutes(fastify: FastifyInstance) {
+  const service = new IngestService(fastify.prisma)
+
   // Ingest from local file (dev only)
   fastify.post('/ingest/cowrie/file', async (request, reply) => {
     if (!ensureIngestToken(request, reply)) return reply;
@@ -34,7 +36,6 @@ export async function ingestRoutes(fastify: FastifyInstance) {
       });
     }
 
-    const service = new IngestService(fastify.prisma);
     const summary = await service.processCowrieFile(parsed.data.filePath);
 
     return reply.status(200).send(summary);
@@ -52,8 +53,6 @@ export async function ingestRoutes(fastify: FastifyInstance) {
         details: parsed.error.flatten().fieldErrors,
       });
     }
-
-    const service = new IngestService(fastify.prisma);
 
     try {
       const { sessionCreated, eventCreated } = await service.processLine(parsed.data as CowrieRawEvent);
@@ -85,7 +84,6 @@ export async function ingestRoutes(fastify: FastifyInstance) {
       });
     }
 
-    const service = new IngestService(fastify.prisma);
     let inserted = 0;
     let duplicates = 0;
     let sessions = 0;
@@ -132,7 +130,6 @@ export async function ingestRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Invalid batch', details: parsed.error.flatten() });
     }
 
-    const service = new IngestService(fastify.prisma);
     let inserted = 0, duplicates = 0, sessions = 0;
     const errors: string[] = [];
     const ipsToEvaluate = new Set<string>();

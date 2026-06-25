@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+import { useLiveStreamCtx } from "@/components/live-stream-provider"
 
 export interface AttackStreamEvent {
   type: string
@@ -35,34 +36,17 @@ export interface LiveStreamHandlers {
   onSensorHeartbeat?: (event: SensorHeartbeatStreamEvent) => void
 }
 
-// Shared SSE consumer. Opens one connection per component that mounts it.
-// The live attack map has its own EventSource — this hook is for sidebar/alerts
-// features that don't need the full map state.
 export function useLiveStream(handlers: LiveStreamHandlers) {
-  // Keep handlers in a ref so the effect doesn't re-run on every render
+  const { subscribe } = useLiveStreamCtx()
+  // Keep handlers in a ref so subscribe doesn't re-run on every render
   const handlersRef = useRef(handlers)
   handlersRef.current = handlers
 
   useEffect(() => {
-    const es = new EventSource("/api/events/live")
-
-    es.onmessage = (msg) => {
-      let event: StreamEvent
-      try {
-        event = JSON.parse(msg.data) as StreamEvent
-      } catch {
-        return
-      }
-
-      if (event.type === "alert") {
-        handlersRef.current.onAlert?.(event as AlertStreamEvent)
-      } else if (event.type === "sensor-heartbeat") {
-        handlersRef.current.onSensorHeartbeat?.(event as SensorHeartbeatStreamEvent)
-      } else {
-        handlersRef.current.onAttack?.(event as AttackStreamEvent)
-      }
-    }
-
-    return () => es.close()
-  }, [])
+    return subscribe({
+      onAttack: (e) => handlersRef.current.onAttack?.(e),
+      onAlert: (e) => handlersRef.current.onAlert?.(e),
+      onSensorHeartbeat: (e) => handlersRef.current.onSensorHeartbeat?.(e),
+    })
+  }, [subscribe])
 }
