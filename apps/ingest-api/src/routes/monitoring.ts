@@ -102,7 +102,7 @@ export async function monitoringRoutes(fastify: FastifyInstance) {
   })
 
   fastify.get('/monitoring/containers/stats', async () => {
-    return withCache(fastify.cache, 'monitoring:containers:stats', 30, () => sampleContainerStatsLive())
+    return withCache(fastify.cache, 'monitoring:containers:stats', 60, () => sampleContainerStatsLive())
   })
 
   fastify.get('/monitoring/containers/history', async (request) => {

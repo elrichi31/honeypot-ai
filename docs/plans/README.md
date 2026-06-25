@@ -15,6 +15,7 @@ progresses, and link the relevant commit hashes so the history stays traceable.
 - [DESIGN_PATTERNS.md](DESIGN_PATTERNS.md) — refactor backlog: 4 prioritized design-pattern opportunities to cut duplication (proxy-helper merge, secret-field component, config registry, scoped-route HOF) with smell/pattern/files/risk for each.
 - [KAFKA_STREAM.md](KAFKA_STREAM.md) — insertar Kafka (autohospedado, KRaft) entre Vector y el ingest-api, manteniendo HTTP como fallback. **Completo**: Tareas 0–12 hechas y verificadas (incl. auditoría post-impl: re-throw sin pérdida de eventos, DRY del schema, /health/kafka, E2E con ataque SSH real). Deudas no bloqueantes abiertas: TD-2/4/5/6.
 - [LAYERING_REFACTOR.md](LAYERING_REFACTOR.md) — sacar el SQL crudo de los ~25 routes del ingest-api y unificar la convención Route→Service→Repository en `modules/<dominio>/`. Incremental, un dominio por tarea, verificando que la respuesta HTTP no cambie.
+- [MONITORING_PERF.md](MONITORING_PERF.md) — bajar la saturación de CPU/RAM del muestreo de stats de contenedores: unificar live ← snapshot del cron (elimina doble-snapshot + sleep de 500 ms), concurrencia acotada, TTL alineado al polling, cron a 2 min. Tareas 1–4 + 6 parcial implementadas 2026-06-24. Pendiente: Tarea 5 (socket lazy-check) y gemelo BFF de Tarea 6.
 
 ## Conventions
 

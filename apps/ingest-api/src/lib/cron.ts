@@ -47,7 +47,7 @@ export function initCron(prisma: PrismaClient): void {
     }
   }, { timezone: 'UTC' })
 
-  // Sample CPU/RAM + container stats every minute for the monitoring timeline
+  // Sample system metrics every minute for the monitoring timeline
   cron.schedule(SENSOR_HEALTH_SCHEDULE, async () => {
     const cutoff = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000)
     try {
@@ -57,6 +57,12 @@ export function initCron(prisma: PrismaClient): void {
     } catch (err) {
       console.error('[cron] monitoring snapshot error:', err)
     }
+  }, { timezone: 'UTC' })
+
+  // Sample container stats every 2 minutes — cheaper than system metrics (hits dockerd); 5-min
+  // bucketing in the history view makes 2-min resolution indistinguishable from 1-min.
+  cron.schedule('*/2 * * * *', async () => {
+    const cutoff = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000)
     try {
       const stats = await sampleContainerStatsForCron()
       if (stats.length > 0) {
@@ -83,6 +89,6 @@ export function initCron(prisma: PrismaClient): void {
   console.log('[cron] Periodic report scheduled (interval read from config, checked hourly)')
   console.log('[cron] Sensor health checks scheduled (every minute)')
   console.log('[cron] Threat evaluation drain scheduled (every 30s)')
-  console.log('[cron] Monitoring snapshots scheduled (every minute)')
+  console.log('[cron] Monitoring snapshots scheduled (system: every minute, containers: every 2 min)')
   console.log('[cron] Daily rollups scheduled (hourly at :15)')
 }

@@ -100,7 +100,7 @@ export default function ContainerStatsChart() {
       <Surface className="overflow-hidden">
         <div className="px-4 py-3 border-b border-border">
           <p className="text-sm font-medium text-foreground">Container Resource Usage</p>
-          <p className="text-[11px] text-muted-foreground">Live — refreshes every 60s</p>
+          <p className="text-[11px] text-muted-foreground">Live — refreshes every 2 min</p>
         </div>
         {liveLoading ? (
           <div className="flex items-center justify-center py-10">

@@ -7,6 +7,10 @@ const SOCKET = existsSync('/host/var/run/docker.sock')
 
 const SOCKET_AVAILABLE = existsSync(SOCKET)
 
+if (!SOCKET_AVAILABLE) {
+  console.warn('[docker-stats] Docker socket not found at', SOCKET, '— container stats will be empty')
+}
+
 interface DockerContainer { Id: string; Names: string[]; State: string }
 
 interface DockerStats {
@@ -27,8 +31,29 @@ interface CachedSnapshot {
   sys: number
 }
 
-// Separate caches for cron vs live endpoint — prevents interference
+export type ContainerStat = {
+  container: string
+  cpuPct:    number
+  memMb:     number
+}
+
 const cronCache = new Map<string, CachedSnapshot>()
+
+// Last successful cron sample — served by the live endpoint to avoid Docker socket hits on HTTP requests
+let lastCronStats: { at: number; data: ContainerStat[] } | null = null
+
+async function mapWithConcurrency<T, U>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<U>,
+): Promise<PromiseSettledResult<U>[]> {
+  const results: PromiseSettledResult<U>[] = []
+  for (let i = 0; i < items.length; i += limit) {
+    const batch = await Promise.allSettled(items.slice(i, i + limit).map(fn))
+    results.push(...batch)
+  }
+  return results
+}
 
 function dockerGet(path: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -36,9 +61,9 @@ function dockerGet(path: string): Promise<string> {
     const req = http.request(
       { socketPath: SOCKET, path, method: 'GET' },
       (res) => {
-        let body = ''
-        res.on('data', (chunk) => { body += chunk })
-        res.on('end', () => resolve(body))
+        const chunks: Buffer[] = []
+        res.on('data', (chunk) => { chunks.push(chunk) })
+        res.on('end', () => resolve(Buffer.concat(chunks).toString()))
       },
     )
     req.on('error', reject)
@@ -78,91 +103,40 @@ async function getRunningContainers(): Promise<DockerContainer[]> {
   return containers.filter(c => c.State === 'running')
 }
 
-export type ContainerStat = {
-  container: string
-  cpuPct:    number
-  memMb:     number
-}
-
-// Used by cron — fast (one-shot), cache-based delta across consecutive calls
+// Used by cron — fast (one-shot), bounded concurrency, cache-based delta
 export async function sampleContainerStatsForCron(): Promise<ContainerStat[]> {
   if (!SOCKET_AVAILABLE) return []
   try {
     const running = await getRunningContainers()
-    const results = await Promise.allSettled(
-      running.map(async (c) => {
-        const name  = c.Names[0]?.replace(/^\//, '') ?? c.Id.slice(0, 12)
-        const body  = await dockerGet(`/containers/${c.Id}/stats?stream=false&one-shot=true`)
-        const stats: DockerStats = JSON.parse(body)
-        const cpus  = getCpus(stats)
-        const cur   = { cpu: stats.cpu_stats.cpu_usage.total_usage ?? 0, sys: stats.cpu_stats.system_cpu_usage ?? 0 }
-        const prev  = cronCache.get(c.Id)
-        cronCache.set(c.Id, cur)
-        return {
-          container: name,
-          cpuPct:    prev ? calcCpuPct(cur, prev, cpus) : 0,
-          memMb:     calcMemMb(stats),
-        }
-      }),
-    )
-    return results
+    const limit = Math.min(5, running.length)
+    const results = await mapWithConcurrency(running, limit, async (c) => {
+      const name  = c.Names[0]?.replace(/^\//, '') ?? c.Id.slice(0, 12)
+      const body  = await dockerGet(`/containers/${c.Id}/stats?stream=false&one-shot=true`)
+      const stats: DockerStats = JSON.parse(body)
+      const cpus  = getCpus(stats)
+      const cur   = { cpu: stats.cpu_stats.cpu_usage.total_usage ?? 0, sys: stats.cpu_stats.system_cpu_usage ?? 0 }
+      const prev  = cronCache.get(c.Id)
+      cronCache.set(c.Id, cur)
+      return {
+        container: name,
+        cpuPct:    prev ? calcCpuPct(cur, prev, cpus) : 0,
+        memMb:     calcMemMb(stats),
+      }
+    })
+    const data = results
       .filter((r): r is PromiseFulfilledResult<ContainerStat> => r.status === 'fulfilled')
       .map(r => r.value)
       .sort((a, b) => b.cpuPct - a.cpuPct)
+    lastCronStats = { at: Date.now(), data }
+    return data
   } catch {
     return []
   }
 }
 
-// Used by live endpoint — takes two readings 500ms apart for accurate CPU%
+// Used by live endpoint — returns the last cron sample; no Docker socket hit on the HTTP path
 export async function sampleContainerStatsLive(): Promise<ContainerStat[]> {
-  if (!SOCKET_AVAILABLE) return []
-  try {
-    const running = await getRunningContainers()
-
-    // First snapshot
-    const snap1 = await Promise.allSettled(
-      running.map(async (c) => {
-        const body  = await dockerGet(`/containers/${c.Id}/stats?stream=false&one-shot=true`)
-        const stats: DockerStats = JSON.parse(body)
-        return { id: c.Id, name: c.Names[0]?.replace(/^\//, '') ?? c.Id.slice(0, 12), stats }
-      }),
-    )
-
-    await new Promise(r => setTimeout(r, 500))
-
-    // Second snapshot
-    const snap2 = await Promise.allSettled(
-      running.map(async (c) => {
-        const body  = await dockerGet(`/containers/${c.Id}/stats?stream=false&one-shot=true`)
-        const stats: DockerStats = JSON.parse(body)
-        return { id: c.Id, stats }
-      }),
-    )
-
-    const map1 = new Map(
-      snap1
-        .filter((r): r is PromiseFulfilledResult<{ id: string; name: string; stats: DockerStats }> => r.status === 'fulfilled')
-        .map(r => [r.value.id, r.value]),
-    )
-
-    return snap2
-      .filter((r): r is PromiseFulfilledResult<{ id: string; stats: DockerStats }> => r.status === 'fulfilled')
-      .map(r => {
-        const prev = map1.get(r.value.id)
-        if (!prev) return null
-        const cpus = getCpus(r.value.stats)
-        const cur  = { cpu: r.value.stats.cpu_stats.cpu_usage.total_usage ?? 0, sys: r.value.stats.cpu_stats.system_cpu_usage ?? 0 }
-        const pre  = { cpu: prev.stats.cpu_stats.cpu_usage.total_usage ?? 0, sys: prev.stats.cpu_stats.system_cpu_usage ?? 0 }
-        return {
-          container: prev.name,
-          cpuPct:    calcCpuPct(cur, pre, cpus),
-          memMb:     calcMemMb(r.value.stats),
-        }
-      })
-      .filter((r): r is ContainerStat => r !== null)
-      .sort((a, b) => b.cpuPct - a.cpuPct)
-  } catch {
-    return []
-  }
+  const MAX_AGE_MS = 90_000
+  if (!lastCronStats || Date.now() - lastCronStats.at > MAX_AGE_MS) return []
+  return lastCronStats.data
 }
