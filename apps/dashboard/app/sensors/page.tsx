@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 
+import type { Metadata } from "next"
 import Link from "next/link"
 import { Activity, Server, Wifi, Waypoints } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
@@ -35,6 +36,10 @@ function groupSensorsByClient(sensors: Sensor[]) {
     if (b.slug === null) return -1
     return a.label.localeCompare(b.label)
   })
+}
+
+export const metadata: Metadata = {
+  title: "Sensors — HoneyTrap",
 }
 
 export default async function SensorsPage() {

@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { format } from "date-fns"
@@ -69,6 +70,11 @@ function buildIpHopTimeline(hits: WebHit[]) {
     }
   }
   return segments
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ fingerprint: string }> }): Promise<Metadata> {
+  const { fingerprint } = await params
+  return { title: `Web Session ${fingerprint.slice(0, 8)} — HoneyTrap` }
 }
 
 export default async function SessionDetailPage({

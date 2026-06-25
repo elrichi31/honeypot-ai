@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { PageShell } from "@/components/page-shell"
 import { SessionsTable } from "@/components/sessions-table"
 import { ErrorState } from "@/components/ui/data-states"
@@ -11,6 +12,10 @@ const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
 const VALID_ACTORS = new Set(["all", "bot", "human", "unknown"])
 
 const VALID_SORT_DIR = new Set(["asc", "desc"])
+
+export const metadata: Metadata = {
+  title: "Sessions — HoneyTrap",
+}
 
 export default async function SessionsPage({
   searchParams,

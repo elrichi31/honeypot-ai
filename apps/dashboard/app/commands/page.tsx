@@ -1,9 +1,14 @@
+import type { Metadata } from "next"
 import { PageShell } from "@/components/page-shell"
 import { CommandsView } from "@/components/commands-view"
 import { SectionError } from "@/components/section-error"
 import { fetchEventsPage } from "@/lib/api"
 
 const PAGE_SIZE_OPTIONS = new Set(["50", "100", "200"])
+
+export const metadata: Metadata = {
+  title: "Commands — HoneyTrap",
+}
 
 export default async function CommandsPage({
   searchParams,

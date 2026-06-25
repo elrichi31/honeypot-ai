@@ -1,10 +1,15 @@
 export const dynamic = "force-dynamic"
 
+import type { Metadata } from "next"
 import { PageShell } from "@/components/page-shell"
 import { ClientManager } from "@/components/clients/client-manager"
 import { fetchClients, fetchSensors } from "@/lib/api"
 import type { Client, Sensor } from "@/lib/api"
 import { getServerT } from "@/lib/i18n/server"
+
+export const metadata: Metadata = {
+  title: "Clients — HoneyTrap",
+}
 
 export default async function ClientsPage() {
   const t = await getServerT()

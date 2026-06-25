@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { PageShell } from "@/components/page-shell"
 import Link from "next/link"
@@ -18,6 +19,11 @@ import { IpBursts } from "./ip-bursts"
 import { IpEnrichment } from "@/components/ip-enrichment"
 
 const VALID_ATTACK_TYPES = new Set(["sqli", "xss", "lfi", "rfi", "cmdi", "log4shell", "ssti", "xxe", "deserialization", "scanner", "info_disclosure", "recon"])
+
+export async function generateMetadata({ params }: { params: Promise<{ ip: string }> }): Promise<Metadata> {
+  const { ip } = await params
+  return { title: `Web Attacker ${decodeURIComponent(ip)} — HoneyTrap` }
+}
 
 export default async function WebAttackerDetailPage({
   params,

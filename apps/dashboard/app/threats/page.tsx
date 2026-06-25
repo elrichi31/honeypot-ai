@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { ShieldAlert } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { fetchThreatsPage, fetchClients, fetchSensors } from "@/lib/api"
@@ -25,6 +26,10 @@ function parseCsv<T extends string>(raw: string | undefined, allowed: readonly T
   const allowedSet = new Set<string>(allowed)
   const parts = raw.split(",").map((p) => p.trim()).filter(Boolean)
   return [...new Set(parts)].filter((p): p is T => allowedSet.has(p))
+}
+
+export const metadata: Metadata = {
+  title: "Threats — HoneyTrap",
 }
 
 export default async function ThreatsPage({

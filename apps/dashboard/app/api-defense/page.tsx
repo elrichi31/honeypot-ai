@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { ShieldAlert } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { DefenseStats } from "@/components/defense/defense-stats"
@@ -5,6 +6,10 @@ import { DefenseEventsTable } from "@/components/defense/defense-events-table"
 import { BlockedIpsTable } from "@/components/defense/blocked-ips-table"
 import { DefenseAllowlist } from "@/components/defense/defense-allowlist"
 import { getServerT } from "@/lib/i18n/server"
+
+export const metadata: Metadata = {
+  title: "API Defense — HoneyTrap",
+}
 
 export default async function ApiDefensePage() {
   const t = await getServerT()

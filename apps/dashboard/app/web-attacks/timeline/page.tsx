@@ -1,13 +1,24 @@
 export const dynamic = "force-dynamic"
 
+import type { Metadata } from "next"
 import { WebAttacksNav } from "@/components/web-attacks-nav"
 import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
 import { SectionError } from "@/components/section-error"
 import { fetchWebTimeline, fetchWebHitsStats, fetchWebHourly } from "@/lib/api"
-import { TimelineCharts } from "./timeline-charts"
 import { HourlyHeatmap } from "./hourly-heatmap"
 import type { WebHourlyCell } from "@/lib/api"
+import nextDynamic from "next/dynamic"
+
+// No `ssr: false` (disallowed in Server Components in Next 16); timeline-charts is
+// already a client component, so this just code-splits it.
+const TimelineCharts = nextDynamic(
+  () => import("./timeline-charts").then(m => ({ default: m.TimelineCharts })),
+)
+
+export const metadata: Metadata = {
+  title: "Web Attacks Timeline — HoneyTrap",
+}
 
 export default async function WebTimelinePage() {
   let days, attackTypes, stats

@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ArrowLeft, Server, Wifi, Ghost } from "lucide-react"
@@ -13,6 +14,11 @@ import { ClientStatsBar } from "@/components/clients/client-stats-bar"
 import { SectionError } from "@/components/section-error"
 import { Surface } from "@/components/ui/surface"
 import { fetchClients, fetchSensors } from "@/lib/api"
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params
+  return { title: `Client ${slug} — HoneyTrap` }
+}
 
 export default async function ClientDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params

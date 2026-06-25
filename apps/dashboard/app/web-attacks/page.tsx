@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import Link from "next/link"
 import { fetchWebHitsByIpPage, fetchWebHitsStats, fetchClients, fetchSensors } from "@/lib/api"
@@ -43,6 +44,10 @@ const VALID_WEB_SORT_BY = new Set(["totalHits", "lastSeen", "firstSeen"])
 const VALID_SORT_DIR = new Set(["asc", "desc"])
 const VALID_ATTACK_TYPES = new Set(["sqli", "xss", "lfi", "rfi", "cmdi", "log4shell", "ssti", "xxe", "deserialization", "scanner", "info_disclosure", "recon"])
 const VALID_RANGES = new Set(["24h", "7d", "30d", "all"])
+
+export const metadata: Metadata = {
+  title: "Web Attacks — HoneyTrap",
+}
 
 export default async function WebAttacksPage({
   searchParams,

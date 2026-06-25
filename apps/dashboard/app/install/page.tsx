@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 import { Server, Terminal, CheckCircle2, AlertTriangle, BookOpen, ExternalLink } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
@@ -28,6 +29,10 @@ function Cmd({ children }: { children: React.ReactNode }) {
       {children}
     </pre>
   )
+}
+
+export const metadata: Metadata = {
+  title: "Install Guide — HoneyTrap",
 }
 
 export default async function InstallGuidePage() {

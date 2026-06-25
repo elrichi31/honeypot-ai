@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { PageShell } from "@/components/page-shell"
 import Link from "next/link"
@@ -46,6 +47,11 @@ async function readEnrichmentCache(ip: string): Promise<IpEnrichmentData | null>
       cachedAt: row.cached_at.toISOString(),
     }
   } catch { return null }
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  return { title: `Session ${id} — HoneyTrap` }
 }
 
 export default async function SessionReplayPage({

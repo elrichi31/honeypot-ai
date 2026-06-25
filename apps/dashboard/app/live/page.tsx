@@ -1,5 +1,10 @@
+import type { Metadata } from "next"
 import { PageShell } from "@/components/page-shell"
 import { LiveAttackMap } from "@/components/live-attack-map"
+
+export const metadata: Metadata = {
+  title: "Live Attack Map — HoneyTrap",
+}
 
 export default function LivePage() {
   return (

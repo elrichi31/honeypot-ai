@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 import { Fingerprint, Target, GitBranch, AlertTriangle } from "lucide-react"
 import { fetchWebSessions } from "@/lib/api"
@@ -15,6 +16,10 @@ import { formatInTimezone } from "@/lib/timezone"
 import type { WebSession } from "@/lib/api"
 
 const VALID_RANGES = new Set(["24h", "7d", "30d", "all"])
+
+export const metadata: Metadata = {
+  title: "Web Attack Sessions — HoneyTrap",
+}
 
 export default async function WebSessionsPage({
   searchParams,

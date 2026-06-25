@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { PageShell } from "@/components/page-shell"
 import { CredentialsView } from "@/components/credentials-view"
 import { SectionError } from "@/components/section-error"
@@ -7,6 +8,10 @@ import { getServerT } from "@/lib/i18n/server"
 import { Surface } from "@/components/ui/surface"
 
 const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
+
+export const metadata: Metadata = {
+  title: "Credentials — HoneyTrap",
+}
 
 export default async function CredentialsPage({
   searchParams,

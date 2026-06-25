@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { Fingerprint } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { IocSection } from "@/components/ioc-section"
@@ -7,6 +8,10 @@ import { getServerT } from "@/lib/i18n/server"
 
 // IPs at or above this risk level are treated as malicious IoCs worth exporting.
 const MALICIOUS_LEVELS = new Set(["CRITICAL", "HIGH", "MEDIUM"])
+
+export const metadata: Metadata = {
+  title: "Indicators of Compromise — HoneyTrap",
+}
 
 export default async function IocsPage() {
   const t = await getServerT()

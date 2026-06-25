@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 import { Zap, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { fetchWebBursts, fetchClients, fetchSensors } from "@/lib/api"
@@ -59,6 +60,10 @@ function SortableBurstTh({
       </Link>
     </th>
   )
+}
+
+export const metadata: Metadata = {
+  title: "Web Attack Bursts — HoneyTrap",
 }
 
 export default async function WebBurstsPage({

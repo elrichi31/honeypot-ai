@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { PageShell } from "@/components/page-shell"
 import Link from "next/link"
@@ -50,6 +51,11 @@ function readThreatCache(ip: string): ThreatAnalysis | null {
   } catch {
     return null
   }
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ ip: string }> }): Promise<Metadata> {
+  const { ip } = await params
+  return { title: `Threat ${decodeURIComponent(ip)} — HoneyTrap` }
 }
 
 export default async function ThreatDetailPage({

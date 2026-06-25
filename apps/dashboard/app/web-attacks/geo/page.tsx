@@ -1,11 +1,16 @@
 export const dynamic = "force-dynamic"
 
+import type { Metadata } from "next"
 import { WebAttacksNav } from "@/components/web-attacks-nav"
 import { PageShell } from "@/components/page-shell"
 import { SectionError } from "@/components/section-error"
 import { fetchWebHitsByIp } from "@/lib/api"
 import { geolocateWebHits } from "@/lib/geo"
 import { WebGeoMap } from "./web-geo-map"
+
+export const metadata: Metadata = {
+  title: "Web Attacks Geography — HoneyTrap",
+}
 
 export default async function WebGeoPage() {
   let attackers

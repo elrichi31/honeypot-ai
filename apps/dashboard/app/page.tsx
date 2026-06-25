@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 
+import type { Metadata } from "next"
 import { Suspense } from "react"
 import Link from "next/link"
 import { Terminal, Radar } from "lucide-react"
@@ -7,8 +8,6 @@ import { PageShell } from "@/components/page-shell"
 import { DashboardInsightsView } from "@/components/dashboard-insights"
 import { KpiCard } from "@/components/kpi-card"
 import { MitreMatrixView } from "@/components/insights/mitre-matrix"
-import { CrossSensorActivityChart } from "@/components/cross-sensor-activity-chart"
-import { ProtocolDistributionChart } from "@/components/protocol-distribution-chart"
 import { GlobeMap } from "@/components/globe-map"
 import { AttackHeatmap } from "@/components/attack-heatmap"
 import { SensorActivityGrid } from "@/components/sensor-activity-grid"
@@ -32,7 +31,20 @@ import { fetchAttackerIntel } from "@/lib/attacker-intel"
 import { effectiveSensorScope } from "@/lib/tenant-scope"
 import { NoveltyStatsView } from "@/components/insights/novelty-stats"
 import { AttackerIntelView } from "@/components/insights/attacker-intel"
-import { BotRatioView } from "@/components/insights/bot-ratio"
+import nextDynamic from "next/dynamic"
+
+// Code-split the recharts-heavy client components. No `ssr: false` here: that is
+// disallowed in Server Components in Next 16, and these are already client
+// components ("use client") rendered inside <Suspense> sections.
+const CrossSensorActivityChart = nextDynamic(
+  () => import("@/components/cross-sensor-activity-chart").then(m => ({ default: m.CrossSensorActivityChart })),
+)
+const ProtocolDistributionChart = nextDynamic(
+  () => import("@/components/protocol-distribution-chart").then(m => ({ default: m.ProtocolDistributionChart })),
+)
+const BotRatioView = nextDynamic(
+  () => import("@/components/insights/bot-ratio").then(m => ({ default: m.BotRatioView })),
+)
 
 interface CountrySuccessRow {
   country: string
@@ -299,6 +311,10 @@ async function BotRatioSection() {
   } catch {
     return <SectionError title={t("dash.error.botRatio")} />
   }
+}
+
+export const metadata: Metadata = {
+  title: "Overview — HoneyTrap",
 }
 
 export default async function DashboardPage() {

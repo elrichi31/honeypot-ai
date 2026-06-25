@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { PageShell } from "@/components/page-shell"
 import { CampaignsView } from "@/components/campaigns-view"
 import { SectionError } from "@/components/section-error"
@@ -16,6 +17,10 @@ function rangeToDateParams(range: string): { startDate?: string; endDate?: strin
   const start = new Date()
   start.setDate(start.getDate() - days)
   return { startDate: start.toISOString() }
+}
+
+export const metadata: Metadata = {
+  title: "Attack Campaigns — HoneyTrap",
 }
 
 export default async function CampaignsPage({

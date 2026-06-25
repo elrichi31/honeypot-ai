@@ -1,8 +1,13 @@
 export const dynamic = "force-dynamic"
 
+import type { Metadata } from "next"
 import { NetworkTopology } from "@/components/network/network-topology"
 import { fetchSensors } from "@/lib/api"
 import type { Sensor } from "@/lib/api"
+
+export const metadata: Metadata = {
+  title: "Network Topology — HoneyTrap",
+}
 
 export default async function NetworkPage() {
   let sensors: Sensor[] = []

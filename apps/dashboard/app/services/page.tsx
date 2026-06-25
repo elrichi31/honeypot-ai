@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { fetchProtocolStats, fetchProtocolHits, fetchTargetPortStats } from "@/lib/api"
 import { PageShell } from "@/components/page-shell"
 import { Network, Clock, Key } from "lucide-react"
@@ -23,6 +24,10 @@ const PROTOCOL_COLORS: Record<string, { bg: string; text: string; border: string
 
 function defaultColor() {
   return { bg: "bg-slate-400/10", text: "text-slate-400", border: "border-slate-400/30" }
+}
+
+export const metadata: Metadata = {
+  title: "Services — HoneyTrap",
 }
 
 export default async function ServicesPage({

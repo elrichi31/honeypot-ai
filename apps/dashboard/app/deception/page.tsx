@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 
+import type { Metadata } from "next"
 import { Ghost } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { SectionError } from "@/components/section-error"
@@ -24,6 +25,10 @@ import { DeceptionEventsTable } from "@/components/deception/deception-events-ta
 import { DeceptionPortscansTable } from "@/components/deception/deception-portscans-table"
 import { DeceptionFilter } from "@/components/deception/deception-filter"
 import { Surface } from "@/components/ui/surface"
+
+export const metadata: Metadata = {
+  title: "Deception Tokens — HoneyTrap",
+}
 
 export default async function DeceptionPage({
   searchParams,

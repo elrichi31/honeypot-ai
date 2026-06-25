@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 
+import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ArrowLeft, Ghost } from "lucide-react"
@@ -16,6 +17,11 @@ import { DeceptionOverview } from "@/components/deception/deception-overview"
 import { KillChainView } from "@/components/deception/kill-chain-view"
 import { DeceptionNodesGrid } from "@/components/deception/deception-nodes-grid"
 import { DeceptionEventsTable } from "@/components/deception/deception-events-table"
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params
+  return { title: `Deception — ${slug} — HoneyTrap` }
+}
 
 export default async function ClientDeceptionPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params

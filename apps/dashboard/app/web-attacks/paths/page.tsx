@@ -1,11 +1,16 @@
 export const dynamic = "force-dynamic"
 
+import type { Metadata } from "next"
 import { WebAttacksNav } from "@/components/web-attacks-nav"
 import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
 import { SectionError } from "@/components/section-error"
 import { fetchWebPaths } from "@/lib/api"
 import { AttackTypeBadge } from "@/components/attack-type-badge"
+
+export const metadata: Metadata = {
+  title: "Web Attack Paths — HoneyTrap",
+}
 
 export default async function WebPathsPage() {
   let paths
