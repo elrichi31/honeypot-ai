@@ -242,6 +242,57 @@ services:
         limits:
           cpus: "0.5"
 
+  kafka:
+    <<: *service-defaults
+    logging: *json-logging
+    image: apache/kafka:3.8.0
+    container_name: honeypot-kafka
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      CLUSTER_ID: "zvlgl0xUR4uoTnaBlAnzEw"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - honeypot_ingest
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          pids: 256
+
+  kafka-init:
+    image: apache/kafka:3.8.0
+    container_name: honeypot-kafka-init
+    restart: "no"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - honeypot_ingest
+    command: >
+      bash -c "
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic honeypot.cowrie --partitions 3 --replication-factor 1 &&
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic honeypot.suricata --partitions 3 --replication-factor 1 &&
+        echo 'Topics created.'
+      "
+
   ingest-api:
     <<: *service-defaults
     logging: *json-logging
@@ -257,6 +308,8 @@ services:
       pgbouncer:
         condition: service_started
       redis:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@pgbouncer:5432/honeypot_prod?pgbouncer=true
@@ -346,6 +399,8 @@ services:
         condition: service_started
       ingest-api:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var:ro
       - suricata_logs:/tmp/suricata-logs:ro
@@ -356,8 +411,6 @@ services:
       - port_events:/var/log/port-honeypot:ro
       - smb_events:/var/log/smb-honeypot:ro
       - ./vector/conf.d:/etc/vector/conf.d
-      - ./vector/conf.d/cowrie-http.toml:/etc/vector/conf.d/cowrie.toml:ro
-      - ./vector/conf.d/suricata-http.toml:/etc/vector/conf.d/suricata.toml:ro
       - vector_data:/var/lib/vector
     command: ["--config-dir", "/etc/vector/conf.d/"]
     environment:
@@ -719,6 +772,7 @@ volumes:
   dashboard_data:
   vector_data:
   suricata_logs:
+  kafka_data:
   galah_events:
   web_events:
   ftp_events:
