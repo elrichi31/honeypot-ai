@@ -91,6 +91,38 @@ function truncateMiddle(value: string, max = 96) {
   return `${value.slice(0, keep)}...${value.slice(-keep)}`
 }
 
+function firstDataValue(data: Record<string, unknown> | null | undefined, keys: string[]) {
+  for (const key of keys) {
+    const value = dataValue(data, key)
+    if (value) return value
+  }
+  return null
+}
+
+function aggregateRows(
+  items: Array<{ label: string | null; detail?: string | null }>,
+  limit = 10,
+): { label: string; detail?: string; count: number }[] {
+  const rows = new Map<string, { label: string; detail?: string; count: number }>()
+  for (const item of items) {
+    if (!item.label) continue
+    const existing = rows.get(item.label)
+    if (existing) {
+      existing.count += 1
+      if (!existing.detail && item.detail) existing.detail = item.detail
+      continue
+    }
+    rows.set(item.label, {
+      label: item.label,
+      detail: item.detail ?? undefined,
+      count: 1,
+    })
+  }
+  return [...rows.values()]
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+    .slice(0, limit)
+}
+
 function buildPortScanSummary(hit: ProtocolHit) {
   const service = dataValue(hit.data, "service") ?? "unknown service"
   const protocolName = dataValue(hit.data, "protocolName")
@@ -222,6 +254,39 @@ function CredentialPairsCard({ rows }: { rows: { username: string; password: str
   )
 }
 
+function RecentUploadsCard({
+  rows,
+}: {
+  rows: Array<{ path: string; share: string | null; size: number | null; sha256: string | null; srcIp: string; timestamp: string }>
+}) {
+  return (
+    <Surface>
+      <div className="border-b border-border px-4 py-3">
+        <h2 className="text-sm font-semibold text-foreground">Recent file drops</h2>
+      </div>
+      {rows.length === 0 ? (
+        <p className="px-4 py-6 text-sm text-muted-foreground">No SMB uploads captured yet</p>
+      ) : (
+        <div className="divide-y divide-border/40">
+          {rows.map((row) => (
+            <div key={`${row.timestamp}:${row.path}:${row.srcIp}`} className="px-4 py-3">
+              <p className="truncate font-mono text-xs text-foreground" title={row.path}>{row.path}</p>
+              <p className="truncate text-[11px] text-muted-foreground">
+                {[
+                  row.share ? `share: ${row.share}` : null,
+                  row.size !== null ? formatBytes(row.size) : null,
+                  row.sha256 ? `sha256: ${truncateMiddle(row.sha256, 28)}` : null,
+                ].filter(Boolean).join(" · ")}
+              </p>
+              <p className="text-[11px] text-muted-foreground/80">{row.srcIp} · {row.timestamp}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </Surface>
+  )
+}
+
 export function ProtocolDetailPage({
   protocol,
   insights,
@@ -244,10 +309,61 @@ export function ProtocolDetailPage({
   const isMqtt     = protocol === "mqtt"
   const hasCredentials = isFtp || isMysql || isSmb || isMssql
 
+  const smbUploadHits = isSmb
+    ? hits
+        .filter((hit) => hit.event_type === "file.upload")
+        .map((hit) => ({
+          path: firstDataValue(hit.data, ["requestedPath", "fileName", "command"]) ?? "(unknown path)",
+          share: firstDataValue(hit.data, ["shareName", "share"]),
+          size: dataNumberValue(hit.data, "fileSize") ?? dataNumberValue(hit.data, "size"),
+          sha256: dataValue(hit.data, "sha256"),
+          srcIp: hit.src_ip,
+          timestamp: formatDate(hit.timestamp),
+        }))
+        .slice(0, 8)
+    : []
+
+  const smbShareRows = isSmb
+    ? aggregateRows(
+        hits.map((hit) => ({
+          label: firstDataValue(hit.data, ["shareName", "share"]),
+          detail: hit.username ? `last user: ${hit.username}` : null,
+        })),
+      )
+    : []
+
+  const smbPathRows = isSmb
+    ? aggregateRows(
+        hits
+          .filter((hit) => hit.event_type === "file.upload" || hit.event_type === "file.download")
+          .map((hit) => ({
+            label: firstDataValue(hit.data, ["requestedPath", "fileName"]),
+            detail: firstDataValue(hit.data, ["shareName", "share"]),
+          })),
+      )
+    : []
+
+  const smbHostRows = isSmb
+    ? aggregateRows(
+        hits.map((hit) => ({
+          label: firstDataValue(hit.data, ["hostName", "nativeOS"]),
+          detail: dataValue(hit.data, "domain"),
+        })),
+      )
+    : []
+
+  const smbDomainRows = isSmb
+    ? (insights.topDomains?.length
+        ? insights.topDomains.map((row) => ({ label: row.domain, count: row.count }))
+        : aggregateRows(hits.map((hit) => ({ label: dataValue(hit.data, "domain") }))))
+    : []
+
   const smbHasRichData = isSmb && (
-    (insights.topDomains?.length ?? 0) > 0 ||
-    (insights.topShares?.length ?? 0) > 0 ||
-    (insights.topNativeOS?.length ?? 0) > 0 ||
+    smbDomainRows.length > 0 ||
+    smbShareRows.length > 0 ||
+    smbPathRows.length > 0 ||
+    smbHostRows.length > 0 ||
+    smbUploadHits.length > 0 ||
     (insights.topNtlmHashes?.length ?? 0) > 0
   )
 
@@ -345,19 +461,31 @@ export function ProtocolDetailPage({
             <RankingCard
               title="NTLM domains / workgroups"
               empty="No domains captured yet"
-              rows={(insights.topDomains ?? []).map((row) => ({ label: row.domain, count: row.count }))}
+              rows={smbDomainRows}
             />
             <RankingCard
               title="Shares accessed"
               empty="No share access captured yet"
-              rows={(insights.topShares ?? []).map((row) => ({ label: row.share, count: row.count }))}
+              rows={(insights.topShares?.length
+                ? insights.topShares.map((row) => ({ label: row.share, count: row.count }))
+                : smbShareRows)}
             />
           </div>
           <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
             <RankingCard
-              title="Attacker OS fingerprint"
-              empty="No OS info captured yet"
-              rows={(insights.topNativeOS ?? []).map((row) => ({ label: row.nativeOS, count: row.count }))}
+              title="Recent paths touched"
+              empty="No SMB paths captured yet"
+              rows={smbPathRows}
+            />
+            <RecentUploadsCard rows={smbUploadHits} />
+          </div>
+          <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <RankingCard
+              title="Client hostnames / fingerprints"
+              empty="No SMB hostname data captured yet"
+              rows={(insights.topNativeOS?.length
+                ? insights.topNativeOS.map((row) => ({ label: row.nativeOS, count: row.count }))
+                : smbHostRows)}
             />
             <RankingCard
               title="NTLM hashes (crackable offline)"
@@ -424,12 +552,15 @@ export function ProtocolDetailPage({
                     <TableCell className="max-w-[24rem] whitespace-normal">
                       {(hit.event_type === "file.upload" || hit.event_type === "file.download") ? (
                           <div className="min-w-0">
-                            <p className="truncate font-mono text-xs text-foreground" title={dataValue(hit.data, "fileName") ?? undefined}>
-                              {dataValue(hit.data, "fileName") ?? dataValue(hit.data, "command") ?? "-"}
+                            <p className="truncate font-mono text-xs text-foreground" title={firstDataValue(hit.data, ["requestedPath", "fileName", "command"]) ?? undefined}>
+                              {firstDataValue(hit.data, ["requestedPath", "fileName", "command"]) ?? "-"}
                             </p>
                             <p className="truncate font-mono text-[11px] text-muted-foreground">
                               {[
-                                typeof hit.data?.size === "number" && formatBytes(hit.data.size as number),
+                                firstDataValue(hit.data, ["shareName", "share"]) && `share: ${firstDataValue(hit.data, ["shareName", "share"])}`,
+                                (dataNumberValue(hit.data, "fileSize") ?? dataNumberValue(hit.data, "size")) !== null &&
+                                  formatBytes((dataNumberValue(hit.data, "fileSize") ?? dataNumberValue(hit.data, "size")) as number),
+                                dataValue(hit.data, "sha256") && `sha256: ${truncateMiddle(dataValue(hit.data, "sha256") as string, 24)}`,
                                 dataValue(hit.data, "md5") && `md5: ${(dataValue(hit.data, "md5") as string).slice(0, 12)}…`,
                               ].filter(Boolean).join(" · ") || (hit.username ? `user: ${hit.username}` : "-")}
                             </p>
@@ -471,14 +602,14 @@ export function ProtocolDetailPage({
                                 <span className="text-muted-foreground"> @ {dataValue(hit.data, "domain")}</span>
                               )}
                             </p>
-                            {dataValue(hit.data, "nativeOS") && (
+                            {firstDataValue(hit.data, ["hostName", "nativeOS"]) && (
                               <p className="truncate font-mono text-[11px] text-muted-foreground">
-                                {dataValue(hit.data, "nativeOS")}
+                                {firstDataValue(hit.data, ["hostName", "nativeOS"])}
                               </p>
                             )}
-                            {dataValue(hit.data, "share") && (
+                            {firstDataValue(hit.data, ["shareName", "share"]) && (
                               <p className="truncate font-mono text-[11px] text-amber-400/80">
-                                \\{dataValue(hit.data, "share")}
+                                \\{firstDataValue(hit.data, ["shareName", "share"])}
                               </p>
                             )}
                           </div>

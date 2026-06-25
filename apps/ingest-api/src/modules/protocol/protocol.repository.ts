@@ -82,16 +82,22 @@ export class ProtocolRepository {
         : Promise.resolve([]),
       isSmb
         ? this.prismaRead.$queryRaw<Array<{ share: string; count: number }>>`
-            SELECT data->>'share' AS share, COUNT(*)::int AS count FROM protocol_hits
-            WHERE protocol = 'smb' AND data->>'share' IS NOT NULL AND data->>'share' <> ''
-            GROUP BY data->>'share' ORDER BY count DESC LIMIT 10
+            SELECT COALESCE(data->>'shareName', data->>'share') AS share, COUNT(*)::int AS count FROM protocol_hits
+            WHERE protocol = 'smb'
+              AND COALESCE(data->>'shareName', data->>'share') IS NOT NULL
+              AND COALESCE(data->>'shareName', data->>'share') <> ''
+            GROUP BY COALESCE(data->>'shareName', data->>'share')
+            ORDER BY count DESC LIMIT 10
           `
         : Promise.resolve([]),
       isSmb
         ? this.prismaRead.$queryRaw<Array<{ native_os: string; count: number }>>`
-            SELECT data->>'nativeOS' AS native_os, COUNT(*)::int AS count FROM protocol_hits
-            WHERE protocol = 'smb' AND data->>'nativeOS' IS NOT NULL AND data->>'nativeOS' <> ''
-            GROUP BY data->>'nativeOS' ORDER BY count DESC LIMIT 10
+            SELECT COALESCE(data->>'hostName', data->>'nativeOS') AS native_os, COUNT(*)::int AS count FROM protocol_hits
+            WHERE protocol = 'smb'
+              AND COALESCE(data->>'hostName', data->>'nativeOS') IS NOT NULL
+              AND COALESCE(data->>'hostName', data->>'nativeOS') <> ''
+            GROUP BY COALESCE(data->>'hostName', data->>'nativeOS')
+            ORDER BY count DESC LIMIT 10
           `
         : Promise.resolve([]),
       isSmb
