@@ -6,7 +6,7 @@
 # wordlists (Admin@12345, Google@123, developer123, etc.) succeed and
 # proceed to the post-auth shell where commands + malware are captured.
 #
-# *:x:* would accept everything including 1-char passwords — use the
+# *:x:* would accept everything including 1-char passwords -- use the
 # explicit wildcards below to enforce a minimal floor via patch_auth.py.
 
 *:x:*
