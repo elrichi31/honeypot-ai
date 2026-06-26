@@ -2,6 +2,13 @@ import { cowrieRawEventSchema } from '../schemas/index.js';
 import { normalizeEventType, buildNormalizedJson } from './normalizer.js';
 import type { CowrieRawEvent, NormalizedEvent, SessionUpsertData } from '../types/index.js';
 
+// Postgres TEXT columns reject null bytes (U+0000). Attackers can send them in
+// passwords/commands; strip them so we don't stall the Kafka consumer.
+function stripNulls(s: string | null | undefined): string | null | undefined {
+  if (typeof s !== 'string') return s
+  return s.replace(/\x00/g, '')
+}
+
 export function parseLine(line: string): CowrieRawEvent | null {
   const trimmed = line.trim();
   if (!trimmed) return null;
@@ -38,10 +45,10 @@ export function toNormalizedEvent(raw: CowrieRawEvent): NormalizedEvent {
     eventType,
     eventTs: new Date(raw.timestamp),
     srcIp: raw.src_ip,
-    message,
-    command,
-    username: raw.username ?? null,
-    password: raw.password ?? null,
+    message: stripNulls(message) ?? null,
+    command: stripNulls(command) ?? null,
+    username: stripNulls(raw.username) ?? null,
+    password: stripNulls(raw.password) ?? null,
     success: eventType === 'auth.success' ? true : eventType === 'auth.failed' ? false : null,
     rawJson: raw,
     normalizedJson: buildNormalizedJson(raw),
@@ -57,8 +64,8 @@ export function extractSessionData(raw: CowrieRawEvent): SessionUpsertData {
   };
 
   if (typeof raw.sensor === 'string' && raw.sensor) data.sensorId = raw.sensor;
-  if (raw.username) data.username = raw.username;
-  if (raw.password) data.password = raw.password;
+  if (raw.username) data.username = stripNulls(raw.username) ?? raw.username;
+  if (raw.password) data.password = stripNulls(raw.password) ?? raw.password;
   if (raw.eventid === 'cowrie.login.success') data.loginSuccess = true;
   if (raw.eventid === 'cowrie.login.failed') data.loginSuccess = false;
   if (raw.hassh) data.hassh = raw.hassh;

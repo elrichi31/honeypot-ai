@@ -133,8 +133,25 @@ export default fp(async (fastify: FastifyInstance) => {
           // No try/catch around the handlers: validation skips are handled inside
           // them (safeParse + return); any thrown error is a processing failure
           // and must propagate so the offset is not committed.
-          if (topic === 'honeypot.cowrie') await handleCowrie(raw, fastify, ingestSvc)
-          else if (topic === 'honeypot.suricata') await handleSuricata(raw, fastify, suricataSvc)
+          // Exception: Postgres data errors (22xxx) are permanent — the message
+          // will never succeed no matter how many retries. Skip and commit.
+          try {
+            if (topic === 'honeypot.cowrie') await handleCowrie(raw, fastify, ingestSvc)
+            else if (topic === 'honeypot.suricata') await handleSuricata(raw, fastify, suricataSvc)
+          } catch (err: any) {
+            // Postgres class-22 errors (data exceptions: invalid byte sequence,
+            // null value in non-null column, etc.) are permanent — retrying will
+            // never succeed. Detect via code field or error message and skip.
+            const pgCode: string | undefined = err?.cause?.code ?? err?.meta?.code ?? err?.code
+            const isPermanentDataError =
+              (typeof pgCode === 'string' && pgCode.startsWith('22')) ||
+              /code: "22\d{3}"/.test(err?.message ?? '')
+            if (isPermanentDataError) {
+              fastify.log.warn({ topic, offset: message.offset, pgCode, err: err?.message }, 'Permanent Postgres data error — skipping message')
+              return
+            }
+            throw err
+          }
         },
       })
     } catch (err) {
