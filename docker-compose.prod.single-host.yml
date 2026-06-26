@@ -137,6 +137,7 @@ services:
       -c wal_level=replica
       -c max_wal_senders=10
       -c max_replication_slots=10
+      -c wal_keep_size=4096MB
       -c hot_standby=on
       -c max_parallel_workers_per_gather=2
     environment:
@@ -145,6 +146,7 @@ services:
       POSTGRES_DB: honeypot_prod
       REPLICATION_USER: ${REPLICATION_USER:-replicator}
       REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
+      REPLICATION_SLOT: ${REPLICATION_SLOT:-honeypot_replica_slot}
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./deploy/postgres/primary-init-replication.sh:/docker-entrypoint-initdb.d/10-replication.sh:ro
@@ -188,6 +190,7 @@ services:
       PRIMARY_PORT: "5432"
       REPLICATION_USER: ${REPLICATION_USER:-replicator}
       REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
+      REPLICATION_SLOT: ${REPLICATION_SLOT:-honeypot_replica_slot}
       PGDATA: /var/lib/postgresql/data
     volumes:
       - pg_replica_data:/var/lib/postgresql/data

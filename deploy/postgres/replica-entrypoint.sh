@@ -13,13 +13,25 @@ PGDATA="${PGDATA:-/var/lib/postgresql/data}"
 : "${PRIMARY_PORT:=5432}"
 : "${REPLICATION_USER:=replicator}"
 : "${REPLICATION_PASSWORD:?REPLICATION_PASSWORD must be set on the replica}"
+: "${REPLICATION_SLOT:=honeypot_replica_slot}"
+
+ensure_primary_slot_name() {
+  auto_conf="${PGDATA}/postgresql.auto.conf"
+  touch "${auto_conf}"
+
+  if grep -q "^primary_slot_name" "${auto_conf}"; then
+    sed -i "s/^primary_slot_name.*/primary_slot_name = '${REPLICATION_SLOT}'/" "${auto_conf}"
+  else
+    printf "primary_slot_name = '%s'\n" "${REPLICATION_SLOT}" >> "${auto_conf}"
+  fi
+}
 
 if [ ! -s "${PGDATA}/PG_VERSION" ]; then
-  echo "[replica] empty data dir — cloning primary ${PRIMARY_HOST}:${PRIMARY_PORT} via pg_basebackup"
+  echo "[replica] empty data dir - cloning primary ${PRIMARY_HOST}:${PRIMARY_PORT} via pg_basebackup"
 
   # Wait for the primary to accept connections before cloning.
   until pg_isready -h "${PRIMARY_HOST}" -p "${PRIMARY_PORT}" -U "${REPLICATION_USER}"; do
-    echo "[replica] waiting for primary…"
+    echo "[replica] waiting for primary..."
     sleep 2
   done
 
@@ -32,14 +44,17 @@ if [ ! -s "${PGDATA}/PG_VERSION" ]; then
     --username="${REPLICATION_USER}" \
     --pgdata="${PGDATA}" \
     --wal-method=stream \
+    --slot="${REPLICATION_SLOT}" \
     --write-recovery-conf \
     --progress \
     --verbose
   unset PGPASSWORD
 
+  ensure_primary_slot_name
   echo "[replica] base backup complete; standby.signal written"
 else
-  echo "[replica] existing data dir — resuming as standby"
+  echo "[replica] existing data dir - resuming as standby"
+  ensure_primary_slot_name
 fi
 
 # Permissions can drift when the volume is created by root.
