@@ -5,7 +5,7 @@ services:
     container_name: cowrie
     restart: unless-stopped
     ports:
-      - "2222:2222"
+      - "22:2222"
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var
       - ./sensors/cowrie/cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
