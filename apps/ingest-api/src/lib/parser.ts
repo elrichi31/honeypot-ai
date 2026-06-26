@@ -70,7 +70,7 @@ export function extractSessionData(raw: CowrieRawEvent): SessionUpsertData {
   if (raw.eventid === 'cowrie.login.failed') data.loginSuccess = false;
   if (raw.hassh) data.hassh = raw.hassh;
   if (raw.version) data.clientVersion = raw.version;
-  if (raw.eventid === 'cowrie.session.closed' && raw.duration) {
+  if (raw.eventid === 'cowrie.session.closed') {
     data.endedAt = new Date(raw.timestamp);
   }
 
