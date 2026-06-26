@@ -5,6 +5,6 @@ RUN apk add --no-cache gcc musl-dev libffi-dev openssl-dev && \
     apk del gcc musl-dev libffi-dev
 
 WORKDIR /app
-COPY app.py .
+COPY . .
 
 CMD ["python", "-u", "app.py"]

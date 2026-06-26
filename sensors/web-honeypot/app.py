@@ -17,19 +17,17 @@ import socket
 import threading
 import time
 import uuid
-from collections import deque
 from datetime import datetime, timezone
 from email.utils import formatdate
-from urllib.request import urlopen
 
 import requests
 from flask import Flask, g, request, Response, session
 from classifier import classify
 from response_catalog import get_response
+from honeypot.ingest import send_to_ingest, detect_ip
+from honeypot.sessions import update_session
 
 app = Flask(__name__)
-# Stable key keeps sessions alive across WSGI worker restarts.
-# Override via SECRET_KEY env var in production.
 app.secret_key = os.environ.get("SECRET_KEY", "hp-default-secret-change-me")
 
 INGEST_URL = os.environ.get("INGEST_API_URL", "http://ingest-api:3000")
@@ -48,84 +46,7 @@ logging.basicConfig(
 log = logging.getLogger("web-honeypot")
 
 
-# ---------------------------------------------------------------------------
-# Per-IP session tracker — pure in-memory, no external deps.
-#
-# Keeps a rolling window of activity per source IP so each event is enriched
-# with session context: how many hits, which paths were visited, what attack
-# types were seen, and whether this looks like recon → exploitation chain.
-#
-# Design constraints:
-#   - O(1) per request (dict lookup + deque append)
-#   - Bounded memory: max MAX_IPS entries, last MAX_PATHS_PER_IP paths kept
-#   - TTL eviction: sessions older than SESSION_TTL_S are pruned lazily on
-#     each new request from that IP (no background thread needed)
-#   - Thread-safe via a single lock (coarse but sufficient — contention is
-#     negligible compared to network I/O in the ingest thread)
-# ---------------------------------------------------------------------------
-
-_SESSION_TTL_S     = 1800        # forget IP after 30 min of inactivity
-_MAX_IPS           = 8_000       # cap total tracked IPs to bound RAM
-_MAX_PATHS_PER_IP  = 50          # keep last N paths per IP
-_SESSION_LOCK      = threading.Lock()
-_IP_SESSIONS: dict[str, dict] = {}
-
-
-def _session_get_or_create(ip: str) -> dict:
-    now = time.monotonic()
-    sess = _IP_SESSIONS.get(ip)
-    if sess is None or (now - sess["last_seen"]) > _SESSION_TTL_S:
-        sess = {
-            "first_seen":   now,
-            "last_seen":    now,
-            "hits":         0,
-            "paths":        deque(maxlen=_MAX_PATHS_PER_IP),
-            "attack_types": set(),
-            "canary_hits":  0,
-        }
-        if len(_IP_SESSIONS) >= _MAX_IPS:
-            # Evict the oldest entry to stay within the cap
-            oldest = min(_IP_SESSIONS, key=lambda k: _IP_SESSIONS[k]["last_seen"])
-            del _IP_SESSIONS[oldest]
-        _IP_SESSIONS[ip] = sess
-    return sess
-
-
-def update_session(ip: str, path: str, attack_type: str, canary: bool) -> dict:
-    """Update per-IP state and return a snapshot for the current event."""
-    with _SESSION_LOCK:
-        sess = _session_get_or_create(ip)
-        now  = time.monotonic()
-        sess["hits"]        += 1
-        sess["last_seen"]    = now
-        sess["paths"].append(path)
-        sess["attack_types"].add(attack_type)
-        if canary:
-            sess["canary_hits"] += 1
-
-        elapsed = now - sess["first_seen"]
-        return {
-            "sessionHits":      sess["hits"],
-            "sessionElapsedS":  round(elapsed, 1),
-            "pathsVisited":     list(sess["paths"]),
-            "attackTypes":      list(sess["attack_types"]),
-            "canaryHitsTotal":  sess["canary_hits"],
-            # Simple chain signal: recon paths followed by exploit attempt
-            "isChainAttack":    (
-                sess["hits"] > 1
-                and attack_type not in ("recon", "scanner", "info_disclosure")
-                and any(t in sess["attack_types"] - {attack_type}
-                        for t in ("recon", "scanner", "info_disclosure"))
-            ),
-        }
-
-
 def _passive_fingerprint() -> str:
-    """
-    Stable browser/tool fingerprint from passive HTTP headers.
-    Same client → same hash even across different IPs (VPN detection).
-    Combines UA + Accept + Accept-Encoding + Accept-Language.
-    """
     parts = "|".join([
         request.headers.get("User-Agent", ""),
         request.headers.get("Accept", ""),
@@ -135,21 +56,7 @@ def _passive_fingerprint() -> str:
     return hashlib.sha256(parts.encode()).hexdigest()[:16]
 
 
-def _detect_ip() -> str:
-    ip = os.environ.get("SENSOR_IP", "")
-    if ip:
-        return ip
-    for url in ("http://ifconfig.me/ip", "http://api.ipify.org", "http://checkip.amazonaws.com"):
-        try:
-            detected = urlopen(url, timeout=4).read().decode().strip()
-            if detected:
-                return detected
-        except Exception:
-            continue
-    return ""
-
-
-SENSOR_IP = _detect_ip()
+SENSOR_IP = detect_ip()
 
 # Static headers that every response carries — mimics a typical Ubuntu/Apache/PHP stack.
 # Keep these consistent across requests so fingerprinting tools see a stable identity.
@@ -170,28 +77,6 @@ def get_real_ip() -> str:
     # The honeypot is exposed directly (no trusted reverse proxy in front),
     # so X-Forwarded-For is attacker-controlled and must never be used.
     return request.remote_addr or "unknown"
-
-
-# Events are appended as JSONL to EVENT_LOG_PATH; Vector tails this file and
-# ships to the ingest-api with a disk buffer, so an ingest/network outage no
-# longer drops events (they wait on disk and replay on recovery). Flask serves
-# requests across worker threads, so the append is guarded by a lock to keep
-# lines from interleaving.
-EVENT_LOG_PATH = os.environ.get("EVENT_LOG_PATH", "/var/log/web-honeypot/events.json")
-os.makedirs(os.path.dirname(EVENT_LOG_PATH), exist_ok=True)
-_log_lock = threading.Lock()
-
-
-def send_to_ingest(event: dict) -> None:
-    """Append the event as one JSON line for Vector to tail. Never blocks on I/O failures."""
-    try:
-        line = json.dumps(event, default=str) + "\n"
-        with _log_lock:
-            with open(EVENT_LOG_PATH, "a") as fh:
-                fh.write(line)
-                fh.flush()
-    except Exception as exc:
-        log.warning("Event log write failed: %s", exc)
 
 
 @app.route("/", defaults={"path": ""}, methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])

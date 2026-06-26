@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+"""Shared ingest client — canonical copy.
+
+Copy (do NOT import) into each sensor's honeypot/ingest.py via Dockerfile or
+manually. Any change here must be replicated to all 5 sensors:
+  ftp-honeypot, mysql-honeypot, port-honeypot, smb-honeypot, web-honeypot.
+
+The only sensor-specific parts are the module-level constants (SENSOR_ID,
+PROTOCOL, EVENT_LOG_PATH, etc.) which each sensor sets before importing this
+logic — so keep this file free of sensor-specific references.
+"""
+
+import json
+import logging
+import os
+import uuid
+from datetime import datetime, timezone
+from urllib.request import Request, urlopen
+
+log = logging.getLogger(__name__)
+
+# These must be set by the sensor module before any _emit/_send call:
+#   INGEST_API_URL, INGEST_SHARED_SECRET, SENSOR_ID, DST_PORT, EVENT_LOG_PATH
+# They are read via os.getenv at call time so late binding works.
+
+
+def _post(path: str, payload: dict):
+    ingest_url = os.getenv("INGEST_API_URL", "http://ingest-api:3000")
+    secret = os.getenv("INGEST_SHARED_SECRET", "")
+    body = json.dumps(payload, default=str).encode()
+    req = Request(
+        f"{ingest_url}{path}",
+        data=body,
+        headers={"Content-Type": "application/json", "X-Ingest-Token": secret},
+        method="POST",
+    )
+    try:
+        urlopen(req, timeout=5)
+    except Exception as exc:
+        log.debug("ingest error: %s", exc)
+
+
+def _emit(event: dict, event_log_path: str, lock=None):
+    """Append one JSON line to the event log. Pass a threading.Lock if multi-threaded."""
+    try:
+        line = json.dumps(event, default=str) + "\n"
+        if lock is not None:
+            with lock:
+                with open(event_log_path, "a") as fh:
+                    fh.write(line)
+                    fh.flush()
+        else:
+            with open(event_log_path, "a") as fh:
+                fh.write(line)
+                fh.flush()
+    except Exception as exc:
+        log.debug("event log write error: %s", exc)
+
+
+def detect_ip() -> str:
+    ip = os.getenv("SENSOR_IP", "")
+    if ip:
+        return ip
+    for url in ("http://ifconfig.me/ip", "http://api.ipify.org", "http://checkip.amazonaws.com"):
+        try:
+            return urlopen(url, timeout=4).read().decode().strip()
+        except Exception:
+            continue
+    return ""
+
+
+def make_event(
+    *,
+    sensor_id: str,
+    protocol: str,
+    src_ip: str,
+    src_port: int | None,
+    dst_port: int,
+    event_type: str,
+    username: str | None = None,
+    password: str | None = None,
+    data: dict | None = None,
+) -> dict:
+    return {
+        "eventId": str(uuid.uuid4()),
+        "sensorId": sensor_id,
+        "protocol": protocol,
+        "srcIp": src_ip,
+        "srcPort": src_port,
+        "dstPort": dst_port,
+        "eventType": event_type,
+        "username": username,
+        "password": password,
+        "data": data or {},
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
