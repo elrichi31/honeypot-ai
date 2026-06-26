@@ -100,6 +100,18 @@ export default fp(async (fastify: FastifyInstance) => {
     fastify.log.warn({ err: payload.error }, 'Kafka consumer crashed — will restart')
   })
 
+  // Watchdog: log a warning if no message has been processed in 5 minutes
+  // while the consumer is supposed to be running. Helps detect silent stalls.
+  let lastMessageAt = Date.now()
+  const watchdog = setInterval(() => {
+    if (status !== 'running') return
+    const staleSec = Math.round((Date.now() - lastMessageAt) / 1000)
+    if (staleSec > 300) {
+      fastify.log.warn({ staleSec }, 'Kafka consumer has not processed a message in >5 min — possible stall')
+    }
+  }, 60_000)
+  fastify.addHook('onClose', () => clearInterval(watchdog))
+
   fastify.addHook('onClose', async () => {
     await consumer.disconnect()
   })
@@ -138,6 +150,7 @@ export default fp(async (fastify: FastifyInstance) => {
           try {
             if (topic === 'honeypot.cowrie') await handleCowrie(raw, fastify, ingestSvc)
             else if (topic === 'honeypot.suricata') await handleSuricata(raw, fastify, suricataSvc)
+            lastMessageAt = Date.now()
           } catch (err: any) {
             // Postgres class-22 errors (data exceptions: invalid byte sequence,
             // null value in non-null column, etc.) are permanent — retrying will
