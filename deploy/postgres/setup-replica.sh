@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
 # One-shot, idempotent setup for the Postgres read replica on a single-host
-# deploy whose PRIMARY is already initialised (so the auto-init script never
-# ran). Safe to re-run.
+# deploy. Safe to re-run on every deploy/startup.
 #
 # It:
 #   1. ensures REPLICATION_USER / REPLICATION_PASSWORD / REPLICATION_SLOT exist in .env
-#   2. creates (or updates) the replication role on the primary
-#   3. creates the physical replication slot on the primary
-#   4. adds the pg_hba.conf entry and reloads
-#   5. recreates the primary with the new WAL flags + brings up the replica
-#   6. recreates ingest-api so it picks up REPLICA_DATABASE_URL
-#   7. verifies replication
+#   2. starts the primary if needed and waits for it to become ready
+#   3. creates (or updates) the replication role on the primary
+#   4. creates the physical replication slot on the primary
+#   5. adds the pg_hba.conf entry and reloads
+#   6. starts the replica and ingest-api
+#   7. optionally starts the full single-host stack
+#   8. verifies replication health
 #
 # Usage:
-#   ./deploy/postgres/setup-replica.sh            # touches only DB + ingest-api
-#   ./deploy/postgres/setup-replica.sh --all      # also `up -d` the whole stack
+#   ./deploy/postgres/setup-replica.sh
+#   ./deploy/postgres/setup-replica.sh --all
+#   ./deploy/postgres/setup-replica.sh --all --build
 set -euo pipefail
 
 COMPOSE_FILE="docker-compose.prod.single-host.yml"
@@ -22,14 +23,58 @@ PRIMARY="honeypot-postgres"
 REPLICA="honeypot-postgres-replica"
 ENV_FILE=".env"
 RUN_ALL=0
-[ "${1:-}" = "--all" ] && RUN_ALL=1
+BUILD=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --all)
+      RUN_ALL=1
+      ;;
+    --build)
+      BUILD=1
+      ;;
+    *)
+      echo "ERROR: unknown argument: $1" >&2
+      echo "Usage: $0 [--all] [--build]" >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
 
 cd "$(git rev-parse --show-toplevel 2>/dev/null || echo .)"
 
-if [ ! -f "$COMPOSE_FILE" ]; then
+if [[ ! -f "$COMPOSE_FILE" ]]; then
   echo "ERROR: $COMPOSE_FILE not found - run this from the repo root." >&2
   exit 1
 fi
+
+COMPOSE_CMD=(docker compose -f "$COMPOSE_FILE")
+if [[ "$BUILD" -eq 1 ]]; then
+  UP_ARGS=(up --build -d)
+else
+  UP_ARGS=(up -d)
+fi
+
+wait_for_pg() {
+  local container="$1"
+  local db_user="$2"
+  local db_name="$3"
+  local label="$4"
+
+  echo "[setup] waiting for ${label} to become ready..."
+  for _ in $(seq 1 60); do
+    if docker exec -i "$container" pg_isready -U "$db_user" -d "$db_name" >/dev/null 2>&1; then
+      echo "[setup] ${label} is ready"
+      return 0
+    fi
+    sleep 3
+    printf '.'
+  done
+  echo
+  echo "ERROR: ${label} did not become ready in time." >&2
+  return 1
+}
 
 # 1. .env vars
 touch "$ENV_FILE"
@@ -59,7 +104,12 @@ set +a
 : "${POSTGRES_DB:=honeypot_prod}"
 DB_USER="${POSTGRES_USER:-honeypot}"
 
-# 2-3. replication role + physical slot on the primary
+# 2. Start primary if needed and wait for it
+echo "[setup] starting primary..."
+"${COMPOSE_CMD[@]}" "${UP_ARGS[@]}" postgres
+wait_for_pg "$PRIMARY" "$DB_USER" "$POSTGRES_DB" "primary postgres"
+
+# 3-5. replication role + physical slot + pg_hba
 echo "[setup] ensuring role '${REPLICATION_USER}' and slot '${REPLICATION_SLOT}' on the primary"
 docker exec -i "$PRIMARY" psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$POSTGRES_DB" >/dev/null <<SQL
 DO \$\$
@@ -77,37 +127,24 @@ END
 \$\$;
 SQL
 
-# 4. pg_hba.conf entry + reload
 echo "[setup] ensuring pg_hba.conf replication entry"
 docker exec -i "$PRIMARY" sh -c \
   'grep -q "replication '"${REPLICATION_USER}"'" "$PGDATA/pg_hba.conf" || echo "host replication '"${REPLICATION_USER}"' all md5" >> "$PGDATA/pg_hba.conf"'
 docker exec -i "$PRIMARY" psql -U "$DB_USER" -d "$POSTGRES_DB" -c "SELECT pg_reload_conf();" >/dev/null
 
-# 5. recreate primary (new WAL flags) + bring up replica
-echo "[setup] recreating primary with replication flags + starting replica..."
-docker compose -f "$COMPOSE_FILE" up -d postgres postgres-replica
+# 6. Start replica and ingest-api
+echo "[setup] starting replica and ingest-api..."
+"${COMPOSE_CMD[@]}" "${UP_ARGS[@]}" postgres-replica ingest-api
+wait_for_pg "$REPLICA" "$DB_USER" "$POSTGRES_DB" "replica postgres"
 
-# 6. ingest-api picks up REPLICA_DATABASE_URL
-echo "[setup] recreating ingest-api..."
-docker compose -f "$COMPOSE_FILE" up -d ingest-api
-
-if [ "$RUN_ALL" -eq 1 ]; then
-  echo "[setup] --all: bringing up the rest of the stack..."
-  docker compose -f "$COMPOSE_FILE" up -d
+# 7. Optionally start the rest of the stack
+if [[ "$RUN_ALL" -eq 1 ]]; then
+  echo "[setup] starting full single-host stack..."
+  "${COMPOSE_CMD[@]}" "${UP_ARGS[@]}"
 fi
 
-# 7. verify
+# 8. Verify
 echo
-echo "[setup] waiting for the replica to become ready..."
-for i in $(seq 1 60); do
-  if docker exec -i "$REPLICA" pg_isready -U "$DB_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then
-    break
-  fi
-  sleep 5
-  printf '.'
-done
-echo
-
 echo "-- pg_stat_replication on primary (expect 1 row, state=streaming) --"
 docker exec -i "$PRIMARY" psql -U "$DB_USER" -d "$POSTGRES_DB" \
   -c "SELECT client_addr, state, sync_state FROM pg_stat_replication;" || true

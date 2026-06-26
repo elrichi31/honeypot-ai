@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { startTransition, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { Filter, Search, ShieldX, ScanLine, X, Bot, User } from "lucide-react"
+import { usePathname, useRouter } from "next/navigation"
+import { Filter, Search, ShieldX, ScanLine, X, Bot, User, Pause, Radio } from "lucide-react"
 import type { PaginationMeta, SessionsSummary } from "@/lib/api"
 import { TableShell } from "@/components/table-shell"
 import { NavTransitionProvider, useNavTransitionOptional } from "@/lib/use-nav-transition"
@@ -30,6 +30,7 @@ interface SessionsTableProps {
   // search (which navigates via the form's GET action) doesn't drop the filter.
   clientSlug?: string
   sensorId?: string
+  autoRefreshDefault?: boolean
 }
 
 interface Filters {
@@ -61,16 +62,34 @@ function SessionsTableInner({
   pagination,
   clientSlug,
   sensorId,
+  autoRefreshDefault = false,
 }: SessionsTableProps) {
   const t = useT()
   const pathname = usePathname()
+  const router = useRouter()
   const { pushParams } = useNavTransitionOptional()
   const [filters, setFilters] = useState<Filters>({ search: "", country: "", classification: "" })
   const [serverQuery, setServerQuery] = useState(searchQuery)
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(autoRefreshDefault)
 
   useEffect(() => {
     setServerQuery(searchQuery)
   }, [searchQuery])
+
+  useEffect(() => {
+    setAutoRefreshEnabled(autoRefreshDefault)
+  }, [autoRefreshDefault])
+
+  useEffect(() => {
+    if (!showAll || !autoRefreshEnabled) return
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return
+      startTransition(() => router.refresh())
+    }, 15_000)
+
+    return () => window.clearInterval(interval)
+  }, [autoRefreshEnabled, router, showAll])
 
   const activeSessions = useMemo(() => sessions.filter((session) => session.loginSuccess === true), [sessions])
   const scanSessions = useMemo(() => sessions.filter((session) => session.loginSuccess !== true), [sessions])
@@ -321,6 +340,23 @@ function SessionsTableInner({
               ? `${filteredGroups2.length} of ${ipGroups.length} visible`
               : `${filteredGroups.length} of ${scanGroups.length} visible`}
           </span>
+
+          {autoRefreshDefault && (
+            <button
+              type="button"
+              onClick={() => setAutoRefreshEnabled((current) => !current)}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors",
+                autoRefreshEnabled
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                  : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
+              )}
+              title="Refresh the latest sessions automatically every 15 seconds"
+            >
+              {autoRefreshEnabled ? <Radio className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+              {autoRefreshEnabled ? "Live every 15s" : "Live paused"}
+            </button>
+          )}
         </div>
 
         {activeFilters.length > 0 && (

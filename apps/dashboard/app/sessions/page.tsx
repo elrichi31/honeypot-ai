@@ -126,6 +126,7 @@ export default async function SessionsPage({
         pagination={sessionPage.pagination}
         clientSlug={clientSlug}
         sensorId={sensorId}
+        autoRefreshDefault={page === 1}
       />
     </PageShell>
   )

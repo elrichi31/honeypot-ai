@@ -327,8 +327,14 @@ export BETTER_AUTH_SECRET=$(openssl rand -base64 32)
 export POSTGRES_PASSWORD=$(openssl rand -base64 32)
 export INGEST_SHARED_SECRET=$(openssl rand -base64 32)
 
-docker compose -f docker-compose.prod.single-host.yml up --build -d
+bash scripts/up-single-host.sh
 docker compose -f docker-compose.prod.single-host.yml ps
+```
+
+Si no necesitas rebuild de imagenes:
+
+```bash
+bash scripts/up-single-host.sh --no-build
 ```
 
 Acceso al dashboard via SSH tunnel:
