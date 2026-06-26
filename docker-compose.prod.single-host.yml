@@ -334,6 +334,7 @@ services:
       # to the malware view alongside Dionaea/Cowrie artifacts.
       FTP_CAPTURES_PATH: /ftp-captures
       SURICATA_OWN_IPS: ${SURICATA_OWN_IPS:-}
+      KAFKA_BROKERS: kafka:9092
     group_add:
       - "112"
     volumes:
