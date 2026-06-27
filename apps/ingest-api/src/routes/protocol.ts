@@ -46,7 +46,14 @@ export async function protocolRoutes(fastify: FastifyInstance) {
     })
 
     const geo = lookupGeo(d.srcIp)
-    if (geo) eventBus.emit('attack', { type: d.protocol, ip: d.srcIp, ...geo, timestamp: d.timestamp, dstPort: d.dstPort })
+    if (geo) eventBus.emit('attack', {
+      type: d.protocol,
+      ip: d.srcIp,
+      ...geo,
+      timestamp: d.timestamp,
+      sensorId,
+      dstPort: d.dstPort,
+    })
 
     void forwardClientEventBySensorId(fastify.prisma, sensorId, {
       kind: 'protocol.event',

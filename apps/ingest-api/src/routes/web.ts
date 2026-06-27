@@ -54,9 +54,9 @@ const sessionsQuerySchema = basePaginationSchema.extend({
   onlyChains: z.coerce.boolean().default(false),
 })
 
-function emitAttackEvent(srcIp: string, timestamp: string) {
+function emitAttackEvent(srcIp: string, timestamp: string, sensorId: string | null) {
   const geo = lookupGeo(srcIp)
-  if (geo) eventBus.emit('attack', { type: 'http', ip: srcIp, ...geo, timestamp })
+  if (geo) eventBus.emit('attack', { type: 'http', ip: srcIp, ...geo, timestamp, sensorId })
 }
 
 export async function webRoutes(fastify: FastifyInstance) {
@@ -77,7 +77,7 @@ export async function webRoutes(fastify: FastifyInstance) {
     try {
       const row = await svc.insertWebHit(d, sensorId)
       if (row) {
-        emitAttackEvent(d.srcIp, d.timestamp)
+        emitAttackEvent(d.srcIp, d.timestamp, sensorId)
         void forwardClientEventBySensorId(fastify.prisma, sensorId, {
           kind: 'web.event',
           event: { eventId: d.eventId, sensorId, timestamp: d.timestamp, srcIp: d.srcIp, method: d.method, path: d.path, query: d.query, userAgent: d.userAgent, headers: d.headers, body: d.body, attackType: d.attackType },
@@ -113,7 +113,7 @@ export async function webRoutes(fastify: FastifyInstance) {
         const row = await svc.insertWebHit(d, d.sensorId ?? null)
         if (row) {
           inserted++
-          emitAttackEvent(d.srcIp, d.timestamp)
+          emitAttackEvent(d.srcIp, d.timestamp, d.sensorId ?? null)
           void forwardClientEventBySensorId(fastify.prisma, d.sensorId ?? null, {
             kind: 'web.event',
             event: { eventId: d.eventId, sensorId: d.sensorId ?? null, timestamp: d.timestamp, srcIp: d.srcIp, method: d.method, path: d.path, query: d.query, userAgent: d.userAgent, headers: d.headers ?? {}, body: d.body, attackType: d.attackType },

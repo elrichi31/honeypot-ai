@@ -21,21 +21,35 @@ export function LiveAttackMap2D({ visible, sensors, countryHits, liveArcs, setHo
     () => new Map(countryHits.map((hit) => [hit.country, hit])),
     [countryHits],
   )
-  const primary = sensors[0]
+  const sensorsById = useMemo(
+    () => new Map(sensors.map((sensor) => [sensor.sensorId, sensor])),
+    [sensors],
+  )
   return (
     <div className="absolute inset-0" style={{ display: visible ? "block" : "none" }} onMouseLeave={() => setHoverCountry(null)}>
       <ComposableMap projection="geoMercator" style={{ width: "100%", height: "100%" }} projectionConfig={{ scale: 130, center: [10, 25] }}>
         <MapFilters />
         <ZoomableGroup>
           <CountryGeographies countryHitMap={countryHitMap} setHoverCountry={setHoverCountry} />
-          {primary && liveArcs.map((arc) => (
-            <LiveArcLine key={arc.id} src={[arc.srcLng, arc.srcLat]} dst={[primary.lng, primary.lat]} type={arc.type} />
-          ))}
-          {sensors.map((sensor) => <SensorMarker key={sensor.ip} sensor={sensor} />)}
+          {liveArcs.map((arc) => {
+            const sensor = resolveTargetSensor(arc.targetSensorId, sensorsById, sensors)
+            if (!sensor) return null
+            return <LiveArcLine key={arc.id} src={[arc.srcLng, arc.srcLat]} dst={[sensor.lng, sensor.lat]} type={arc.type} />
+          })}
+          {sensors.map((sensor) => <SensorMarker key={sensor.sensorId} sensor={sensor} />)}
         </ZoomableGroup>
       </ComposableMap>
     </div>
   )
+}
+
+function resolveTargetSensor(
+  sensorId: string | null | undefined,
+  sensorsById: Map<string, SensorLocation>,
+  sensors: SensorLocation[],
+) {
+  if (sensorId) return sensorsById.get(sensorId) ?? null
+  return sensors.length === 1 ? sensors[0] : null
 }
 
 function MapFilters() {
@@ -86,7 +100,7 @@ function CountryGeographies({ countryHitMap, setHoverCountry }: {
 function SensorMarker({ sensor }: { sensor: SensorLocation }) {
   return (
     <Marker coordinates={[sensor.lng, sensor.lat]}>
-      <title>{`Honeypot ${sensor.ip}`}</title>
+      <title>{`Honeypot ${sensor.sensorId} (${sensor.ip})`}</title>
       {/* Outer slow pulse */}
       <circle r={0} fill="none" stroke="#22d3ee" strokeWidth={0.8} opacity={0}>
         <animate attributeName="r" from="8" to="28" dur="3s" repeatCount="indefinite" />

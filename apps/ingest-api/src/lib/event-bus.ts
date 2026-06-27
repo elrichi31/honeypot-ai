@@ -9,6 +9,7 @@ export interface AttackEvent {
   lng: number
   country: string
   timestamp: string
+  sensorId?: string | null
   dstPort?: number
 }
 

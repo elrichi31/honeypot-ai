@@ -99,14 +99,27 @@ function updateSvgArcs(svg: SVGSVGElement | null, arcsRef: React.MutableRefObjec
   arcsRef.current = arcsRef.current.filter((arc) => now - arc.createdAt < 6000)
   svg.setAttribute("viewBox", `0 0 ${width} ${width}`)
   while (svg.firstChild) svg.removeChild(svg.firstChild)
-  for (const sensor of sensors) appendSensorArcs(svg, sensor, arcsRef.current, phi, width, now)
+  const sensorsById = new Map(sensors.map((sensor) => [sensor.sensorId, sensor]))
+  for (const arc of arcsRef.current) {
+    const sensor = resolveTargetSensor(arc.targetSensorId, sensorsById, sensors)
+    if (sensor) appendSensorArc(svg, sensor, arc, phi, width, now)
+  }
 }
 
-function appendSensorArcs(svg: SVGSVGElement, sensor: SensorLocation, arcs: GlobeArc[], phi: number, width: number, now: number) {
+function appendSensorArc(svg: SVGSVGElement, sensor: SensorLocation, arc: GlobeArc, phi: number, width: number, now: number) {
   const dstV = latLngTo3D(sensor.lat, sensor.lng)
   const dst = projectTo2D(dstV, phi, GLOBE_THETA)
   if (!dst.visible) return
-  for (const arc of arcs) appendArc(svg, arc, dstV, dst, phi, width, now)
+  appendArc(svg, arc, dstV, dst, phi, width, now)
+}
+
+function resolveTargetSensor(
+  sensorId: string | null | undefined,
+  sensorsById: Map<string, SensorLocation>,
+  sensors: SensorLocation[],
+) {
+  if (sensorId) return sensorsById.get(sensorId) ?? null
+  return sensors.length === 1 ? sensors[0] : null
 }
 
 function appendArc(svg: SVGSVGElement, arc: GlobeArc, dstV: [number, number, number], dst: ReturnType<typeof projectTo2D>, phi: number, width: number, now: number) {

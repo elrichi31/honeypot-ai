@@ -31,6 +31,7 @@ export function LiveAttackMap() {
   const liveMarkersRef = useRef<Map<string, LiveMarkerEntry>>(new Map())
   const globeArcsRef = useRef<GlobeArc[]>([])
   const todayRef = useRef(todayUTC())
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [viewMode, setViewMode] = useState<ViewMode>("2d")
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -45,7 +46,7 @@ export function LiveAttackMap() {
 
   const loadToday = useCallback(async () => {
     try {
-      const res = await fetch("/api/attacks/today")
+      const res = await fetch("/api/attacks/today", { cache: "no-store" })
       if (!res.ok) return
       const data = (await res.json()) as { attackedCountries: CountryHit[]; sensors: SensorLocation[] }
       applyTodayData(data, setSensors, setCountryHits, setAttackedCodes, liveMarkersRef)
@@ -65,9 +66,10 @@ export function LiveAttackMap() {
   }, [])
 
   useFullscreenListener(setIsFullscreen)
-  useLiveEvents(loadToday, addAttack, setConnected)
+  useLiveEvents(loadToday, addAttack, setConnected, refreshTimerRef)
   useDayRollover(todayRef, loadToday, resetLiveState)
   useArcExpiry(setLiveArcs)
+  useSensorRefreshCleanup(refreshTimerRef)
 
   function resetLiveState() {
     setCountryHits([])
@@ -124,16 +126,30 @@ function useFullscreenListener(setIsFullscreen: (value: boolean) => void) {
   }, [setIsFullscreen])
 }
 
-function useLiveEvents(loadToday: () => Promise<void>, addAttack: (event: RawEvent) => void, setConnected: (value: boolean) => void) {
+function useLiveEvents(
+  loadToday: () => Promise<void>,
+  addAttack: (event: RawEvent) => void,
+  setConnected: (value: boolean) => void,
+  refreshTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>,
+) {
   useEffect(() => {
     loadToday()
     setConnected(true)
   }, [loadToday, setConnected])
 
+  const scheduleSensorRefresh = useCallback(() => {
+    if (refreshTimerRef.current !== null) return
+    refreshTimerRef.current = setTimeout(() => {
+      refreshTimerRef.current = null
+      void loadToday()
+    }, 1500)
+  }, [loadToday, refreshTimerRef])
+
   useLiveStream({
     onAttack: useCallback((event: AttackStreamEvent) => {
       addAttack(event as RawEvent)
     }, [addAttack]),
+    onSensorHeartbeat: scheduleSensorRefresh,
   })
 }
 
@@ -160,6 +176,11 @@ function useArcExpiry(setLiveArcs: React.Dispatch<React.SetStateAction<LiveArc[]
   }, [setLiveArcs])
 }
 
+function useSensorRefreshCleanup(refreshTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>) {
+  useEffect(() => () => {
+    if (refreshTimerRef.current !== null) clearTimeout(refreshTimerRef.current)
+  }, [refreshTimerRef])
+}
 
 function applyTodayData(
   data: { attackedCountries: CountryHit[]; sensors: SensorLocation[] },
@@ -187,7 +208,14 @@ function applyTodayData(
 function addLiveArc(event: RawEvent, timestamp: number, setLiveArcs: React.Dispatch<React.SetStateAction<LiveArc[]>>) {
   setLiveArcs((prev) => [
     ...prev,
-    { id: crypto.randomUUID(), srcLng: event.lng, srcLat: event.lat, type: event.type, expiresAt: timestamp + 5_000 },
+    {
+      id: crypto.randomUUID(),
+      srcLng: event.lng,
+      srcLat: event.lat,
+      type: event.type,
+      targetSensorId: event.sensorId ?? null,
+      expiresAt: timestamp + 5_000,
+    },
   ])
 }
 
@@ -228,6 +256,7 @@ function globeArc(event: RawEvent, timestamp: number): GlobeArc {
     srcLat: event.lat,
     srcLng: event.lng,
     type: event.type,
+    targetSensorId: event.sensorId ?? null,
     createdAt: timestamp,
   }
 }

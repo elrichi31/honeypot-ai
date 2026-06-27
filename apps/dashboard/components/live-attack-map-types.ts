@@ -1,6 +1,7 @@
 export type ViewMode = "2d" | "3d"
 
 export interface SensorLocation {
+  sensorId: string
   ip: string
   protocol: string
   lat: number
@@ -21,6 +22,7 @@ export interface LiveArc {
   srcLng: number
   srcLat: number
   type: string
+  targetSensorId?: string | null
   expiresAt: number
 }
 
@@ -29,6 +31,7 @@ export interface GlobeArc {
   srcLat: number
   srcLng: number
   type: string
+  targetSensorId?: string | null
   createdAt: number
 }
 
@@ -40,6 +43,7 @@ export interface Attack {
   lng: number
   country: string
   timestamp: number
+  sensorId?: string | null
   dstPort?: number
 }
 
@@ -50,6 +54,7 @@ export interface RawEvent {
   lng: number
   country: string
   timestamp: string
+  sensorId?: string | null
   dstPort?: number
 }
 

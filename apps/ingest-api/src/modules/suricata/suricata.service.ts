@@ -48,7 +48,13 @@ export class SuricataService {
     for (const { alert, ts } of rows) {
       if (OWN_IPS.has(alert.src_ip)) continue
       const geo = lookupGeo(alert.src_ip)
-      if (geo) eventBus.emit('attack', { type: 'ids', ip: alert.src_ip, ...geo, timestamp: ts.toISOString() })
+      if (geo) eventBus.emit('attack', {
+        type: 'ids',
+        ip: alert.src_ip,
+        ...geo,
+        timestamp: ts.toISOString(),
+        sensorId: alert.sensor_id || null,
+      })
     }
 
     return rows.length

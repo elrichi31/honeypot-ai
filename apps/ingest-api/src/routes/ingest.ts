@@ -7,10 +7,10 @@ import { eventBus } from '../lib/event-bus.js';
 import { lookupGeo } from '../lib/geo.js';
 import { scheduleThreatAlert } from '../lib/threat-alerts.js';
 
-function emitSsh(ip: string) {
+function emitSsh(ip: string, sensorId: string | null, timestamp: string) {
   const geo = lookupGeo(ip)
   if (!geo) return
-  eventBus.emit('attack', { type: 'ssh', ip, ...geo, timestamp: new Date().toISOString() })
+  eventBus.emit('attack', { type: 'ssh', ip, ...geo, timestamp, sensorId })
 }
 
 function shouldEvaluateThreat(raw: CowrieRawEvent) {
@@ -56,7 +56,9 @@ export async function ingestRoutes(fastify: FastifyInstance) {
 
     try {
       const { sessionCreated, eventCreated } = await service.processLine(parsed.data as CowrieRawEvent);
-      if (sessionCreated && parsed.data.src_ip) emitSsh(parsed.data.src_ip)
+      if (sessionCreated && parsed.data.src_ip) {
+        emitSsh(parsed.data.src_ip, typeof parsed.data.sensor === 'string' ? parsed.data.sensor : null, parsed.data.timestamp)
+      }
       if (eventCreated && shouldEvaluateThreat(parsed.data as CowrieRawEvent)) {
         scheduleThreatAlert(fastify.prisma, parsed.data.src_ip)
       }
@@ -97,7 +99,7 @@ export async function ingestRoutes(fastify: FastifyInstance) {
         else duplicates++;
         if (sessionCreated) {
           sessions++;
-          if (raw.src_ip) emitSsh(raw.src_ip)
+          if (raw.src_ip) emitSsh(raw.src_ip, typeof raw.sensor === 'string' ? raw.sensor : null, raw.timestamp)
         }
         if (eventCreated && shouldEvaluateThreat(raw as CowrieRawEvent) && raw.src_ip) {
           ipsToEvaluate.add(raw.src_ip)
@@ -140,7 +142,7 @@ export async function ingestRoutes(fastify: FastifyInstance) {
         if (eventCreated) inserted++; else duplicates++;
         if (sessionCreated) {
           sessions++;
-          if (raw.src_ip) emitSsh(raw.src_ip)
+          if (raw.src_ip) emitSsh(raw.src_ip, typeof raw.sensor === 'string' ? raw.sensor : null, raw.timestamp)
         }
         if (eventCreated && shouldEvaluateThreat(raw as CowrieRawEvent) && raw.src_ip) {
           ipsToEvaluate.add(raw.src_ip)

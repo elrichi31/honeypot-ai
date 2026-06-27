@@ -22,10 +22,10 @@ declare module 'fastify' {
   }
 }
 
-function emitSsh(ip: string) {
+function emitSsh(ip: string, sensorId: string | null, timestamp: string) {
   const geo = lookupGeo(ip)
   if (!geo) return
-  eventBus.emit('attack', { type: 'ssh', ip, ...geo, timestamp: new Date().toISOString() })
+  eventBus.emit('attack', { type: 'ssh', ip, ...geo, timestamp, sensorId })
 }
 
 function shouldEvaluateThreat(raw: CowrieRawEvent) {
@@ -43,7 +43,7 @@ async function handleCowrie(raw: unknown, fastify: FastifyInstance, svc: IngestS
   }
   const event = parsed.data as CowrieRawEvent
   const { sessionCreated, eventCreated } = await svc.processLine(event)
-  if (sessionCreated && event.src_ip) emitSsh(event.src_ip)
+  if (sessionCreated && event.src_ip) emitSsh(event.src_ip, typeof event.sensor === 'string' ? event.sensor : null, event.timestamp)
   if (eventCreated && shouldEvaluateThreat(event)) scheduleThreatAlert(fastify.prisma, event.src_ip)
 }
 

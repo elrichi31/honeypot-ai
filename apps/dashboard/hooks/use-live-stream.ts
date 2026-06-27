@@ -10,6 +10,7 @@ export interface AttackStreamEvent {
   lng: number
   country: string
   timestamp: string
+  sensorId?: string | null
   dstPort?: number
 }
 
