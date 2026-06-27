@@ -206,46 +206,42 @@ export function IntelTimeline({
       </div>
 
       {/* Timeline */}
-      <div className="max-h-[560px] overflow-y-auto px-4 py-4">
+      <div className="max-h-[560px] overflow-y-auto p-4">
         {items.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">No events match the selected filters.</p>
         ) : (
-          <ol className="relative border-l border-border/50 pl-4">
+          <ol className="relative ml-3 border-l border-border/40">
             {items.map((item, i) => {
               const meta = SOURCE_META[item.source]
               const Icon = meta.icon
               return (
-                <li key={i} className="relative mb-3 last:mb-0">
-                  {/* Node dot */}
-                  <div className={`absolute -left-[17px] top-[5px] flex h-5 w-5 items-center justify-center rounded-full border border-background ${meta.dot} ring-1 ${meta.ring}`}>
+                <li key={i} className="relative mb-4 pl-5 last:mb-0">
+                  {/* Node */}
+                  <span className={`absolute -left-[9px] top-[3px] flex h-[18px] w-[18px] items-center justify-center rounded-full ${meta.dot}`}>
                     <Icon className="h-2.5 w-2.5 text-white" />
-                  </div>
+                  </span>
 
-                  {/* Row: timestamp + badge */}
-                  <div className="mb-0.5 flex items-center gap-2">
-                    <span suppressHydrationWarning className="font-mono text-[10px] text-muted-foreground/60 tabular-nums">
+                  {/* Meta line: timestamp · source · tag · count */}
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span suppressHydrationWarning className="font-mono text-[11px] tabular-nums text-muted-foreground">
                       {formatInTimezone(item.date, timezone, {
                         month: "2-digit", day: "2-digit",
                         hour: "2-digit", minute: "2-digit", hour12: false,
                       })}
                     </span>
-                    <span className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${meta.bg} ${meta.text}`}>
-                      {meta.label}
-                    </span>
+                    <span className={`text-[11px] font-semibold ${meta.color}`}>{meta.label}</span>
                     {item.tag && (
-                      <span className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/70">
+                      <span className="rounded bg-muted px-1.5 py-px font-mono text-[10px] text-muted-foreground">
                         {item.tag}
                       </span>
                     )}
                     {item.count && item.count > 1 && (
-                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${meta.bg} ${meta.text}`}>
-                        ×{item.count}
-                      </span>
+                      <span className={`text-[11px] font-medium ${meta.color} opacity-80`}>×{item.count}</span>
                     )}
                   </div>
 
                   {/* Title */}
-                  <p className="text-sm font-medium leading-tight text-foreground">{item.title}</p>
+                  <p className="mt-0.5 text-sm text-foreground">{item.title}</p>
 
                   {/* Date range for repeated events */}
                   {item.count && item.count > 1 && item.firstDate && (
@@ -257,9 +253,12 @@ export function IntelTimeline({
                     </p>
                   )}
 
-                  {/* Detail / command */}
+                  {/* Command detail */}
                   {item.detail && (
-                    <code className="mt-1 block max-w-full truncate rounded bg-secondary/60 px-2 py-0.5 font-mono text-[10px] text-muted-foreground" title={item.detail}>
+                    <code
+                      className="mt-1 block max-w-full truncate rounded bg-muted px-2 py-0.5 font-mono text-[11px] text-muted-foreground"
+                      title={item.detail}
+                    >
                       {item.detail}
                     </code>
                   )}
