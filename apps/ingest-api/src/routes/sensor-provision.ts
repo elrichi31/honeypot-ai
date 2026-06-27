@@ -12,7 +12,7 @@ export async function sensorProvisionRoutes(fastify: FastifyInstance) {
     if (!ensureIngestToken(request, reply)) return reply
 
     const parsed = z.object({
-      clientId: z.string().trim().min(1),
+      clientId: z.string().trim().min(1).optional().nullable(),
       services: z.array(z.enum(VALID_SERVICES)).min(1).default([...VALID_SERVICES]),
       expiresInHours: z.number().int().positive().default(168),
     }).safeParse(request.body)

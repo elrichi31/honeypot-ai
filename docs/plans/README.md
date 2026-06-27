@@ -8,6 +8,8 @@ progresses, and link the relevant commit hashes so the history stays traceable.
 
 - [SENSOR_REMOTE_CONTROL.md](SENSOR_REMOTE_CONTROL.md) - WebSocket control plane para sensores: config remota, comandos con ACK, estado en vivo, fallback HTTP, seguridad, auditoria y rollout por fases.
 
+- [SENSOR_IDENTITY.md](SENSOR_IDENTITY.md) — IDs únicos de sensor (UUID por instalación, varios del mismo protocolo por cliente) + enlace explícito a **Application** (dueño por defecto, fija por deployment) o **Client**. Provisión con `clientId` opcional, reasignación Application→Client conservando el bloqueo client→client, y compatibilidad con los `sensor_id` viejos derivados. Planificado (jun 2026).
+
 - [SENSOR_REALISM.md](SENSOR_REALISM.md) — realismo, interacción y reestructuración de los 5 honeypots Python: pasar de `app.py` monolítico a paquetes con responsabilidad única (patrón web-honeypot), unificar identidad de marca entre sensores, y corregir tells de fingerprint (uptime/fechas estáticas en port, GUID/dialecto SMB, timestamps FTP, connection-id MySQL + post-auth, honeytokens por-IP, keep-alive). Refactor primero (sin cambio de comportamiento), mejoras de realismo después. Una tarea por commit, con prueba de interacción real.
 
 - [MULTI_TENANT_ROADMAP.md](MULTI_TENANT_ROADMAP.md) — multi-tenant rollout to 100%: page→endpoint table, the `effectiveScope` / `parseSensorScope` pattern, suggested order, and verification data.

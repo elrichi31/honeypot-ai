@@ -9,6 +9,7 @@ export type SensorRow = {
   protocol: string; ip: string; version: string; ports: number[]
   probe_ports: number[]; probe_host: string; last_seen: Date
   created_at: Date; event_count: bigint
+  owner_type: string; application_id: string | null; application_name: string | null
 }
 
 export class SensorRepository {
@@ -43,18 +44,21 @@ export class SensorRepository {
   async upsertHeartbeat(args: {
     sensorId: string; clientId: string | null; name: string; protocol: string
     ip: string; version: string; ports: number[]; probePorts: number[]
-    probeHost: string; now: Date
+    probeHost: string; now: Date; applicationId?: string | null
   }): Promise<void> {
-    const { sensorId, clientId, name, protocol, ip, version, ports, probePorts, probeHost, now } = args
+    const { sensorId, clientId, name, protocol, ip, version, ports, probePorts, probeHost, now, applicationId } = args
+    const ownerType = clientId ? 'client' : 'application'
+    const appId = applicationId ?? (clientId ? null : (process.env.APPLICATION_ID ?? 'default-application'))
     await this.prisma.$executeRaw`
-      INSERT INTO sensors (id, sensor_id, client_id, name, protocol, ip, version, ports, probe_ports, probe_host, last_seen, created_at)
-      VALUES (gen_random_uuid()::text, ${sensorId}, ${clientId}, ${name}, ${protocol}, ${ip}, ${version},
+      INSERT INTO sensors (id, sensor_id, client_id, application_id, owner_type, name, protocol, ip, version, ports, probe_ports, probe_host, last_seen, created_at)
+      VALUES (gen_random_uuid()::text, ${sensorId}, ${clientId}, ${appId}, ${ownerType}, ${name}, ${protocol}, ${ip}, ${version},
         CAST(${JSON.stringify(ports)} AS jsonb), CAST(${JSON.stringify(probePorts)} AS jsonb),
         ${probeHost}, ${now}, ${now})
       ON CONFLICT (sensor_id) DO UPDATE SET
-        client_id = COALESCE(EXCLUDED.client_id, sensors.client_id), name = EXCLUDED.name,
-        protocol = EXCLUDED.protocol, ip = EXCLUDED.ip, version = EXCLUDED.version,
-        ports = EXCLUDED.ports, probe_ports = EXCLUDED.probe_ports,
+        client_id = COALESCE(EXCLUDED.client_id, sensors.client_id),
+        owner_type = CASE WHEN COALESCE(EXCLUDED.client_id, sensors.client_id) IS NOT NULL THEN 'client' ELSE 'application' END,
+        name = EXCLUDED.name, protocol = EXCLUDED.protocol, ip = EXCLUDED.ip,
+        version = EXCLUDED.version, ports = EXCLUDED.ports, probe_ports = EXCLUDED.probe_ports,
         probe_host = EXCLUDED.probe_host, last_seen = EXCLUDED.last_seen
     `
   }
@@ -83,6 +87,7 @@ export class SensorRepository {
         s.sensor_id, c.id AS client_id, c.name AS client_name, c.slug AS client_slug,
         c.code AS client_code, s.name, s.protocol, s.ip, s.version,
         s.ports, s.probe_ports, s.probe_host, s.last_seen, s.created_at,
+        s.owner_type, s.application_id, a.name AS application_name,
         COALESCE(
           CASE
             WHEN s.protocol = 'ssh'  THEN sc.n
@@ -91,10 +96,11 @@ export class SensorRepository {
           END, 0
         )::bigint AS event_count
       FROM sensors s
-      LEFT JOIN clients c     ON c.id = s.client_id
-      LEFT JOIN ssh_counts sc ON sc.sensor_id = s.sensor_id
-      LEFT JOIN web_counts wc ON wc.sensor_id = s.sensor_id
-      LEFT JOIN proto_counts pc ON pc.sensor_id = s.sensor_id
+      LEFT JOIN clients c          ON c.id = s.client_id
+      LEFT JOIN applications a     ON a.id = s.application_id
+      LEFT JOIN ssh_counts sc      ON sc.sensor_id = s.sensor_id
+      LEFT JOIN web_counts wc      ON wc.sensor_id = s.sensor_id
+      LEFT JOIN proto_counts pc    ON pc.sensor_id = s.sensor_id
       ORDER BY s.last_seen DESC
     `
   }
@@ -113,16 +119,23 @@ export class SensorRepository {
     return rows[0] ?? null
   }
 
-  async getSensorClientId(sensorId: string): Promise<{ client_id: string | null } | null> {
-    const rows = await this.prisma.$queryRaw<Array<{ client_id: string | null }>>`
-      SELECT client_id FROM sensors WHERE sensor_id = ${sensorId}
+  async getSensorClientId(sensorId: string): Promise<{ client_id: string | null; owner_type: string } | null> {
+    const rows = await this.prisma.$queryRaw<Array<{ client_id: string | null; owner_type: string }>>`
+      SELECT client_id, owner_type FROM sensors WHERE sensor_id = ${sensorId}
     `
     return rows[0] ?? null
   }
 
   async assignClient(sensorId: string, clientId: string | null): Promise<{ sensor_id: string } | null> {
+    const ownerType = clientId ? 'client' : 'application'
+    const appId = clientId ? null : (process.env.APPLICATION_ID ?? 'default-application')
     const rows = await this.prisma.$queryRaw<Array<{ sensor_id: string }>>`
-      UPDATE sensors SET client_id = ${clientId} WHERE sensor_id = ${sensorId} RETURNING sensor_id
+      UPDATE sensors
+      SET client_id = ${clientId},
+          owner_type = ${ownerType},
+          application_id = ${appId}
+      WHERE sensor_id = ${sensorId}
+      RETURNING sensor_id
     `
     return rows[0] ?? null
   }
@@ -160,7 +173,7 @@ export class SensorRepository {
   }
 
   async createProvisionToken(args: {
-    id: string; token: string; clientId: string; services: string; expiresAt: Date
+    id: string; token: string; clientId: string | null; services: string; expiresAt: Date
   }): Promise<void> {
     const { id, token, clientId, services, expiresAt } = args
     await this.prisma.$executeRaw`
@@ -170,17 +183,17 @@ export class SensorRepository {
   }
 
   async redeemProvisionToken(token: string): Promise<{
-    id: string; expires_at: Date; services: string
-    client_name: string; client_slug: string; client_code: string
+    id: string; expires_at: Date; services: string; client_id: string | null
+    client_name: string | null; client_slug: string | null; client_code: string | null
   } | null> {
     const rows = await this.prisma.$queryRaw<Array<{
-      id: string; expires_at: Date; services: string
-      client_name: string; client_slug: string; client_code: string
+      id: string; expires_at: Date; services: string; client_id: string | null
+      client_name: string | null; client_slug: string | null; client_code: string | null
     }>>`
-      SELECT t.id, t.expires_at, t.services,
+      SELECT t.id, t.expires_at, t.services, t.client_id,
              c.name AS client_name, c.slug AS client_slug, c.code AS client_code
       FROM sensor_provision_tokens t
-      JOIN clients c ON c.id = t.client_id
+      LEFT JOIN clients c ON c.id = t.client_id
       WHERE t.token = ${token}
         AND t.used_at IS NULL
       LIMIT 1

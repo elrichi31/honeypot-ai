@@ -58,7 +58,7 @@ export function SensorStats({
 }) {
   const t = useT()
   const { getLastLiveAt } = useSensorLive()
-  const sensorIdDisplay = clientCode ? `${sensor.sensorId}-${clientCode}` : sensor.sensorId
+  const sensorIdDisplay = sensor.sensorId
   const liveTs = getLastLiveAt(sensor.sensorId)
   const effectiveLastSeen =
     typeof liveTs === "number" && Number.isFinite(liveTs)

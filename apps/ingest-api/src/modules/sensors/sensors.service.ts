@@ -1,5 +1,4 @@
-import { createHash } from 'crypto'
-import { randomBytes } from 'crypto'
+import { createHash, randomBytes, randomUUID } from 'crypto'
 import type { PrismaClient } from '@prisma/client'
 import { SensorRepository } from './sensors.repository.js'
 import { normalizeSlug } from '../../lib/sensor-utils.js'
@@ -69,6 +68,7 @@ export class SensorService {
           version: '', ports: [], probeHost: '', eventsTotal: Number(ssh.count),
           lastSeen: ssh.last_seen ?? new Date(0), createdAt: new Date(0),
           online: ssh.last_seen ? ssh.last_seen > twoMinutesAgo : false, degraded: false, portStatus: {},
+          ownerType: 'application', applicationId: null, applicationName: null,
         })
       }
     }
@@ -97,11 +97,10 @@ export class SensorService {
       client = { id: existing.id, name: existing.name, slug: existing.slug }
     }
 
-    // Block moving a sensor from one client to another: the only supported way to
-    // re-home a sensor is to delete and recreate it. Assigning from unassigned
-    // (null) and unassigning back to null are still allowed.
-    const current = await this.repo.getSensorClientId(sensorId)
+      const current = await this.repo.getSensorClientId(sensorId)
     if (!current) return { error: 'Sensor not found', status: 404 }
+    // Block moving a sensor from one client to a different client.
+    // application→client, client→application (unassign), and client→same client are all allowed.
     if (current.client_id && client.id && current.client_id !== client.id) {
       return { error: 'Sensor already belongs to another client. Delete and recreate it to move it.', status: 409 }
     }
@@ -133,16 +132,18 @@ export class SensorService {
   }
 
   async createProvisionToken(args: {
-    clientId: string; services: string[]; expiresInHours: number
+    clientId?: string | null; services: string[]; expiresInHours: number
   }): Promise<{ error: string; status: number } | { token: string; expiresAt: Date; services: string[] }> {
-    const client = await this.repo.findClientById(args.clientId)
-    if (!client) return { error: 'Client not found', status: 404 }
+    if (args.clientId) {
+      const client = await this.repo.findClientById(args.clientId)
+      if (!client) return { error: 'Client not found', status: 404 }
+    }
 
     const token = randomBytes(32).toString('hex')
     const expiresAt = new Date(Date.now() + args.expiresInHours * 3600 * 1000)
     const id = `spt_${randomBytes(8).toString('hex')}`
 
-    await this.repo.createProvisionToken({ id, token, clientId: args.clientId, services: args.services.join(','), expiresAt })
+    await this.repo.createProvisionToken({ id, token, clientId: args.clientId ?? null, services: args.services.join(','), expiresAt })
     return { token, expiresAt, services: args.services }
   }
 
@@ -156,23 +157,24 @@ export class SensorService {
 
     await this.repo.markProvisionTokenUsed(row.id)
 
-    const code = row.client_code || row.client_slug.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 8)
     const selectedKeys = row.services.split(',').filter(s => s in SERVICE_MAP)
     const composeServices = selectedKeys.flatMap(k => SERVICE_MAP[k]).join(' ')
 
-    const lines = [
+    const linesList = [
       `INGEST_SHARED_SECRET=${secret}`,
-      `CLIENT_SLUG=${row.client_slug}`,
-      `CLIENT_NAME=${row.client_name}`,
-      `SENSOR_ID_SSH=cowrie-01-${code}`,
-      `SENSOR_ID_HTTP=web-01-${code}`,
-      `SENSOR_ID_FTP=ftp-01-${code}`,
-      `SENSOR_ID_MYSQL=mysql-01-${code}`,
-      `SENSOR_ID_PORT=port-01-${code}`,
-      `SENSOR_ID_DIONAEA=dionaea-01-${code}`,
+      `CLIENT_SLUG=${row.client_slug ?? ''}`,
+      `CLIENT_NAME=${row.client_name ?? ''}`,
+      // Each service protocol gets its own UUID so multiple sensors of the same
+      // protocol under the same client get distinct sensor_ids.
+      `SENSOR_ID_SSH=${randomUUID()}`,
+      `SENSOR_ID_HTTP=${randomUUID()}`,
+      `SENSOR_ID_FTP=${randomUUID()}`,
+      `SENSOR_ID_MYSQL=${randomUUID()}`,
+      `SENSOR_ID_PORT=${randomUUID()}`,
+      `SENSOR_ID_DIONAEA=${randomUUID()}`,
       `ENABLED_COMPOSE_SERVICES=${composeServices}`,
-    ].join('\n')
+    ]
 
-    return { lines }
+    return { lines: linesList.join('\n') }
   }
 }

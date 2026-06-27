@@ -9,6 +9,7 @@ export type SensorRow = {
   protocol: string; ip: string; version: string; ports: number[]
   probe_ports: number[]; probe_host: string; last_seen: Date
   created_at: Date; event_count: bigint
+  owner_type: string; application_id: string | null; application_name: string | null
 }
 
 export type SensorResult = {
@@ -17,6 +18,7 @@ export type SensorResult = {
   protocol: string; ip: string; version: string; ports: number[]
   probeHost: string; lastSeen: Date; createdAt: Date
   eventsTotal: number; online: boolean; degraded: boolean; portStatus: Record<number, boolean>
+  ownerType: string; applicationId: string | null; applicationName: string | null
 }
 
 export async function resolveClientId(
@@ -134,5 +136,8 @@ export function formatSensor(sensor: SensorRow, portStatus: Record<number, boole
     online,
     degraded,
     portStatus,
+    ownerType:       sensor.owner_type ?? 'application',
+    applicationId:   sensor.application_id ?? null,
+    applicationName: sensor.application_name ?? null,
   }
 }

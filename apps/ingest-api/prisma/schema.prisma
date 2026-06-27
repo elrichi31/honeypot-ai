@@ -100,23 +100,37 @@ model ProtocolHit {
   @@map("protocol_hits")
 }
 
-model Sensor {
-  id         String   @id @default(cuid())
-  sensorId   String   @unique @map("sensor_id")
-  clientId   String?  @map("client_id")
-  name       String
-  protocol   String
-  ip         String
-  version    String   @default("")
-  ports      Json     @default("[]")
-  probePorts Json     @default("[]") @map("probe_ports")
-  probeHost  String   @default("") @map("probe_host")
-  lastSeen   DateTime @map("last_seen")
-  createdAt  DateTime @default(now()) @map("created_at")
+model Application {
+  id        String   @id
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
 
-  client Client? @relation(fields: [clientId], references: [id])
+  sensors Sensor[]
+
+  @@map("applications")
+}
+
+model Sensor {
+  id            String   @id @default(cuid())
+  sensorId      String   @unique @map("sensor_id")
+  clientId      String?  @map("client_id")
+  applicationId String?  @map("application_id")
+  ownerType     String   @default("application") @map("owner_type")
+  name          String
+  protocol      String
+  ip            String
+  version       String   @default("")
+  ports         Json     @default("[]")
+  probePorts    Json     @default("[]") @map("probe_ports")
+  probeHost     String   @default("") @map("probe_host")
+  lastSeen      DateTime @map("last_seen")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  client      Client?      @relation(fields: [clientId], references: [id])
+  application Application? @relation(fields: [applicationId], references: [id])
 
   @@index([clientId])
+  @@index([ownerType])
   @@index([lastSeen(sort: Desc)])
   @@map("sensors")
 }
@@ -161,13 +175,13 @@ model ApiDefenseEvent {
 model SensorProvisionToken {
   id        String    @id @default(cuid())
   token     String    @unique
-  clientId  String    @map("client_id")
+  clientId  String?   @map("client_id")
   services  String    @default("ssh,http,ftp,mysql,port")
   createdAt DateTime  @default(now()) @map("created_at")
   expiresAt DateTime  @map("expires_at")
   usedAt    DateTime? @map("used_at")
 
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@index([token])

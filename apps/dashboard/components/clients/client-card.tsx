@@ -57,6 +57,9 @@ export function ClientCard({ client, stats, onEdit, onDelete }: Props) {
               {client.code}
             </span>
           </div>
+          <p className="mt-0.5 font-mono text-[10px] text-muted-foreground/50 truncate" title={client.id}>
+            {client.id}
+          </p>
         </div>
 
         {/* Action buttons — stop propagation so clicks don't navigate */}

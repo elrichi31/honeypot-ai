@@ -14,10 +14,10 @@ import { getServerT } from "@/lib/i18n/server"
 import type { Sensor } from "@/lib/api"
 
 function groupSensorsByClient(sensors: Sensor[]) {
-  const groups = new Map<string, { label: string; slug: string | null; sensors: Sensor[] }>()
+  const groups = new Map<string, { label: string; slug: string | null; isApplication: boolean; sensors: Sensor[] }>()
 
   for (const sensor of sensors) {
-    const key = sensor.clientId ?? "__unassigned__"
+    const key = sensor.clientId ?? "__application__"
     const current = groups.get(key)
     if (current) {
       current.sensors.push(sensor)
@@ -25,15 +25,16 @@ function groupSensorsByClient(sensors: Sensor[]) {
     }
 
     groups.set(key, {
-      label: sensor.clientName ?? "",
+      label: sensor.clientName ?? sensor.applicationName ?? "",
       slug: sensor.clientSlug,
+      isApplication: sensor.ownerType === "application",
       sensors: [sensor],
     })
   }
 
   return Array.from(groups.values()).sort((a, b) => {
-    if (a.slug === null) return 1
-    if (b.slug === null) return -1
+    if (a.isApplication) return 1
+    if (b.isApplication) return -1
     return a.label.localeCompare(b.label)
   })
 }
@@ -119,7 +120,7 @@ export default async function SensorsPage() {
         <SensorsLiveWrapper>
         <div className="space-y-8">
           {groups.map((group) => (
-            <section key={group.slug ?? "unassigned"} className="space-y-4">
+            <section key={group.slug ?? "application"} className="space-y-4">
               <div className="flex items-end justify-between gap-4">
                 <div>
                   <h2 className="text-lg font-semibold text-foreground">
@@ -127,6 +128,8 @@ export default async function SensorsPage() {
                       <Link href={`/clients/${group.slug}`} className="hover:underline">
                         {group.label}
                       </Link>
+                    ) : group.isApplication ? (
+                      <span className="text-muted-foreground">{group.label || t("sensors.application")}</span>
                     ) : (
                       t("sensors.unassigned")
                     )}

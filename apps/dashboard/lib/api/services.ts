@@ -76,6 +76,9 @@ export interface Sensor {
   online: boolean
   degraded: boolean
   portStatus: Record<number, boolean>
+  ownerType: string
+  applicationId: string | null
+  applicationName: string | null
 }
 
 export interface Client {
