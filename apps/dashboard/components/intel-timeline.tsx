@@ -206,131 +206,69 @@ export function IntelTimeline({
       </div>
 
       {/* Timeline */}
-      <div className="max-h-[600px] overflow-y-auto px-4 py-6">
+      <div className="max-h-[560px] overflow-y-auto px-4 py-4">
         {items.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">No events match the selected filters.</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">No events match the selected filters.</p>
         ) : (
-          <div className="relative">
-            {/* Vertical center line */}
-            <div className="absolute left-1/2 top-0 bottom-0 w-px -translate-x-1/2 bg-border/60" />
+          <ol className="relative border-l border-border/50 pl-4">
+            {items.map((item, i) => {
+              const meta = SOURCE_META[item.source]
+              const Icon = meta.icon
+              return (
+                <li key={i} className="relative mb-3 last:mb-0">
+                  {/* Node dot */}
+                  <div className={`absolute -left-[17px] top-[5px] flex h-5 w-5 items-center justify-center rounded-full border border-background ${meta.dot} ring-1 ${meta.ring}`}>
+                    <Icon className="h-2.5 w-2.5 text-white" />
+                  </div>
 
-            <ol className="space-y-0">
-              {items.map((item, i) => {
-                const meta = SOURCE_META[item.source]
-                const Icon = meta.icon
-                const isLeft = i % 2 === 0
+                  {/* Row: timestamp + badge */}
+                  <div className="mb-0.5 flex items-center gap-2">
+                    <span suppressHydrationWarning className="font-mono text-[10px] text-muted-foreground/60 tabular-nums">
+                      {formatInTimezone(item.date, timezone, {
+                        month: "2-digit", day: "2-digit",
+                        hour: "2-digit", minute: "2-digit", hour12: false,
+                      })}
+                    </span>
+                    <span className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${meta.bg} ${meta.text}`}>
+                      {meta.label}
+                    </span>
+                    {item.tag && (
+                      <span className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/70">
+                        {item.tag}
+                      </span>
+                    )}
+                    {item.count && item.count > 1 && (
+                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${meta.bg} ${meta.text}`}>
+                        ×{item.count}
+                      </span>
+                    )}
+                  </div>
 
-                return (
-                  <li key={i} className="relative flex items-start gap-0">
-                    {/* Left side */}
-                    <div className={`w-1/2 pr-6 ${isLeft ? "" : "invisible"}`}>
-                      {isLeft && (
-                        <div className="text-right">
-                          <TimelineCard
-                            item={item}
-                            meta={meta}
-                            Icon={Icon}
-                            timezone={timezone}
-                            align="right"
-                          />
-                        </div>
-                      )}
-                    </div>
+                  {/* Title */}
+                  <p className="text-sm font-medium leading-tight text-foreground">{item.title}</p>
 
-                    {/* Center node */}
-                    <div className="absolute left-1/2 top-3 flex h-7 w-7 -translate-x-1/2 items-center justify-center">
-                      <div className={`flex h-7 w-7 items-center justify-center rounded-full border-2 border-background ${meta.dot} shadow-sm ring-2 ${meta.ring}`}>
-                        <Icon className="h-3 w-3 text-white" />
-                      </div>
-                    </div>
+                  {/* Date range for repeated events */}
+                  {item.count && item.count > 1 && item.firstDate && (
+                    <p suppressHydrationWarning className="mt-0.5 text-[10px] text-muted-foreground/50">
+                      {item.count} times ·{" "}
+                      {formatInTimezone(item.firstDate, timezone, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}
+                      {" – "}
+                      {formatInTimezone(item.date, timezone, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}
+                    </p>
+                  )}
 
-                    {/* Right side */}
-                    <div className={`w-1/2 pl-6 ${!isLeft ? "" : "invisible"}`}>
-                      {!isLeft && (
-                        <TimelineCard
-                          item={item}
-                          meta={meta}
-                          Icon={Icon}
-                          timezone={timezone}
-                          align="left"
-                        />
-                      )}
-                    </div>
-                  </li>
-                )
-              })}
-            </ol>
-          </div>
+                  {/* Detail / command */}
+                  {item.detail && (
+                    <code className="mt-1 block max-w-full truncate rounded bg-secondary/60 px-2 py-0.5 font-mono text-[10px] text-muted-foreground" title={item.detail}>
+                      {item.detail}
+                    </code>
+                  )}
+                </li>
+              )
+            })}
+          </ol>
         )}
       </div>
-    </div>
-  )
-}
-
-function TimelineCard({
-  item,
-  meta,
-  Icon,
-  timezone,
-  align,
-}: {
-  item: TimelineItem
-  meta: typeof SOURCE_META[Source]
-  Icon: typeof Terminal
-  timezone: string
-  align: "left" | "right"
-}) {
-  return (
-    <div className={`group mb-6 rounded-lg border border-border bg-card/60 p-3 shadow-sm transition-shadow hover:shadow-md ${align === "right" ? "text-left" : ""}`}>
-      {/* Source badge + timestamp */}
-      <div className={`flex items-center gap-2 ${align === "right" ? "flex-row-reverse justify-end" : ""}`}>
-        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${meta.bg} ${meta.text}`}>
-          <Icon className="h-2.5 w-2.5" />
-          {meta.label}
-        </span>
-        <span suppressHydrationWarning className="font-mono text-[10px] text-muted-foreground/70 tabular-nums">
-          {formatInTimezone(item.date, timezone, {
-            month: "2-digit", day: "2-digit",
-            hour: "2-digit", minute: "2-digit", hour12: false,
-          })}
-        </span>
-      </div>
-
-      {/* Title */}
-      <p className="mt-1.5 text-sm font-medium leading-snug text-foreground">{item.title}</p>
-
-      {/* Meta row: tags + repeat count */}
-      {(item.tag || (item.count && item.count > 1)) && (
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
-          {item.tag && (
-            <span className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-              {item.tag}
-            </span>
-          )}
-          {item.count && item.count > 1 && (
-            <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${meta.bg} ${meta.text}`}>
-              ×{item.count}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Date range for repeated events */}
-      {item.count && item.count > 1 && item.firstDate && (
-        <p suppressHydrationWarning className="mt-1 text-[10px] text-muted-foreground/60">
-          {item.count} times ·{" "}
-          {formatInTimezone(item.firstDate, timezone, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}
-          {" – "}
-          {formatInTimezone(item.date, timezone, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}
-        </p>
-      )}
-
-      {/* Detail / command */}
-      {item.detail && (
-        <code className="mt-1.5 block max-w-full truncate rounded bg-secondary/60 px-2 py-1 font-mono text-[10px] text-muted-foreground" title={item.detail}>
-          {item.detail}
-        </code>
-      )}
     </div>
   )
 }
