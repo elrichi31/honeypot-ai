@@ -24,6 +24,8 @@ function csvEnum<T extends string>(allowed: readonly T[]) {
     })
 }
 
+const PERIOD_DAYS: Record<string, number> = { '24h': 1, '7d': 7, '30d': 30, '90d': 90 }
+
 const threatListQuerySchema = basePaginationSchema.extend({
   q: z.string().trim().min(1).optional(),
   level: z.enum(RISK_LEVELS).optional(),
@@ -34,6 +36,7 @@ const threatListQuerySchema = basePaginationSchema.extend({
   sortDir: z.enum(['asc', 'desc']).default('desc'),
   clientSlug: z.string().trim().min(1).optional(),
   sensorId: z.string().trim().min(1).optional(),
+  period: z.enum(['24h', '7d', '30d', '90d']).default('90d'),
 })
 
 type ThreatListQuery = z.infer<typeof threatListQuerySchema>
@@ -76,7 +79,8 @@ export async function threatRoutes(fastify: FastifyInstance) {
       sortDir: parsed.data.sortDir,
     }
 
-    const threats = await svc.listThreats(fastify.cache, filters, scopeKey, scope)
+    const windowDays = PERIOD_DAYS[parsed.data.period]
+    const threats = await svc.listThreats(fastify.cache, filters, scopeKey, scope, windowDays)
     sortThreats(threats, parsed.data.sortBy, parsed.data.sortDir)
     const items = threats.slice(offset, offset + pageSize)
     return reply.send({

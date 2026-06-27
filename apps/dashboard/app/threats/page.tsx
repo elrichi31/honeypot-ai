@@ -14,6 +14,8 @@ const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
 
 const VALID_THREAT_SORT_BY = new Set(["score", "sessions", "webHits", "protocols"])
 const VALID_SORT_DIR = new Set(["asc", "desc"])
+const VALID_PERIODS = ["24h", "7d", "30d", "90d"] as const
+type Period = (typeof VALID_PERIODS)[number]
 const VALID_LEVELS = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"] as const
 const VALID_COMMANDS = [
   "malware_drop", "persistence", "lateral_movement", "crypto_mining", "data_exfil", "recon", "other",
@@ -46,6 +48,7 @@ export default async function ThreatsPage({
     crossProtocol?: string
     clientSlug?: string
     sensorId?: string
+    period?: string
   }>
 }) {
   const t = await getServerT()
@@ -60,6 +63,7 @@ export default async function ThreatsPage({
   const crossProtocol = params.crossProtocol === "true" ? true : undefined
   const clientSlug = params.clientSlug?.trim() || undefined
   const sensorId = params.sensorId?.trim() || undefined
+  const period: Period = (VALID_PERIODS as readonly string[]).includes(params.period ?? "") ? (params.period as Period) : "90d"
 
   let pageData: Awaited<ReturnType<typeof fetchThreatsPage>> | null = null
   let clients: Awaited<ReturnType<typeof fetchClients>> = []
@@ -67,7 +71,7 @@ export default async function ThreatsPage({
   let geo: Record<string, { country: string; countryName: string } | null> = {}
   try {
     ;[pageData, clients, sensors] = await Promise.all([
-      fetchThreatsPage({ page, pageSize, q, sortBy, sortDir, levels, commands, crossProtocol, clientSlug, sensorId }),
+      fetchThreatsPage({ page, pageSize, q, sortBy, sortDir, levels, commands, crossProtocol, clientSlug, sensorId, period }),
       fetchClients().catch(() => []),
       fetchSensors().catch(() => []),
     ])
@@ -140,6 +144,7 @@ export default async function ThreatsPage({
         levels={levels}
         commands={commands}
         crossProtocol={crossProtocol === true}
+        period={period}
       />
     </PageShell>
   )

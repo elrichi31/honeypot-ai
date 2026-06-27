@@ -94,12 +94,12 @@ export class ThreatRepository {
     `
   }
 
-  async queryCommandRows(ipFilter?: string, scope?: ThreatScope): Promise<CommandAggRow[]> {
+  async queryCommandRows(ipFilter?: string, scope?: ThreatScope, windowDays = THREATS_WINDOW_DAYS): Promise<CommandAggRow[]> {
     const ipClause = ipFilter ? Prisma.sql`AND e.src_ip ILIKE ${`%${ipFilter}%`}` : Prisma.empty
     const scopeCond = sensorScope(scope, Prisma.raw('s.sensor_id'))
     const scopeJoin = scopeCond ? Prisma.sql`JOIN sessions s ON s.id = e.session_id` : Prisma.empty
     const scopeClause = scopeCond ? Prisma.sql`AND ${scopeCond}` : Prisma.empty
-    const where = Prisma.sql`WHERE e.event_type = 'command.input' AND e.command IS NOT NULL AND e.event_ts >= ${cutoff(THREATS_WINDOW_DAYS)} ${ipClause} ${scopeClause}`
+    const where = Prisma.sql`WHERE e.event_type = 'command.input' AND e.command IS NOT NULL AND e.event_ts >= ${cutoff(windowDays)} ${ipClause} ${scopeClause}`
     const limit = ipFilter ? Prisma.sql`LIMIT 2000` : Prisma.sql`LIMIT 10000`
     return this.prismaRead.$queryRaw<CommandAggRow[]>`
       SELECT DISTINCT e.src_ip, e.command

@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@prisma/client'
 import type { FastifyInstance } from 'fastify'
-import { ThreatRepository, type ThreatSummaryRow, type ThreatScope } from './threats.repository.js'
+import { ThreatRepository, THREATS_WINDOW_DAYS, type ThreatSummaryRow, type ThreatScope } from './threats.repository.js'
 import {
   buildThreatAggregates,
   formatThreatResponse,
@@ -57,15 +57,17 @@ export class ThreatService {
     filters: ThreatListFilters,
     scopeKey: string,
     scope: ThreatScope,
+    windowDays: number,
   ): Promise<ThreatItem[]> {
     const hasFilters = Boolean(filters.q) || (filters.levels?.length ?? 0) > 0 || (filters.commands?.length ?? 0) > 0 || filters.crossProtocol !== undefined
+    const periodKey = `:w=${windowDays}`
 
     if (!hasFilters) {
-      return withCache(cache, `threats:list${scopeKey}`, 180, () => this.fetchThreats(undefined, scope))
+      return withCache(cache, `threats:list${scopeKey}${periodKey}`, 180, () => this.fetchThreats(undefined, scope, windowDays))
     }
-    const filteredKey = `threats:filtered${scopeKey}:${filters.q ?? ''}:${[...(filters.levels ?? [])].sort().join('+')}:${[...(filters.commands ?? [])].sort().join('+')}:${filters.crossProtocol ?? ''}`
+    const filteredKey = `threats:filtered${scopeKey}${periodKey}:${filters.q ?? ''}:${[...(filters.levels ?? [])].sort().join('+')}:${[...(filters.commands ?? [])].sort().join('+')}:${filters.crossProtocol ?? ''}`
     return withCache(cache, filteredKey, 300, async () =>
-      this.filterThreats(await this.fetchThreats(filters.q, scope), filters)
+      this.filterThreats(await this.fetchThreats(filters.q, scope, windowDays), filters)
     )
   }
 
@@ -91,10 +93,10 @@ export class ThreatService {
     }
   }
 
-  private async fetchThreats(ipFilter?: string, scope?: ThreatScope): Promise<ThreatItem[]> {
+  private async fetchThreats(ipFilter?: string, scope?: ThreatScope, windowDays = THREATS_WINDOW_DAYS): Promise<ThreatItem[]> {
     const [summaryRows, cmdRows] = await Promise.all([
-      this.repo.querySummaryRows(ipFilter, scope),
-      this.repo.queryCommandRows(ipFilter, scope),
+      this.repo.querySummaryRows(ipFilter, scope, windowDays),
+      this.repo.queryCommandRows(ipFilter, scope, windowDays),
     ])
     const cmdsByIp = groupCommands(cmdRows)
     return summaryRows.map((row) =>

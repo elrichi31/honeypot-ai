@@ -8,6 +8,7 @@ export async function fetchThreatsPage(params?: {
   sortBy?: 'score' | 'sessions' | 'webHits' | 'protocols'
   sortDir?: 'asc' | 'desc'
   clientSlug?: string; sensorId?: string
+  period?: '24h' | '7d' | '30d' | '90d'
 }): Promise<PaginatedThreatsResponse> {
   const sp = buildSearchParams({
     page: params?.page, pageSize: params?.pageSize,
@@ -20,6 +21,7 @@ export async function fetchThreatsPage(params?: {
   if (params?.crossProtocol !== undefined) sp.set("crossProtocol", String(params.crossProtocol))
   if (params?.sortBy) sp.set("sortBy", params.sortBy)
   if (params?.sortDir) sp.set("sortDir", params.sortDir)
+  if (params?.period) sp.set("period", params.period)
   // Cross-protocol correlation is a heavy aggregate; give it 30s before aborting
   // so a slow query doesn't surface as an empty threats page.
   return apiFetch(`${getApiUrl()}/threats?${sp}`, 60, 30000)

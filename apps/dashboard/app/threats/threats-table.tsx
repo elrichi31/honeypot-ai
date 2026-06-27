@@ -91,6 +91,9 @@ function SortableHead({ label, column, sortBy, sortDir, searchParams, push, clas
   )
 }
 
+const PERIODS = ["24h", "7d", "30d", "90d"] as const
+type Period = (typeof PERIODS)[number]
+
 interface ThreatsTableProps {
   threats: ThreatSummary[]
   geo?: Record<string, { country: string; countryName: string } | null>
@@ -101,6 +104,7 @@ interface ThreatsTableProps {
   levels?: RiskLevel[]
   commands?: string[]
   crossProtocol?: boolean
+  period?: Period
 }
 
 export function ThreatsTable(props: ThreatsTableProps) {
@@ -122,6 +126,7 @@ function ThreatsTableInner({
   levels = [],
   commands = [],
   crossProtocol = false,
+  period = "90d",
 }: ThreatsTableProps) {
   const t = useT()
   const searchParams = useSearchParams()
@@ -162,8 +167,30 @@ function ThreatsTableInner({
     pushParams({ page: "1" }, ["q", "levels", "commands", "crossProtocol"])
   }
 
+  function setPeriod(p: Period) {
+    pushParams({ period: p, page: "1" })
+  }
+
   const hasActiveFilters =
     Boolean(searchQuery) || levels.length > 0 || commands.length > 0 || crossProtocol
+
+  const periodTabs = (
+    <div className="flex items-center rounded-lg border border-border bg-muted/30 p-0.5">
+      {PERIODS.map((p) => (
+        <button
+          key={p}
+          onClick={() => setPeriod(p)}
+          className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+            period === p
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {t(`threats.period.${p}`)}
+        </button>
+      ))}
+    </div>
+  )
 
   const toolbar = (
     <div className="flex flex-wrap items-center gap-2">
@@ -244,6 +271,7 @@ function ThreatsTableInner({
     <TableShell
       title={t("threats.table.title")}
       description={t("threats.table.description")}
+      titleEnd={periodTabs}
       toolbar={toolbar}
       pagination={pagination}
     >

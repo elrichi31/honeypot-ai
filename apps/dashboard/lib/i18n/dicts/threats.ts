@@ -14,6 +14,10 @@ export const en = {
   "threats.stat.high": "HIGH",
   "threats.stat.crossProtocol": "Cross-protocol",
   // table
+  "threats.period.24h": "24h",
+  "threats.period.7d": "7d",
+  "threats.period.30d": "30d",
+  "threats.period.90d": "90d",
   "threats.table.title": "Threat ranking",
   "threats.table.description": "Sorted by risk score · click to view detail",
   "threats.table.searchPlaceholder": "Search IP across all attackers…",
@@ -96,6 +100,10 @@ export const es: Record<keyof typeof en, string> = {
   "threats.stat.critical": "CRÍTICAS",
   "threats.stat.high": "ALTAS",
   "threats.stat.crossProtocol": "Entre protocolos",
+  "threats.period.24h": "24h",
+  "threats.period.7d": "7d",
+  "threats.period.30d": "30d",
+  "threats.period.90d": "90d",
   // table
   "threats.table.title": "Ranking de amenazas",
   "threats.table.description": "Ordenado por puntuación de riesgo · clic para ver el detalle",
