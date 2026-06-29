@@ -36,9 +36,12 @@ def _post(path: str, payload: dict):
         method="POST",
     )
     try:
-        urlopen(req, timeout=5)
+        with urlopen(req, timeout=5) as resp:
+            status = resp.status
+            if status >= 400:
+                log.warning("ingest %s returned %s: %s", path, status, resp.read().decode()[:200])
     except Exception as exc:
-        log.debug("ingest error: %s", exc)
+        log.warning("ingest %s error: %s", path, exc)
 
 
 def _emit(event: dict):
