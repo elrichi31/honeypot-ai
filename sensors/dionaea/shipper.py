@@ -297,13 +297,15 @@ def _ship_event(event):
                 f"[dionaea-shipper] shipped protocol={event['protocol']} src={event['srcIp']}:{event.get('srcPort') or '-'} dst={event['dstPort']}",
                 flush=True,
             )
-            # Track last seen IP for FTP/TFTP so upload watcher can correlate
+            # Track last seen IP/port for FTP/TFTP so upload watcher can correlate
             proto = event.get("protocol", "")
             if proto in ("ftp", "tftp") and event.get("eventType") == "connect":
                 src_ip = event.get("srcIp") or ""
                 src_port = event.get("srcPort")
+                dst_port = event.get("dstPort")
                 if src_ip:
                     _last_upload_ip[proto] = (src_ip, src_port)
+                    _last_upload_dst_port[proto] = dst_port
             return True
     except Exception as exc:
         print(f"[dionaea-shipper] ship error: {exc}", flush=True)
@@ -376,6 +378,7 @@ UPLOAD_WATCH_DIRS = {
 
 # Tracks most-recent source IP per upload protocol (updated as events are shipped)
 _last_upload_ip: dict[str, tuple[str, int | None]] = {}
+_last_upload_dst_port: dict[str, int | None] = {}
 
 
 def _md5_file(path):
@@ -397,6 +400,51 @@ def _collect_files(directory):
     return result
 
 
+def _detect_file_type(path):
+    try:
+        with open(path, "rb") as f:
+            buf = f.read(8)
+        if buf[:2] == b'MZ': return 'PE/EXE'
+        if buf[:4] == b'\x7fELF': return 'ELF'
+        if buf[:2] == b'PK': return 'ZIP'
+        if buf[:2] == b'\x1f\x8b': return 'GZIP'
+        if buf[:4] == b'\x89PNG': return 'PNG'
+        if buf[:2] == b'\xff\xd8': return 'JPEG'
+        if buf[:4] == b'%PDF': return 'PDF'
+        if buf[:6] == b'Rar!\x1a\x07': return 'RAR'
+        if buf[:4] == b'\xca\xfe\xba\xbe': return 'Mach-O'
+    except Exception:
+        pass
+    return 'Binary'
+
+
+def _ingest_sample(md5, file_type, size, source_type, source_url, source_name, src_ip, src_port, dst_port, captured_at):
+    try:
+        payload = json.dumps({
+            "md5": md5,
+            "fileType": file_type,
+            "size": size,
+            "source": source_type if source_type in ("dionaea", "cowrie", "ftp") else "dionaea",
+            "sourceUrl": source_url,
+            "sourceName": source_name,
+            "srcIp": src_ip or None,
+            "srcPort": src_port,
+            "dstPort": dst_port,
+            "sensorId": SENSOR_ID,
+            "capturedAt": captured_at,
+        }).encode()
+        req = Request(
+            f"{INGEST_URL}/ingest/malware",
+            data=payload,
+            headers={"Content-Type": "application/json", "x-shared-secret": SECRET},
+            method="POST",
+        )
+        with urlopen(req, timeout=10) as resp:
+            resp.read()
+    except Exception as exc:
+        print(f"[dionaea-shipper] ingest sample error: {exc}", flush=True)
+
+
 def _unify_upload(src_path, source_type, source_name):
     try:
         if os.path.getsize(src_path) == 0:
@@ -407,17 +455,28 @@ def _unify_upload(src_path, source_type, source_name):
         os.makedirs(BINARIES_DIR, exist_ok=True)
         if not os.path.exists(dest):
             shutil.copy2(src_path, dest)
+
+        src_ip, src_port = _last_upload_ip.get(source_type, ("", None))
+        dst_port = _last_upload_dst_port.get(source_type)
+        source_url = f"{source_type}://upload/{source_name}"
+
         if not os.path.exists(meta):
-            src_ip, src_port = _last_upload_ip.get(source_type, ("", None))
             with open(meta, "w") as f:
                 json.dump({
-                    "sourceUrl": f"{source_type}://upload/{source_name}",
+                    "sourceUrl": source_url,
                     "sourceName": source_name,
                     "sourceType": source_type,
                     "srcIp": src_ip,
                     "srcPort": src_port,
+                    "dstPort": dst_port,
                 }, f)
-        print(f"[dionaea-shipper] unified {source_type} upload → binaries/{md5} ({source_name}) from {_last_upload_ip.get(source_type, ('?','?'))[0]}", flush=True)
+
+        file_size = os.path.getsize(dest)
+        file_type = _detect_file_type(dest)
+        captured_at = datetime.now(timezone.utc).isoformat()
+        _ingest_sample(md5, file_type, file_size, source_type, source_url, source_name, src_ip, src_port, dst_port, captured_at)
+
+        print(f"[dionaea-shipper] unified {source_type} upload → binaries/{md5} ({source_name}) from {src_ip}", flush=True)
     except Exception as exc:
         print(f"[dionaea-shipper] unify error {src_path}: {exc}", flush=True)
 

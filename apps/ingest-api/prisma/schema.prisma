@@ -100,6 +100,28 @@ model ProtocolHit {
   @@map("protocol_hits")
 }
 
+model MalwareSample {
+  id          String   @id @default(uuid())
+  md5         String   @unique
+  fileType    String   @default("Binary") @map("file_type")
+  size        BigInt   @default(0)
+  source      String   // dionaea | cowrie | ftp
+  sourceUrl   String?  @map("source_url")
+  sourceName  String?  @map("source_name")
+  srcIp       String?  @map("src_ip")
+  srcPort     Int?     @map("src_port")
+  dstPort     Int?     @map("dst_port")
+  sensorId    String?  @map("sensor_id")
+  capturedAt  DateTime @map("captured_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([srcIp])
+  @@index([capturedAt(sort: Desc)])
+  @@index([source])
+  @@index([sensorId])
+  @@map("malware_samples")
+}
+
 model Application {
   id        String   @id
   name      String
