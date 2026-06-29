@@ -88,6 +88,8 @@ export function ClientLogsViewer({ clientSlug, sensors = [] }: Props) {
   const [sessionId, setSessionId]   = useState<string | null>(null)
   const debounceTimer               = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  useEffect(() => () => { if (debounceTimer.current) clearTimeout(debounceTimer.current) }, [])
+
   // Debounce search input — 300ms
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -116,7 +118,10 @@ export function ClientLogsViewer({ clientSlug, sensors = [] }: Props) {
     const sensorParam = sensor !== "all" ? `&sensorId=${encodeURIComponent(sensor)}` : ""
 
     fetch(`/api/clients/${clientSlug}/events?page=${p}&pageSize=25&source=${src}${sensorParam}${searchParam}`, { signal })
-      .then(r => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
       .then((data: unknown) => {
         const d = data && typeof data === "object" ? data as Record<string, unknown> : {}
         const raw: LogEntry[] = Array.isArray(d.items) ? d.items : []

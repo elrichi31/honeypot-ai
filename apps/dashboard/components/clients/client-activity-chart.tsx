@@ -59,7 +59,10 @@ export function ClientActivityChart({ clientSlug }: Props) {
     let cancelled = false
     setLoading(true)
     fetch(`/api/clients/${clientSlug}/timeline?range=${range}`)
-      .then(r => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
       .then((res: TimelineResponse) => {
         if (cancelled) return
         const buckets = Array.isArray(res?.buckets) ? res.buckets : []

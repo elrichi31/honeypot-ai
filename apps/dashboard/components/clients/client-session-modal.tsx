@@ -65,14 +65,23 @@ export function ClientSessionModal({ sessionId, onClose }: Props) {
     setSession(null)
     setError(false)
     setLoading(true)
-    fetch(`/api/sessions/${encodeURIComponent(sessionId)}`)
-      .then(r => r.ok ? r.json() : Promise.reject())
+    const controller = new AbortController()
+    fetch(`/api/sessions/${encodeURIComponent(sessionId)}`, { signal: controller.signal })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
       .then((d: unknown) => {
         if (d && typeof d === "object") setSession(d as SessionDetail)
         else setError(true)
+        setLoading(false)
       })
-      .catch(() => setError(true))
-      .finally(() => setLoading(false))
+      .catch((err) => {
+        if (err?.name === "AbortError") return
+        setError(true)
+        setLoading(false)
+      })
+    return () => controller.abort()
   }, [sessionId])
 
   const events: SessionEvent[] = Array.isArray((session as any)?.events)

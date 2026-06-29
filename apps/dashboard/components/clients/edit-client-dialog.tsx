@@ -3,7 +3,7 @@
 import { apiFetch } from "@/lib/client-fetch"
 
 import { useEffect, useState } from "react"
-import { Save, X } from "lucide-react"
+import { AlertCircle, Save, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -33,6 +33,7 @@ export function EditClientDialog({ client, onClose, onSaved }: Props) {
   const [description, setDescription] = useState("")
   const [forwardUrl, setForwardUrl] = useState("")
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
     if (client) {
@@ -40,6 +41,7 @@ export function EditClientDialog({ client, onClose, onSaved }: Props) {
       setCode(client.code)
       setDescription(client.description || "")
       setForwardUrl(client.forwardUrl || "")
+      setSaveError(null)
     }
   }, [client])
 
@@ -47,17 +49,21 @@ export function EditClientDialog({ client, onClose, onSaved }: Props) {
     e.preventDefault()
     if (!client) return
     setSaving(true)
+    setSaveError(null)
     try {
       const res = await apiFetch(`/api/clients/${encodeURIComponent(client.id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, code, description, forwardUrl }),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string }
+        throw new Error(body.error || `Error ${res.status}`)
+      }
       onSaved(await res.json() as Client)
       onClose()
-    } catch {
-      // keep dialog open on error
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Could not save changes.")
     } finally {
       setSaving(false)
     }
@@ -121,6 +127,13 @@ export function EditClientDialog({ client, onClose, onSaved }: Props) {
               className="font-mono text-sm"
             />
           </div>
+
+          {saveError && (
+            <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {saveError}
+            </div>
+          )}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>

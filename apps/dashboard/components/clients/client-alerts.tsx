@@ -59,7 +59,10 @@ export function ClientAlerts({ clientSlug }: Props) {
   const load = useCallback((p: number, signal?: AbortSignal) => {
     setLoading(true)
     fetch(`/api/clients/${clientSlug}/threats?page=${p}&pageSize=20`, { signal })
-      .then(r => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
       .then((data: unknown) => {
         const d = data && typeof data === "object" ? data as Record<string, unknown> : {}
         setItems(Array.isArray(d.items) ? d.items : [])
