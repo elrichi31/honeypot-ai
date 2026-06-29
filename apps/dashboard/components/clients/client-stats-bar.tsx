@@ -19,12 +19,14 @@ export function ClientStatsBar({ clientSlug }: Props) {
   const [stats, setStats] = useState<Stats | null>(null)
 
   useEffect(() => {
-    fetch(`/api/clients/${clientSlug}/today`)
+    const controller = new AbortController()
+    fetch(`/api/clients/${clientSlug}/today`, { signal: controller.signal })
       .then(r => r.ok ? r.json() : null)
       .then((d: unknown) => {
         if (d && typeof d === "object") setStats(d as Stats)
       })
       .catch(() => {})
+    return () => controller.abort()
   }, [clientSlug])
 
   const items = [

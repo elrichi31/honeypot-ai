@@ -56,20 +56,24 @@ export function ClientAlerts({ clientSlug }: Props) {
   const [page, setPage]     = useState(1)
   const [loading, setLoading] = useState(true)
 
-  const load = useCallback((p: number) => {
+  const load = useCallback((p: number, signal?: AbortSignal) => {
     setLoading(true)
-    fetch(`/api/clients/${clientSlug}/threats?page=${p}&pageSize=20`)
+    fetch(`/api/clients/${clientSlug}/threats?page=${p}&pageSize=20`, { signal })
       .then(r => r.json())
       .then((data: unknown) => {
         const d = data && typeof data === "object" ? data as Record<string, unknown> : {}
         setItems(Array.isArray(d.items) ? d.items : [])
         setMeta(d.pagination && typeof d.pagination === "object" ? d.pagination as PaginationMeta : null)
       })
-      .catch(() => { setItems([]); setMeta(null) })
+      .catch((err) => { if (err?.name !== "AbortError") { setItems([]); setMeta(null) } })
       .finally(() => setLoading(false))
   }, [clientSlug])
 
-  useEffect(() => { load(1) }, [load])
+  useEffect(() => {
+    const controller = new AbortController()
+    load(1, controller.signal)
+    return () => controller.abort()
+  }, [load])
 
   function goPage(p: number) {
     setPage(p)

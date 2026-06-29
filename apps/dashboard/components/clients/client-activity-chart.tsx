@@ -56,16 +56,19 @@ export function ClientActivityChart({ clientSlug }: Props) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let cancelled = false
     setLoading(true)
     fetch(`/api/clients/${clientSlug}/timeline?range=${range}`)
       .then(r => r.json())
       .then((res: TimelineResponse) => {
+        if (cancelled) return
         const buckets = Array.isArray(res?.buckets) ? res.buckets : []
         setProtocols(Array.isArray(res?.protocols) ? res.protocols : [])
         setData(buckets.map(b => ({ ...b, label: formatBucketLabel(b.bucket, range) })))
       })
-      .catch(() => { setProtocols([]); setData([]) })
-      .finally(() => setLoading(false))
+      .catch(() => { if (!cancelled) { setProtocols([]); setData([]) } })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [clientSlug, range])
 
   const chartConfig = useMemo(() => buildChartConfig(protocols), [protocols])

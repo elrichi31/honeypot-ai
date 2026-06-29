@@ -105,7 +105,7 @@ export function ClientLogsViewer({ clientSlug, sensors = [] }: Props) {
     setPage(1)
   }
 
-  const load = useCallback((p: number, src: LogSource, q: string, sensor: string) => {
+  const load = useCallback((p: number, src: LogSource, q: string, sensor: string, signal?: AbortSignal) => {
     setLoading(true)
     setExpanded(new Set())
 
@@ -115,7 +115,7 @@ export function ClientLogsViewer({ clientSlug, sensors = [] }: Props) {
       : ""
     const sensorParam = sensor !== "all" ? `&sensorId=${encodeURIComponent(sensor)}` : ""
 
-    fetch(`/api/clients/${clientSlug}/events?page=${p}&pageSize=25&source=${src}${sensorParam}${searchParam}`)
+    fetch(`/api/clients/${clientSlug}/events?page=${p}&pageSize=25&source=${src}${sensorParam}${searchParam}`, { signal })
       .then(r => r.json())
       .then((data: unknown) => {
         const d = data && typeof data === "object" ? data as Record<string, unknown> : {}
@@ -123,11 +123,16 @@ export function ClientLogsViewer({ clientSlug, sensors = [] }: Props) {
         setItems(raw.filter(e => !isPrivateIp(e.srcIp ?? "")))
         setMeta(d.pagination && typeof d.pagination === "object" ? d.pagination as PaginationMeta : null)
       })
-      .catch(() => { setItems([]); setMeta(null) })
+      .catch((err) => { if (err?.name !== "AbortError") { setItems([]); setMeta(null) } })
       .finally(() => setLoading(false))
   }, [clientSlug])
 
-  useEffect(() => { setPage(1); load(1, source, debouncedSearch, sensorId) }, [source, debouncedSearch, sensorId, load])
+  useEffect(() => {
+    const controller = new AbortController()
+    setPage(1)
+    load(1, source, debouncedSearch, sensorId, controller.signal)
+    return () => controller.abort()
+  }, [source, debouncedSearch, sensorId, load])
 
   function goPage(p: number) { setPage(p); load(p, source, debouncedSearch, sensorId) }
 
