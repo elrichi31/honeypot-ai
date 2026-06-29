@@ -43,6 +43,12 @@ def _post(path: str, payload: dict) -> tuple[bool, int | None, str | None]:
         return False, None, str(exc)
 
 
+def post_malware(payload: dict):
+    ok, status, err = _post("/ingest/malware", payload)
+    if not ok:
+        log.warning("post_malware failed status=%s err=%s", status, err)
+
+
 def _emit(event: dict):
     try:
         line = json.dumps(event, default=str) + "\n"

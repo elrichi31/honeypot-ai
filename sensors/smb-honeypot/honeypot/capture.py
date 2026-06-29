@@ -5,10 +5,23 @@ import os
 import shutil
 from datetime import datetime, timezone
 
-from .config import CAPTURE_DIR, SHARE_PATH, SHARE_NAME
-from .ingest import send
+from .config import CAPTURE_DIR, SHARE_PATH, SHARE_NAME, DST_PORT, SENSOR_ID
+from .ingest import send, post_malware
 
 log = logging.getLogger("smb-honeypot")
+
+
+def _detect_file_type(data: bytes) -> str:
+    if data[:2] == b'MZ': return 'PE/EXE'
+    if data[:4] == b'\x7fELF': return 'ELF'
+    if data[:2] == b'PK': return 'ZIP'
+    if data[:2] == b'\x1f\x8b': return 'GZIP'
+    if data[:4] == b'\x89PNG': return 'PNG'
+    if data[:2] == b'\xff\xd8': return 'JPEG'
+    if data[:4] == b'%PDF': return 'PDF'
+    if data[:6] == b'Rar!\x1a\x07': return 'RAR'
+    if data[:4] == b'\xca\xfe\xba\xbe': return 'Mach-O'
+    return 'Binary'
 
 
 def _capture_file(local_path: str, share: str, requested_path: str, src_ip: str) -> dict:
@@ -19,8 +32,10 @@ def _capture_file(local_path: str, share: str, requested_path: str, src_ip: str)
             return {}
         with open(local_path, "rb") as fh:
             data = fh.read()
-        md5    = hashlib.md5(data).hexdigest()
-        sha256 = hashlib.sha256(data).hexdigest()
+        md5       = hashlib.md5(data).hexdigest()
+        sha256    = hashlib.sha256(data).hexdigest()
+        file_type = _detect_file_type(data)
+        captured_at = datetime.now(timezone.utc).isoformat()
         dest   = os.path.join(CAPTURE_DIR, sha256)
         if not os.path.exists(dest):
             shutil.copy2(local_path, dest)
@@ -31,8 +46,21 @@ def _capture_file(local_path: str, share: str, requested_path: str, src_ip: str)
                     "srcIp": src_ip, "share": share,
                     "requestedPath": requested_path,
                     "md5": md5, "sha256": sha256, "size": size,
-                    "capturedAt": datetime.now(timezone.utc).isoformat(),
+                    "dstPort": DST_PORT,
+                    "capturedAt": captured_at,
                 }, fh)
+        post_malware({
+            "md5": md5,
+            "fileType": file_type,
+            "size": size,
+            "source": "smb",
+            "sourceUrl": f"smb://{share}/{requested_path}",
+            "sourceName": os.path.basename(requested_path),
+            "srcIp": src_ip,
+            "dstPort": DST_PORT,
+            "sensorId": SENSOR_ID,
+            "capturedAt": captured_at,
+        })
         log.info("captured file sha256=%s size=%d from %s", sha256[:16], size, src_ip)
         return {"sha256": sha256, "md5": md5, "fileSize": size}
     except Exception as exc:
