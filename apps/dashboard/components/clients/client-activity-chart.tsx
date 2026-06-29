@@ -65,9 +65,9 @@ export function ClientActivityChart({ clientSlug }: Props) {
         const buckets = Array.isArray(res?.buckets) ? res.buckets : []
         setProtocols(Array.isArray(res?.protocols) ? res.protocols : [])
         setData(buckets.map(b => ({ ...b, label: formatBucketLabel(b.bucket, range) })))
+        setLoading(false)
       })
-      .catch(() => { if (!cancelled) { setProtocols([]); setData([]) } })
-      .finally(() => { if (!cancelled) setLoading(false) })
+      .catch(() => { if (!cancelled) { setProtocols([]); setData([]); setLoading(false) } })
     return () => { cancelled = true }
   }, [clientSlug, range])
 

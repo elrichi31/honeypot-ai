@@ -64,9 +64,9 @@ export function ClientAlerts({ clientSlug }: Props) {
         const d = data && typeof data === "object" ? data as Record<string, unknown> : {}
         setItems(Array.isArray(d.items) ? d.items : [])
         setMeta(d.pagination && typeof d.pagination === "object" ? d.pagination as PaginationMeta : null)
+        setLoading(false)
       })
-      .catch((err) => { if (err?.name !== "AbortError") { setItems([]); setMeta(null) } })
-      .finally(() => setLoading(false))
+      .catch((err) => { if (err?.name !== "AbortError") { setItems([]); setMeta(null); setLoading(false) } })
   }, [clientSlug])
 
   useEffect(() => {

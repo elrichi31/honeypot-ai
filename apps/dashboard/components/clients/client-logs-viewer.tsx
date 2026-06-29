@@ -122,9 +122,9 @@ export function ClientLogsViewer({ clientSlug, sensors = [] }: Props) {
         const raw: LogEntry[] = Array.isArray(d.items) ? d.items : []
         setItems(raw.filter(e => !isPrivateIp(e.srcIp ?? "")))
         setMeta(d.pagination && typeof d.pagination === "object" ? d.pagination as PaginationMeta : null)
+        setLoading(false)
       })
-      .catch((err) => { if (err?.name !== "AbortError") { setItems([]); setMeta(null) } })
-      .finally(() => setLoading(false))
+      .catch((err) => { if (err?.name !== "AbortError") { setItems([]); setMeta(null); setLoading(false) } })
   }, [clientSlug])
 
   useEffect(() => {

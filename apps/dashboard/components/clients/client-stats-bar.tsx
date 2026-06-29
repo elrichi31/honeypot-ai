@@ -25,7 +25,7 @@ export function ClientStatsBar({ clientSlug }: Props) {
       .then((d: unknown) => {
         if (d && typeof d === "object") setStats(d as Stats)
       })
-      .catch(() => {})
+      .catch((err) => { if (err?.name === "AbortError") return })
     return () => controller.abort()
   }, [clientSlug])
 
