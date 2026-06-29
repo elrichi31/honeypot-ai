@@ -9,7 +9,7 @@ const UPSTREAM_TIMEOUT_MS = 10000
 
 /** Invalidate the cached lists that show clients or sensor↔client grouping. */
 function revalidateClientViews() {
-  revalidatePath("/clients")
+  revalidatePath("/clients", "layout")
   revalidatePath("/sensors")
 }
 

@@ -112,7 +112,7 @@ export async function fetchSensors(): Promise<Sensor[]> {
 }
 
 export async function fetchClients(): Promise<Client[]> {
-  return apiFetch<Client[]>(`${getApiUrl()}/clients`, 60)
+  return apiFetch<Client[]>(`${getApiUrl()}/clients`)
 }
 
 export async function fetchProtocolHits(
