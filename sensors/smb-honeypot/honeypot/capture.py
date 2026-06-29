@@ -35,7 +35,7 @@ def _capture_file(local_path: str, share: str, requested_path: str, src_ip: str)
         md5       = hashlib.md5(data).hexdigest()
         sha256    = hashlib.sha256(data).hexdigest()
         file_type = _detect_file_type(data)
-        captured_at = datetime.now(timezone.utc).isoformat()
+        captured_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         dest   = os.path.join(CAPTURE_DIR, sha256)
         if not os.path.exists(dest):
             shutil.copy2(local_path, dest)

@@ -120,7 +120,7 @@ def save_upload(content: bytes, filename: str, src_ip: str, src_port: int) -> di
         "srcPort": src_port,
         "dstPort": DST_PORT,
         "sensorId": SENSOR_ID,
-        "capturedAt": datetime.now(timezone.utc).isoformat(),
+        "capturedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
     })
 
     return {"fileName": filename, "md5": md5, "sha256": sha256, "size": len(content)}

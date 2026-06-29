@@ -473,7 +473,7 @@ def _unify_upload(src_path, source_type, source_name):
 
         file_size = os.path.getsize(dest)
         file_type = _detect_file_type(dest)
-        captured_at = datetime.now(timezone.utc).isoformat()
+        captured_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         _ingest_sample(md5, file_type, file_size, source_type, source_url, source_name, src_ip, src_port, dst_port, captured_at)
 
         print(f"[dionaea-shipper] unified {source_type} upload → binaries/{md5} ({source_name}) from {src_ip}", flush=True)
