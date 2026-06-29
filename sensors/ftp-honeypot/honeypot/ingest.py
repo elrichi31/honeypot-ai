@@ -66,15 +66,31 @@ def send(event_type, src_ip, src_port, username=None, password=None, extra=None)
     })
 
 
+def _detect_file_type(content: bytes) -> str:
+    if content[:2] == b'MZ': return 'PE/EXE'
+    if content[:4] == b'\x7fELF': return 'ELF'
+    if content[:2] == b'PK': return 'ZIP'
+    if content[:2] == b'\x1f\x8b': return 'GZIP'
+    if content[:4] == b'\x89PNG': return 'PNG'
+    if content[:2] == b'\xff\xd8': return 'JPEG'
+    if content[:4] == b'%PDF': return 'PDF'
+    if content[:6] == b'Rar!\x1a\x07': return 'RAR'
+    if content[:4] == b'\xca\xfe\xba\xbe': return 'Mach-O'
+    return 'Binary'
+
+
 def save_upload(content: bytes, filename: str, src_ip: str, src_port: int) -> dict:
     md5 = hashlib.md5(content).hexdigest()
     sha256 = hashlib.sha256(content).hexdigest()
+    file_type = _detect_file_type(content)
+    source_url = f"ftp://upload/{filename}"
     meta = {
-        "sourceUrl": f"ftp://upload/{filename}",
+        "sourceUrl": source_url,
         "sourceName": filename,
         "sourceType": "ftp",
         "srcIp": src_ip,
         "srcPort": src_port,
+        "dstPort": DST_PORT,
         "sha256": sha256,
         "size": len(content),
     }
@@ -89,6 +105,21 @@ def save_upload(content: bytes, filename: str, src_ip: str, src_port: int) -> di
         log.info("captured upload %s (%s, %d bytes) from %s", md5, filename, len(content), src_ip)
     except Exception as exc:
         log.error("could not save upload from %s: %s", src_ip, exc)
+
+    _post("/ingest/malware", {
+        "md5": md5,
+        "fileType": file_type,
+        "size": len(content),
+        "source": "ftp",
+        "sourceUrl": source_url,
+        "sourceName": filename,
+        "srcIp": src_ip,
+        "srcPort": src_port,
+        "dstPort": DST_PORT,
+        "sensorId": SENSOR_ID,
+        "capturedAt": datetime.now(timezone.utc).isoformat(),
+    })
+
     return {"fileName": filename, "md5": md5, "sha256": sha256, "size": len(content)}
 
 
