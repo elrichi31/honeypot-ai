@@ -77,6 +77,8 @@ services:
       PORT: "3000"
       HOST: "0.0.0.0"
       DIONAEA_BINARIES_PATH: /dionaea/binaries
+      COWRIE_DOWNLOADS_PATH: /cowrie/downloads
+      FTP_CAPTURES_PATH: /ftp-captures
     volumes:
       - dashboard_data:/app/data
       - dionaea_var:/dionaea:ro

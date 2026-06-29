@@ -114,6 +114,10 @@ services:
       REDIS_URL: redis://redis:6379
       PORT: "3000"
       HOST: "0.0.0.0"
+      # Platform-only: no local sensor dirs — malware list comes from DB only
+      DIONAEA_BINARIES_PATH: /dev/null/no-local-sensors
+      COWRIE_DOWNLOADS_PATH: /dev/null/no-local-sensors
+      FTP_CAPTURES_PATH: /dev/null/no-local-sensors
     # ingest-api runs as non-root, so it must join the host's docker group to
     # READ the socket. DOCKER_GID defaults to 110; the installer auto-detects
     # and writes it to .env  (stat -c '%g' /var/run/docker.sock).
