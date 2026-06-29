@@ -29,11 +29,16 @@ export function AttackHeatmap({ days = 90 }: { days?: number }) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    fetch(`/api/stats/heatmap?days=${days}`)
-      .then(r => r.json())
-      .then(setData)
-      .catch(() => {})
-      .finally(() => setLoading(false))
+    const controller = new AbortController()
+    setLoading(true)
+    fetch(`/api/stats/heatmap?days=${days}`, { signal: controller.signal })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
+      .then((d) => { setData(d); setLoading(false) })
+      .catch((err) => { if (err?.name !== "AbortError") setLoading(false) })
+    return () => controller.abort()
   }, [days])
 
   if (loading) return (

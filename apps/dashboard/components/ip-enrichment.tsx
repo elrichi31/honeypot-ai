@@ -327,7 +327,10 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
   function doFetch() {
     setLoading(true)
     fetch(`/api/enrich/${encodeURIComponent(ip)}`)
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
       .then((d: IpEnrichment) => {
         if (d.abuseipdb || d.ipinfo || d.spectraAnalyze || d.virustotal) setData(d)
       })

@@ -51,19 +51,33 @@ export function ClientOVADownload({ client }: Props) {
   const [configError, setConfigError] = useState<string | null>(null)
   const [configLoading, setConfigLoading] = useState(false)
 
-  // Fetch server config whenever dialog opens
-  useEffect(() => {
-    if (!open) return
+  function loadConfig(cancelled: { current: boolean }) {
     setConfigLoading(true)
     setConfigError(null)
     apiFetch("/api/ova/config")
-      .then(r => r.json())
-      .then((data: OvaConfig & { error?: string }) => {
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json() as Promise<OvaConfig & { error?: string }>
+      })
+      .then((data) => {
+        if (cancelled.current) return
         if (data.error) setConfigError(data.error)
         else setConfig(data)
+        setConfigLoading(false)
       })
-      .catch(() => setConfigError(t("sensors.config.loadError")))
-      .finally(() => setConfigLoading(false))
+      .catch(() => {
+        if (cancelled.current) return
+        setConfigError(t("sensors.config.loadError"))
+        setConfigLoading(false)
+      })
+  }
+
+  useEffect(() => {
+    if (!open) return
+    const cancelled = { current: false }
+    loadConfig(cancelled)
+    return () => { cancelled.current = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   function toggleService(key: ServiceKey) {
@@ -198,7 +212,7 @@ export function ClientOVADownload({ client }: Props) {
 
             {config && (
               <button
-                onClick={() => { setConfig(null); setConfigLoading(true); apiFetch("/api/ova/config").then(r=>r.json()).then((d: OvaConfig & {error?:string})=>{ if(d.error) setConfigError(d.error); else setConfig(d) }).catch(()=>setConfigError("Error")).finally(()=>setConfigLoading(false)) }}
+                onClick={() => { setConfig(null); loadConfig({ current: false }) }}
                 className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
               >
                 <RefreshCw className="h-3 w-3" /> {t("clients.ova.config.redetect")}

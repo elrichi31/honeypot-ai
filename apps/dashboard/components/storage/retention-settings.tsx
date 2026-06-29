@@ -149,18 +149,23 @@ export function RetentionSettings() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch("/api/storage/retention")
-      .then(r => r.json())
-      .then((d: { settings?: RetentionRow[]; lastRun?: RetentionRun | null; nextRunAt?: string | null; intervalMinutes?: number }) => {
+    const controller = new AbortController()
+    fetch("/api/storage/retention", { signal: controller.signal })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json() as Promise<{ settings?: RetentionRow[]; lastRun?: RetentionRun | null; nextRunAt?: string | null; intervalMinutes?: number }>
+      })
+      .then((d) => {
         if (Array.isArray(d.settings)) {
           setRows(d.settings.map((r) => ({ ...r, draft: String(r.retentionDays), saving: false, saved: false })))
         }
         setLastRun(d.lastRun ?? null)
         setNextRunAt(d.nextRunAt ?? null)
         if (d.intervalMinutes) setIntervalMinutes(d.intervalMinutes)
+        setLoading(false)
       })
-      .catch(() => {})
-      .finally(() => setLoading(false))
+      .catch((err) => { if (err?.name !== "AbortError") setLoading(false) })
+    return () => controller.abort()
   }, [])
 
   async function handleChangeInterval(minutes: number) {

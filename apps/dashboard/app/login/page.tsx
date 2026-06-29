@@ -16,13 +16,19 @@ function LoginForm() {
   const [checking, setChecking] = useState(true)
 
   useEffect(() => {
+    let cancelled = false
     fetch("/api/setup-status")
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
       .then((data) => {
+        if (cancelled) return
         if (data.setupRequired) router.replace("/setup")
         else setChecking(false)
       })
-      .catch(() => setChecking(false))
+      .catch(() => { if (!cancelled) setChecking(false) })
+    return () => { cancelled = true }
   }, [router])
 
   async function handleSubmit(e: React.FormEvent) {

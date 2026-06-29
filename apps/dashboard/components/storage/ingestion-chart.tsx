@@ -60,16 +60,22 @@ export function IngestionChart() {
   const [data, setData]     = useState<DayEntry[]>([])
   const [loading, setLoading] = useState(true)
 
-  const load = useCallback((r: Range) => {
+  const load = useCallback((r: Range, signal?: AbortSignal) => {
     setLoading(true)
-    fetch(`/api/storage/ingestion?range=${r}`)
-      .then(res => res.json())
-      .then((d: unknown) => setData(Array.isArray(d) ? d : []))
-      .catch(() => setData([]))
-      .finally(() => setLoading(false))
+    fetch(`/api/storage/ingestion?range=${r}`, { signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json()
+      })
+      .then((d: unknown) => { setData(Array.isArray(d) ? d : []); setLoading(false) })
+      .catch((err) => { if (err?.name !== "AbortError") { setData([]); setLoading(false) } })
   }, [])
 
-  useEffect(() => { load(range) }, [range, load])
+  useEffect(() => {
+    const controller = new AbortController()
+    load(range, controller.signal)
+    return () => controller.abort()
+  }, [range, load])
 
   const display = data.map(d => ({ ...d, label: fmtLabel(d.period, range) }))
 

@@ -45,11 +45,18 @@ export default function MonitoringPage() {
   const [loading, setLoading]             = useState(true)
   const [lastUpdated, setLastUpdated]     = useState<Date | null>(null)
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (signal?: AbortSignal) => {
     const [sysRes, cntRes] = await Promise.allSettled([
-      fetch("/api/monitoring/system").then(r => r.ok ? r.json() : null),
-      fetch("/api/monitoring/containers").then(r => r.json()),
+      fetch("/api/monitoring/system", { signal })
+        .then(async (r) => r.ok ? r.json() : null),
+      fetch("/api/monitoring/containers", { signal })
+        .then(async (r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`)
+          return r.json()
+        }),
     ])
+
+    if (signal?.aborted) return
 
     if (sysRes.status === "fulfilled" && sysRes.value) {
       setSystemData(sysRes.value)
@@ -63,6 +70,8 @@ export default function MonitoringPage() {
       } else if (val?.error) {
         setContainerError(val.error)
       }
+    } else if (cntRes.status === "rejected" && cntRes.reason?.name !== "AbortError") {
+      setContainerError(String(cntRes.reason))
     }
 
     setLastUpdated(new Date())
@@ -70,11 +79,12 @@ export default function MonitoringPage() {
   }, [])
 
   useEffect(() => {
-    refresh()
+    const controller = new AbortController()
+    refresh(controller.signal)
     const id = setInterval(() => {
       if (!document.hidden) refresh()
     }, 60_000)
-    return () => clearInterval(id)
+    return () => { controller.abort(); clearInterval(id) }
   }, [refresh])
 
   return (
@@ -92,7 +102,7 @@ export default function MonitoringPage() {
               </span>
             )}
             <button
-              onClick={refresh}
+              onClick={() => refresh()}
               className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors"
             >
               <RefreshCw className="h-3 w-3" />

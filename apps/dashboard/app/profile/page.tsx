@@ -36,12 +36,15 @@ export default function ProfilePage() {
   const [role, setRole] = useState<Role | null>(null)
 
   useEffect(() => {
+    let cancelled = false
     fetch("/api/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.role) setRole(data.role as Role)
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
       })
+      .then((data) => { if (!cancelled && data?.role) setRole(data.role as Role) })
       .catch(() => {})
+    return () => { cancelled = true }
   }, [])
 
   return (

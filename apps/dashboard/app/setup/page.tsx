@@ -15,16 +15,19 @@ export default function SetupPage() {
   const [checking, setChecking] = useState(true)
 
   useEffect(() => {
+    let cancelled = false
     fetch("/api/setup-status")
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.setupRequired) {
-          router.replace("/login")
-        } else {
-          setChecking(false)
-        }
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
       })
-      .catch(() => setChecking(false))
+      .then((data) => {
+        if (cancelled) return
+        if (!data.setupRequired) router.replace("/login")
+        else setChecking(false)
+      })
+      .catch(() => { if (!cancelled) setChecking(false) })
+    return () => { cancelled = true }
   }, [router])
 
   async function handleSubmit(e: React.FormEvent) {
