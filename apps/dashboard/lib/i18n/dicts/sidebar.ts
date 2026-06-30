@@ -50,6 +50,7 @@ export const en = {
   "sidebar.item.users": "Users",
   "sidebar.item.adminSessions": "Sessions",
   "sidebar.item.auditLog": "Audit Log",
+  "sidebar.item.reports": "Reports",
 
   // ── User menu ────────────────────────────────────────────────────────────
   "user.account": "Account",
@@ -107,6 +108,7 @@ export const es: Record<keyof typeof en, string> = {
   "sidebar.item.users": "Usuarios",
   "sidebar.item.adminSessions": "Sesiones",
   "sidebar.item.auditLog": "Registro de Auditoría",
+  "sidebar.item.reports": "Reportes",
 
   // ── User menu ────────────────────────────────────────────────────────────
   "user.account": "Cuenta",

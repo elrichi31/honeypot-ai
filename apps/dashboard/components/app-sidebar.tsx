@@ -97,6 +97,7 @@ const navSections = [
       { titleKey: "sidebar.item.malware",     href: "/malware",     icon: Biohazard   },
       { titleKey: "sidebar.item.networkIds", href: "/suricata",    icon: FileCode    },
       { titleKey: "sidebar.item.apiDefense", href: "/api-defense", icon: Radar       },
+      { titleKey: "sidebar.item.reports",   href: "/reports",     icon: ClipboardList },
     ],
   },
   {

@@ -6,6 +6,8 @@ progresses, and link the relevant commit hashes so the history stays traceable.
 
 ## Index
 
+- [CLIENT_REPORTS_PDF.md](CLIENT_REPORTS_PDF.md) — módulo de reportería por cliente: PDF semanal/mensual scopeado por tenant (reusa `effectiveSensorScope` + fetchers de stats existentes), generado HTML→PDF con Playwright en el dashboard. Fase 1: descarga on-demand en `/reports`. Fase 2: automatización vía cron (molde `weekly-report.ts`). Planificado (jun 2026).
+
 - [SENSOR_REMOTE_CONTROL.md](SENSOR_REMOTE_CONTROL.md) - WebSocket control plane para sensores: config remota, comandos con ACK, estado en vivo, fallback HTTP, seguridad, auditoria y rollout por fases.
 
 - [SENSOR_IDENTITY.md](SENSOR_IDENTITY.md) — IDs únicos de sensor (UUID por instalación, varios del mismo protocolo por cliente) + enlace explícito a **Application** (dueño por defecto, fija por deployment) o **Client**. Provisión con `clientId` opcional, reasignación Application→Client conservando el bloqueo client→client, y compatibilidad con los `sensor_id` viejos derivados. Planificado (jun 2026).

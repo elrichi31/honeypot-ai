@@ -57,6 +57,7 @@
     "next-themes": "^0.4.6",
     "openai": "^6.34.0",
     "pg": "^8.13.3",
+    "playwright": "^1.61.1",
     "react": "^19",
     "react-day-picker": "9.13.2",
     "react-dom": "^19",
