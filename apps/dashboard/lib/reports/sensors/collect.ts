@@ -1,24 +1,10 @@
 import { fetchSensors } from "@/lib/api/services"
-import { db } from "@/lib/db"
-import type { ReportLabelCount, ReportSensorProfile } from "../types"
+import type { ReportSensorProfile } from "../types"
+import { collectBaseSensorIntel } from "./base/collect"
+import { collectMalwareSensorIntel } from "./malware/collect"
+import { collectProtocolSensorIntel } from "./protocols/collect"
+import { groupLabelCounts } from "./shared"
 import { collectWebSensorIntel } from "./web/collect"
-
-const PORT_SERVICE: Record<number, string> = {
-  21: "FTP", 22: "SSH", 23: "Telnet", 445: "SMB", 1433: "MSSQL", 1883: "MQTT",
-  2375: "Docker", 3306: "MySQL", 3389: "RDP", 4444: "Metasploit", 5432: "PostgreSQL",
-  5900: "VNC", 6379: "Redis", 8080: "HTTP-alt", 8888: "HTTP-alt", 9090: "Prometheus",
-  9200: "Elasticsearch", 11211: "Memcached", 27017: "MongoDB",
-}
-
-function groupLabelCounts(rows: { sensor_id: string; label: string; count: string }[]) {
-  const map = new Map<string, ReportLabelCount[]>()
-  for (const row of rows) {
-    const list = map.get(row.sensor_id) ?? []
-    list.push({ label: row.label, count: Number(row.count) })
-    map.set(row.sensor_id, list)
-  }
-  return map
-}
 
 export async function collectSensorProfiles(
   sensorIds: string[] | undefined,
@@ -36,73 +22,44 @@ export async function collectSensorProfiles(
   const totalEvents = sensors.reduce((sum, sensor) => sum + sensor.eventsTotal, 0)
   const sensorIdSet = sensors.map((sensor) => sensor.sensorId)
 
-  const [uniqueIpRows, authRows, commandRows, topIpRows, topCredentialRows, topSignalRows, topTargetRows, malwareRows, ftpCommandRows, smbShareRows, databaseRows, scannedPortRows, webIntel] =
-    await Promise.all([
-      db.query<{ sensor_id: string; unique_ips: string }>(`WITH per_event AS (SELECT sensor_id, src_ip FROM sessions WHERE sensor_id = ANY($1::text[]) AND started_at >= $2::timestamptz AND started_at <= $3::timestamptz UNION ALL SELECT sensor_id, src_ip FROM web_hits WHERE sensor_id = ANY($1::text[]) AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz UNION ALL SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id, src_ip FROM protocol_hits WHERE COALESCE(sensor_id, data->>'sensor') = ANY($1::text[]) AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz) SELECT sensor_id, COUNT(DISTINCT src_ip)::text AS unique_ips FROM per_event GROUP BY sensor_id`, [sensorIdSet, startDate, endDate]),
-      db.query<{ sensor_id: string; auth_attempts: string; success_count: string }>(`SELECT sensor_id, COUNT(*)::text AS auth_attempts, COUNT(*) FILTER (WHERE success IS TRUE)::text AS success_count FROM credential_attempts WHERE sensor_id = ANY($1::text[]) AND event_ts >= $2::timestamptz AND event_ts <= $3::timestamptz GROUP BY sensor_id`, [sensorIdSet, startDate, endDate]),
-      db.query<{ sensor_id: string; command_count: string }>(`WITH combined AS (SELECT s.sensor_id, COUNT(*)::bigint AS command_count FROM events e JOIN sessions s ON s.id = e.session_id WHERE s.sensor_id = ANY($1::text[]) AND e.event_type = 'command.input' AND e.event_ts >= $2::timestamptz AND e.event_ts <= $3::timestamptz GROUP BY s.sensor_id UNION ALL SELECT sensor_id, COUNT(*)::bigint AS command_count FROM protocol_hits WHERE sensor_id = ANY($1::text[]) AND event_type = 'command' AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz GROUP BY sensor_id) SELECT sensor_id, SUM(command_count)::text AS command_count FROM combined GROUP BY sensor_id`, [sensorIdSet, startDate, endDate]),
-      db.query<{ sensor_id: string; src_ip: string; hit_count: string }>(`WITH per_event AS (SELECT sensor_id, src_ip FROM sessions WHERE sensor_id = ANY($1::text[]) AND started_at >= $2::timestamptz AND started_at <= $3::timestamptz UNION ALL SELECT sensor_id, src_ip FROM web_hits WHERE sensor_id = ANY($1::text[]) AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz UNION ALL SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id, src_ip FROM protocol_hits WHERE COALESCE(sensor_id, data->>'sensor') = ANY($1::text[]) AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz), ranked AS (SELECT sensor_id, src_ip, COUNT(*)::bigint AS hit_count, ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY COUNT(*) DESC, src_ip ASC) AS rn FROM per_event GROUP BY sensor_id, src_ip) SELECT sensor_id, src_ip, hit_count::text FROM ranked WHERE rn <= 4`, [sensorIdSet, startDate, endDate]),
-      db.query<{ sensor_id: string; username: string | null; password: string | null; attempts: string; success_count: string }>(`WITH ranked AS (SELECT sensor_id, username, password, COUNT(*)::bigint AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::bigint AS success_count, ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY COUNT(*) DESC, COUNT(*) FILTER (WHERE success IS TRUE) DESC, COALESCE(username, '') ASC, COALESCE(password, '') ASC) AS rn FROM credential_attempts WHERE sensor_id = ANY($1::text[]) AND event_ts >= $2::timestamptz AND event_ts <= $3::timestamptz GROUP BY sensor_id, username, password) SELECT sensor_id, username, password, attempts::text, success_count::text FROM ranked WHERE rn <= 3`, [sensorIdSet, startDate, endDate]),
-      db.query<{ sensor_id: string; label: string; count: string }>(`WITH raw_signals AS (SELECT s.sensor_id, e.event_type AS label, COUNT(*)::bigint AS count FROM events e JOIN sessions s ON s.id = e.session_id WHERE s.sensor_id = ANY($1::text[]) AND e.event_ts >= $2::timestamptz AND e.event_ts <= $3::timestamptz GROUP BY s.sensor_id, e.event_type UNION ALL SELECT sensor_id, event_type AS label, COUNT(*)::bigint AS count FROM protocol_hits WHERE sensor_id = ANY($1::text[]) AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz GROUP BY sensor_id, event_type UNION ALL SELECT sensor_id, attack_type AS label, COUNT(*)::bigint AS count FROM web_hits WHERE sensor_id = ANY($1::text[]) AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz GROUP BY sensor_id, attack_type), ranked AS (SELECT sensor_id, label, SUM(count)::bigint AS count, ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY SUM(count) DESC, label ASC) AS rn FROM raw_signals GROUP BY sensor_id, label) SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 4`, [sensorIdSet, startDate, endDate]),
-      db.query<{ sensor_id: string; label: string; count: string }>(`WITH raw_targets AS (SELECT sensor_id, CONCAT('port ', dst_port::text) AS label, COUNT(*)::bigint AS count FROM protocol_hits WHERE sensor_id = ANY($1::text[]) AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz GROUP BY sensor_id, dst_port UNION ALL SELECT sensor_id, path AS label, COUNT(*)::bigint AS count FROM web_hits WHERE sensor_id = ANY($1::text[]) AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz GROUP BY sensor_id, path), ranked AS (SELECT sensor_id, label, SUM(count)::bigint AS count, ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY SUM(count) DESC, label ASC) AS rn FROM raw_targets GROUP BY sensor_id, label) SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 4`, [sensorIdSet, startDate, endDate]),
-      db.query<{ sensor_id: string | null; md5: string; file_type: string; size: string; source: "dionaea" | "cowrie" | "ftp" | "smb"; src_ip: string | null; src_port: number | null; dst_port: number | null; source_url: string | null; source_name: string | null; captured_at: Date }>(`SELECT sensor_id, md5, file_type, size::text, source, src_ip, src_port, dst_port, source_url, source_name, captured_at FROM malware_samples WHERE sensor_id = ANY($1::text[]) AND captured_at >= $2::timestamptz AND captured_at <= $3::timestamptz ORDER BY captured_at DESC`, [sensorIdSet, startDate, endDate]),
-      db.query<{ sensor_id: string; label: string; count: string }>(`WITH cmds AS (SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id, jsonb_array_elements(data#>'{raw,ftp,commands}')->>'command' AS label FROM protocol_hits WHERE protocol = 'ftp' AND event_type = 'command' AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[]) AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz), ranked AS (SELECT sensor_id, label, COUNT(*)::bigint AS count, ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY COUNT(*) DESC, label ASC) AS rn FROM cmds WHERE label IS NOT NULL AND label <> '' GROUP BY sensor_id, label) SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 8`, [sensorIdSet, startDate, endDate]),
-      db.query<{ sensor_id: string; label: string; count: string }>(`WITH ranked AS (SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id, data->>'shareName' AS label, COUNT(*)::bigint AS count, ROW_NUMBER() OVER (PARTITION BY COALESCE(sensor_id, data->>'sensor') ORDER BY COUNT(*) DESC, data->>'shareName' ASC) AS rn FROM protocol_hits WHERE protocol = 'smb' AND COALESCE(data->>'shareName', '') <> '' AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[]) AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz GROUP BY 1, 2) SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 8`, [sensorIdSet, startDate, endDate]),
-      db.query<{ sensor_id: string; label: string; count: string }>(`WITH ranked AS (SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id, data->>'database' AS label, COUNT(*)::bigint AS count, ROW_NUMBER() OVER (PARTITION BY COALESCE(sensor_id, data->>'sensor') ORDER BY COUNT(*) DESC, data->>'database' ASC) AS rn FROM protocol_hits WHERE protocol IN ('mysql', 'mssql') AND COALESCE(data->>'database', '') <> '' AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[]) AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz GROUP BY 1, 2) SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 8`, [sensorIdSet, startDate, endDate]),
-      db.query<{ sensor_id: string; dst_port: number; count: string }>(`WITH ranked AS (SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id, dst_port, COUNT(*)::bigint AS count, ROW_NUMBER() OVER (PARTITION BY COALESCE(sensor_id, data->>'sensor') ORDER BY COUNT(*) DESC, dst_port ASC) AS rn FROM protocol_hits WHERE protocol = 'port-scan' AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[]) AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz GROUP BY 1, 2) SELECT sensor_id, dst_port, count::text FROM ranked WHERE rn <= 8`, [sensorIdSet, startDate, endDate]),
-      collectWebSensorIntel(sensorIdSet, startDate, endDate),
-    ])
+  const [baseIntel, protocolIntel, malwareIntel, webIntel] = await Promise.all([
+    collectBaseSensorIntel(sensorIdSet, startDate, endDate),
+    collectProtocolSensorIntel(sensorIdSet, startDate, endDate),
+    collectMalwareSensorIntel(sensorIdSet, startDate, endDate),
+    collectWebSensorIntel(sensorIdSet, startDate, endDate),
+  ])
 
-  const uniqueIps = new Map(uniqueIpRows.rows.map((row) => [row.sensor_id, Number(row.unique_ips)]))
-  const authSummary = new Map(authRows.rows.map((row) => [row.sensor_id, { authAttempts: Number(row.auth_attempts), successCount: Number(row.success_count) }]))
-  const commands = new Map(commandRows.rows.map((row) => [row.sensor_id, Number(row.command_count)]))
+  const uniqueIps = new Map(baseIntel.uniqueIpRows.rows.map((row) => [row.sensor_id, Number(row.unique_ips)]))
+  const authSummary = new Map(baseIntel.authRows.rows.map((row) => [row.sensor_id, {
+    authAttempts: Number(row.auth_attempts),
+    successCount: Number(row.success_count),
+  }]))
+  const commands = new Map(baseIntel.commandRows.rows.map((row) => [row.sensor_id, Number(row.command_count)]))
+
   const topAttackers = new Map<string, ReportSensorProfile["topAttackers"]>()
-  for (const row of topIpRows.rows) {
+  for (const row of baseIntel.topIpRows.rows) {
     const list = topAttackers.get(row.sensor_id) ?? []
     list.push({ srcIp: row.src_ip, count: Number(row.hit_count) })
     topAttackers.set(row.sensor_id, list)
   }
+
   const topCredentials = new Map<string, ReportSensorProfile["topCredentials"]>()
-  for (const row of topCredentialRows.rows) {
+  for (const row of baseIntel.topCredentialRows.rows) {
     const list = topCredentials.get(row.sensor_id) ?? []
-    list.push({ username: row.username, password: row.password, attempts: Number(row.attempts), successCount: Number(row.success_count) })
+    list.push({
+      username: row.username,
+      password: row.password,
+      attempts: Number(row.attempts),
+      successCount: Number(row.success_count),
+    })
     topCredentials.set(row.sensor_id, list)
   }
-  const topSignals = groupLabelCounts(topSignalRows.rows)
-  const topTargets = groupLabelCounts(topTargetRows.rows)
-  const ftpCommands = groupLabelCounts(ftpCommandRows.rows)
-  const smbShares = groupLabelCounts(smbShareRows.rows)
-  const databases = groupLabelCounts(databaseRows.rows)
-  const scannedPorts = new Map<string, ReportSensorProfile["scannedPorts"]>()
-  for (const row of scannedPortRows.rows) {
-    const list = scannedPorts.get(row.sensor_id) ?? []
-    const service = PORT_SERVICE[row.dst_port]
-    list.push({ label: service ? `${row.dst_port} (${service})` : `${row.dst_port}`, count: Number(row.count) })
-    scannedPorts.set(row.sensor_id, list)
-  }
-  const {
-    webSummary,
-    webAttackTypes,
-    webPaths,
-    webMethods,
-    webUserAgents,
-    webCanaryTokens,
-    webSessions,
-  } = webIntel
-  const malwareBySensor = new Map<string, ReportSensorProfile["recentMalware"]>()
-  const malwareCount = new Map<string, number>()
-  for (const row of malwareRows.rows) {
-    if (!row.sensor_id) continue
-    malwareCount.set(row.sensor_id, (malwareCount.get(row.sensor_id) ?? 0) + 1)
-    const list = malwareBySensor.get(row.sensor_id) ?? []
-    if (list.length < 3) {
-      list.push({ md5: row.md5, fileType: row.file_type, size: Number(row.size), source: row.source, srcIp: row.src_ip ?? undefined, srcPort: row.src_port ?? undefined, dstPort: row.dst_port ?? undefined, sourceUrl: row.source_url ?? undefined, sourceName: row.source_name ?? undefined, sensorId: row.sensor_id, capturedAt: row.captured_at.toISOString() })
-      malwareBySensor.set(row.sensor_id, list)
-    }
-  }
+
+  const topSignals = groupLabelCounts(baseIntel.topSignalRows.rows)
+  const topTargets = groupLabelCounts(baseIntel.topTargetRows.rows)
 
   return sensors.map((sensor) => {
-    const web = webSummary.get(sensor.sensorId)
+    const web = webIntel.webSummary.get(sensor.sensorId)
     return {
       sensor,
       eventShare: totalEvents > 0 ? (sensor.eventsTotal / totalEvents) * 100 : 0,
@@ -110,17 +67,34 @@ export async function collectSensorProfiles(
       authAttempts: authSummary.get(sensor.sensorId)?.authAttempts ?? 0,
       successCount: authSummary.get(sensor.sensorId)?.successCount ?? 0,
       commandCount: commands.get(sensor.sensorId) ?? 0,
-      malwareCount: malwareCount.get(sensor.sensorId) ?? 0,
+      malwareCount: malwareIntel.malwareCount.get(sensor.sensorId) ?? 0,
       topAttackers: topAttackers.get(sensor.sensorId) ?? [],
       topCredentials: topCredentials.get(sensor.sensorId) ?? [],
       topSignals: topSignals.get(sensor.sensorId) ?? [],
       topTargets: topTargets.get(sensor.sensorId) ?? [],
-      recentMalware: malwareBySensor.get(sensor.sensorId) ?? [],
-      ftpCommands: ftpCommands.get(sensor.sensorId) ?? [],
-      smbShares: smbShares.get(sensor.sensorId) ?? [],
-      databases: databases.get(sensor.sensorId) ?? [],
-      scannedPorts: scannedPorts.get(sensor.sensorId) ?? [],
-      web: web ? { ...web, topAttackTypes: webAttackTypes.get(sensor.sensorId) ?? [], topPaths: webPaths.get(sensor.sensorId) ?? [], topMethods: webMethods.get(sensor.sensorId) ?? [], topUserAgents: webUserAgents.get(sensor.sensorId) ?? [], topCanaryTokens: webCanaryTokens.get(sensor.sensorId) ?? [], topSessions: webSessions.get(sensor.sensorId) ?? [] } : undefined,
+      recentMalware: malwareIntel.malwareBySensor.get(sensor.sensorId) ?? [],
+      eventBreakdown: protocolIntel.eventBreakdown.get(sensor.sensorId) ?? [],
+      sourcePorts: protocolIntel.sourcePorts.get(sensor.sensorId) ?? [],
+      sourceServices: protocolIntel.sourceServices.get(sensor.sensorId) ?? [],
+      fileTransfers: protocolIntel.fileTransfers.get(sensor.sensorId) ?? [],
+      ftpCommands: protocolIntel.ftpCommands.get(sensor.sensorId) ?? [],
+      smbDomains: protocolIntel.smbDomains.get(sensor.sensorId) ?? [],
+      smbShares: protocolIntel.smbShares.get(sensor.sensorId) ?? [],
+      smbHosts: protocolIntel.smbHosts.get(sensor.sensorId) ?? [],
+      smbNtlmHashes: protocolIntel.smbNtlmHashes.get(sensor.sensorId) ?? [],
+      databases: protocolIntel.databases.get(sensor.sensorId) ?? [],
+      scannedPorts: protocolIntel.scannedPorts.get(sensor.sensorId) ?? [],
+      web: web
+        ? {
+            ...web,
+            topAttackTypes: webIntel.webAttackTypes.get(sensor.sensorId) ?? [],
+            topPaths: webIntel.webPaths.get(sensor.sensorId) ?? [],
+            topMethods: webIntel.webMethods.get(sensor.sensorId) ?? [],
+            topUserAgents: webIntel.webUserAgents.get(sensor.sensorId) ?? [],
+            topCanaryTokens: webIntel.webCanaryTokens.get(sensor.sensorId) ?? [],
+            topSessions: webIntel.webSessions.get(sensor.sensorId) ?? [],
+          }
+        : undefined,
     }
   })
 }

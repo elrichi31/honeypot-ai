@@ -19,6 +19,7 @@ export function SensorPage({ profile, t }: { profile: ClientReportData["sensors"
     item.fileType,
     formatBytes(item.size),
     item.source?.toUpperCase() ?? "-",
+    item.sourceName ?? item.sourceUrl ?? item.md5,
     item.srcIp ?? "-",
   ])
 
@@ -59,7 +60,11 @@ export function SensorPage({ profile, t }: { profile: ClientReportData["sensors"
       {sensorMalwareRows.length > 0 ? (
         <>
           <Text style={[s.panelTitle, { marginTop: 6 }]}>Captured Malware</Text>
-          <SimpleTable headers={["Malware", "Size", "Source", "Source IP"]} rows={sensorMalwareRows} widths={["28%", "18%", "18%", "36%"]} />
+          <SimpleTable
+            headers={["Type", "Size", "Source", "Artifact / Path", "Source IP"]}
+            rows={sensorMalwareRows}
+            widths={["18%", "14%", "14%", "34%", "20%"]}
+          />
         </>
       ) : null}
     </>

@@ -38,6 +38,12 @@ export interface ReportLabelCount {
   count: number
 }
 
+export interface ReportDetailCount {
+  label: string
+  detail?: string | null
+  count: number
+}
+
 export interface ReportWebSessionSummary {
   label: string
   hits: number
@@ -78,10 +84,17 @@ export interface ReportSensorProfile {
   topSignals: ReportLabelCount[]
   topTargets: ReportLabelCount[]
   recentMalware: MalwareArtifact[]
+  eventBreakdown: ReportLabelCount[]
+  sourcePorts: ReportLabelCount[]
+  sourceServices: ReportLabelCount[]
+  fileTransfers: ReportDetailCount[]
   // Protocol-specific intelligence — populated only for the relevant traffic the
   // sensor observed (a multi-protocol sensor like dionaea can fill several).
   ftpCommands: ReportLabelCount[]
+  smbDomains: ReportLabelCount[]
   smbShares: ReportLabelCount[]
+  smbHosts: ReportDetailCount[]
+  smbNtlmHashes: ReportDetailCount[]
   databases: ReportLabelCount[]
   scannedPorts: ReportLabelCount[]
   web?: ReportWebProfile
