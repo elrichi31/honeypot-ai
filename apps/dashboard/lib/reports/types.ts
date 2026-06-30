@@ -5,13 +5,18 @@ import type {
   MitreMatrix,
   BotRatio,
   DashboardInsights,
+  CredentialsSummary,
+  DiversifiedAttackerStat,
 } from "@/lib/api/types"
 
 export type ReportRange = "week" | "month"
 
 export interface ReportGeoEntry {
   country: string
+  countryCode: string
   count: number
+  successCount: number
+  share: number
 }
 
 export interface ReportTopCredential {
@@ -40,4 +45,6 @@ export interface ClientReportData {
   insights: DashboardInsights
   geo: ReportGeoEntry[]
   topCredentials: ReportTopCredential[]
+  credentialSummary: CredentialsSummary
+  diversifiedAttackers: DiversifiedAttackerStat[]
 }

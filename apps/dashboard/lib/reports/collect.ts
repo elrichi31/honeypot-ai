@@ -10,9 +10,10 @@ import {
   fetchDashboardInsights,
 } from "@/lib/api/stats"
 import { fetchCredentialsAnalytics } from "@/lib/api/credentials"
+import { lookupIp } from "@/lib/geo"
 import type { ClientReportData, ClientReportMeta, ReportGeoEntry, ReportRange, ReportTopCredential } from "./types"
 
-function rangeToMitreDays(range: ReportRange): number {
+function rangeToDays(range: ReportRange): number {
   return range === "week" ? 7 : 30
 }
 
@@ -25,26 +26,45 @@ function buildPeriodLabel(range: ReportRange, generatedAt: Date, timezone: strin
   })
   const end = new Date(generatedAt)
   const start = new Date(end)
-  start.setDate(start.getDate() - rangeToMitreDays(range))
-  return `${fmt.format(start)} – ${fmt.format(end)}`
+  start.setDate(start.getDate() - rangeToDays(range))
+  return `${fmt.format(start)} - ${fmt.format(end)}`
+}
+
+function buildPeriodStart(range: ReportRange, generatedAt: Date): Date {
+  const start = new Date(generatedAt)
+  start.setDate(start.getDate() - rangeToDays(range))
+  return start
 }
 
 function aggregateGeo(raw: { srcIp: string; loginSuccess: boolean | null }[]): ReportGeoEntry[] {
-  // Group by first two octets (approximate country grouping fallback) — but
-  // since the backend only returns srcIp here we just count distinct IPs per
-  // first octet as a rough approximation. The real geo lookup would need an
-  // enrichment call, but to avoid adding latency we use the data as-is and
-  // bucket by the raw IP list length per country using geoip if available.
-  // For now: return top-10 raw IPs sorted by frequency (the geo endpoint
-  // returns one row per srcIp with loginSuccess, so count by srcIp bucket).
-  const counts = new Map<string, number>()
+  const countries = new Map<string, { countryCode: string; count: number; successCount: number }>()
+
   for (const row of raw) {
-    counts.set(row.srcIp, (counts.get(row.srcIp) ?? 0) + 1)
+    const geo = lookupIp(row.srcIp)
+    if (!geo?.country || !geo.countryName) continue
+
+    const current = countries.get(geo.countryName) ?? {
+      countryCode: geo.country,
+      count: 0,
+      successCount: 0,
+    }
+    current.count += 1
+    if (row.loginSuccess === true) current.successCount += 1
+    countries.set(geo.countryName, current)
   }
-  return Array.from(counts.entries())
-    .sort((a, b) => b[1] - a[1])
+
+  const total = Array.from(countries.values()).reduce((sum, entry) => sum + entry.count, 0)
+
+  return Array.from(countries.entries())
+    .sort((a, b) => b[1].count - a[1].count)
     .slice(0, 15)
-    .map(([country, count]) => ({ country, count }))
+    .map(([country, entry]) => ({
+      country,
+      countryCode: entry.countryCode,
+      count: entry.count,
+      successCount: entry.successCount,
+      share: total > 0 ? (entry.count / total) * 100 : 0,
+    }))
 }
 
 export async function collectClientReport(params: {
@@ -55,8 +75,9 @@ export async function collectClientReport(params: {
 }): Promise<ClientReportData> {
   const { sensorIds, range, timezone, meta } = params
   const generatedAt = new Date()
+  const startDate = buildPeriodStart(range, generatedAt).toISOString()
+  const endDate = generatedAt.toISOString()
 
-  // Fire all fetches in parallel to minimise total latency.
   const [overview, kpiTrends, timeline, mitre, botRatio, geoRaw, insights, creds] =
     await Promise.allSettled([
       fetchHoneypotOverview(sensorIds),
@@ -66,7 +87,14 @@ export async function collectClientReport(params: {
       fetchBotRatio(sensorIds),
       fetchGeoSummary(sensorIds),
       fetchDashboardInsights(sensorIds),
-      fetchCredentialsAnalytics({ limit: 10, rankingType: "pairs", mainTab: "rankings" }),
+      fetchCredentialsAnalytics({
+        limit: 10,
+        rankingType: "pairs",
+        mainTab: "rankings",
+        clientSlug: meta.clientSlug,
+        startDate,
+        endDate,
+      }),
     ])
 
   function unwrap<T>(result: PromiseSettledResult<T>, fallback: T): T {
@@ -102,8 +130,26 @@ export async function collectClientReport(params: {
   const topCredentials: ReportTopCredential[] = rawCreds
     ? (rawCreds.rankingsPage.items as { username: string | null; password: string | null; attempts: number; successCount: number }[])
         .slice(0, 10)
-        .map((r) => ({ username: r.username, password: r.password, attempts: r.attempts, successCount: r.successCount }))
+        .map((row) => ({
+          username: row.username,
+          password: row.password,
+          attempts: row.attempts,
+          successCount: row.successCount,
+        }))
     : []
+
+  const credentialSummary = rawCreds?.summary ?? {
+    totalAttempts: 0,
+    successfulAttempts: 0,
+    failedAttempts: 0,
+    uniqueUsernames: 0,
+    uniquePasswords: 0,
+    uniqueCredentialPairs: 0,
+    repeatedCredentialPairs: 0,
+    sprayPasswords: 0,
+    targetedUsernames: 0,
+    successRate: 0,
+  }
 
   return {
     meta: {
@@ -119,5 +165,7 @@ export async function collectClientReport(params: {
     insights: unwrap(insights, defaultInsights),
     geo: aggregateGeo(unwrap(geoRaw, [])),
     topCredentials,
+    credentialSummary,
+    diversifiedAttackers: rawCreds?.diversifiedAttackers?.slice(0, 8) ?? [],
   }
 }

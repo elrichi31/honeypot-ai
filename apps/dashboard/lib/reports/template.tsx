@@ -1,59 +1,72 @@
 // Server-only: React-PDF document component.
-// All chart primitives are drawn with react-pdf's <Canvas> (imperative 2D API).
 import React from "react"
 import {
   Document,
   Page,
   View,
   Text,
-  Canvas,
   StyleSheet,
-  Font,
 } from "@react-pdf/renderer"
 import type { ClientReportData } from "./types"
 import type { TranslationKey } from "@/lib/i18n/dictionaries"
 
 type T = (key: TranslationKey, vars?: Record<string, string | number>) => string
 
-// ── Palette ───────────────────────────────────────────────────────────────────
 const C = {
   indigo: "#6366f1",
   purple: "#8b5cf6",
+  blue: "#2563eb",
   red: "#ef4444",
   green: "#22c55e",
+  amber: "#f59e0b",
   gray: "#9ca3af",
   grayLight: "#f3f4f6",
+  graySoft: "#f8fafc",
   grayBorder: "#e5e7eb",
   textDark: "#111827",
   textMid: "#374151",
   textMuted: "#6b7280",
   white: "#ffffff",
   coverBg: "#1e1b4b",
-  coverAccent: "#4338ca",
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  page: { fontFamily: "Helvetica", fontSize: 10, color: C.textDark, paddingTop: 36, paddingBottom: 36, paddingHorizontal: 36, backgroundColor: C.white },
-  cover: { backgroundColor: C.coverBg, borderRadius: 8, padding: 28, marginBottom: 20 },
-  coverTitle: { fontSize: 24, fontFamily: "Helvetica-Bold", color: C.white, marginBottom: 4 },
-  coverSub: { fontSize: 11, color: "#a5b4fc", marginBottom: 16 },
-  coverMeta: { fontSize: 8, color: "#818cf8" },
-  coverKpiRow: { flexDirection: "row", gap: 10, marginTop: 16, flexWrap: "wrap" },
-  coverKpi: { backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 6, padding: 10, minWidth: 80, alignItems: "center" },
-  coverKpiVal: { fontSize: 18, fontFamily: "Helvetica-Bold", color: C.white },
-  coverKpiLabel: { fontSize: 7, color: "#c7d2fe", textTransform: "uppercase", marginTop: 2 },
+  page: {
+    fontFamily: "Helvetica",
+    fontSize: 9,
+    color: C.textDark,
+    paddingTop: 30,
+    paddingBottom: 30,
+    paddingHorizontal: 30,
+    backgroundColor: C.white,
+  },
+  cover: { backgroundColor: C.coverBg, borderRadius: 10, padding: 24, marginBottom: 16 },
+  coverMeta: { fontSize: 8, color: "#a5b4fc", textTransform: "uppercase", letterSpacing: 0.8 },
+  coverTitle: { fontSize: 24, fontFamily: "Helvetica-Bold", color: C.white, marginTop: 6 },
+  coverSub: { fontSize: 11, color: "#c7d2fe", marginTop: 2 },
+  coverKpiRow: { flexDirection: "row", gap: 8, marginTop: 14, flexWrap: "wrap" },
+  coverKpi: { backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 6, padding: 9, minWidth: 92 },
+  coverKpiVal: { fontSize: 17, fontFamily: "Helvetica-Bold", color: C.white },
+  coverKpiLabel: { fontSize: 7, color: "#c7d2fe", marginTop: 2, textTransform: "uppercase" },
 
-  sectionHeader: { flexDirection: "row", alignItems: "center", marginTop: 18, marginBottom: 8 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", marginTop: 12, marginBottom: 7 },
   sectionBar: { width: 3, height: 14, backgroundColor: C.indigo, borderRadius: 2, marginRight: 7 },
-  sectionTitle: { fontSize: 10, fontFamily: "Helvetica-Bold", color: C.textDark, textTransform: "uppercase", letterSpacing: 0.8 },
+  sectionTitle: { fontSize: 10, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 0.8 },
 
-  kpiRow: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginBottom: 10 },
-  kpiCard: { backgroundColor: C.grayLight, borderRadius: 6, padding: 10, minWidth: 90, flex: 1 },
-  kpiLabel: { fontSize: 7, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 },
-  kpiValue: { fontSize: 16, fontFamily: "Helvetica-Bold", color: C.textDark },
+  twoCol: { flexDirection: "row", gap: 10 },
+  col: { flex: 1 },
+  panel: { backgroundColor: C.graySoft, borderRadius: 8, border: `1 solid ${C.grayBorder}`, padding: 10, marginBottom: 8 },
+  panelTitle: { fontSize: 7, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 },
+  bodyText: { fontSize: 8.5, color: C.textMid, lineHeight: 1.4 },
+  bullet: { fontSize: 8.5, color: C.textMid, marginBottom: 4, lineHeight: 1.35 },
+
+  kpiRow: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginBottom: 8 },
+  kpiCard: { backgroundColor: C.grayLight, borderRadius: 6, padding: 9, minWidth: 100, flex: 1 },
+  kpiLabel: { fontSize: 7, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.45, marginBottom: 3 },
+  kpiValue: { fontSize: 15, fontFamily: "Helvetica-Bold", color: C.textDark },
   kpiDeltaPos: { fontSize: 8, color: C.green, marginTop: 2 },
   kpiDeltaNeg: { fontSize: 8, color: C.red, marginTop: 2 },
+  kpiMeta: { fontSize: 7.5, color: C.textMuted, marginTop: 2 },
 
   table: { width: "100%", borderRadius: 5, overflow: "hidden", border: `1 solid ${C.grayBorder}`, marginBottom: 8 },
   tableHeader: { flexDirection: "row", backgroundColor: C.grayLight, borderBottom: `1 solid ${C.grayBorder}` },
@@ -62,96 +75,61 @@ const s = StyleSheet.create({
   th: { fontSize: 7, fontFamily: "Helvetica-Bold", color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.4, padding: "5 7" },
   td: { fontSize: 8, color: C.textMid, padding: "5 7" },
 
-  funnelRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
-  funnelLabel: { fontSize: 8, color: C.textMid, width: 110 },
-  funnelTrack: { flex: 1, backgroundColor: C.grayBorder, borderRadius: 3, height: 11, marginHorizontal: 8, overflow: "hidden" },
-  funnelFill: { height: 11, borderRadius: 3, backgroundColor: C.indigo },
-  funnelValue: { fontSize: 8, color: C.textMid, width: 38, textAlign: "right" },
+  rankedRow: { marginBottom: 7 },
+  rankedTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 2 },
+  rankedLabel: { fontSize: 8, color: C.textDark, width: "58%" },
+  rankedValue: { fontSize: 8, color: C.textMid, width: "18%", textAlign: "right" },
+  rankedPct: { fontSize: 8, color: C.textMuted, width: "14%", textAlign: "right" },
+  rankedTrack: { height: 8, borderRadius: 4, backgroundColor: C.grayBorder, overflow: "hidden" },
+  rankedFill: { height: 8, borderRadius: 4 },
+  rankedMeta: { fontSize: 7.5, color: C.textMuted, marginTop: 2 },
 
-  legendRow: { flexDirection: "row", alignItems: "center", marginBottom: 5 },
-  legendDot: { width: 9, height: 9, borderRadius: 5, marginRight: 6 },
-  legendText: { fontSize: 8, color: C.textMid },
+  timelineWrap: { marginBottom: 8 },
+  timelineRow: { flexDirection: "row", alignItems: "flex-end", gap: 3, height: 86 },
+  timelineCol: { flex: 1, alignItems: "center", justifyContent: "flex-end" },
+  timelineValue: { fontSize: 6, color: C.textMuted, marginBottom: 2 },
+  timelineBarWrap: { width: "100%", height: 54, justifyContent: "flex-end", backgroundColor: C.grayLight, borderTopLeftRadius: 3, borderTopRightRadius: 3 },
+  timelineBar: { width: "100%", backgroundColor: C.indigo, borderTopLeftRadius: 3, borderTopRightRadius: 3, minHeight: 2 },
+  timelineLabel: { fontSize: 6, color: C.textMuted, marginTop: 3, textAlign: "center" },
 
-  footer: { borderTop: `1 solid ${C.grayBorder}`, paddingTop: 8, flexDirection: "row", justifyContent: "space-between", marginTop: 20 },
+  ratioRow: { marginBottom: 6 },
+  ratioTop: { flexDirection: "row", justifyContent: "space-between", marginBottom: 2 },
+  ratioLabel: { fontSize: 8, color: C.textMid },
+  ratioValue: { fontSize: 8, color: C.textMid },
+  ratioTrack: { height: 10, borderRadius: 4, backgroundColor: C.grayBorder, overflow: "hidden" },
+  ratioFill: { height: 10, borderRadius: 4 },
+
+  footer: { borderTop: `1 solid ${C.grayBorder}`, paddingTop: 8, flexDirection: "row", justifyContent: "space-between", marginTop: 14 },
   footerText: { fontSize: 7, color: C.gray },
-
-  noData: { fontSize: 9, color: C.textMuted, marginBottom: 8 },
+  noData: { fontSize: 8.5, color: C.textMuted, marginBottom: 8 },
 })
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(n: number | null | undefined): string {
-  if (n == null) return "—"
+  if (n == null) return "-"
   return n.toLocaleString("en-US")
 }
+
 function pct(n: number | null | undefined): string {
-  if (n == null) return "—"
+  if (n == null) return "-"
   return `${n.toFixed(1)}%`
 }
+
 function deltaStr(d: number | null | undefined): string | null {
   if (d == null) return null
   return `${d >= 0 ? "+" : ""}${d.toFixed(1)}%`
 }
 
-// ── Chart canvas helpers ──────────────────────────────────────────────────────
-// react-pdf's Canvas painter is a PDFKit graphics context, NOT a DOM Canvas.
-// API: painter.rect(x,y,w,h).fill(color)  /  painter.path(...).fill(color)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type PDFPainter = any
-
-function drawBarChart(
-  painter: PDFPainter,
-  data: { value: number }[],
-  w: number,
-  h: number,
-  color: string,
-) {
-  if (!data.length) return
-  const max = Math.max(...data.map((d) => d.value), 1)
-  const gap = 2
-  const barW = (w - gap * (data.length - 1)) / data.length
-  // background
-  painter.rect(0, 0, w, h).fill(C.grayLight)
-  data.forEach((d, i) => {
-    const barH = Math.max(2, (d.value / max) * (h - 8))
-    const x = i * (barW + gap)
-    const y = h - 8 - barH
-    painter.rect(x, y, barW, barH).fill(color)
-  })
+function rate(value: number, total: number): string {
+  if (total <= 0) return "0.0%"
+  return `${((value / total) * 100).toFixed(1)}%`
 }
 
-function drawDonut(
-  painter: PDFPainter,
-  slices: { value: number; color: string }[],
-  size: number,
-) {
-  const total = slices.reduce((s, d) => s + d.value, 0)
-  if (!total) return
-  const cx = size / 2
-  const cy = size / 2
-  const r = size * 0.42
-  const ri = size * 0.25
-  let angle = -Math.PI / 2
-  for (const slice of slices) {
-    const sweep = (slice.value / total) * 2 * Math.PI
-    const x1 = cx + r * Math.cos(angle)
-    const y1 = cy + r * Math.sin(angle)
-    const x2 = cx + r * Math.cos(angle + sweep)
-    const y2 = cy + r * Math.sin(angle + sweep)
-    const ix1 = cx + ri * Math.cos(angle + sweep)
-    const iy1 = cy + ri * Math.sin(angle + sweep)
-    const ix2 = cx + ri * Math.cos(angle)
-    const iy2 = cy + ri * Math.sin(angle)
-    const large = sweep > Math.PI ? 1 : 0
-    painter
-      .path(
-        `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${ix1} ${iy1} A ${ri} ${ri} 0 ${large} 0 ${ix2} ${iy2} Z`,
-      )
-      .fill(slice.color)
-    angle += sweep
-  }
+function sumBucket(bucket: Record<string, number | string>): number {
+  return Object.entries(bucket).reduce((sum, [key, value]) => {
+    if (key === "label") return sum
+    return typeof value === "number" ? sum + value : sum
+  }, 0)
 }
-
-// ── Sub-components ────────────────────────────────────────────────────────────
 
 function SectionHeader({ title }: { title: string }) {
   return (
@@ -162,13 +140,13 @@ function SectionHeader({ title }: { title: string }) {
   )
 }
 
-function KpiCard({ label, value, delta }: { label: string; value: string; delta?: string | null }) {
-  const d = delta
+function KpiCard({ label, value, delta, meta }: { label: string; value: string; delta?: string | null; meta?: string }) {
   return (
     <View style={s.kpiCard}>
       <Text style={s.kpiLabel}>{label}</Text>
       <Text style={s.kpiValue}>{value}</Text>
-      {d && <Text style={d.startsWith("-") ? s.kpiDeltaNeg : s.kpiDeltaPos}>{d}</Text>}
+      {delta ? <Text style={delta.startsWith("-") ? s.kpiDeltaNeg : s.kpiDeltaPos}>{delta}</Text> : null}
+      {meta ? <Text style={s.kpiMeta}>{meta}</Text> : null}
     </View>
   )
 }
@@ -185,14 +163,14 @@ function SimpleTable({
   return (
     <View style={s.table}>
       <View style={s.tableHeader}>
-        {headers.map((h, i) => (
-          <Text key={i} style={[s.th, widths ? { width: widths[i] } : { flex: 1 }]}>{h}</Text>
+        {headers.map((header, index) => (
+          <Text key={index} style={[s.th, widths ? { width: widths[index] } : { flex: 1 }]}>{header}</Text>
         ))}
       </View>
-      {rows.map((row, ri) => (
-        <View key={ri} style={ri % 2 === 0 ? s.tableRow : s.tableRowAlt}>
-          {row.map((cell, ci) => (
-            <Text key={ci} style={[s.td, widths ? { width: widths[ci] } : { flex: 1 }]}>{cell}</Text>
+      {rows.map((row, rowIndex) => (
+        <View key={rowIndex} style={rowIndex % 2 === 0 ? s.tableRow : s.tableRowAlt}>
+          {row.map((cell, cellIndex) => (
+            <Text key={cellIndex} style={[s.td, widths ? { width: widths[cellIndex] } : { flex: 1 }]}>{cell}</Text>
           ))}
         </View>
       ))}
@@ -200,220 +178,395 @@ function SimpleTable({
   )
 }
 
-function FunnelBar({ label, value, max }: { label: string; value: number; max: number }) {
-  const w = `${Math.max(4, Math.round((value / Math.max(max, 1)) * 100))}%`
+function RankedBars({
+  items,
+  color,
+}: {
+  items: Array<{ label: string; value: number; pct?: number; meta?: string }>
+  color: string
+}) {
+  const max = Math.max(...items.map((item) => item.value), 1)
   return (
-    <View style={s.funnelRow}>
-      <Text style={s.funnelLabel}>{label}</Text>
-      <View style={s.funnelTrack}>
-        <View style={[s.funnelFill, { width: w }]} />
-      </View>
-      <Text style={s.funnelValue}>{fmt(value)}</Text>
+    <View>
+      {items.map((item, index) => (
+        <View key={`${item.label}-${index}`} style={s.rankedRow}>
+          <View style={s.rankedTop}>
+            <Text style={s.rankedLabel}>{item.label}</Text>
+            <Text style={s.rankedValue}>{fmt(item.value)}</Text>
+            <Text style={s.rankedPct}>{item.pct == null ? "" : pct(item.pct)}</Text>
+          </View>
+          <View style={s.rankedTrack}>
+            <View style={[s.rankedFill, { width: `${Math.max(4, (item.value / max) * 100)}%`, backgroundColor: color }]} />
+          </View>
+          {item.meta ? <Text style={s.rankedMeta}>{item.meta}</Text> : null}
+        </View>
+      ))}
     </View>
   )
 }
 
-// ── Main document component ───────────────────────────────────────────────────
+function TimelineChart({ items }: { items: Array<{ label: string; value: number }> }) {
+  const max = Math.max(...items.map((item) => item.value), 1)
+  return (
+    <View style={s.timelineWrap}>
+      <View style={s.timelineRow}>
+        {items.map((item, index) => (
+          <View key={`${item.label}-${index}`} style={s.timelineCol}>
+            <Text style={s.timelineValue}>{fmt(item.value)}</Text>
+            <View style={s.timelineBarWrap}>
+              <View style={[s.timelineBar, { height: Math.max(2, (item.value / max) * 54) }]} />
+            </View>
+            <Text style={s.timelineLabel}>{item.label}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  )
+}
+
+function RatioBar({ label, value, total, color, meta }: { label: string; value: number; total: number; color: string; meta?: string }) {
+  const width = total > 0 ? Math.max(4, (value / total) * 100) : 4
+  return (
+    <View style={s.ratioRow}>
+      <View style={s.ratioTop}>
+        <Text style={s.ratioLabel}>{label}</Text>
+        <Text style={s.ratioValue}>{fmt(value)} ({rate(value, total)}){meta ? ` - ${meta}` : ""}</Text>
+      </View>
+      <View style={s.ratioTrack}>
+        <View style={[s.ratioFill, { width: `${width}%`, backgroundColor: color }]} />
+      </View>
+    </View>
+  )
+}
+
+function Footer({ data, t }: { data: ClientReportData; t: T }) {
+  return (
+    <View style={s.footer}>
+      <Text style={s.footerText}>{t("reports.footer.confidential")}</Text>
+      <Text style={s.footerText}>HoneyTrap Platform - {data.meta.generatedAt.slice(0, 10)}</Text>
+    </View>
+  )
+}
 
 export function ReportDocument({ data, t }: { data: ClientReportData; t: T }) {
-  const { meta, overview, kpiTrends, timeline, mitre, botRatio, insights, geo, topCredentials } = data
+  const {
+    meta,
+    overview,
+    kpiTrends,
+    timeline,
+    mitre,
+    botRatio,
+    insights,
+    geo,
+    topCredentials,
+    credentialSummary,
+    diversifiedAttackers,
+  } = data
 
-  const totalTechniques = mitre.tactics.reduce((s, tac) => s + tac.techniques.length, 0)
   const generatedDate = new Date(meta.generatedAt).toLocaleDateString("en-US", {
-    year: "numeric", month: "long", day: "numeric",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   })
 
-  // Timeline data (primary protocol, last 28 buckets)
-  const primaryProtocol = timeline.activeProtocols[0] ?? "ssh"
-  const timelineData = timeline.buckets.slice(-28).map((b) => ({
-    value: typeof b[primaryProtocol] === "number" ? (b[primaryProtocol] as number) : 0,
+  const timelineItems = timeline.buckets.map((bucket) => ({
+    label: String(bucket.label ?? "").slice(0, 5),
+    value: sumBucket(bucket),
+  }))
+  const peakTimeline = timelineItems.reduce((peak, item) => item.value > peak.value ? item : peak, { label: "-", value: 0 })
+  const totalTimeline = timelineItems.reduce((sum, item) => sum + item.value, 0)
+  const avgTimeline = timelineItems.length > 0 ? Math.round(totalTimeline / timelineItems.length) : 0
+
+  const sourceRows = [
+    { label: "SSH", value: overview.ssh.sessions, meta: `${fmt(overview.ssh.uniqueIps)} unique IPs` },
+    { label: "Web", value: overview.web.hits, meta: `${fmt(overview.web.uniqueIps)} unique IPs` },
+    ...overview.protocols.slice(0, 5).map((protocol) => ({
+      label: protocol.protocol.toUpperCase(),
+      value: protocol.count,
+      meta: `${fmt(protocol.uniqueIps)} IPs - ${fmt(protocol.authAttempts)} auth`,
+    })),
+  ].filter((row) => row.value > 0)
+
+  const totalSourceVolume = sourceRows.reduce((sum, row) => sum + row.value, 0)
+  const sourceBarItems = sourceRows.map((row) => ({
+    ...row,
+    pct: totalSourceVolume > 0 ? (row.value / totalSourceVolume) * 100 : 0,
   }))
 
-  // MITRE rows (top 15)
-  const mitreRows = mitre.tactics
-    .flatMap((tac) => tac.techniques.slice(0, 5).map((tech) => [tac.tactic, `${tech.id} — ${tech.name}`, fmt(tech.count)]))
-    .slice(0, 15)
+  const geoRows = geo.slice(0, 10).map((entry) => ([
+    `${entry.country} (${entry.countryCode})`,
+    fmt(entry.count),
+    pct(entry.share),
+    fmt(entry.successCount),
+  ]))
 
-  // Credential rows (top 10)
-  const credRows = topCredentials.slice(0, 10).map((c) => [
-    c.username ?? "—",
-    c.password ?? "—",
-    fmt(c.attempts),
-    fmt(c.successCount),
+  const geoBarItems = geo.slice(0, 8).map((entry) => ({
+    label: `${entry.country} (${entry.countryCode})`,
+    value: entry.count,
+    pct: entry.share,
+    meta: `${fmt(entry.successCount)} successful login IPs`,
+  }))
+
+  const tacticTotals = mitre.tactics
+    .map((tactic) => ({
+      label: tactic.tactic,
+      value: tactic.techniques.reduce((sum, technique) => sum + technique.count, 0),
+      pct: mitre.total > 0 ? (tactic.techniques.reduce((sum, technique) => sum + technique.count, 0) / mitre.total) * 100 : 0,
+      meta: `${tactic.techniques.length} techniques mapped`,
+    }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 6)
+
+  const mitreRows = mitre.tactics
+    .flatMap((tactic) => tactic.techniques.slice(0, 4).map((technique) => [
+      tactic.tactic,
+      `${technique.id} - ${technique.name}`,
+      fmt(technique.count),
+      mitre.total > 0 ? pct((technique.count / mitre.total) * 100) : "0.0%",
+    ]))
+    .slice(0, 12)
+
+  const credentialRows = topCredentials.slice(0, 10).map((credential) => [
+    credential.username ?? "-",
+    credential.password ?? "-",
+    fmt(credential.attempts),
+    fmt(credential.successCount),
+    rate(credential.successCount, credential.attempts),
   ])
 
-  // Recurring IPs (top 8)
   const recurringRows = insights.recurringIps.slice(0, 8).map((ip) => [
     ip.srcIp,
     fmt(ip.totalSessions),
     fmt(ip.credentialCount),
-    ip.lastSeen ? new Date(ip.lastSeen).toLocaleDateString("en-US") : "—",
+    fmt(ip.successfulSessions),
+    ip.returnAfterMinutes == null ? "-" : `${fmt(ip.returnAfterMinutes)} min`,
   ])
 
-  // Geo rows (top 12)
-  const geoData = geo.slice(0, 12)
-  const geoRows = geoData.map((g) => [g.country.slice(0, 30), fmt(g.count)])
+  const diversifiedRows = diversifiedAttackers.slice(0, 6).map((ip) => [
+    ip.srcIp,
+    fmt(ip.attempts),
+    fmt(ip.credentialCount),
+    fmt(ip.usernameCount),
+    fmt(ip.passwordCount),
+  ])
 
-  const funnel = insights.funnel
+  const depthBarItems = insights.successfulDepth.buckets.map((bucket) => ({
+    label: `${bucket.bucket} commands`,
+    value: bucket.sessions,
+    pct: insights.funnel.loginSuccess > 0 ? (bucket.sessions / insights.funnel.loginSuccess) * 100 : 0,
+  }))
+
+  const commandPatternRows = insights.commandPatterns.slice(0, 5).map((pattern) => [
+    pattern.sequence.slice(0, 58),
+    fmt(pattern.sessions),
+    fmt(pattern.uniqueIps),
+  ])
+
+  const findings = [
+    `${fmt(kpiTrends.events.current)} total events were recorded, with ${fmt(kpiTrends.uniqueIps.current)} unique attacker IPs active in the latest reporting window.`,
+    `${sourceRows[0]?.label ?? "SSH"} was the dominant source of activity with ${fmt(sourceRows[0]?.value ?? 0)} events, representing ${totalSourceVolume > 0 ? pct(((sourceRows[0]?.value ?? 0) / totalSourceVolume) * 100) : "0.0%"} of observed volume.`,
+    `Peak activity occurred in bucket ${peakTimeline.label} with ${fmt(peakTimeline.value)} events, versus an average of ${fmt(avgTimeline)} per bucket.`,
+    `${fmt(credentialSummary.totalAttempts)} credential attempts were seen in the selected period with a ${pct(credentialSummary.successRate * 100)} success rate.`,
+  ]
+
   const hasWeb = (overview.web.hits ?? 0) > 0
 
   return (
-    <Document title={`Security Report — ${meta.clientName}`} author="HoneyTrap Platform">
+    <Document title={`Security Report - ${meta.clientName}`} author="HoneyTrap Platform">
       <Page size="A4" style={s.page}>
-
-        {/* ── Cover ── */}
         <View style={s.cover}>
-          <Text style={s.coverMeta}>Security Report · HoneyTrap Platform</Text>
+          <Text style={s.coverMeta}>Security Report - HoneyTrap Platform</Text>
           <Text style={s.coverTitle}>{meta.clientName}</Text>
           <Text style={s.coverSub}>{meta.periodLabel}</Text>
           <Text style={s.coverMeta}>{t("reports.footer.generated")}: {generatedDate}</Text>
           <View style={s.coverKpiRow}>
             {[
-              { val: fmt(kpiTrends.events.current), label: t("reports.kpi.events") },
-              { val: fmt(kpiTrends.uniqueIps.current), label: t("reports.kpi.uniqueIps") },
-              { val: String(mitre.tactics.length), label: t("reports.kpi.mitreTactics") },
-              { val: pct(botRatio.botPct), label: t("reports.kpi.botPct") },
-            ].map((k, i) => (
-              <View key={i} style={s.coverKpi}>
-                <Text style={s.coverKpiVal}>{k.val}</Text>
-                <Text style={s.coverKpiLabel}>{k.label}</Text>
+              { value: fmt(kpiTrends.events.current), label: t("reports.kpi.events") },
+              { value: fmt(kpiTrends.uniqueIps.current), label: t("reports.kpi.uniqueIps") },
+              { value: pct(botRatio.botPct), label: t("reports.kpi.botPct") },
+              { value: fmt(mitre.tactics.length), label: t("reports.kpi.mitreTactics") },
+            ].map((item, index) => (
+              <View key={index} style={s.coverKpi}>
+                <Text style={s.coverKpiVal}>{item.value}</Text>
+                <Text style={s.coverKpiLabel}>{item.label}</Text>
               </View>
             ))}
           </View>
         </View>
 
-        {/* ── Executive Summary ── */}
         <SectionHeader title={t("reports.section.executive")} />
         <View style={s.kpiRow}>
-          <KpiCard label={t("reports.kpi.events")} value={fmt(kpiTrends.events.current)} delta={deltaStr(kpiTrends.events.deltaPct)} />
-          <KpiCard label={t("reports.kpi.sessions")} value={fmt(kpiTrends.sshSessions.current)} delta={deltaStr(kpiTrends.sshSessions.deltaPct)} />
-          <KpiCard label={t("reports.kpi.uniqueIps")} value={fmt(kpiTrends.uniqueIps.current)} delta={deltaStr(kpiTrends.uniqueIps.deltaPct)} />
-          <KpiCard label={t("reports.kpi.webHits")} value={fmt(kpiTrends.webHits.current)} delta={deltaStr(kpiTrends.webHits.deltaPct)} />
-          <KpiCard label={t("reports.kpi.successLogins")} value={fmt(overview.ssh.successfulLogins)} />
-          <KpiCard label={t("reports.kpi.mitreTactics")} value={fmt(mitre.tactics.length)} />
-          <KpiCard label={t("reports.kpi.mitreTechniques")} value={fmt(totalTechniques)} />
+          <KpiCard label={t("reports.kpi.events")} value={fmt(kpiTrends.events.current)} delta={deltaStr(kpiTrends.events.deltaPct)} meta={`Prev: ${fmt(kpiTrends.events.previous)}`} />
+          <KpiCard label={t("reports.kpi.sessions")} value={fmt(kpiTrends.sshSessions.current)} delta={deltaStr(kpiTrends.sshSessions.deltaPct)} meta={`${fmt(overview.ssh.successfulLogins)} successful logins`} />
+          <KpiCard label={t("reports.kpi.webHits")} value={fmt(kpiTrends.webHits.current)} delta={deltaStr(kpiTrends.webHits.deltaPct)} meta={overview.web.topAttackType ? `Top type: ${overview.web.topAttackType}` : undefined} />
+          <KpiCard label={t("reports.kpi.uniqueIps")} value={fmt(kpiTrends.uniqueIps.current)} delta={deltaStr(kpiTrends.uniqueIps.deltaPct)} meta={`${fmt(overview.totals.activeSources)} active sources`} />
         </View>
 
-        {/* ── Timeline chart ── */}
-        <SectionHeader title={t("reports.section.timeline")} />
-        <Canvas
-          style={{ width: "100%", height: 90, marginBottom: 10 }}
-          paint={(painter, w, h) => {
-            drawBarChart(painter, timelineData, w, h, C.indigo)
-            return null
-          }}
-        />
+        <View style={s.panel}>
+          <Text style={s.panelTitle}>Key Findings</Text>
+          {findings.map((finding, index) => (
+            <Text key={index} style={s.bullet}>- {finding}</Text>
+          ))}
+        </View>
 
-        {/* ── MITRE ── */}
-        <SectionHeader title={t("reports.section.threats")} />
-        {mitreRows.length > 0
-          ? <SimpleTable
-              headers={[t("reports.mitre.tactic"), t("reports.mitre.techniques"), t("reports.mitre.hits")]}
-              rows={mitreRows}
-              widths={["30%", "55%", "15%"]}
-            />
-          : <Text style={s.noData}>{t("reports.noActivity")}</Text>
-        }
-
-        {/* ── Credentials ── */}
-        <SectionHeader title={t("reports.section.credentials")} />
-        {credRows.length > 0
-          ? <SimpleTable
-              headers={[t("reports.creds.username"), t("reports.creds.password"), t("reports.creds.attempts"), t("reports.creds.successes")]}
-              rows={credRows}
-              widths={["28%", "28%", "22%", "22%"]}
-            />
-          : <Text style={s.noData}>{t("reports.noActivity")}</Text>
-        }
-
-        {/* ── Reconnaissance ── */}
-        <SectionHeader title={t("reports.section.reconnaissance")} />
-        <FunnelBar label={t("reports.funnel.connections")} value={funnel.connections} max={funnel.connections} />
-        <FunnelBar label={t("reports.funnel.authAttempts")} value={funnel.authAttempts} max={funnel.connections} />
-        <FunnelBar label={t("reports.funnel.loginSuccess")} value={funnel.loginSuccess} max={funnel.connections} />
-        <FunnelBar label={t("reports.funnel.commands")} value={funnel.commands} max={funnel.connections} />
-        <FunnelBar label={t("reports.funnel.compromise")} value={funnel.highSignalCompromise} max={funnel.connections} />
-
-        {recurringRows.length > 0 && (
-          <>
-            <Text style={[s.kpiLabel, { marginTop: 10, marginBottom: 5 }]}>{t("reports.creds.recurringIps")}</Text>
-            <SimpleTable
-              headers={["IP", "Sessions", "Credentials", "Last Seen"]}
-              rows={recurringRows}
-              widths={["35%", "20%", "25%", "20%"]}
-            />
-          </>
+        <SectionHeader title="Attack Surface Mix" />
+        {sourceBarItems.length > 0 ? (
+          <RankedBars items={sourceBarItems} color={C.blue} />
+        ) : (
+          <Text style={s.noData}>{t("reports.noActivity")}</Text>
         )}
 
-        {/* ── Geo ── */}
-        <SectionHeader title={t("reports.section.geo")} />
-        {geoData.length > 0 ? (
+        <SectionHeader title={t("reports.section.timeline")} />
+        {timelineItems.length > 0 ? (
           <>
-            <Canvas
-              style={{ width: "100%", height: 80, marginBottom: 6 }}
-              paint={(painter, w, h) => {
-                drawBarChart(painter, geoData.map((g) => ({ value: g.count })), w, h, C.purple)
-                return null
-              }}
-            />
+            <TimelineChart items={timelineItems} />
+            <View style={s.kpiRow}>
+              <KpiCard label="Peak Bucket" value={fmt(peakTimeline.value)} meta={peakTimeline.label} />
+              <KpiCard label="Average / Bucket" value={fmt(avgTimeline)} meta={`${fmt(totalTimeline)} total`} />
+              <KpiCard label="Observed Buckets" value={fmt(timelineItems.length)} meta="Chronological activity series" />
+            </View>
+          </>
+        ) : (
+          <Text style={s.noData}>{t("reports.noActivity")}</Text>
+        )}
+
+        <SectionHeader title={t("reports.section.geo")} />
+        {geoBarItems.length > 0 ? (
+          <>
+            <RankedBars items={geoBarItems} color={C.purple} />
             <SimpleTable
-              headers={["Country / IP", "Count"]}
+              headers={["Country", "Unique IPs", "Share", "Successful IPs"]}
               rows={geoRows}
-              widths={["75%", "25%"]}
+              widths={["42%", "18%", "18%", "22%"]}
             />
           </>
         ) : (
           <Text style={s.noData}>{t("reports.noActivity")}</Text>
         )}
 
-        {/* ── Classification ── */}
         <SectionHeader title={t("reports.section.classification")} />
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 20, marginBottom: 10 }}>
-          <Canvas
-            style={{ width: 90, height: 90 }}
-            paint={(painter, w, h) => {
-              drawDonut(painter, [
-                { value: botRatio.bot, color: C.red },
-                { value: botRatio.human, color: C.green },
-                { value: botRatio.unknown, color: C.gray },
-              ], Math.min(w, h))
-              return null
-            }}
+        <View style={s.panel}>
+          <RatioBar label={t("reports.chart.bot")} value={botRatio.bot} total={botRatio.total} color={C.red} meta="Automated session profile" />
+          <RatioBar label={t("reports.chart.human")} value={botRatio.human} total={botRatio.total} color={C.green} meta="Interactive operator profile" />
+          <RatioBar label={t("reports.chart.unknown")} value={botRatio.unknown} total={botRatio.total} color={C.gray} meta="Insufficient classification signals" />
+        </View>
+
+        <Footer data={data} t={t} />
+      </Page>
+
+      <Page size="A4" style={s.page}>
+        <SectionHeader title={t("reports.section.threats")} />
+        {tacticTotals.length > 0 ? (
+          <>
+            <View style={s.twoCol}>
+              <View style={s.col}>
+                <View style={s.panel}>
+                  <Text style={s.panelTitle}>Tactic Concentration</Text>
+                  <RankedBars items={tacticTotals} color={C.indigo} />
+                </View>
+              </View>
+              <View style={s.col}>
+                <View style={s.panel}>
+                  <Text style={s.panelTitle}>Technique Coverage</Text>
+                  <Text style={s.bodyText}>{fmt(mitre.total)} mapped technique hits across {fmt(mitre.tactics.length)} tactics. This helps distinguish broad probing from multi-stage intrusion behavior.</Text>
+                </View>
+                <View style={s.panel}>
+                  <Text style={s.panelTitle}>Interpretation</Text>
+                  <Text style={s.bullet}>- Higher concentration in a single tactic usually indicates repetitive automation.</Text>
+                  <Text style={s.bullet}>- Broader tactic coverage suggests progression beyond initial access.</Text>
+                </View>
+              </View>
+            </View>
+            <SimpleTable
+              headers={[t("reports.mitre.tactic"), t("reports.mitre.techniques"), t("reports.mitre.hits"), "Share"]}
+              rows={mitreRows}
+              widths={["22%", "48%", "15%", "15%"]}
+            />
+          </>
+        ) : (
+          <Text style={s.noData}>{t("reports.noActivity")}</Text>
+        )}
+
+        <SectionHeader title={t("reports.section.credentials")} />
+        <View style={s.kpiRow}>
+          <KpiCard label="Attempts" value={fmt(credentialSummary.totalAttempts)} meta={`${fmt(credentialSummary.failedAttempts)} failed`} />
+          <KpiCard label="Success Rate" value={pct(credentialSummary.successRate * 100)} meta={`${fmt(credentialSummary.successfulAttempts)} successful`} />
+          <KpiCard label="Unique Pairs" value={fmt(credentialSummary.uniqueCredentialPairs)} meta={`${fmt(credentialSummary.repeatedCredentialPairs)} repeated`} />
+          <KpiCard label="Spray Patterns" value={fmt(credentialSummary.sprayPasswords)} meta={`${fmt(credentialSummary.targetedUsernames)} targeted usernames`} />
+        </View>
+        {credentialRows.length > 0 ? (
+          <SimpleTable
+            headers={[t("reports.creds.username"), t("reports.creds.password"), t("reports.creds.attempts"), t("reports.creds.successes"), "Success Rate"]}
+            rows={credentialRows}
+            widths={["23%", "23%", "18%", "18%", "18%"]}
           />
-          <View>
-            <View style={s.legendRow}>
-              <View style={[s.legendDot, { backgroundColor: C.red }]} />
-              <Text style={s.legendText}>{t("reports.chart.bot")}: {fmt(botRatio.bot)} ({pct(botRatio.botPct)})</Text>
+        ) : (
+          <Text style={s.noData}>{t("reports.noActivity")}</Text>
+        )}
+        {diversifiedRows.length > 0 ? (
+          <SimpleTable
+            headers={["Attacker IP", "Attempts", "Credential Pairs", "Usernames", "Passwords"]}
+            rows={diversifiedRows}
+            widths={["30%", "16%", "18%", "18%", "18%"]}
+          />
+        ) : null}
+
+        <SectionHeader title={t("reports.section.reconnaissance")} />
+        <View style={s.twoCol}>
+          <View style={s.col}>
+            <View style={s.panel}>
+              <Text style={s.panelTitle}>Attack Funnel</Text>
+              <RatioBar label={t("reports.funnel.connections")} value={insights.funnel.connections} total={insights.funnel.connections} color={C.indigo} />
+              <RatioBar label={t("reports.funnel.authAttempts")} value={insights.funnel.authAttempts} total={insights.funnel.connections} color={C.blue} meta="Conversion from connection to auth" />
+              <RatioBar label={t("reports.funnel.loginSuccess")} value={insights.funnel.loginSuccess} total={insights.funnel.connections} color={C.green} meta="Sessions that cleared authentication" />
+              <RatioBar label={t("reports.funnel.commands")} value={insights.funnel.commands} total={insights.funnel.connections} color={C.amber} meta="Sessions that executed commands" />
+              <RatioBar label={t("reports.funnel.compromise")} value={insights.funnel.highSignalCompromise} total={insights.funnel.connections} color={C.red} meta="High-signal post-login behavior" />
             </View>
-            <View style={s.legendRow}>
-              <View style={[s.legendDot, { backgroundColor: C.green }]} />
-              <Text style={s.legendText}>{t("reports.chart.human")}: {fmt(botRatio.human)} ({pct(botRatio.humanPct)})</Text>
-            </View>
-            <View style={s.legendRow}>
-              <View style={[s.legendDot, { backgroundColor: C.gray }]} />
-              <Text style={s.legendText}>{t("reports.chart.unknown")}: {fmt(botRatio.unknown)}</Text>
+          </View>
+          <View style={s.col}>
+            <View style={s.panel}>
+              <Text style={s.panelTitle}>Command Depth After Login</Text>
+              {depthBarItems.length > 0 ? (
+                <RankedBars items={depthBarItems} color={C.indigo} />
+              ) : (
+                <Text style={s.noData}>{t("reports.noActivity")}</Text>
+              )}
+              <Text style={s.bodyText}>Average commands per successful session: {fmt(insights.successfulDepth.averageCommands)}. Maximum observed depth: {fmt(insights.successfulDepth.maxCommands)} commands. Interactive sessions (20+ commands): {fmt(insights.successfulDepth.interactiveSessions)}.</Text>
             </View>
           </View>
         </View>
 
-        {/* ── Web (optional) ── */}
-        {hasWeb && (
+        {commandPatternRows.length > 0 ? (
+          <SimpleTable
+            headers={["Command Sequence", "Sessions", "Unique IPs"]}
+            rows={commandPatternRows}
+            widths={["64%", "18%", "18%"]}
+          />
+        ) : null}
+
+        {recurringRows.length > 0 ? (
+          <>
+            <SectionHeader title={t("reports.creds.recurringIps")} />
+            <SimpleTable
+              headers={["IP", "Sessions", "Creds", "Success", "Return Delay"]}
+              rows={recurringRows}
+              widths={["30%", "16%", "16%", "16%", "22%"]}
+            />
+          </>
+        ) : null}
+
+        {hasWeb ? (
           <>
             <SectionHeader title={t("reports.section.web")} />
             <View style={s.kpiRow}>
               <KpiCard label="Total Hits" value={fmt(overview.web.hits)} />
               <KpiCard label="Unique IPs" value={fmt(overview.web.uniqueIps)} />
-              <KpiCard label="Top Attack Type" value={overview.web.topAttackType ?? "—"} />
+              <KpiCard label="Top Attack Type" value={overview.web.topAttackType ?? "-"} />
             </View>
           </>
-        )}
+        ) : null}
 
-        {/* ── Footer ── */}
-        <View style={s.footer}>
-          <Text style={s.footerText}>{t("reports.footer.confidential")}</Text>
-          <Text style={s.footerText}>HoneyTrap Platform · {meta.generatedAt.slice(0, 10)}</Text>
-        </View>
-
+        <Footer data={data} t={t} />
       </Page>
     </Document>
   )
