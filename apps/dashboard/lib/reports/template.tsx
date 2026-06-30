@@ -93,9 +93,13 @@ function deltaStr(d: number | null | undefined): string | null {
 }
 
 // ── Chart canvas helpers ──────────────────────────────────────────────────────
+// react-pdf's Canvas painter is a PDFKit graphics context, NOT a DOM Canvas.
+// API: painter.rect(x,y,w,h).fill(color)  /  painter.path(...).fill(color)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PDFPainter = any
 
 function drawBarChart(
-  painter: CanvasRenderingContext2D,
+  painter: PDFPainter,
   data: { value: number }[],
   w: number,
   h: number,
@@ -105,17 +109,18 @@ function drawBarChart(
   const max = Math.max(...data.map((d) => d.value), 1)
   const gap = 2
   const barW = (w - gap * (data.length - 1)) / data.length
+  // background
+  painter.rect(0, 0, w, h).fill(C.grayLight)
   data.forEach((d, i) => {
-    const barH = Math.max(2, (d.value / max) * (h - 10))
+    const barH = Math.max(2, (d.value / max) * (h - 8))
     const x = i * (barW + gap)
-    const y = h - 10 - barH
-    painter.fillStyle = color
-    painter.fillRect(x, y, barW, barH)
+    const y = h - 8 - barH
+    painter.rect(x, y, barW, barH).fill(color)
   })
 }
 
 function drawDonut(
-  painter: CanvasRenderingContext2D,
+  painter: PDFPainter,
   slices: { value: number; color: string }[],
   size: number,
 ) {
@@ -128,13 +133,20 @@ function drawDonut(
   let angle = -Math.PI / 2
   for (const slice of slices) {
     const sweep = (slice.value / total) * 2 * Math.PI
-    painter.beginPath()
-    painter.moveTo(cx + r * Math.cos(angle), cy + r * Math.sin(angle))
-    painter.arc(cx, cy, r, angle, angle + sweep)
-    painter.arc(cx, cy, ri, angle + sweep, angle, true)
-    painter.closePath()
-    painter.fillStyle = slice.color
-    painter.fill()
+    const x1 = cx + r * Math.cos(angle)
+    const y1 = cy + r * Math.sin(angle)
+    const x2 = cx + r * Math.cos(angle + sweep)
+    const y2 = cy + r * Math.sin(angle + sweep)
+    const ix1 = cx + ri * Math.cos(angle + sweep)
+    const iy1 = cy + ri * Math.sin(angle + sweep)
+    const ix2 = cx + ri * Math.cos(angle)
+    const iy2 = cy + ri * Math.sin(angle)
+    const large = sweep > Math.PI ? 1 : 0
+    painter
+      .path(
+        `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${ix1} ${iy1} A ${ri} ${ri} 0 ${large} 0 ${ix2} ${iy2} Z`,
+      )
+      .fill(slice.color)
     angle += sweep
   }
 }
@@ -287,8 +299,6 @@ export function ReportDocument({ data, t }: { data: ClientReportData; t: T }) {
         <Canvas
           style={{ width: "100%", height: 90, marginBottom: 10 }}
           paint={(painter, w, h) => {
-            painter.fillStyle = C.grayLight
-            painter.fillRect(0, 0, w, h)
             drawBarChart(painter, timelineData, w, h, C.indigo)
             return null
           }}
@@ -342,8 +352,6 @@ export function ReportDocument({ data, t }: { data: ClientReportData; t: T }) {
             <Canvas
               style={{ width: "100%", height: 80, marginBottom: 6 }}
               paint={(painter, w, h) => {
-                painter.fillStyle = C.grayLight
-                painter.fillRect(0, 0, w, h)
                 drawBarChart(painter, geoData.map((g) => ({ value: g.count })), w, h, C.purple)
                 return null
               }}
