@@ -38,6 +38,33 @@ export interface ReportLabelCount {
   count: number
 }
 
+export interface ReportWebSessionSummary {
+  label: string
+  hits: number
+  ipCount: number
+  chainHits: number
+  canaryHits: number
+  attackTypes: string[]
+  topPaths: string[]
+}
+
+export interface ReportWebProfile {
+  hits: number
+  uniquePaths: number
+  attackTypeCount: number
+  sessionCount: number
+  fingerprintedSessions: number
+  multiIpSessions: number
+  canaryHits: number
+  chainHits: number
+  topAttackTypes: ReportLabelCount[]
+  topPaths: ReportLabelCount[]
+  topMethods: ReportLabelCount[]
+  topUserAgents: ReportLabelCount[]
+  topCanaryTokens: ReportLabelCount[]
+  topSessions: ReportWebSessionSummary[]
+}
+
 export interface ReportSensorProfile {
   sensor: Sensor
   eventShare: number
@@ -57,6 +84,7 @@ export interface ReportSensorProfile {
   smbShares: ReportLabelCount[]
   databases: ReportLabelCount[]
   scannedPorts: ReportLabelCount[]
+  web?: ReportWebProfile
 }
 
 export interface ClientReportMeta {

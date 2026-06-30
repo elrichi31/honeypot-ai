@@ -154,6 +154,19 @@ function protocolLabel(protocol: string): string {
   return labels[protocol] ?? protocol.toUpperCase()
 }
 
+function aggregateLabelCounts(groups: Array<Array<{ label: string; count: number }>>, limit: number) {
+  const totals = new Map<string, number>()
+  for (const group of groups) {
+    for (const item of group) {
+      totals.set(item.label, (totals.get(item.label) ?? 0) + item.count)
+    }
+  }
+  return Array.from(totals.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+    .slice(0, limit)
+}
+
 function sensorNarrative(protocol: string): string {
   const copy: Record<string, string> = {
     ssh: "Interactive shell telemetry with authentication attempts, command execution depth, and post-login behavior.",
@@ -322,6 +335,115 @@ function ProtocolIntelligence({ profile }: { profile: ClientReportData["sensors"
   )
 }
 
+function WebSensorIntelligence({ profile }: { profile: ClientReportData["sensors"][number] }) {
+  const web = profile.web
+  if (!web) return null
+
+  const attackTypeItems = web.topAttackTypes.map((item) => ({
+    label: item.label,
+    value: item.count,
+    pct: web.hits > 0 ? (item.count / web.hits) * 100 : 0,
+  }))
+
+  const pathRows = web.topPaths.map((item) => [
+    item.label,
+    fmt(item.count),
+    rate(item.count, web.hits),
+  ])
+
+  const methodRows = web.topMethods.map((item) => [
+    item.label,
+    fmt(item.count),
+    rate(item.count, web.hits),
+  ])
+
+  const userAgentRows = web.topUserAgents.map((item) => [
+    item.label,
+    fmt(item.count),
+  ])
+
+  const canaryRows = web.topCanaryTokens.map((item) => [
+    item.label,
+    fmt(item.count),
+    rate(item.count, Math.max(web.canaryHits, 1)),
+  ])
+
+  const sessionRows = web.topSessions.map((session) => [
+    session.label.length > 22 ? `${session.label.slice(0, 19)}...` : session.label,
+    fmt(session.hits),
+    fmt(session.ipCount),
+    fmt(session.chainHits),
+    fmt(session.canaryHits),
+  ])
+
+  return (
+    <>
+      <Text style={[s.panelTitle, { marginTop: 6 }]}>Web Intelligence</Text>
+      <View style={s.kpiRow}>
+        <KpiCard label="HTTP Hits" value={fmt(web.hits)} meta={`${fmt(profile.uniqueIps)} unique IPs`} />
+        <KpiCard label="Observed Sessions" value={fmt(web.sessionCount)} meta={`${fmt(web.fingerprintedSessions)} fingerprinted`} />
+        <KpiCard label="Unique Paths" value={fmt(web.uniquePaths)} meta={`${fmt(web.attackTypeCount)} attack types`} />
+        <KpiCard label="High-Signal Web" value={fmt(web.canaryHits + web.chainHits)} meta={`${fmt(web.canaryHits)} canary + ${fmt(web.chainHits)} chain`} />
+      </View>
+
+      <View style={s.twoCol}>
+        <View style={s.col}>
+          {attackTypeItems.length > 0 ? (
+            <RankedBars items={attackTypeItems} color={C.indigo} />
+          ) : (
+            <Text style={s.noData}>No web attack-type breakdown available for this sensor.</Text>
+          )}
+        </View>
+        <View style={s.col}>
+          <View style={s.panel}>
+            <Text style={s.panelTitle}>Interpretation</Text>
+            <Text style={s.bullet}>- Canary hits: {fmt(web.canaryHits)} requests touched bait content or monitoring tokens.</Text>
+            <Text style={s.bullet}>- Chain hits: {fmt(web.chainHits)} requests were part of multi-step pathing instead of one-off probes.</Text>
+            <Text style={s.bullet}>- Multi-IP sessions: {fmt(web.multiIpSessions)} fingerprints rotated source IPs during the same activity pattern.</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={s.twoCol}>
+        <View style={s.col}>
+          {pathRows.length > 0 ? (
+            <SimpleTable headers={["Top Path", "Hits", "Share"]} rows={pathRows} widths={["58%", "20%", "22%"]} />
+          ) : null}
+        </View>
+        <View style={s.col}>
+          {methodRows.length > 0 ? (
+            <SimpleTable headers={["HTTP Method", "Hits", "Share"]} rows={methodRows} widths={["46%", "24%", "30%"]} />
+          ) : null}
+        </View>
+      </View>
+
+      {sessionRows.length > 0 ? (
+        <>
+          <Text style={[s.panelTitle, { marginTop: 6 }]}>Dominant Web Sessions</Text>
+          <SimpleTable
+            headers={["Fingerprint / IP", "Hits", "IPs", "Chain", "Canary"]}
+            rows={sessionRows}
+            widths={["42%", "14%", "12%", "16%", "16%"]}
+          />
+        </>
+      ) : null}
+
+      <View style={s.twoCol}>
+        <View style={s.col}>
+          {userAgentRows.length > 0 ? (
+            <SimpleTable headers={["User Agent", "Hits"]} rows={userAgentRows} widths={["78%", "22%"]} />
+          ) : null}
+        </View>
+        <View style={s.col}>
+          {canaryRows.length > 0 ? (
+            <SimpleTable headers={["Canary Token", "Hits", "Share"]} rows={canaryRows} widths={["48%", "20%", "32%"]} />
+          ) : null}
+        </View>
+      </View>
+    </>
+  )
+}
+
 function SensorPage({ profile, t }: { profile: ClientReportData["sensors"][number]; t: T }) {
   const topAttackerRows = profile.topAttackers.map((item) => [item.srcIp, fmt(item.count)])
   const signalRows = profile.topSignals.map((item) => [item.label, fmt(item.count)])
@@ -370,6 +492,7 @@ function SensorPage({ profile, t }: { profile: ClientReportData["sensors"][numbe
         </View>
       </View>
 
+      <WebSensorIntelligence profile={profile} />
       <ProtocolIntelligence profile={profile} />
 
       {sensorCredentialRows.length > 0 ? (
@@ -536,13 +659,34 @@ export function ReportDocument({ data, t }: { data: ClientReportData; t: T }) {
   ])
 
   const sensorProtocols = new Set(sensors.map((profile) => profile.sensor.protocol))
+  const webProfiles = sensors.filter((profile) => profile.web)
+  const webTotals = webProfiles.reduce((acc, profile) => {
+    const web = profile.web!
+    acc.hits += web.hits
+    acc.uniquePaths += web.uniquePaths
+    acc.sessionCount += web.sessionCount
+    acc.canaryHits += web.canaryHits
+    acc.chainHits += web.chainHits
+    acc.multiIpSessions += web.multiIpSessions
+    return acc
+  }, { hits: 0, uniquePaths: 0, sessionCount: 0, canaryHits: 0, chainHits: 0, multiIpSessions: 0 })
+  const webAttackBarItems = aggregateLabelCounts(webProfiles.map((profile) => profile.web?.topAttackTypes ?? []), 6)
+    .map((item) => ({
+      label: item.label,
+      value: item.count,
+      pct: webTotals.hits > 0 ? (item.count / webTotals.hits) * 100 : 0,
+    }))
+  const webPathRows = aggregateLabelCounts(webProfiles.map((profile) => profile.web?.topPaths ?? []), 6)
+    .map((item) => [item.label, fmt(item.count), rate(item.count, Math.max(webTotals.hits, 1))])
+  const webMethodRows = aggregateLabelCounts(webProfiles.map((profile) => profile.web?.topMethods ?? []), 5)
+    .map((item) => [item.label, fmt(item.count), rate(item.count, Math.max(webTotals.hits, 1))])
   const hasSshSensor = sensorProtocols.has("ssh")
   const hasCredentialSensor =
     credentialSummary.totalAttempts > 0 ||
     topCredentials.length > 0 ||
     sensors.some((profile) => profile.authAttempts > 0 || profile.topCredentials.length > 0)
 
-  const hasWeb = (overview.web.hits ?? 0) > 0
+  const hasWeb = webProfiles.length > 0 && (overview.web.hits ?? 0) > 0
 
   return (
     <Document title={`Security Report - ${meta.clientName}`} author="HoneyTrap Platform">
@@ -768,15 +912,41 @@ export function ReportDocument({ data, t }: { data: ClientReportData; t: T }) {
         {hasWeb ? (
           <>
             <SectionHeader title={t("reports.section.web")} />
-            <SimpleTable
-              headers={["Metric", "Value"]}
-              rows={[
-                ["Total Hits", fmt(overview.web.hits)],
-                ["Unique IPs", fmt(overview.web.uniqueIps)],
-                ["Top Attack Type", overview.web.topAttackType ?? "-"],
-              ]}
-              widths={["55%", "45%"]}
-            />
+            <View style={s.kpiRow}>
+              <KpiCard label="Total Hits" value={fmt(overview.web.hits)} meta={`${fmt(overview.web.uniqueIps)} unique IPs`} />
+              <KpiCard label="Observed Sessions" value={fmt(webTotals.sessionCount)} meta={`${fmt(webTotals.multiIpSessions)} multi-IP fingerprints`} />
+              <KpiCard label="Targeted Paths" value={fmt(webTotals.uniquePaths)} meta={overview.web.topAttackType ? `Top type: ${overview.web.topAttackType}` : undefined} />
+              <KpiCard label="High-Signal Requests" value={fmt(webTotals.canaryHits + webTotals.chainHits)} meta={`${fmt(webTotals.canaryHits)} canary + ${fmt(webTotals.chainHits)} chain`} />
+            </View>
+            <View style={s.twoCol}>
+              <View style={s.col}>
+                {webAttackBarItems.length > 0 ? (
+                  <RankedBars items={webAttackBarItems} color={C.indigo} />
+                ) : (
+                  <Text style={s.noData}>{t("reports.noActivity")}</Text>
+                )}
+              </View>
+              <View style={s.col}>
+                <View style={s.panel}>
+                  <Text style={s.panelTitle}>Web Interpretation</Text>
+                  <Text style={s.bullet}>- Attack-type concentration highlights whether traffic is narrow automated probing or varied exploitation.</Text>
+                  <Text style={s.bullet}>- Canary and chain counts surface adversaries that touched bait content or navigated through multiple staged endpoints.</Text>
+                  <Text style={s.bullet}>- Session totals are grouped by fingerprint when available, so repeated automation is not overstated as isolated one-hit scans.</Text>
+                </View>
+              </View>
+            </View>
+            <View style={s.twoCol}>
+              <View style={s.col}>
+                {webPathRows.length > 0 ? (
+                  <SimpleTable headers={["Target Path", "Hits", "Share"]} rows={webPathRows} widths={["58%", "20%", "22%"]} />
+                ) : null}
+              </View>
+              <View style={s.col}>
+                {webMethodRows.length > 0 ? (
+                  <SimpleTable headers={["HTTP Method", "Hits", "Share"]} rows={webMethodRows} widths={["46%", "24%", "30%"]} />
+                ) : null}
+              </View>
+            </View>
           </>
         ) : null}
 
