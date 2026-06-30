@@ -8,6 +8,8 @@ import type {
   CredentialsSummary,
   DiversifiedAttackerStat,
 } from "@/lib/api/types"
+import type { Sensor } from "@/lib/api/services"
+import type { MalwareArtifact } from "@/lib/api/malware"
 
 export type ReportRange = "week" | "month"
 
@@ -24,6 +26,31 @@ export interface ReportTopCredential {
   password: string | null
   attempts: number
   successCount: number
+}
+
+export interface ReportTopIp {
+  srcIp: string
+  count: number
+}
+
+export interface ReportLabelCount {
+  label: string
+  count: number
+}
+
+export interface ReportSensorProfile {
+  sensor: Sensor
+  eventShare: number
+  uniqueIps: number
+  authAttempts: number
+  successCount: number
+  commandCount: number
+  malwareCount: number
+  topAttackers: ReportTopIp[]
+  topCredentials: ReportTopCredential[]
+  topSignals: ReportLabelCount[]
+  topTargets: ReportLabelCount[]
+  recentMalware: MalwareArtifact[]
 }
 
 export interface ClientReportMeta {
@@ -47,4 +74,6 @@ export interface ClientReportData {
   topCredentials: ReportTopCredential[]
   credentialSummary: CredentialsSummary
   diversifiedAttackers: DiversifiedAttackerStat[]
+  sensors: ReportSensorProfile[]
+  malware: MalwareArtifact[]
 }
