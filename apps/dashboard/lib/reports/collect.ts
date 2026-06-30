@@ -366,7 +366,7 @@ export async function collectClientReport(params: {
       fetchCrossSensorTimeline({ range, timezone, sensorIds }),
       fetchMitreMatrix(sensorIds),
       fetchBotRatio(sensorIds),
-      fetchGeoSummary(sensorIds),
+      fetchGeoSummary(sensorIds, { fresh: true }),
       fetchDashboardInsights(sensorIds),
       fetchCredentialsAnalytics({
         limit: 10,

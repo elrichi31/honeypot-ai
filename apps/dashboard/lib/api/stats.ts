@@ -18,8 +18,14 @@ export async function fetchOverviewStats(params: {
   return apiFetch(`${getApiUrl()}/stats/overview?${sp}`)
 }
 
-export async function fetchGeoSummary(sensorIds?: string[]): Promise<{ srcIp: string; loginSuccess: boolean | null }[]> {
-  const res = await fetch(`${getApiUrl()}/stats/geo?_=1${sensorScopeParam(sensorIds)}`, { next: { revalidate: 600 } })
+// `fresh: true` bypasses the Next fetch cache — used by one-off PDF reports so a
+// just-deployed fix isn't masked by a stale 10-min cached response.
+export async function fetchGeoSummary(
+  sensorIds?: string[],
+  opts?: { fresh?: boolean },
+): Promise<{ srcIp: string; loginSuccess: boolean | null }[]> {
+  const cache: RequestInit = opts?.fresh ? { cache: "no-store" } : { next: { revalidate: 600 } }
+  const res = await fetch(`${getApiUrl()}/stats/geo?_=1${sensorScopeParam(sensorIds)}`, cache)
   if (!res.ok) return []
   return res.json()
 }
