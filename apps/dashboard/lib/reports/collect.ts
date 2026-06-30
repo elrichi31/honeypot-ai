@@ -26,6 +26,15 @@ function rangeToDays(range: ReportRange): number {
   return range === "week" ? 7 : 30
 }
 
+// Well-known decoy ports → service label, so scanned-port tables read as intent
+// ("5900 (VNC)") rather than bare numbers.
+const PORT_SERVICE: Record<number, string> = {
+  21: "FTP", 22: "SSH", 23: "Telnet", 445: "SMB", 1433: "MSSQL", 1883: "MQTT",
+  2375: "Docker", 3306: "MySQL", 3389: "RDP", 4444: "Metasploit", 5432: "PostgreSQL",
+  5900: "VNC", 6379: "Redis", 8080: "HTTP-alt", 8888: "HTTP-alt", 9090: "Prometheus",
+  9200: "Elasticsearch", 11211: "Memcached", 27017: "MongoDB",
+}
+
 function buildPeriodLabel(range: ReportRange, generatedAt: Date, timezone: string): string {
   const fmt = new Intl.DateTimeFormat("en-US", {
     month: "long",
@@ -92,7 +101,7 @@ async function collectSensorProfiles(
   const totalEvents = sensors.reduce((sum, sensor) => sum + sensor.eventsTotal, 0)
   const sensorIdSet = sensors.map((sensor) => sensor.sensorId)
 
-  const [uniqueIpRows, authRows, commandRows, topIpRows, topCredentialRows, topSignalRows, topTargetRows, malwareRows] =
+  const [uniqueIpRows, authRows, commandRows, topIpRows, topCredentialRows, topSignalRows, topTargetRows, malwareRows, ftpCommandRows, smbShareRows, databaseRows, scannedPortRows] =
     await Promise.all([
       db.query<{ sensor_id: string; unique_ips: string }>(
         `WITH per_event AS (
@@ -266,6 +275,75 @@ async function collectSensorProfiles(
          ORDER BY captured_at DESC`,
         [sensorIdSet, startDate, endDate],
       ),
+      db.query<{ sensor_id: string; label: string; count: string }>(
+        `WITH cmds AS (
+           SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
+                  jsonb_array_elements(data#>'{raw,ftp,commands}')->>'command' AS label
+           FROM protocol_hits
+           WHERE protocol = 'ftp' AND event_type = 'command'
+             AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+             AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         ),
+         ranked AS (
+           SELECT sensor_id, label, COUNT(*)::bigint AS count,
+                  ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY COUNT(*) DESC, label ASC) AS rn
+           FROM cmds WHERE label IS NOT NULL AND label <> ''
+           GROUP BY sensor_id, label
+         )
+         SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 8`,
+        [sensorIdSet, startDate, endDate],
+      ),
+      db.query<{ sensor_id: string; label: string; count: string }>(
+        `WITH ranked AS (
+           SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
+                  data->>'shareName' AS label, COUNT(*)::bigint AS count,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY COALESCE(sensor_id, data->>'sensor')
+                    ORDER BY COUNT(*) DESC, data->>'shareName' ASC
+                  ) AS rn
+           FROM protocol_hits
+           WHERE protocol = 'smb' AND COALESCE(data->>'shareName', '') <> ''
+             AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+             AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+           GROUP BY 1, 2
+         )
+         SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 8`,
+        [sensorIdSet, startDate, endDate],
+      ),
+      db.query<{ sensor_id: string; label: string; count: string }>(
+        `WITH ranked AS (
+           SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
+                  data->>'database' AS label, COUNT(*)::bigint AS count,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY COALESCE(sensor_id, data->>'sensor')
+                    ORDER BY COUNT(*) DESC, data->>'database' ASC
+                  ) AS rn
+           FROM protocol_hits
+           WHERE protocol IN ('mysql', 'mssql') AND COALESCE(data->>'database', '') <> ''
+             AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+             AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+           GROUP BY 1, 2
+         )
+         SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 8`,
+        [sensorIdSet, startDate, endDate],
+      ),
+      db.query<{ sensor_id: string; dst_port: number; count: string }>(
+        `WITH ranked AS (
+           SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
+                  dst_port, COUNT(*)::bigint AS count,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY COALESCE(sensor_id, data->>'sensor')
+                    ORDER BY COUNT(*) DESC, dst_port ASC
+                  ) AS rn
+           FROM protocol_hits
+           WHERE protocol = 'port-scan'
+             AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+             AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+           GROUP BY 1, 2
+         )
+         SELECT sensor_id, dst_port, count::text FROM ranked WHERE rn <= 8`,
+        [sensorIdSet, startDate, endDate],
+      ),
     ])
 
   const uniqueIps = new Map(uniqueIpRows.rows.map((row) => [row.sensor_id, Number(row.unique_ips)]))
@@ -308,6 +386,28 @@ async function collectSensorProfiles(
     topTargets.set(row.sensor_id, list)
   }
 
+  function groupLabelCounts(rows: { sensor_id: string; label: string; count: string }[]) {
+    const map = new Map<string, ReportSensorProfile["topTargets"]>()
+    for (const row of rows) {
+      const list = map.get(row.sensor_id) ?? []
+      list.push({ label: row.label, count: Number(row.count) })
+      map.set(row.sensor_id, list)
+    }
+    return map
+  }
+
+  const ftpCommands = groupLabelCounts(ftpCommandRows.rows)
+  const smbShares = groupLabelCounts(smbShareRows.rows)
+  const databases = groupLabelCounts(databaseRows.rows)
+
+  const scannedPorts = new Map<string, ReportSensorProfile["scannedPorts"]>()
+  for (const row of scannedPortRows.rows) {
+    const list = scannedPorts.get(row.sensor_id) ?? []
+    const service = PORT_SERVICE[row.dst_port]
+    list.push({ label: service ? `${row.dst_port} (${service})` : `${row.dst_port}`, count: Number(row.count) })
+    scannedPorts.set(row.sensor_id, list)
+  }
+
   const malwareBySensor = new Map<string, ReportSensorProfile["recentMalware"]>()
   const malwareCount = new Map<string, number>()
   for (const row of malwareRows.rows) {
@@ -345,6 +445,10 @@ async function collectSensorProfiles(
     topSignals: topSignals.get(sensor.sensorId) ?? [],
     topTargets: topTargets.get(sensor.sensorId) ?? [],
     recentMalware: malwareBySensor.get(sensor.sensorId) ?? [],
+    ftpCommands: ftpCommands.get(sensor.sensorId) ?? [],
+    smbShares: smbShares.get(sensor.sensorId) ?? [],
+    databases: databases.get(sensor.sensorId) ?? [],
+    scannedPorts: scannedPorts.get(sensor.sensorId) ?? [],
   }))
 }
 

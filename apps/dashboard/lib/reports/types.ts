@@ -51,6 +51,12 @@ export interface ReportSensorProfile {
   topSignals: ReportLabelCount[]
   topTargets: ReportLabelCount[]
   recentMalware: MalwareArtifact[]
+  // Protocol-specific intelligence — populated only for the relevant traffic the
+  // sensor observed (a multi-protocol sensor like dionaea can fill several).
+  ftpCommands: ReportLabelCount[]
+  smbShares: ReportLabelCount[]
+  databases: ReportLabelCount[]
+  scannedPorts: ReportLabelCount[]
 }
 
 export interface ClientReportMeta {

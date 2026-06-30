@@ -295,6 +295,108 @@ function Footer({ data, t }: { data: ClientReportData; t: T }) {
   )
 }
 
+function ProtocolIntelligence({ profile }: { profile: ClientReportData["sensors"][number] }) {
+  const blocks: Array<{ title: string; headers: [string, string]; rows: string[][] }> = []
+  if (profile.scannedPorts.length > 0)
+    blocks.push({ title: "Scanned Ports / Services", headers: ["Port / Service", "Hits"], rows: profile.scannedPorts.map((i) => [i.label, fmt(i.count)]) })
+  if (profile.ftpCommands.length > 0)
+    blocks.push({ title: "FTP Commands", headers: ["Command", "Count"], rows: profile.ftpCommands.map((i) => [i.label, fmt(i.count)]) })
+  if (profile.smbShares.length > 0)
+    blocks.push({ title: "Targeted SMB Shares", headers: ["Share", "Hits"], rows: profile.smbShares.map((i) => [i.label, fmt(i.count)]) })
+  if (profile.databases.length > 0)
+    blocks.push({ title: "Accessed Databases", headers: ["Database", "Hits"], rows: profile.databases.map((i) => [i.label, fmt(i.count)]) })
+
+  if (blocks.length === 0) return null
+
+  return (
+    <>
+      <Text style={[s.panelTitle, { marginTop: 6 }]}>Protocol Intelligence</Text>
+      <View style={s.twoCol}>
+        {blocks.map((block, index) => (
+          <View key={index} style={s.col}>
+            <SimpleTable headers={block.headers} rows={block.rows} widths={["72%", "28%"]} />
+          </View>
+        ))}
+      </View>
+    </>
+  )
+}
+
+function SensorPage({ profile, t }: { profile: ClientReportData["sensors"][number]; t: T }) {
+  const topAttackerRows = profile.topAttackers.map((item) => [item.srcIp, fmt(item.count)])
+  const signalRows = profile.topSignals.map((item) => [item.label, fmt(item.count)])
+  const sensorCredentialRows = profile.topCredentials.map((item) => [
+    item.username ?? "-",
+    truncPassword(item.password),
+    fmt(item.attempts),
+    rate(item.successCount, item.attempts),
+  ])
+  const sensorMalwareRows = profile.recentMalware.map((item) => [
+    item.fileType,
+    formatBytes(item.size),
+    item.source?.toUpperCase() ?? "-",
+    item.srcIp ?? "-",
+  ])
+
+  return (
+    <>
+      <SectionHeader title={`${protocolLabel(profile.sensor.protocol)} - ${profile.sensor.name}`} />
+      <Text style={[s.bodyText, { marginBottom: 4 }]}>{sensorNarrative(profile.sensor.protocol)}</Text>
+      <Text style={[s.bodyText, { marginBottom: 6 }]}>
+        {profile.sensor.sensorId} | IP {profile.sensor.ip} | Ports {profile.sensor.ports.length > 0 ? profile.sensor.ports.join(", ") : "-"} | Version {profile.sensor.version || "-"} | Status {profile.sensor.online ? "online" : "offline"} | Last seen {new Date(profile.sensor.lastSeen).toLocaleString("en-US")}
+      </Text>
+
+      <View style={s.kpiRow}>
+        <KpiCard label="Events" value={fmt(profile.sensor.eventsTotal)} meta={`${pct(profile.eventShare)} of client volume`} />
+        <KpiCard label="Unique IPs" value={fmt(profile.uniqueIps)} />
+        <KpiCard label="Auth Attempts" value={fmt(profile.authAttempts)} meta={`${fmt(profile.successCount)} successful`} />
+        <KpiCard label="Commands" value={fmt(profile.commandCount)} meta={`${fmt(profile.malwareCount)} malware samples`} />
+      </View>
+
+      <View style={s.twoCol}>
+        <View style={s.col}>
+          {topAttackerRows.length > 0 ? (
+            <SimpleTable headers={["Top Attacker", "Hits"]} rows={topAttackerRows} widths={["74%", "26%"]} />
+          ) : (
+            <Text style={s.noData}>No attacker ranking available for this sensor.</Text>
+          )}
+        </View>
+        <View style={s.col}>
+          {signalRows.length > 0 ? (
+            <SimpleTable headers={["Primary Signals", "Count"]} rows={signalRows} widths={["74%", "26%"]} />
+          ) : (
+            <Text style={s.noData}>No signal breakdown available for this sensor.</Text>
+          )}
+        </View>
+      </View>
+
+      <ProtocolIntelligence profile={profile} />
+
+      {sensorCredentialRows.length > 0 ? (
+        <>
+          <Text style={[s.panelTitle, { marginTop: 6 }]}>Credential Attempts</Text>
+          <SimpleTable
+            headers={["Username", "Password", "Attempts", "Success Rate"]}
+            rows={sensorCredentialRows}
+            widths={["26%", "26%", "22%", "26%"]}
+          />
+        </>
+      ) : null}
+
+      {sensorMalwareRows.length > 0 ? (
+        <>
+          <Text style={[s.panelTitle, { marginTop: 6 }]}>Captured Malware</Text>
+          <SimpleTable
+            headers={["Malware", "Size", "Source", "Source IP"]}
+            rows={sensorMalwareRows}
+            widths={["28%", "18%", "18%", "36%"]}
+          />
+        </>
+      ) : null}
+    </>
+  )
+}
+
 export function ReportDocument({ data, t }: { data: ClientReportData; t: T }) {
   const {
     meta,
@@ -681,99 +783,12 @@ export function ReportDocument({ data, t }: { data: ClientReportData; t: T }) {
         <Footer data={data} t={t} />
       </Page>
 
-      {sensors.length > 0 ? (
-        <Page size="A4" style={s.page}>
-          <SectionHeader title="Sensor Profiles" />
-          <Text style={[s.bodyText, { marginBottom: 8 }]}>Each assigned sensor below includes its own volume, attacker mix, credential activity, command depth, and malware evidence when available.</Text>
-
-          {sensors.map((profile) => {
-            const topAttackerRows = profile.topAttackers.map((item) => [item.srcIp, fmt(item.count)])
-            const signalRows = profile.topSignals.map((item) => [item.label, fmt(item.count)])
-            const targetRows = profile.topTargets.map((item) => [item.label, fmt(item.count)])
-            const sensorCredentialRows = profile.topCredentials.map((item) => [
-              item.username ?? "-",
-              truncPassword(item.password),
-              fmt(item.attempts),
-              rate(item.successCount, item.attempts),
-            ])
-            const sensorMalwareRows = profile.recentMalware.map((item) => [
-              item.fileType,
-              formatBytes(item.size),
-              item.source?.toUpperCase() ?? "-",
-              item.srcIp ?? "-",
-            ])
-
-            return (
-              <View key={profile.sensor.sensorId} style={s.panel}>
-              <Text style={s.panelTitle}>{protocolLabel(profile.sensor.protocol)}</Text>
-                <Text style={[s.kpiValue, { fontSize: 13, marginBottom: 4 }]}>{profile.sensor.name} ({profile.sensor.sensorId})</Text>
-                <Text style={[s.bodyText, { marginBottom: 4 }]}>{sensorNarrative(profile.sensor.protocol)}</Text>
-                <Text style={[s.bodyText, { marginBottom: 6 }]}>
-                  IP {profile.sensor.ip} | Ports {profile.sensor.ports.length > 0 ? profile.sensor.ports.join(", ") : "-"} | Version {profile.sensor.version || "-"} | Status {profile.sensor.online ? "online" : "offline"} | Last seen {new Date(profile.sensor.lastSeen).toLocaleString("en-US")}
-                </Text>
-
-                <View style={s.kpiRow}>
-                  <KpiCard label="Events" value={fmt(profile.sensor.eventsTotal)} meta={`${pct(profile.eventShare)} of client volume`} />
-                  <KpiCard label="Unique IPs" value={fmt(profile.uniqueIps)} />
-                  <KpiCard label="Auth Attempts" value={fmt(profile.authAttempts)} meta={`${fmt(profile.successCount)} successful`} />
-                  <KpiCard label="Commands" value={fmt(profile.commandCount)} meta={`${fmt(profile.malwareCount)} malware samples`} />
-                </View>
-
-                <View style={s.twoCol}>
-                  <View style={s.col}>
-                    {topAttackerRows.length > 0 ? (
-                      <SimpleTable
-                        headers={["Top Attacker", "Hits"]}
-                        rows={topAttackerRows}
-                        widths={["74%", "26%"]}
-                      />
-                    ) : (
-                      <Text style={s.noData}>No attacker ranking available for this sensor.</Text>
-                    )}
-                  </View>
-                  <View style={s.col}>
-                    {signalRows.length > 0 ? (
-                      <SimpleTable
-                        headers={["Primary Signals", "Count"]}
-                        rows={signalRows}
-                        widths={["74%", "26%"]}
-                      />
-                    ) : (
-                      <Text style={s.noData}>No signal breakdown available for this sensor.</Text>
-                    )}
-                  </View>
-                </View>
-
-                {targetRows.length > 0 ? (
-                  <SimpleTable
-                    headers={["Top Targets / Paths", "Count"]}
-                    rows={targetRows}
-                    widths={["74%", "26%"]}
-                  />
-                ) : null}
-
-                {sensorCredentialRows.length > 0 ? (
-                  <SimpleTable
-                    headers={["Username", "Password", "Attempts", "Success Rate"]}
-                    rows={sensorCredentialRows}
-                    widths={["26%", "26%", "22%", "26%"]}
-                  />
-                ) : null}
-
-                {sensorMalwareRows.length > 0 ? (
-                  <SimpleTable
-                    headers={["Malware", "Size", "Source", "Source IP"]}
-                    rows={sensorMalwareRows}
-                    widths={["28%", "18%", "18%", "36%"]}
-                  />
-                ) : null}
-              </View>
-            )
-          })}
-
+      {sensors.map((profile) => (
+        <Page key={profile.sensor.sensorId} size="A4" style={s.page}>
+          <SensorPage profile={profile} t={t} />
           <Footer data={data} t={t} />
         </Page>
-      ) : null}
+      ))}
     </Document>
   )
 }
