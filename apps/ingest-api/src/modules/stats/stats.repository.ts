@@ -114,10 +114,24 @@ export class MiscRepository {
   }
 
   getGeo(scope: SensorScope) {
+    // src_ip can originate from SSH sessions, web hits, or any protocol honeypot.
+    // protocol_hits stores the sensor id either in the column or in data->>'sensor'.
     return this.prismaRead.$queryRaw<{ srcIp: string; loginSuccess: boolean | null }[]>(Prisma.sql`
+      WITH attackers AS (
+        SELECT src_ip, login_success
+        FROM sessions
+        WHERE started_at >= NOW() - INTERVAL '90 days' ${scope.cond('sensor_id')}
+        UNION ALL
+        SELECT src_ip, false AS login_success
+        FROM web_hits
+        WHERE timestamp >= NOW() - INTERVAL '90 days' ${scope.cond('sensor_id')}
+        UNION ALL
+        SELECT src_ip, false AS login_success
+        FROM protocol_hits
+        WHERE timestamp >= NOW() - INTERVAL '90 days' ${scope.cond("COALESCE(sensor_id, data->>'sensor')")}
+      )
       SELECT src_ip AS "srcIp", BOOL_OR(login_success IS TRUE) AS "loginSuccess"
-      FROM sessions
-      WHERE started_at >= NOW() - INTERVAL '90 days' ${scope.cond('sensor_id')}
+      FROM attackers
       GROUP BY src_ip
     `)
   }

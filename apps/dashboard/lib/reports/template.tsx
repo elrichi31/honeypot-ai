@@ -109,6 +109,13 @@ function fmt(n: number | null | undefined): string {
   return n.toLocaleString("en-US")
 }
 
+// Long no-whitespace values (e.g. hashed passwords) do not wrap in react-pdf and
+// overflow into the next column, so cap them to keep table cells aligned.
+function truncPassword(value: string | null | undefined): string {
+  if (!value) return "-"
+  return value.length > 22 ? `${value.slice(0, 21)}…` : value
+}
+
 function pct(n: number | null | undefined): string {
   if (n == null) return "-"
   return `${n.toFixed(1)}%`
@@ -370,7 +377,7 @@ export function ReportDocument({ data, t }: { data: ClientReportData; t: T }) {
 
   const credentialRows = topCredentials.slice(0, 10).map((credential) => [
     credential.username ?? "-",
-    credential.password ?? "-",
+    truncPassword(credential.password),
     fmt(credential.attempts),
     fmt(credential.successCount),
     rate(credential.successCount, credential.attempts),
@@ -428,9 +435,10 @@ export function ReportDocument({ data, t }: { data: ClientReportData; t: T }) {
 
   const sensorProtocols = new Set(sensors.map((profile) => profile.sensor.protocol))
   const hasSshSensor = sensorProtocols.has("ssh")
-  const hasCredentialSensor = sensors.some((profile) =>
-    ["ssh", "ftp", "mysql", "smb", "mssql"].includes(profile.sensor.protocol),
-  )
+  const hasCredentialSensor =
+    credentialSummary.totalAttempts > 0 ||
+    topCredentials.length > 0 ||
+    sensors.some((profile) => profile.authAttempts > 0 || profile.topCredentials.length > 0)
 
   const hasWeb = (overview.web.hits ?? 0) > 0
 
@@ -522,12 +530,16 @@ export function ReportDocument({ data, t }: { data: ClientReportData; t: T }) {
       </Page>
 
       <Page size="A4" style={s.page}>
-        <SectionHeader title={t("reports.section.classification")} />
-        <View style={s.panel}>
-          <RatioBar label={t("reports.chart.bot")} value={botRatio.bot} total={botRatio.total} color={C.red} meta="Automated session profile" />
-          <RatioBar label={t("reports.chart.human")} value={botRatio.human} total={botRatio.total} color={C.green} meta="Interactive operator profile" />
-          <RatioBar label={t("reports.chart.unknown")} value={botRatio.unknown} total={botRatio.total} color={C.gray} meta="Insufficient classification signals" />
-        </View>
+        {hasSshSensor ? (
+          <>
+            <SectionHeader title={t("reports.section.classification")} />
+            <View style={s.panel}>
+              <RatioBar label={t("reports.chart.bot")} value={botRatio.bot} total={botRatio.total} color={C.red} meta="Automated session profile" />
+              <RatioBar label={t("reports.chart.human")} value={botRatio.human} total={botRatio.total} color={C.green} meta="Interactive operator profile" />
+              <RatioBar label={t("reports.chart.unknown")} value={botRatio.unknown} total={botRatio.total} color={C.gray} meta="Insufficient classification signals" />
+            </View>
+          </>
+        ) : null}
 
         {malwareRows.length > 0 ? (
           <>
@@ -680,7 +692,7 @@ export function ReportDocument({ data, t }: { data: ClientReportData; t: T }) {
             const targetRows = profile.topTargets.map((item) => [item.label, fmt(item.count)])
             const sensorCredentialRows = profile.topCredentials.map((item) => [
               item.username ?? "-",
-              item.password ?? "-",
+              truncPassword(item.password),
               fmt(item.attempts),
               rate(item.successCount, item.attempts),
             ])
