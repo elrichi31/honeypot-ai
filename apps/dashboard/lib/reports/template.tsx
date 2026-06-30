@@ -147,6 +147,23 @@ function protocolLabel(protocol: string): string {
   return labels[protocol] ?? protocol.toUpperCase()
 }
 
+function sensorNarrative(protocol: string): string {
+  const copy: Record<string, string> = {
+    ssh: "Interactive shell telemetry with authentication attempts, command execution depth, and post-login behavior.",
+    smb: "Windows file-sharing exposure focused on share access, credential use, file transfer, and lateral movement signals.",
+    mysql: "Database probe telemetry covering login attempts, targeted usernames, password reuse, and command-style interaction.",
+    ftp: "File-transfer attack surface showing login attempts, command usage, and staged upload or download behavior.",
+    http: "Web attack traffic across paths, methods, attack types, and recon or exploitation sequences.",
+    "port-scan": "Decoy service exposure that highlights scanned ports, inferred services, and broad reconnaissance behavior.",
+    dionaea: "Multi-protocol exploitation visibility across common worm, malware-delivery, and service-probing paths.",
+    mqtt: "IoT broker abuse telemetry with topic interaction, broker access attempts, and bot-style automation patterns.",
+    mssql: "SQL Server access attempts with credential abuse, service targeting, and command execution probes.",
+    tftp: "File delivery and retrieval attempts often associated with automated staging or firmware distribution.",
+    rpc: "RPC and endpoint-mapper probing that can indicate Windows discovery or exploit preparation.",
+  }
+  return copy[protocol] ?? "Sensor-specific telemetry for this exposed service."
+}
+
 function sumBucket(bucket: Record<string, number | string>): number {
   return Object.entries(bucket).reduce((sum, [key, value]) => {
     if (key === "label") return sum
@@ -409,6 +426,12 @@ export function ReportDocument({ data, t }: { data: ClientReportData; t: T }) {
     sample.srcIp ?? "-",
   ])
 
+  const sensorProtocols = new Set(sensors.map((profile) => profile.sensor.protocol))
+  const hasSshSensor = sensorProtocols.has("ssh")
+  const hasCredentialSensor = sensors.some((profile) =>
+    ["ssh", "ftp", "mysql", "smb", "mssql"].includes(profile.sensor.protocol),
+  )
+
   const hasWeb = (overview.web.hits ?? 0) > 0
 
   return (
@@ -437,7 +460,11 @@ export function ReportDocument({ data, t }: { data: ClientReportData; t: T }) {
         <SectionHeader title={t("reports.section.executive")} />
         <View style={s.kpiRow}>
           <KpiCard label={t("reports.kpi.events")} value={fmt(kpiTrends.events.current)} delta={deltaStr(kpiTrends.events.deltaPct)} meta={`Prev: ${fmt(kpiTrends.events.previous)}`} />
-          <KpiCard label={t("reports.kpi.sessions")} value={fmt(kpiTrends.sshSessions.current)} delta={deltaStr(kpiTrends.sshSessions.deltaPct)} meta={`${fmt(overview.ssh.successfulLogins)} successful logins`} />
+          {hasSshSensor ? (
+            <KpiCard label={t("reports.kpi.sessions")} value={fmt(kpiTrends.sshSessions.current)} delta={deltaStr(kpiTrends.sshSessions.deltaPct)} meta={`${fmt(overview.ssh.successfulLogins)} successful logins`} />
+          ) : (
+            <KpiCard label="Assigned Sensors" value={fmt(sensors.length)} meta={`${fmt(sensors.filter((profile) => profile.sensor.online).length)} online`} />
+          )}
           <KpiCard label={t("reports.kpi.webHits")} value={fmt(kpiTrends.webHits.current)} delta={deltaStr(kpiTrends.webHits.deltaPct)} meta={overview.web.topAttackType ? `Top type: ${overview.web.topAttackType}` : undefined} />
           <KpiCard label={t("reports.kpi.uniqueIps")} value={fmt(kpiTrends.uniqueIps.current)} delta={deltaStr(kpiTrends.uniqueIps.deltaPct)} meta={`${fmt(overview.totals.activeSources)} active sources`} />
         </View>
@@ -548,82 +575,94 @@ export function ReportDocument({ data, t }: { data: ClientReportData; t: T }) {
           <Text style={s.noData}>{t("reports.noActivity")}</Text>
         )}
 
-        <SectionHeader title={t("reports.section.credentials")} />
-        <View style={s.kpiRow}>
-          <KpiCard label="Attempts" value={fmt(credentialSummary.totalAttempts)} meta={`${fmt(credentialSummary.failedAttempts)} failed`} />
-          <KpiCard label="Success Rate" value={pct(credentialSummary.successRate * 100)} meta={`${fmt(credentialSummary.successfulAttempts)} successful`} />
-          <KpiCard label="Unique Pairs" value={fmt(credentialSummary.uniqueCredentialPairs)} meta={`${fmt(credentialSummary.repeatedCredentialPairs)} repeated`} />
-          <KpiCard label="Spray Patterns" value={fmt(credentialSummary.sprayPasswords)} meta={`${fmt(credentialSummary.targetedUsernames)} targeted usernames`} />
-        </View>
-        {credentialRows.length > 0 ? (
-          <SimpleTable
-            headers={[t("reports.creds.username"), t("reports.creds.password"), t("reports.creds.attempts"), t("reports.creds.successes"), "Success Rate"]}
-            rows={credentialRows}
-            widths={["23%", "23%", "18%", "18%", "18%"]}
-          />
-        ) : (
-          <Text style={s.noData}>{t("reports.noActivity")}</Text>
-        )}
-        {diversifiedRows.length > 0 ? (
-          <SimpleTable
-            headers={["Attacker IP", "Attempts", "Credential Pairs", "Usernames", "Passwords"]}
-            rows={diversifiedRows}
-            widths={["30%", "16%", "18%", "18%", "18%"]}
-          />
-        ) : null}
-
-        <SectionHeader title={t("reports.section.reconnaissance")} />
-        <View style={s.twoCol}>
-          <View style={s.col}>
-            <View style={s.panel}>
-              <Text style={s.panelTitle}>Attack Funnel</Text>
-              <RatioBar label={t("reports.funnel.connections")} value={insights.funnel.connections} total={insights.funnel.connections} color={C.indigo} />
-              <RatioBar label={t("reports.funnel.authAttempts")} value={insights.funnel.authAttempts} total={insights.funnel.connections} color={C.blue} meta="Conversion from connection to auth" />
-              <RatioBar label={t("reports.funnel.loginSuccess")} value={insights.funnel.loginSuccess} total={insights.funnel.connections} color={C.green} meta="Sessions that cleared authentication" />
-              <RatioBar label={t("reports.funnel.commands")} value={insights.funnel.commands} total={insights.funnel.connections} color={C.amber} meta="Sessions that executed commands" />
-              <RatioBar label={t("reports.funnel.compromise")} value={insights.funnel.highSignalCompromise} total={insights.funnel.connections} color={C.red} meta="High-signal post-login behavior" />
-            </View>
-          </View>
-          <View style={s.col}>
-            <View style={s.panel}>
-              <Text style={s.panelTitle}>Command Depth After Login</Text>
-              {depthBarItems.length > 0 ? (
-                <RankedBars items={depthBarItems} color={C.indigo} />
-              ) : (
-                <Text style={s.noData}>{t("reports.noActivity")}</Text>
-              )}
-              <Text style={s.bodyText}>Average commands per successful session: {fmt(insights.successfulDepth.averageCommands)}. Maximum observed depth: {fmt(insights.successfulDepth.maxCommands)} commands. Interactive sessions (20+ commands): {fmt(insights.successfulDepth.interactiveSessions)}.</Text>
-            </View>
-          </View>
-        </View>
-
-        {commandPatternRows.length > 0 ? (
-          <SimpleTable
-            headers={["Command Sequence", "Sessions", "Unique IPs"]}
-            rows={commandPatternRows}
-            widths={["64%", "18%", "18%"]}
-          />
-        ) : null}
-
-        {recurringRows.length > 0 ? (
+        {hasCredentialSensor ? (
           <>
-            <SectionHeader title={t("reports.creds.recurringIps")} />
-            <SimpleTable
-              headers={["IP", "Sessions", "Creds", "Success", "Return Delay"]}
-              rows={recurringRows}
-              widths={["30%", "16%", "16%", "16%", "22%"]}
-            />
+            <SectionHeader title={t("reports.section.credentials")} />
+            <View style={s.kpiRow}>
+              <KpiCard label="Attempts" value={fmt(credentialSummary.totalAttempts)} meta={`${fmt(credentialSummary.failedAttempts)} failed`} />
+              <KpiCard label="Success Rate" value={pct(credentialSummary.successRate * 100)} meta={`${fmt(credentialSummary.successfulAttempts)} successful`} />
+              <KpiCard label="Unique Pairs" value={fmt(credentialSummary.uniqueCredentialPairs)} meta={`${fmt(credentialSummary.repeatedCredentialPairs)} repeated`} />
+              <KpiCard label="Spray Patterns" value={fmt(credentialSummary.sprayPasswords)} meta={`${fmt(credentialSummary.targetedUsernames)} targeted usernames`} />
+            </View>
+            {credentialRows.length > 0 ? (
+              <SimpleTable
+                headers={[t("reports.creds.username"), t("reports.creds.password"), t("reports.creds.attempts"), t("reports.creds.successes"), "Success Rate"]}
+                rows={credentialRows}
+                widths={["23%", "23%", "18%", "18%", "18%"]}
+              />
+            ) : (
+              <Text style={s.noData}>{t("reports.noActivity")}</Text>
+            )}
+            {diversifiedRows.length > 0 ? (
+              <SimpleTable
+                headers={["Attacker IP", "Attempts", "Credential Pairs", "Usernames", "Passwords"]}
+                rows={diversifiedRows}
+                widths={["30%", "16%", "18%", "18%", "18%"]}
+              />
+            ) : null}
+          </>
+        ) : null}
+
+        {hasSshSensor ? (
+          <>
+            <SectionHeader title={t("reports.section.reconnaissance")} />
+            <View style={s.twoCol}>
+              <View style={s.col}>
+                <View style={s.panel}>
+                  <Text style={s.panelTitle}>Attack Funnel</Text>
+                  <RatioBar label={t("reports.funnel.connections")} value={insights.funnel.connections} total={insights.funnel.connections} color={C.indigo} />
+                  <RatioBar label={t("reports.funnel.authAttempts")} value={insights.funnel.authAttempts} total={insights.funnel.connections} color={C.blue} meta="Conversion from connection to auth" />
+                  <RatioBar label={t("reports.funnel.loginSuccess")} value={insights.funnel.loginSuccess} total={insights.funnel.connections} color={C.green} meta="Sessions that cleared authentication" />
+                  <RatioBar label={t("reports.funnel.commands")} value={insights.funnel.commands} total={insights.funnel.connections} color={C.amber} meta="Sessions that executed commands" />
+                  <RatioBar label={t("reports.funnel.compromise")} value={insights.funnel.highSignalCompromise} total={insights.funnel.connections} color={C.red} meta="High-signal post-login behavior" />
+                </View>
+              </View>
+              <View style={s.col}>
+                <View style={s.panel}>
+                  <Text style={s.panelTitle}>Command Depth After Login</Text>
+                  {depthBarItems.length > 0 ? (
+                    <RankedBars items={depthBarItems} color={C.indigo} />
+                  ) : (
+                    <Text style={s.noData}>{t("reports.noActivity")}</Text>
+                  )}
+                  <Text style={s.bodyText}>Average commands per successful session: {fmt(insights.successfulDepth.averageCommands)}. Maximum observed depth: {fmt(insights.successfulDepth.maxCommands)} commands. Interactive sessions (20+ commands): {fmt(insights.successfulDepth.interactiveSessions)}.</Text>
+                </View>
+              </View>
+            </View>
+
+            {commandPatternRows.length > 0 ? (
+              <SimpleTable
+                headers={["Command Sequence", "Sessions", "Unique IPs"]}
+                rows={commandPatternRows}
+                widths={["64%", "18%", "18%"]}
+              />
+            ) : null}
+
+            {recurringRows.length > 0 ? (
+              <>
+                <SectionHeader title={t("reports.creds.recurringIps")} />
+                <SimpleTable
+                  headers={["IP", "Sessions", "Creds", "Success", "Return Delay"]}
+                  rows={recurringRows}
+                  widths={["30%", "16%", "16%", "16%", "22%"]}
+                />
+              </>
+            ) : null}
           </>
         ) : null}
 
         {hasWeb ? (
           <>
             <SectionHeader title={t("reports.section.web")} />
-            <View style={s.kpiRow}>
-              <KpiCard label="Total Hits" value={fmt(overview.web.hits)} />
-              <KpiCard label="Unique IPs" value={fmt(overview.web.uniqueIps)} />
-              <KpiCard label="Top Attack Type" value={overview.web.topAttackType ?? "-"} />
-            </View>
+            <SimpleTable
+              headers={["Metric", "Value"]}
+              rows={[
+                ["Total Hits", fmt(overview.web.hits)],
+                ["Unique IPs", fmt(overview.web.uniqueIps)],
+                ["Top Attack Type", overview.web.topAttackType ?? "-"],
+              ]}
+              widths={["55%", "45%"]}
+            />
           </>
         ) : null}
 
@@ -654,10 +693,11 @@ export function ReportDocument({ data, t }: { data: ClientReportData; t: T }) {
 
             return (
               <View key={profile.sensor.sensorId} style={s.panel}>
-                <Text style={s.panelTitle}>{protocolLabel(profile.sensor.protocol)}</Text>
+              <Text style={s.panelTitle}>{protocolLabel(profile.sensor.protocol)}</Text>
                 <Text style={[s.kpiValue, { fontSize: 13, marginBottom: 4 }]}>{profile.sensor.name} ({profile.sensor.sensorId})</Text>
+                <Text style={[s.bodyText, { marginBottom: 4 }]}>{sensorNarrative(profile.sensor.protocol)}</Text>
                 <Text style={[s.bodyText, { marginBottom: 6 }]}>
-                  IP {profile.sensor.ip} | Ports {profile.sensor.ports.length > 0 ? profile.sensor.ports.join(", ") : "-"} | Version {profile.sensor.version || "-"} | Status {profile.sensor.online ? "online" : "offline"}
+                  IP {profile.sensor.ip} | Ports {profile.sensor.ports.length > 0 ? profile.sensor.ports.join(", ") : "-"} | Version {profile.sensor.version || "-"} | Status {profile.sensor.online ? "online" : "offline"} | Last seen {new Date(profile.sensor.lastSeen).toLocaleString("en-US")}
                 </Text>
 
                 <View style={s.kpiRow}>
