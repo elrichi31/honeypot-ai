@@ -36,29 +36,25 @@ El repo ya tiene casi toda la infraestructura:
 
 ## Decisiones de diseño (confirmadas)
 
-1. **Motor PDF: HTML → PDF con Playwright/Puppeteer** (charts SVG reales, diseño
-   profesional iterable).
+1. **Motor PDF: `@react-pdf/renderer`** — componentes React → PDF nativo en Node,
+   sin Chromium, sin deps del sistema. Charts con `<Canvas>` (API 2D imperativa).
+   Playwright fue descartado: binario de +150 MB, problemático en Alpine/VPS chicos.
 2. **Entrega: botón de descarga on-demand primero** (página `/reports`); cron
    automatizado después.
 3. **Aislamiento: estricto**, reusando `effectiveSensorScope` + `parseSensorScope`
    — cero queries de agregación nuevas, cero riesgo de fuga entre tenants.
 4. **La generación corre en el dashboard** (Next.js route handler), no en el
    ingest-api. El route handler ya tiene `requireRole` + `effectiveSensorScope` +
-   fetchers scopeados; así no duplicamos el resolver de scope ni metemos Chromium en
-   el ingest-api en fase 1. La lógica de "armar el contenido" se extrae a un módulo
-   puro reutilizable por el cron en fase 2.
+   fetchers scopeados; así no duplicamos el resolver de scope ni metemos dependencias
+   pesadas en el ingest-api en fase 1.
 
 ---
 
 ## Fase 1 — Reporte on-demand descargable ✅ (2026-06-30)
 
 ### 1.1 Dependencias
-- En `apps/dashboard`: añadir Playwright.
-  - Opción A (imagen liviana): `playwright-core` apuntando a un Chromium presente vía
-    `executablePath` configurable por env (`REPORT_CHROMIUM_PATH`).
-  - Opción B: `playwright` completo (descarga su Chromium); más simple en dev.
-  - Decidir al instalar según la imagen Docker del dashboard; el código no debe atar
-    una ruta fija.
+- `@react-pdf/renderer` (añadido a `apps/dashboard`). Sin Chromium, sin deps del sistema.
+- Playwright descartado: binario de +150 MB, problemático en Alpine/VPS chicos.
 - No tocar `apps/ingest-api` en esta fase.
 
 ### 1.2 Recolección de datos (módulo puro, server-only)
@@ -83,32 +79,27 @@ El repo ya tiene casi toda la infraestructura:
 - **Rango → fechas:** helper `rangeToWindow(range)` (`week` = 7d, `month` = 30d); mapear a
   `days`/`hours` donde el endpoint lo pida (mitre usa `days`).
 
-### 1.3 Plantilla HTML del reporte
-**Nuevo:** `apps/dashboard/lib/reports/template.ts(x)` → `renderReportHtml(data, t, meta): string`
-- HTML completo con CSS inline (print-friendly, A4), header con nombre del cliente +
-  rango + fecha de generación. Secciones:
+### 1.3 Plantilla del reporte
+**Nuevo:** `apps/dashboard/lib/reports/template.tsx` — componente React `<ReportDocument>`
+usando `@react-pdf/renderer`. Secciones:
   1. Portada / resumen ejecutivo — totales y deltas (overview + kpi-trends).
-  2. Línea de tiempo de actividad — chart (1.4).
-  3. Inteligencia de amenazas — MITRE tácticas + top IPs atacantes con risk score.
-  4. Credenciales — top pares usuario/clave, spray patterns, tasa de éxito.
-  5. Reconocimiento y profundidad — funnel, IPs recurrentes, command patterns.
-  6. Geo — top países por volumen.
-  7. Clasificación — ratio bot/humano.
-  8. Web (si hay) — top tipos de ataque, bursts.
-- Texto vía i18n (1.6). **English first**; nada de español hardcodeado.
+  2. Línea de tiempo de actividad — chart de barras con `<Canvas>`.
+  3. Inteligencia de amenazas — tabla MITRE tácticas/técnicas.
+  4. Credenciales — tabla top pares usuario/clave.
+  5. Reconocimiento y profundidad — funnel de barras + tabla IPs recurrentes.
+  6. Geo — chart de barras + tabla top países.
+  7. Clasificación — dona bot/humano con `<Canvas>` + leyenda.
+  8. Web (condicional) — KPIs web si hay actividad.
+- Texto vía i18n. **English first**; nada de español hardcodeado.
 
 ### 1.4 Charts en el PDF
-- Charts como **SVG inline** en el HTML (Playwright los rasteriza al imprimir).
-- **Recomendado:** generar SVG a mano para los pocos charts del reporte (barras del
-  timeline, dona bot/humano, barras de países). Evita arrastrar recharts al render
-  server-side.
+- Charts dibujados con `<Canvas>` de react-pdf (API 2D imperativa, tipo `canvas` del browser).
+- Barras (timeline, geo) y dona (bot/humano). Sin recharts, sin SVG, sin browser.
 
 ### 1.5 Generación del PDF + route handler
 **Nuevo:** `apps/dashboard/lib/reports/pdf.ts`
-- `htmlToPdf(html): Promise<Buffer>` — Chromium headless con **browser singleton**
-  (lazy init + reuse entre requests), `page.setContent(html, { waitUntil: "networkidle" })`,
-  `page.pdf({ format: "A4", printBackground: true, margin })`; cierra la page, deja el
-  browser vivo.
+- `generatePdf(data, t): Promise<Buffer>` — `renderToBuffer` de `@react-pdf/renderer`.
+  Puro Node, ~2 MB de dep, sin Chromium.
 
 **Nuevo:** `apps/dashboard/app/api/reports/route.ts` (patrón de `app/api/alerts/route.ts`):
 - `GET ?range=week|month` (+ `timezone`).

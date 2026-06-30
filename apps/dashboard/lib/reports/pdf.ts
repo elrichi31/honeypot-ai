@@ -1,48 +1,16 @@
-// Server-only: launches Chromium headless and renders HTML → PDF Buffer.
-// The browser instance is kept alive between requests (singleton) to avoid
-// the ~2s cold-start cost on every report generation.
-import type { Browser } from "playwright"
+// Server-only: renders a React-PDF document component to a PDF Buffer.
+// No Chromium required — @react-pdf/renderer runs entirely in Node.
+import React from "react"
+import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer"
+import type { ReactElement, JSXElementConstructor } from "react"
+import { ReportDocument } from "./template"
+import type { ClientReportData } from "./types"
+import type { TranslationKey } from "@/lib/i18n/dictionaries"
 
-let browserPromise: Promise<Browser> | null = null
+type T = (key: TranslationKey, vars?: Record<string, string | number>) => string
 
-async function getBrowser(): Promise<Browser> {
-  if (!browserPromise) {
-    browserPromise = (async () => {
-      // Use playwright-core + custom path when REPORT_CHROMIUM_PATH is set
-      // (Docker images); otherwise fall back to playwright's bundled Chromium.
-      const executablePath = process.env.REPORT_CHROMIUM_PATH
-      // Use playwright-core when an external Chromium is configured (Docker/prod),
-      // fall back to the playwright bundled browser in local dev.
-      const { chromium } = executablePath
-        ? await import("playwright-core")
-        : await import("playwright")
-      const browser = await chromium.launch({
-        headless: true,
-        ...(executablePath ? { executablePath } : {}),
-        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-      })
-      // Reset singleton if the browser crashes so the next call relaunches.
-      browser.on("disconnected", () => {
-        browserPromise = null
-      })
-      return browser
-    })()
-  }
-  return browserPromise
-}
-
-export async function htmlToPdf(html: string): Promise<Buffer> {
-  const browser = await getBrowser()
-  const page = await browser.newPage()
-  try {
-    await page.setContent(html, { waitUntil: "networkidle" })
-    const pdf = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "18mm", right: "18mm", bottom: "20mm", left: "18mm" },
-    })
-    return Buffer.from(pdf)
-  } finally {
-    await page.close()
-  }
+export async function generatePdf(data: ClientReportData, t: T): Promise<Buffer> {
+  const element = React.createElement(ReportDocument, { data, t }) as ReactElement<DocumentProps, string | JSXElementConstructor<unknown>>
+  const uint8 = await renderToBuffer(element)
+  return Buffer.from(uint8)
 }
