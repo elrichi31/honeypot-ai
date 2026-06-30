@@ -38,18 +38,25 @@ export async function GET(request: NextRequest) {
   let effectiveClientId = scope.clientId
   let sensorIds = scope.sensorIds
 
+  const resolveClientSensors = async (clientId: string) => {
+    const { rows } = await db.query<{ sensor_id: string }>(
+      `SELECT sensor_id FROM sensors WHERE client_id = $1`,
+      [clientId],
+    )
+    return rows.map((r) => r.sensor_id)
+  }
+
   if (effectiveClientId === null) {
     const qClientId = sp.get("clientId")
     if (!qClientId) {
       return Response.json({ error: "clientId is required for global scope" }, { status: 400 })
     }
     effectiveClientId = qClientId
+  }
+
+  if (effectiveClientId && sensorIds === undefined) {
     try {
-      const { rows } = await db.query<{ sensor_id: string }>(
-        `SELECT sensor_id FROM sensors WHERE client_id = $1`,
-        [effectiveClientId],
-      )
-      sensorIds = rows.map((r) => r.sensor_id)
+      sensorIds = await resolveClientSensors(effectiveClientId)
     } catch {
       return Response.json({ error: "Failed to resolve client sensors" }, { status: 500 })
     }

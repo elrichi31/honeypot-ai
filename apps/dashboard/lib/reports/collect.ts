@@ -6,10 +6,10 @@ import {
   fetchCrossSensorTimeline,
   fetchMitreMatrix,
   fetchBotRatio,
-  fetchGeoSummary,
   fetchDashboardInsights,
 } from "@/lib/api/stats"
 import { fetchCredentialsAnalytics } from "@/lib/api/credentials"
+import { db } from "@/lib/db"
 import { lookupIp } from "@/lib/geo"
 import type {
   ClientReportData,
@@ -18,6 +18,7 @@ import type {
   ReportRange,
   ReportTopCredential,
 } from "./types"
+import type { KpiTrends } from "@/lib/api/types"
 import { buildPeriodLabel, buildPeriodStart } from "./shared/format"
 import { collectSensorProfiles } from "./sensors/collect"
 
@@ -52,6 +53,176 @@ function aggregateGeo(raw: { srcIp: string; loginSuccess: boolean | null }[]): R
     }))
 }
 
+async function collectGeoSummary(
+  sensorIds: string[] | undefined,
+  startDate: string,
+  endDate: string,
+): Promise<{ srcIp: string; loginSuccess: boolean | null }[]> {
+  if (!sensorIds?.length) return []
+
+  const { rows } = await db.query<{ src_ip: string; login_success: boolean | null }>(
+    `WITH geo_events AS (
+       SELECT src_ip, login_success
+       FROM sessions
+       WHERE sensor_id = ANY($1::text[])
+         AND started_at >= $2::timestamptz
+         AND started_at <= $3::timestamptz
+       UNION ALL
+       SELECT src_ip, NULL::boolean AS login_success
+       FROM web_hits
+       WHERE sensor_id = ANY($1::text[])
+         AND timestamp >= $2::timestamptz
+         AND timestamp <= $3::timestamptz
+       UNION ALL
+       SELECT src_ip, NULL::boolean AS login_success
+       FROM protocol_hits
+       WHERE COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+         AND timestamp >= $2::timestamptz
+         AND timestamp <= $3::timestamptz
+     )
+     SELECT src_ip, login_success FROM geo_events`,
+    [sensorIds, startDate, endDate],
+  )
+
+  return rows.map((row) => ({
+    srcIp: row.src_ip,
+    loginSuccess: row.login_success,
+  }))
+}
+
+function computeDelta(current: number, previous: number) {
+  if (previous === 0) return null
+  return Number((((current - previous) / previous) * 100).toFixed(1))
+}
+
+async function collectReportKpis(
+  sensorIds: string[] | undefined,
+  startDate: string,
+  endDate: string,
+): Promise<KpiTrends> {
+  if (!sensorIds?.length) {
+    return {
+      events: { current: 0, previous: 0, deltaPct: null, spark: [] },
+      sshSessions: { current: 0, previous: 0, deltaPct: null, spark: [] },
+      webHits: { current: 0, previous: 0, deltaPct: null, spark: [] },
+      uniqueIps: { current: 0, previous: 0, deltaPct: null, spark: [] },
+    }
+  }
+
+  const currentStart = new Date(startDate)
+  const currentEnd = new Date(endDate)
+  const durationMs = currentEnd.getTime() - currentStart.getTime()
+  const previousEnd = currentStart
+  const previousStart = new Date(currentStart.getTime() - durationMs)
+
+  const { rows } = await db.query<{
+    ssh_current: string
+    ssh_previous: string
+    web_current: string
+    web_previous: string
+    proto_current: string
+    proto_previous: string
+    unique_ips_current: string
+    unique_ips_previous: string
+  }>(
+    `WITH ssh_current AS (
+       SELECT COUNT(*)::bigint AS count
+       FROM sessions
+       WHERE sensor_id = ANY($1::text[])
+         AND started_at >= $2::timestamptz AND started_at <= $3::timestamptz
+     ),
+     ssh_previous AS (
+       SELECT COUNT(*)::bigint AS count
+       FROM sessions
+       WHERE sensor_id = ANY($1::text[])
+         AND started_at >= $4::timestamptz AND started_at < $2::timestamptz
+     ),
+     web_current AS (
+       SELECT COUNT(*)::bigint AS count
+       FROM web_hits
+       WHERE sensor_id = ANY($1::text[])
+         AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+     ),
+     web_previous AS (
+       SELECT COUNT(*)::bigint AS count
+       FROM web_hits
+       WHERE sensor_id = ANY($1::text[])
+         AND timestamp >= $4::timestamptz AND timestamp < $2::timestamptz
+     ),
+     proto_current AS (
+       SELECT COUNT(*)::bigint AS count
+       FROM protocol_hits
+       WHERE COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+         AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+     ),
+     proto_previous AS (
+       SELECT COUNT(*)::bigint AS count
+       FROM protocol_hits
+       WHERE COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+         AND timestamp >= $4::timestamptz AND timestamp < $2::timestamptz
+     ),
+     unique_ips_current AS (
+       SELECT COUNT(DISTINCT src_ip)::bigint AS count FROM (
+         SELECT src_ip FROM sessions
+         WHERE sensor_id = ANY($1::text[])
+           AND started_at >= $2::timestamptz AND started_at <= $3::timestamptz
+         UNION ALL
+         SELECT src_ip FROM web_hits
+         WHERE sensor_id = ANY($1::text[])
+           AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         UNION ALL
+         SELECT src_ip FROM protocol_hits
+         WHERE COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+           AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+       ) u
+     ),
+     unique_ips_previous AS (
+       SELECT COUNT(DISTINCT src_ip)::bigint AS count FROM (
+         SELECT src_ip FROM sessions
+         WHERE sensor_id = ANY($1::text[])
+           AND started_at >= $4::timestamptz AND started_at < $2::timestamptz
+         UNION ALL
+         SELECT src_ip FROM web_hits
+         WHERE sensor_id = ANY($1::text[])
+           AND timestamp >= $4::timestamptz AND timestamp < $2::timestamptz
+         UNION ALL
+         SELECT src_ip FROM protocol_hits
+         WHERE COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+           AND timestamp >= $4::timestamptz AND timestamp < $2::timestamptz
+       ) u
+     )
+     SELECT
+       (SELECT count::text FROM ssh_current) AS ssh_current,
+       (SELECT count::text FROM ssh_previous) AS ssh_previous,
+       (SELECT count::text FROM web_current) AS web_current,
+       (SELECT count::text FROM web_previous) AS web_previous,
+       (SELECT count::text FROM proto_current) AS proto_current,
+       (SELECT count::text FROM proto_previous) AS proto_previous,
+       (SELECT count::text FROM unique_ips_current) AS unique_ips_current,
+       (SELECT count::text FROM unique_ips_previous) AS unique_ips_previous`,
+    [sensorIds, startDate, endDate, previousStart.toISOString()],
+  )
+
+  const raw = rows[0]
+  const sshCurrent = Number(raw?.ssh_current ?? 0)
+  const sshPrevious = Number(raw?.ssh_previous ?? 0)
+  const webCurrent = Number(raw?.web_current ?? 0)
+  const webPrevious = Number(raw?.web_previous ?? 0)
+  const protoCurrent = Number(raw?.proto_current ?? 0)
+  const protoPrevious = Number(raw?.proto_previous ?? 0)
+  const uniqueCurrent = Number(raw?.unique_ips_current ?? 0)
+  const uniquePrevious = Number(raw?.unique_ips_previous ?? 0)
+  const eventsCurrent = sshCurrent + webCurrent + protoCurrent
+  const eventsPrevious = sshPrevious + webPrevious + protoPrevious
+
+  return {
+    events: { current: eventsCurrent, previous: eventsPrevious, deltaPct: computeDelta(eventsCurrent, eventsPrevious), spark: [] },
+    sshSessions: { current: sshCurrent, previous: sshPrevious, deltaPct: computeDelta(sshCurrent, sshPrevious), spark: [] },
+    webHits: { current: webCurrent, previous: webPrevious, deltaPct: computeDelta(webCurrent, webPrevious), spark: [] },
+    uniqueIps: { current: uniqueCurrent, previous: uniquePrevious, deltaPct: computeDelta(uniqueCurrent, uniquePrevious), spark: [] },
+  }
+}
+
 export async function collectClientReport(params: {
   sensorIds: string[] | undefined
   range: ReportRange
@@ -66,11 +237,11 @@ export async function collectClientReport(params: {
   const [overview, kpiTrends, timeline, mitre, botRatio, geoRaw, insights, creds, sensorProfiles] =
     await Promise.allSettled([
       fetchHoneypotOverview(sensorIds),
-      fetchKpiTrends(sensorIds),
+      collectReportKpis(sensorIds, startDate, endDate),
       fetchCrossSensorTimeline({ range, timezone, sensorIds }),
       fetchMitreMatrix(sensorIds),
       fetchBotRatio(sensorIds),
-      fetchGeoSummary(sensorIds, { fresh: true }),
+      collectGeoSummary(sensorIds, startDate, endDate),
       fetchDashboardInsights(sensorIds),
       fetchCredentialsAnalytics({
         limit: 10,
