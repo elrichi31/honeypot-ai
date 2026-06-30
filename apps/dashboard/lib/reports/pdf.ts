@@ -11,7 +11,11 @@ async function getBrowser(): Promise<Browser> {
       // Use playwright-core + custom path when REPORT_CHROMIUM_PATH is set
       // (Docker images); otherwise fall back to playwright's bundled Chromium.
       const executablePath = process.env.REPORT_CHROMIUM_PATH
-      const { chromium } = await import("playwright")
+      // Use playwright-core when an external Chromium is configured (Docker/prod),
+      // fall back to the playwright bundled browser in local dev.
+      const { chromium } = executablePath
+        ? await import("playwright-core")
+        : await import("playwright")
       const browser = await chromium.launch({
         headless: true,
         ...(executablePath ? { executablePath } : {}),

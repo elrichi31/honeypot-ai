@@ -28,7 +28,18 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 # Tools for per-client OVA generation (config disk)
-RUN apk add --no-cache mtools qemu-img
+# Chromium + its runtime deps for Playwright PDF generation (reports module).
+# REPORT_CHROMIUM_PATH tells pdf.ts to use this binary instead of the bundled one.
+RUN apk add --no-cache \
+    mtools qemu-img \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+
+ENV REPORT_CHROMIUM_PATH=/usr/bin/chromium-browser
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
