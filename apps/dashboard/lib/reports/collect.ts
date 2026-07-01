@@ -230,6 +230,7 @@ export async function collectClientReport(params: {
   meta: Omit<ClientReportMeta, "generatedAt" | "periodLabel">
 }): Promise<ClientReportData> {
   const { sensorIds, range, timezone, meta } = params
+  console.log("[reports] collectClientReport sensorIds:", sensorIds)
   const generatedAt = new Date()
   const startDate = buildPeriodStart(range, generatedAt).toISOString()
   const endDate = generatedAt.toISOString()
