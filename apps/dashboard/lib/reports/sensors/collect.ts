@@ -109,8 +109,14 @@ export async function collectSensorProfiles(
 ): Promise<ReportSensorProfile[]> {
   if (!sensorIds?.length) return []
 
-  const sensors = (await fetchReportSensors(sensorIds))
-    .sort((a, b) => b.eventsTotal - a.eventsTotal)
+  let rawSensors: Sensor[]
+  try {
+    rawSensors = await fetchReportSensors(sensorIds)
+  } catch {
+    return []
+  }
+
+  const sensors = rawSensors.sort((a, b) => b.eventsTotal - a.eventsTotal)
 
   if (!sensors.length) return []
 

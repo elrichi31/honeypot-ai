@@ -25,16 +25,15 @@ export async function collectProtocolSensorIntel(
   ] = await Promise.all([
     db.query<LabelRow>(
       `WITH ranked AS (
-         SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
-                event_type AS label,
-                COUNT(*)::bigint AS count,
-                ROW_NUMBER() OVER (
-                  PARTITION BY COALESCE(sensor_id, data->>'sensor')
-                  ORDER BY COUNT(*) DESC, event_type ASC
-                ) AS rn
-         FROM protocol_hits
-         WHERE COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
-           AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         SELECT sensor_id, label, COUNT(*)::bigint AS count,
+                ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY COUNT(*) DESC, label ASC) AS rn
+         FROM (
+           SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
+                  event_type AS label
+           FROM protocol_hits
+           WHERE COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+             AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         ) sub
          GROUP BY 1, 2
        )
        SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 8`,
@@ -42,17 +41,16 @@ export async function collectProtocolSensorIntel(
     ),
     db.query<LabelRow>(
       `WITH ranked AS (
-         SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
-                src_port::text AS label,
-                COUNT(*)::bigint AS count,
-                ROW_NUMBER() OVER (
-                  PARTITION BY COALESCE(sensor_id, data->>'sensor')
-                  ORDER BY COUNT(*) DESC, src_port ASC
-                ) AS rn
-         FROM protocol_hits
-         WHERE src_port IS NOT NULL
-           AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
-           AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         SELECT sensor_id, label, COUNT(*)::bigint AS count,
+                ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY COUNT(*) DESC, label ASC) AS rn
+         FROM (
+           SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
+                  src_port::text AS label
+           FROM protocol_hits
+           WHERE src_port IS NOT NULL
+             AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+             AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         ) sub
          GROUP BY 1, 2
        )
        SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 8`,
@@ -60,17 +58,17 @@ export async function collectProtocolSensorIntel(
     ),
     db.query<LabelRow>(
       `WITH ranked AS (
-         SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
-                data->>'service' AS label,
-                COUNT(*)::bigint AS count,
-                ROW_NUMBER() OVER (
-                  PARTITION BY COALESCE(sensor_id, data->>'sensor')
-                  ORDER BY COUNT(*) DESC, data->>'service' ASC
-                ) AS rn
-         FROM protocol_hits
-         WHERE COALESCE(data->>'service', '') <> ''
-           AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
-           AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         SELECT sensor_id, label, COUNT(*)::bigint AS count,
+                ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY COUNT(*) DESC, label ASC) AS rn
+         FROM (
+           SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
+                  data->>'service' AS label
+           FROM protocol_hits
+           WHERE COALESCE(data->>'service', '') <> ''
+             AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+             AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         ) sub
+         WHERE label IS NOT NULL
          GROUP BY 1, 2
        )
        SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 8`,
@@ -78,30 +76,11 @@ export async function collectProtocolSensorIntel(
     ),
     db.query<DetailRow>(
       `WITH ranked AS (
-         SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
-                COALESCE(
-                  NULLIF(data->>'requestedPath', ''),
-                  NULLIF(data->>'fileName', ''),
-                  NULLIF(data->>'command', ''),
-                  NULLIF(data->>'url', ''),
-                  NULLIF(data->>'outfile', ''),
-                  NULLIF(data->>'destfile', ''),
-                  event_type
-                ) AS label,
-                NULLIF(
-                  CONCAT_WS(
-                    ' | ',
-                    event_type,
-                    NULLIF(COALESCE(data->>'shareName', data->>'share'), ''),
-                    NULLIF(data->>'sha256', ''),
-                    NULLIF(data->>'md5', '')
-                  ),
-                  ''
-                ) AS detail,
-                COUNT(*)::bigint AS count,
-                ROW_NUMBER() OVER (
-                  PARTITION BY COALESCE(sensor_id, data->>'sensor')
-                  ORDER BY COUNT(*) DESC, COALESCE(
+         SELECT sensor_id, label, detail, COUNT(*)::bigint AS count,
+                ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY COUNT(*) DESC, label ASC) AS rn
+         FROM (
+           SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
+                  COALESCE(
                     NULLIF(data->>'requestedPath', ''),
                     NULLIF(data->>'fileName', ''),
                     NULLIF(data->>'command', ''),
@@ -109,13 +88,23 @@ export async function collectProtocolSensorIntel(
                     NULLIF(data->>'outfile', ''),
                     NULLIF(data->>'destfile', ''),
                     event_type
-                  ) ASC
-                ) AS rn
-         FROM protocol_hits
-         WHERE protocol IN ('ftp', 'smb')
-           AND event_type IN ('file.upload', 'file.download')
-           AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
-           AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+                  ) AS label,
+                  NULLIF(
+                    CONCAT_WS(
+                      ' | ',
+                      event_type,
+                      NULLIF(COALESCE(data->>'shareName', data->>'share'), ''),
+                      NULLIF(data->>'sha256', ''),
+                      NULLIF(data->>'md5', '')
+                    ),
+                    ''
+                  ) AS detail
+           FROM protocol_hits
+           WHERE protocol IN ('ftp', 'smb')
+             AND event_type IN ('file.upload', 'file.download')
+             AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+             AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         ) sub
          GROUP BY 1, 2, 3
        )
        SELECT sensor_id, label, detail, count::text FROM ranked WHERE rn <= 8`,
@@ -141,17 +130,17 @@ export async function collectProtocolSensorIntel(
     ),
     db.query<LabelRow>(
       `WITH ranked AS (
-         SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
-                data->>'domain' AS label,
-                COUNT(*)::bigint AS count,
-                ROW_NUMBER() OVER (
-                  PARTITION BY COALESCE(sensor_id, data->>'sensor')
-                  ORDER BY COUNT(*) DESC, data->>'domain' ASC
-                ) AS rn
-         FROM protocol_hits
-         WHERE protocol = 'smb' AND COALESCE(data->>'domain', '') <> ''
-           AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
-           AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         SELECT sensor_id, label, COUNT(*)::bigint AS count,
+                ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY COUNT(*) DESC, label ASC) AS rn
+         FROM (
+           SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
+                  data->>'domain' AS label
+           FROM protocol_hits
+           WHERE protocol = 'smb' AND COALESCE(data->>'domain', '') <> ''
+             AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+             AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         ) sub
+         WHERE label IS NOT NULL
          GROUP BY 1, 2
        )
        SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 8`,
@@ -159,17 +148,17 @@ export async function collectProtocolSensorIntel(
     ),
     db.query<LabelRow>(
       `WITH ranked AS (
-         SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
-                COALESCE(data->>'shareName', data->>'share') AS label,
-                COUNT(*)::bigint AS count,
-                ROW_NUMBER() OVER (
-                  PARTITION BY COALESCE(sensor_id, data->>'sensor')
-                  ORDER BY COUNT(*) DESC, COALESCE(data->>'shareName', data->>'share') ASC
-                ) AS rn
-         FROM protocol_hits
-         WHERE protocol = 'smb' AND COALESCE(data->>'shareName', data->>'share', '') <> ''
-           AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
-           AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         SELECT sensor_id, label, COUNT(*)::bigint AS count,
+                ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY COUNT(*) DESC, label ASC) AS rn
+         FROM (
+           SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
+                  COALESCE(data->>'shareName', data->>'share') AS label
+           FROM protocol_hits
+           WHERE protocol = 'smb' AND COALESCE(data->>'shareName', data->>'share', '') <> ''
+             AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+             AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         ) sub
+         WHERE label IS NOT NULL
          GROUP BY 1, 2
        )
        SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 8`,
@@ -177,19 +166,18 @@ export async function collectProtocolSensorIntel(
     ),
     db.query<DetailRow>(
       `WITH ranked AS (
-         SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
-                COALESCE(data->>'hostName', data->>'nativeOS') AS label,
-                NULLIF(data->>'domain', '') AS detail,
-                COUNT(*)::bigint AS count,
-                ROW_NUMBER() OVER (
-                  PARTITION BY COALESCE(sensor_id, data->>'sensor')
-                  ORDER BY COUNT(*) DESC, COALESCE(data->>'hostName', data->>'nativeOS') ASC
-                ) AS rn
-         FROM protocol_hits
-         WHERE protocol = 'smb'
-           AND COALESCE(data->>'hostName', data->>'nativeOS', '') <> ''
-           AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
-           AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         SELECT sensor_id, label, detail, COUNT(*)::bigint AS count,
+                ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY COUNT(*) DESC, label ASC) AS rn
+         FROM (
+           SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
+                  COALESCE(data->>'hostName', data->>'nativeOS') AS label,
+                  NULLIF(data->>'domain', '') AS detail
+           FROM protocol_hits
+           WHERE protocol = 'smb'
+             AND COALESCE(data->>'hostName', data->>'nativeOS', '') <> ''
+             AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+             AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         ) sub
          GROUP BY 1, 2, 3
        )
        SELECT sensor_id, label, detail, count::text FROM ranked WHERE rn <= 8`,
@@ -197,19 +185,18 @@ export async function collectProtocolSensorIntel(
     ),
     db.query<DetailRow>(
       `WITH ranked AS (
-         SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
-                LEFT(data->>'ntlmHash', 32) AS label,
-                NULLIF(username, '') AS detail,
-                COUNT(*)::bigint AS count,
-                ROW_NUMBER() OVER (
-                  PARTITION BY COALESCE(sensor_id, data->>'sensor')
-                  ORDER BY COUNT(*) DESC, LEFT(data->>'ntlmHash', 32) ASC
-                ) AS rn
-         FROM protocol_hits
-         WHERE protocol = 'smb'
-           AND COALESCE(data->>'ntlmHash', '') <> ''
-           AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
-           AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         SELECT sensor_id, label, detail, COUNT(*)::bigint AS count,
+                ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY COUNT(*) DESC, label ASC) AS rn
+         FROM (
+           SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
+                  LEFT(data->>'ntlmHash', 32) AS label,
+                  NULLIF(username, '') AS detail
+           FROM protocol_hits
+           WHERE protocol = 'smb'
+             AND COALESCE(data->>'ntlmHash', '') <> ''
+             AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+             AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         ) sub
          GROUP BY 1, 2, 3
        )
        SELECT sensor_id, label, detail, count::text FROM ranked WHERE rn <= 8`,
@@ -217,61 +204,57 @@ export async function collectProtocolSensorIntel(
     ),
     db.query<LabelRow>(
       `WITH ranked AS (
-         SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
-                data->>'database' AS label,
-                COUNT(*)::bigint AS count,
-                ROW_NUMBER() OVER (
-                  PARTITION BY COALESCE(sensor_id, data->>'sensor')
-                  ORDER BY COUNT(*) DESC, data->>'database' ASC
-                ) AS rn
-         FROM protocol_hits
-         WHERE protocol IN ('mysql', 'mssql') AND COALESCE(data->>'database', '') <> ''
-           AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
-           AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         SELECT sensor_id, label, COUNT(*)::bigint AS count,
+                ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY COUNT(*) DESC, label ASC) AS rn
+         FROM (
+           SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
+                  data->>'database' AS label
+           FROM protocol_hits
+           WHERE protocol IN ('mysql', 'mssql') AND COALESCE(data->>'database', '') <> ''
+             AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+             AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         ) sub
+         WHERE label IS NOT NULL
          GROUP BY 1, 2
        )
        SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 8`,
       [sensorIdSet, startDate, endDate],
     ),
-    // port-scan sensor: hits grouped by service name (stored in data->>'service')
     db.query<LabelRow>(
       `WITH ranked AS (
-         SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
-                COALESCE(NULLIF(data->>'service', ''), NULLIF(data->>'protocolName', ''), 'unknown') AS label,
-                COUNT(*)::bigint AS count,
-                ROW_NUMBER() OVER (
-                  PARTITION BY COALESCE(sensor_id, data->>'sensor')
-                  ORDER BY COUNT(*) DESC, COALESCE(NULLIF(data->>'service', ''), 'unknown') ASC
-                ) AS rn
-         FROM protocol_hits
-         WHERE protocol = 'port-scan'
-           AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
-           AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         SELECT sensor_id, label, COUNT(*)::bigint AS count,
+                ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY COUNT(*) DESC, label ASC) AS rn
+         FROM (
+           SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
+                  COALESCE(NULLIF(data->>'service', ''), NULLIF(data->>'protocolName', ''), 'unknown') AS label
+           FROM protocol_hits
+           WHERE protocol = 'port-scan'
+             AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+             AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         ) sub
          GROUP BY 1, 2
        )
        SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 10`,
       [sensorIdSet, startDate, endDate],
     ),
-    // dionaea sensor: hits grouped by dst_port from nested raw JSON
     db.query<LabelRow>(
       `WITH ranked AS (
-         SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
-                CONCAT(
-                  (data->'raw'->>'dst_port')::text,
-                  ' (',
-                  COALESCE(NULLIF(data->'raw'->'connection'->>'protocol', ''), 'tcp'),
-                  ')'
-                ) AS label,
-                COUNT(*)::bigint AS count,
-                ROW_NUMBER() OVER (
-                  PARTITION BY COALESCE(sensor_id, data->>'sensor')
-                  ORDER BY COUNT(*) DESC, (data->'raw'->>'dst_port')::int ASC
-                ) AS rn
-         FROM protocol_hits
-         WHERE protocol = 'dionaea' AND event_type = 'connect'
-           AND data->'raw'->>'dst_port' IS NOT NULL
-           AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
-           AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         SELECT sensor_id, label, COUNT(*)::bigint AS count,
+                ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY COUNT(*) DESC, label ASC) AS rn
+         FROM (
+           SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
+                  CONCAT(
+                    (data->'raw'->>'dst_port')::text,
+                    ' (',
+                    COALESCE(NULLIF(data->'raw'->'connection'->>'protocol', ''), 'tcp'),
+                    ')'
+                  ) AS label
+           FROM protocol_hits
+           WHERE protocol = 'dionaea' AND event_type = 'connect'
+             AND data->'raw'->>'dst_port' IS NOT NULL
+             AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+             AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         ) sub
          GROUP BY 1, 2
        )
        SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 10`,
@@ -290,7 +273,6 @@ export async function collectProtocolSensorIntel(
   const smbNtlmHashes = groupDetailCounts(smbHashRows.rows)
   const databases = groupLabelCounts(databaseRows.rows)
 
-  // Merge port-scan services + dionaea ports into scannedPorts
   const scannedPorts = groupLabelCounts([...portScanServiceRows.rows, ...dionaeaPortRows.rows])
 
   return {
