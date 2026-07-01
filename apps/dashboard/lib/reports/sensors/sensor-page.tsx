@@ -2,7 +2,8 @@ import React from "react"
 import { Text, View } from "@react-pdf/renderer"
 import type { ClientReportData } from "../types"
 import { formatBytes, fmt, protocolLabel, rate, sensorNarrative, truncPassword } from "../shared/format"
-import { KpiCard, s, SectionHeader, SimpleTable, type T } from "../shared/pdf-ui"
+import { C, KpiCard, s, SectionHeader, SimpleTable, type T } from "../shared/pdf-ui"
+import { ActivityTimeline, BarChart, HorizontalBarChart, HourHeatmap } from "../shared/pdf-charts"
 import { ProtocolIntelligence } from "./protocol-intelligence"
 import { WebSensorIntelligence } from "./web-intelligence"
 
@@ -38,12 +39,58 @@ export function SensorPage({ profile, t }: { profile: ClientReportData["sensors"
         <KpiCard label="Commands" value={fmt(profile.commandCount)} meta={`${fmt(profile.malwareCount)} malware samples`} />
       </View>
 
+      {/* Activity timeline — full width */}
+      {profile.dailyActivity.length >= 2 ? (
+        <View style={{ marginBottom: 8 }}>
+          <Text style={{ fontSize: 7, color: C.textMuted, marginBottom: 3, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            Daily Activity
+          </Text>
+          <ActivityTimeline data={profile.dailyActivity} width={535} height={80} />
+        </View>
+      ) : null}
+
+      {/* Heatmap + top services side by side */}
       <View style={s.twoCol}>
         <View style={s.col}>
-          {topAttackerRows.length > 0 ? <SimpleTable headers={["Top Attacker", "Hits"]} rows={topAttackerRows} widths={["74%", "26%"]} /> : <Text style={s.noData}>No attacker ranking available for this sensor.</Text>}
+          {profile.scannedPorts.length > 0 ? (
+            <HorizontalBarChart data={profile.scannedPorts} width={255} maxBars={8} title="Top Services / Ports" />
+          ) : (
+            <View style={s.twoCol}>
+              <View style={s.col}>
+                {topAttackerRows.length > 0 ? <SimpleTable headers={["Top Attacker", "Hits"]} rows={topAttackerRows} widths={["74%", "26%"]} /> : null}
+              </View>
+            </View>
+          )}
         </View>
         <View style={s.col}>
-          {signalRows.length > 0 ? <SimpleTable headers={["Primary Signals", "Count"]} rows={signalRows} widths={["74%", "26%"]} /> : <Text style={s.noData}>No signal breakdown available for this sensor.</Text>}
+          {profile.hourlyActivity.length > 0 ? (
+            <HourHeatmap data={profile.hourlyActivity} width={255} />
+          ) : null}
+          {signalRows.length > 0 ? (
+            <View style={{ marginTop: 6 }}>
+              <SimpleTable headers={["Primary Signals", "Count"]} rows={signalRows} widths={["74%", "26%"]} />
+            </View>
+          ) : null}
+        </View>
+      </View>
+
+      {/* Top attackers + bar chart of event breakdown */}
+      <View style={s.twoCol}>
+        <View style={s.col}>
+          {topAttackerRows.length > 0 && profile.scannedPorts.length > 0 ? (
+            <SimpleTable headers={["Top Attacker IPs", "Hits"]} rows={topAttackerRows} widths={["74%", "26%"]} />
+          ) : null}
+        </View>
+        <View style={s.col}>
+          {profile.eventBreakdown.length > 0 ? (
+            <BarChart
+              data={profile.eventBreakdown}
+              width={255}
+              height={100}
+              title="Event Type Breakdown"
+              maxBars={6}
+            />
+          ) : null}
         </View>
       </View>
 

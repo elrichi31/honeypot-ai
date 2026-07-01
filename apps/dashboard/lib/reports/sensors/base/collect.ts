@@ -5,7 +5,7 @@ export async function collectBaseSensorIntel(
   startDate: string,
   endDate: string,
 ) {
-  const [uniqueIpRows, authRows, commandRows, topIpRows, topCredentialRows, topSignalRows, topTargetRows] =
+  const [uniqueIpRows, authRows, commandRows, topIpRows, topCredentialRows, topSignalRows, topTargetRows, dailyRows, hourlyRows] =
     await Promise.all([
       db.query<{ sensor_id: string; unique_ips: string }>(
         `WITH per_event AS (
@@ -160,6 +160,40 @@ export async function collectBaseSensorIntel(
          WHERE rn <= 4`,
         [sensorIdSet, startDate, endDate],
       ),
+      db.query<{ sensor_id: string; date: string; count: string }>(
+        `WITH combined AS (
+           SELECT sensor_id, date_trunc('day', started_at) AS day FROM sessions
+           WHERE sensor_id = ANY($1::text[]) AND started_at >= $2::timestamptz AND started_at <= $3::timestamptz
+           UNION ALL
+           SELECT sensor_id, date_trunc('day', timestamp) AS day FROM web_hits
+           WHERE sensor_id = ANY($1::text[]) AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+           UNION ALL
+           SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id, date_trunc('day', timestamp) AS day FROM protocol_hits
+           WHERE COALESCE(sensor_id, data->>'sensor') = ANY($1::text[]) AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         )
+         SELECT sensor_id, to_char(day, 'YYYY-MM-DD') AS date, COUNT(*)::text AS count
+         FROM combined
+         GROUP BY sensor_id, day
+         ORDER BY sensor_id, day`,
+        [sensorIdSet, startDate, endDate],
+      ),
+      db.query<{ sensor_id: string; hour: string; count: string }>(
+        `WITH combined AS (
+           SELECT sensor_id, EXTRACT(HOUR FROM started_at) AS hour FROM sessions
+           WHERE sensor_id = ANY($1::text[]) AND started_at >= $2::timestamptz AND started_at <= $3::timestamptz
+           UNION ALL
+           SELECT sensor_id, EXTRACT(HOUR FROM timestamp) AS hour FROM web_hits
+           WHERE sensor_id = ANY($1::text[]) AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+           UNION ALL
+           SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id, EXTRACT(HOUR FROM timestamp) AS hour FROM protocol_hits
+           WHERE COALESCE(sensor_id, data->>'sensor') = ANY($1::text[]) AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         )
+         SELECT sensor_id, hour::text, COUNT(*)::text AS count
+         FROM combined
+         GROUP BY sensor_id, hour
+         ORDER BY sensor_id, hour`,
+        [sensorIdSet, startDate, endDate],
+      ),
     ])
 
   return {
@@ -170,5 +204,7 @@ export async function collectBaseSensorIntel(
     topCredentialRows,
     topSignalRows,
     topTargetRows,
+    dailyRows,
+    hourlyRows,
   }
 }

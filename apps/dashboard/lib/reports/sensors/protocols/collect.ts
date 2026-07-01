@@ -1,6 +1,5 @@
 import { db } from "@/lib/db"
-import type { ReportSensorProfile } from "../../types"
-import { PORT_SERVICE, groupDetailCounts, groupLabelCounts } from "../shared"
+import { groupDetailCounts, groupLabelCounts } from "../shared"
 
 type LabelRow = { sensor_id: string; label: string; count: string }
 type DetailRow = { sensor_id: string; label: string; detail: string | null; count: string }
@@ -21,7 +20,8 @@ export async function collectProtocolSensorIntel(
     smbHostRows,
     smbHashRows,
     databaseRows,
-    scannedPortRows,
+    portScanServiceRows,
+    dionaeaPortRows,
   ] = await Promise.all([
     db.query<LabelRow>(
       `WITH ranked AS (
@@ -233,14 +233,15 @@ export async function collectProtocolSensorIntel(
        SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 8`,
       [sensorIdSet, startDate, endDate],
     ),
-    db.query<{ sensor_id: string; dst_port: number; count: string }>(
+    // port-scan sensor: hits grouped by service name (stored in data->>'service')
+    db.query<LabelRow>(
       `WITH ranked AS (
          SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
-                dst_port,
+                COALESCE(NULLIF(data->>'service', ''), NULLIF(data->>'protocolName', ''), 'unknown') AS label,
                 COUNT(*)::bigint AS count,
                 ROW_NUMBER() OVER (
                   PARTITION BY COALESCE(sensor_id, data->>'sensor')
-                  ORDER BY COUNT(*) DESC, dst_port ASC
+                  ORDER BY COUNT(*) DESC, COALESCE(NULLIF(data->>'service', ''), 'unknown') ASC
                 ) AS rn
          FROM protocol_hits
          WHERE protocol = 'port-scan'
@@ -248,7 +249,32 @@ export async function collectProtocolSensorIntel(
            AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
          GROUP BY 1, 2
        )
-       SELECT sensor_id, dst_port, count::text FROM ranked WHERE rn <= 8`,
+       SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 10`,
+      [sensorIdSet, startDate, endDate],
+    ),
+    // dionaea sensor: hits grouped by dst_port from nested raw JSON
+    db.query<LabelRow>(
+      `WITH ranked AS (
+         SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id,
+                CONCAT(
+                  (data->'raw'->>'dst_port')::text,
+                  ' (',
+                  COALESCE(NULLIF(data->'raw'->'connection'->>'protocol', ''), 'tcp'),
+                  ')'
+                ) AS label,
+                COUNT(*)::bigint AS count,
+                ROW_NUMBER() OVER (
+                  PARTITION BY COALESCE(sensor_id, data->>'sensor')
+                  ORDER BY COUNT(*) DESC, (data->'raw'->>'dst_port')::int ASC
+                ) AS rn
+         FROM protocol_hits
+         WHERE protocol = 'dionaea' AND event_type = 'connect'
+           AND data->'raw'->>'dst_port' IS NOT NULL
+           AND COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+           AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         GROUP BY 1, 2
+       )
+       SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 10`,
       [sensorIdSet, startDate, endDate],
     ),
   ])
@@ -264,13 +290,8 @@ export async function collectProtocolSensorIntel(
   const smbNtlmHashes = groupDetailCounts(smbHashRows.rows)
   const databases = groupLabelCounts(databaseRows.rows)
 
-  const scannedPorts = new Map<string, ReportSensorProfile["scannedPorts"]>()
-  for (const row of scannedPortRows.rows) {
-    const list = scannedPorts.get(row.sensor_id) ?? []
-    const service = PORT_SERVICE[row.dst_port]
-    list.push({ label: service ? `${row.dst_port} (${service})` : `${row.dst_port}`, count: Number(row.count) })
-    scannedPorts.set(row.sensor_id, list)
-  }
+  // Merge port-scan services + dionaea ports into scannedPorts
+  const scannedPorts = groupLabelCounts([...portScanServiceRows.rows, ...dionaeaPortRows.rows])
 
   return {
     eventBreakdown,

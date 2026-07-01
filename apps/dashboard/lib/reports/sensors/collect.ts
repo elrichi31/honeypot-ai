@@ -153,6 +153,20 @@ export async function collectSensorProfiles(
   const topSignals = groupLabelCounts(baseIntel.topSignalRows.rows)
   const topTargets = groupLabelCounts(baseIntel.topTargetRows.rows)
 
+  const dailyActivity = new Map<string, { date: string; count: number }[]>()
+  for (const row of baseIntel.dailyRows.rows) {
+    const list = dailyActivity.get(row.sensor_id) ?? []
+    list.push({ date: row.date, count: Number(row.count) })
+    dailyActivity.set(row.sensor_id, list)
+  }
+
+  const hourlyActivity = new Map<string, { hour: number; count: number }[]>()
+  for (const row of baseIntel.hourlyRows.rows) {
+    const list = hourlyActivity.get(row.sensor_id) ?? []
+    list.push({ hour: Number(row.hour), count: Number(row.count) })
+    hourlyActivity.set(row.sensor_id, list)
+  }
+
   return sensors.map((sensor) => {
     const web = webIntel.webSummary.get(sensor.sensorId)
     return {
@@ -179,6 +193,8 @@ export async function collectSensorProfiles(
       smbNtlmHashes: protocolIntel.smbNtlmHashes.get(sensor.sensorId) ?? [],
       databases: protocolIntel.databases.get(sensor.sensorId) ?? [],
       scannedPorts: protocolIntel.scannedPorts.get(sensor.sensorId) ?? [],
+      dailyActivity: dailyActivity.get(sensor.sensorId) ?? [],
+      hourlyActivity: hourlyActivity.get(sensor.sensorId) ?? [],
       web: web
         ? {
             ...web,

@@ -71,10 +71,22 @@ export interface ReportWebProfile {
   topSessions: ReportWebSessionSummary[]
 }
 
+export interface ReportDailyBucket {
+  date: string  // YYYY-MM-DD
+  count: number
+}
+
+export interface ReportHourBucket {
+  hour: number  // 0-23
+  count: number
+}
+
 export interface ReportSensorProfile {
   sensor: Sensor
   eventShare: number
   uniqueIps: number
+  dailyActivity: ReportDailyBucket[]
+  hourlyActivity: ReportHourBucket[]
   authAttempts: number
   successCount: number
   commandCount: number
