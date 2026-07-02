@@ -289,7 +289,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
         </button>
       </DialogTrigger>
 
-      <DialogContent className="w-[95vw] max-w-none max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] overflow-y-auto" style={{ width: "95vw", maxWidth: "95vw" }}>
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-400/10">
