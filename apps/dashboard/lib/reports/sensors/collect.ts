@@ -125,7 +125,10 @@ export async function collectSensorProfiles(
 
   const [baseIntel, protocolIntel, malwareIntel, webIntel] = await Promise.all([
     collectBaseSensorIntel(sensorIdSet, startDate, endDate),
-    collectProtocolSensorIntel(sensorIdSet, startDate, endDate),
+    collectProtocolSensorIntel(sensorIdSet, startDate, endDate).catch((e: Error) => {
+      console.error('[report] collectProtocolSensorIntel failed:', e.message)
+      throw e
+    }),
     collectMalwareSensorIntel(sensorIdSet, startDate, endDate),
     collectWebSensorIntel(sensorIdSet, startDate, endDate),
   ])
@@ -199,6 +202,11 @@ export async function collectSensorProfiles(
       smbNtlmHashes: protocolIntel.smbNtlmHashes.get(sensor.sensorId) ?? [],
       databases: protocolIntel.databases.get(sensor.sensorId) ?? [],
       scannedPorts: protocolIntel.scannedPorts.get(sensor.sensorId) ?? [],
+      suricataAlerts: protocolIntel.suricataMap.get(sensor.sensorId) ?? [],
+      topEnrichedAttackers: protocolIntel.enrichedMap.get(sensor.sensorId) ?? [],
+      sshFingerprints: protocolIntel.fingerprintMap.get(sensor.sensorId) ?? [],
+      credentialCampaigns: protocolIntel.credentialCampaigns,
+      persistentAttackers: protocolIntel.persistentAttackers,
       dailyActivity: dailyActivity.get(sensor.sensorId) ?? [],
       hourlyActivity: hourlyActivity.get(sensor.sensorId) ?? [],
       web: web

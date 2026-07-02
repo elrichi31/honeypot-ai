@@ -81,6 +81,40 @@ export interface ReportHourBucket {
   count: number
 }
 
+export interface ReportEnrichedAttacker {
+  ip: string
+  country: string
+  org: string
+  abuseScore: number
+  hits: number
+}
+
+export interface ReportSuricataAlert {
+  signature: string
+  category: string
+  severity: number
+  count: number
+}
+
+export interface ReportSshFingerprint {
+  clientVersion: string
+  sessions: number
+  successes: number
+}
+
+export interface ReportCredentialCampaign {
+  username: string
+  password: string
+  attempts: number
+  ips: number
+}
+
+export interface ReportPersistentAttacker {
+  ip: string
+  activeDays: number
+  totalHits: number
+}
+
 export interface ReportSensorProfile {
   sensor: Sensor
   eventShare: number
@@ -92,6 +126,7 @@ export interface ReportSensorProfile {
   commandCount: number
   malwareCount: number
   topAttackers: ReportTopIp[]
+  topEnrichedAttackers: ReportEnrichedAttacker[]
   topCredentials: ReportTopCredential[]
   topSignals: ReportLabelCount[]
   topTargets: ReportLabelCount[]
@@ -100,8 +135,6 @@ export interface ReportSensorProfile {
   sourcePorts: ReportLabelCount[]
   sourceServices: ReportLabelCount[]
   fileTransfers: ReportDetailCount[]
-  // Protocol-specific intelligence — populated only for the relevant traffic the
-  // sensor observed (a multi-protocol sensor like dionaea can fill several).
   ftpCommands: ReportLabelCount[]
   smbDomains: ReportLabelCount[]
   smbShares: ReportLabelCount[]
@@ -109,6 +142,10 @@ export interface ReportSensorProfile {
   smbNtlmHashes: ReportDetailCount[]
   databases: ReportLabelCount[]
   scannedPorts: ReportLabelCount[]
+  suricataAlerts: ReportSuricataAlert[]
+  sshFingerprints: ReportSshFingerprint[]
+  credentialCampaigns: ReportCredentialCampaign[]
+  persistentAttackers: ReportPersistentAttacker[]
   web?: ReportWebProfile
 }
 

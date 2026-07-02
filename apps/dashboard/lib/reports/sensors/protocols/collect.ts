@@ -1,5 +1,12 @@
 import { db } from "@/lib/db"
 import { groupDetailCounts, groupLabelCounts } from "../shared"
+import type {
+  ReportEnrichedAttacker,
+  ReportSuricataAlert,
+  ReportSshFingerprint,
+  ReportCredentialCampaign,
+  ReportPersistentAttacker,
+} from "../../types"
 
 type LabelRow = { sensor_id: string; label: string; count: string }
 type DetailRow = { sensor_id: string; label: string; detail: string | null; count: string }
@@ -22,6 +29,11 @@ export async function collectProtocolSensorIntel(
     databaseRows,
     portScanServiceRows,
     dionaeaPortRows,
+    suricataRows,
+    enrichedRows,
+    fingerprintRows,
+    credentialRows,
+    persistentRows,
   ] = await Promise.all([
     db.query<LabelRow>(
       `WITH ranked AS (
@@ -260,6 +272,96 @@ export async function collectProtocolSensorIntel(
        SELECT sensor_id, label, count::text FROM ranked WHERE rn <= 10`,
       [sensorIdSet, startDate, endDate],
     ),
+    // Suricata IDS alerts per sensor
+    db.query<{ sensor_id: string; signature: string; category: string; severity: string; count: string }>(
+      `WITH ranked AS (
+         SELECT sensor_id, signature, category, severity::int,
+                COUNT(*)::bigint AS count,
+                ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY COUNT(*) DESC) AS rn
+         FROM suricata_alerts
+         WHERE sensor_id = ANY($1::text[])
+           AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         GROUP BY sensor_id, signature, category, severity
+       )
+       SELECT sensor_id, signature, category, severity::text, count::text FROM ranked WHERE rn <= 5`,
+      [sensorIdSet, startDate, endDate],
+    ),
+    // Top attacking IPs enriched with geo + abuse score
+    db.query<{ sensor_id: string; src_ip: string; country: string; org: string; abuse_score: string; hits: string }>(
+      `WITH hits AS (
+         SELECT sensor_id, src_ip, COUNT(*)::bigint AS n
+         FROM sessions
+         WHERE sensor_id = ANY($1::text[])
+           AND started_at >= $2::timestamptz AND started_at <= $3::timestamptz
+         GROUP BY sensor_id, src_ip
+         UNION ALL
+         SELECT COALESCE(sensor_id, data->>'sensor') AS sensor_id, src_ip, COUNT(*)::bigint AS n
+         FROM protocol_hits
+         WHERE COALESCE(sensor_id, data->>'sensor') = ANY($1::text[])
+           AND timestamp >= $2::timestamptz AND timestamp <= $3::timestamptz
+         GROUP BY 1, 2
+       ),
+       aggregated AS (
+         SELECT sensor_id, src_ip, SUM(n)::bigint AS hits
+         FROM hits GROUP BY sensor_id, src_ip
+       ),
+       ranked AS (
+         SELECT
+           a.sensor_id, a.src_ip,
+           COALESCE(e.ipinfo_data->>'country', '?') AS country,
+           LEFT(COALESCE(e.ipinfo_data->>'org', e.abuseipdb_data->>'isp', '?'), 22) AS org,
+           COALESCE((e.abuseipdb_data->>'abuseConfidenceScore')::int, 0) AS abuse_score,
+           a.hits,
+           ROW_NUMBER() OVER (PARTITION BY a.sensor_id ORDER BY a.hits DESC) AS rn
+         FROM aggregated a
+         LEFT JOIN ip_enrichment_cache e ON e.ip = a.src_ip
+       )
+       SELECT sensor_id, src_ip, country, org, abuse_score::text, hits::text
+       FROM ranked WHERE rn <= 6`,
+      [sensorIdSet, startDate, endDate],
+    ),
+    // SSH client fingerprints
+    db.query<{ sensor_id: string; client_version: string; sessions: string; successes: string }>(
+      `WITH ranked AS (
+         SELECT sensor_id, client_version,
+                COUNT(*)::bigint AS sessions,
+                SUM(CASE WHEN login_success THEN 1 ELSE 0 END)::bigint AS successes,
+                ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY COUNT(*) DESC) AS rn
+         FROM sessions
+         WHERE sensor_id = ANY($1::text[])
+           AND started_at >= $2::timestamptz AND started_at <= $3::timestamptz
+           AND client_version IS NOT NULL
+         GROUP BY sensor_id, client_version
+       )
+       SELECT sensor_id, client_version, sessions::text, successes::text FROM ranked WHERE rn <= 6`,
+      [sensorIdSet, startDate, endDate],
+    ),
+    // Credential campaigns (global, not per-sensor — filtered to period)
+    db.query<{ username: string; password: string; attempts: string; ips: string }>(
+      `SELECT username, password,
+              SUM(attempts)::bigint::text AS attempts,
+              SUM(unique_ips)::bigint::text AS ips
+       FROM daily_credential_stats
+       WHERE day >= $1::date AND day <= $2::date
+         AND username IS NOT NULL
+       GROUP BY username, password
+       ORDER BY SUM(attempts) DESC
+       LIMIT 6`,
+      [startDate, endDate],
+    ),
+    // Persistent attackers (global — most days active in period)
+    db.query<{ src_ip: string; active_days: string; total_hits: string }>(
+      `SELECT src_ip,
+              COUNT(DISTINCT day)::text AS active_days,
+              SUM(events)::bigint::text AS total_hits
+       FROM daily_attacker_stats
+       WHERE day >= $1::date AND day <= $2::date
+       GROUP BY src_ip
+       HAVING COUNT(DISTINCT day) >= 3
+       ORDER BY COUNT(DISTINCT day) DESC, SUM(events) DESC
+       LIMIT 6`,
+      [startDate, endDate],
+    ),
   ])
 
   const eventBreakdown = groupLabelCounts(eventBreakdownRows.rows)
@@ -272,8 +374,45 @@ export async function collectProtocolSensorIntel(
   const smbHosts = groupDetailCounts(smbHostRows.rows)
   const smbNtlmHashes = groupDetailCounts(smbHashRows.rows)
   const databases = groupLabelCounts(databaseRows.rows)
-
   const scannedPorts = groupLabelCounts([...portScanServiceRows.rows, ...dionaeaPortRows.rows])
+
+  // Suricata: group by sensor_id
+  const suricataMap = new Map<string, ReportSuricataAlert[]>()
+  for (const row of suricataRows.rows) {
+    const list = suricataMap.get(row.sensor_id) ?? []
+    list.push({ signature: row.signature, category: row.category, severity: Number(row.severity), count: Number(row.count) })
+    suricataMap.set(row.sensor_id, list)
+  }
+
+  // Enriched attackers: group by sensor_id
+  const enrichedMap = new Map<string, ReportEnrichedAttacker[]>()
+  for (const row of enrichedRows.rows) {
+    const list = enrichedMap.get(row.sensor_id) ?? []
+    list.push({ ip: row.src_ip, country: row.country, org: row.org, abuseScore: Number(row.abuse_score), hits: Number(row.hits) })
+    enrichedMap.set(row.sensor_id, list)
+  }
+
+  // SSH fingerprints: group by sensor_id
+  const fingerprintMap = new Map<string, ReportSshFingerprint[]>()
+  for (const row of fingerprintRows.rows) {
+    const list = fingerprintMap.get(row.sensor_id) ?? []
+    list.push({ clientVersion: row.client_version, sessions: Number(row.sessions), successes: Number(row.successes) })
+    fingerprintMap.set(row.sensor_id, list)
+  }
+
+  // Global: shared across all sensors in the report
+  const credentialCampaigns: ReportCredentialCampaign[] = credentialRows.rows.map((r) => ({
+    username: r.username,
+    password: r.password,
+    attempts: Number(r.attempts),
+    ips: Number(r.ips),
+  }))
+
+  const persistentAttackers: ReportPersistentAttacker[] = persistentRows.rows.map((r) => ({
+    ip: r.src_ip,
+    activeDays: Number(r.active_days),
+    totalHits: Number(r.total_hits),
+  }))
 
   return {
     eventBreakdown,
@@ -287,5 +426,10 @@ export async function collectProtocolSensorIntel(
     smbNtlmHashes,
     databases,
     scannedPorts,
+    suricataMap,
+    enrichedMap,
+    fingerprintMap,
+    credentialCampaigns,
+    persistentAttackers,
   }
 }
