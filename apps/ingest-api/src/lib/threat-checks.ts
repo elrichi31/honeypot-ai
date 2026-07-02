@@ -481,3 +481,126 @@ export function checkFirstLoginSuccess(
     fields,
   }
 }
+
+// See docs/plans/CORRELATION_ALERTS.md §3.1 — 2 distinct sensors is already a
+// real correlation signal multiService can't see (it only counts protocol
+// families, not sensor instances); the family axis only raises severity.
+export function deriveSweepLevel(sensorsSeen: number, familiesSeen: number): 'HIGH' | 'CRITICAL' | null {
+  if (sensorsSeen >= 5 || familiesSeen >= 4) return 'CRITICAL'
+  if (sensorsSeen >= 2 || familiesSeen >= 3) return 'HIGH'
+  return null
+}
+
+// See docs/plans/CORRELATION_ALERTS.md §3.2.
+export function derivePortFanoutLevel(distinctPorts: number): 'HIGH' | 'CRITICAL' | null {
+  if (distinctPorts >= 15) return 'CRITICAL'
+  if (distinctPorts >= 8) return 'HIGH'
+  return null
+}
+
+// See docs/plans/CORRELATION_ALERTS.md §3.3 — a credential reused across N
+// sensors is targeted credential stuffing, not a single service brute-force.
+export function deriveCredReuseCrossSensorLevel(maxSensorsForOneCred: number): 'HIGH' | 'CRITICAL' | null {
+  if (maxSensorsForOneCred >= 4) return 'CRITICAL'
+  if (maxSensorsForOneCred >= 2) return 'HIGH'
+  return null
+}
+
+export function checkSensorSweep(
+  ip: string,
+  sensorsSeen: number,
+  familiesSeen: number,
+  families: string[],
+  cooldownMs: number,
+  ctx: AlertContext = {},
+): AlertPayload | null {
+  const level = deriveSweepLevel(sensorsSeen, familiesSeen)
+  if (!level) return null
+
+  const fields: AlertPayload['fields'] = [
+    { name: 'IP', value: ip, inline: true },
+    { name: 'Sensors touched', value: String(sensorsSeen), inline: true },
+    { name: 'Window', value: 'Last 10 minutes', inline: true },
+    ...contextFields(ctx),
+    { name: 'Protocol families', value: [...new Set(families)].map((f) => f.toUpperCase()).join(', ') || 'n/a', inline: false },
+  ]
+
+  return {
+    key: `sensor_sweep:${ip}`,
+    cooldownMs,
+    level: level === 'CRITICAL' ? 'critical' : 'high',
+    title: 'Sensor sweep detected',
+    description: `Attacker \`${ip}\` touched ${sensorsSeen} distinct honeypot sensor${sensorsSeen === 1 ? '' : 's'} in the last 10 minutes — surface reconnaissance across the deployment.`,
+    fields,
+  }
+}
+
+export function checkPortScanFanout(
+  ip: string,
+  distinctPorts: number,
+  ports: number[],
+  cooldownMs: number,
+  ctx: AlertContext & { sensorsSeen?: number } = {},
+): AlertPayload | null {
+  const level = derivePortFanoutLevel(distinctPorts)
+  if (!level) return null
+
+  const fields: AlertPayload['fields'] = [
+    { name: 'IP', value: ip, inline: true },
+    { name: 'Distinct ports', value: String(distinctPorts), inline: true },
+    { name: 'Window', value: 'Last 10 minutes', inline: true },
+    ...contextFields(ctx),
+    { name: 'Ports', value: ports.slice(0, 15).join(', ') || 'n/a', inline: false },
+  ]
+
+  if (ctx.sensorsSeen != null && ctx.sensorsSeen > 1) {
+    fields.push({ name: 'Across sensors', value: String(ctx.sensorsSeen), inline: true })
+  }
+
+  return {
+    key: `port_fanout:${ip}`,
+    cooldownMs,
+    level: level === 'CRITICAL' ? 'critical' : 'high',
+    title: 'Port-scan fan-out detected',
+    description: `Attacker \`${ip}\` touched ${distinctPorts} distinct ports in the last 10 minutes.`,
+    fields,
+  }
+}
+
+function maskPassword(password: string): string {
+  return `(${password.length} chars)`
+}
+
+export function checkCredReuseCrossSensor(
+  ip: string,
+  reusedCredentials: Array<{ username: string; password: string; sensors: string[] }>,
+  cooldownMs: number,
+  ctx: AlertContext = {},
+): AlertPayload | null {
+  if (reusedCredentials.length === 0) return null
+  const top = reusedCredentials[0]
+  const level = deriveCredReuseCrossSensorLevel(top.sensors.length)
+  if (!level) return null
+
+  const fields: AlertPayload['fields'] = [
+    { name: 'IP', value: ip, inline: true },
+    { name: 'Credential', value: `user=${top.username} pass=${maskPassword(top.password)}`, inline: true },
+    { name: 'Sensors', value: String(top.sensors.length), inline: true },
+    { name: 'Window', value: 'Last 20 minutes', inline: true },
+    ...contextFields(ctx),
+    { name: 'Sensor list', value: top.sensors.join(', '), inline: false },
+  ]
+
+  if (reusedCredentials.length > 1) {
+    fields.push({ name: 'Other reused credentials', value: String(reusedCredentials.length - 1), inline: true })
+  }
+
+  return {
+    key: `cred_reuse_cross_sensor:${ip}`,
+    cooldownMs,
+    level: level === 'CRITICAL' ? 'critical' : 'high',
+    title: 'Credential reuse across sensors',
+    description: `Attacker \`${ip}\` tried the same credential on ${top.sensors.length} distinct sensors — targeted credential stuffing, not a single-service brute-force.`,
+    fields,
+  }
+}

@@ -52,6 +52,14 @@ export type SensorOfflineRow = {
   last_seen: Date
 }
 
+export type RecentSensorActivityRow = {
+  sensor_id: string | null
+  protocol: string
+  dst_port: number | null
+  username: string | null
+  password: string | null
+}
+
 export async function querySshAggregate(prisma: PrismaClient, ip: string) {
   const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
   return prisma.$queryRaw<Array<SshAggRow>>`
@@ -185,6 +193,26 @@ export async function querySshCommands(prisma: PrismaClient, ip: string) {
     orderBy: { eventTs: 'desc' },
     take: 500,
   })
+}
+
+// Raw per-hit rows across all three activity surfaces, normalized to a common
+// shape so the caller can derive sensor/port/credential-reuse breadth from a
+// single in-memory pass (KISS — one query per window instead of three).
+export async function queryRecentSensorActivity(prisma: PrismaClient, ip: string, since: Date) {
+  return prisma.$queryRaw<Array<RecentSensorActivityRow>>`
+    SELECT sensor_id, protocol, dst_port, username, password
+    FROM protocol_hits
+    WHERE src_ip = ${ip} AND timestamp >= ${since}
+    UNION ALL
+    SELECT s.sensor_id, s.protocol, NULL AS dst_port, e.username, e.password
+    FROM events e
+    JOIN sessions s ON s.id = e.session_id
+    WHERE e.src_ip = ${ip} AND e.event_ts >= ${since}
+    UNION ALL
+    SELECT sensor_id, 'http' AS protocol, NULL AS dst_port, NULL AS username, NULL AS password
+    FROM web_hits
+    WHERE src_ip = ${ip} AND timestamp >= ${since}
+  `
 }
 
 export async function queryOfflineSensors(prisma: PrismaClient) {

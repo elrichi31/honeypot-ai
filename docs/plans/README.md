@@ -22,6 +22,7 @@ progresses, and link the relevant commit hashes so the history stays traceable.
 - [PERF_AUDIT.md](PERF_AUDIT.md) — auditoría de rendimiento: IngestService/SuricataService instanciado por mensaje, doble EventSource SSE, full-table scan malware, concurrencia FS sin acotar. Plan no implementado, ordenado por impacto/riesgo.
 - [CLIENT_FETCH_HARDENING.md](CLIENT_FETCH_HARDENING.md) — fetch client-side confiable en el dashboard (AbortController + `res.ok`). Las 4 componentes de página de cliente arregladas. Pendiente: Tareas 1-8 (resto de páginas).
 - [VECTOR_HOTRELOAD.md](VECTOR_HOTRELOAD.md) — Vector hot-reload (`--config-dir` + SIGHUP). Implementado 2026-06-25. Pendiente: verificación E2E de tráfico real por todos los sensores.
+- [CORRELATION_ALERTS.md](CORRELATION_ALERTS.md) — 3 alertas correlacionadas nuevas para el motor por-IP: `sensorSweep`, `portScanFanout`, `credReuseCrossSensor`. Implementadas (backend + config + UI + tests) 2026-07-02, sin commitear aún. Pendiente: deploy de observación y calibrar umbrales con tráfico real.
 - [SSH_CLASSIFICATION_ENGINE.md](SSH_CLASSIFICATION_ENGINE.md) — auditoría y mejora del motor de clasificación SSH: consolidar los dos motores de patrones divergentes (SQL ILIKE vs regex), dejar de descartar comandos/tags cuando `login_success` no es `true`, arreglar el colapso por `duration` nula, y añadir cobertura de tests. Plan no implementado.
 
 ## Completed plans → [done/](done/)

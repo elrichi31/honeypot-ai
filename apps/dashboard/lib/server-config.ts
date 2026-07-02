@@ -8,6 +8,9 @@ export interface AlertEnabledTypes {
   postAuth?: boolean
   attackChain?: boolean
   sensorOffline?: boolean
+  sensorSweep?: boolean
+  portScanFanout?: boolean
+  credReuse?: boolean
 }
 
 export interface AppConfig {
@@ -81,7 +84,7 @@ export const CONFIG_FIELDS: ConfigFieldDef[] = [
   { key: "timezone",            type: "string", envFallback: "DASHBOARD_TIMEZONE", defaultValue: "UTC" },
   { key: "alertMinLevel",       type: "enum",   defaultValue: "critical", allowedValues: ["critical", "high"] },
   { key: "alertCooldownMinutes",type: "number", defaultValue: 60, clamp: [1, Infinity] },
-  { key: "alertEnabledTypes",   type: "object", defaultValue: { threatScore: true, multiService: true, authBurst: true, postAuth: true, attackChain: true, sensorOffline: true } },
+  { key: "alertEnabledTypes",   type: "object", defaultValue: { threatScore: true, multiService: true, authBurst: true, postAuth: true, attackChain: true, sensorOffline: true, sensorSweep: true, portScanFanout: true, credReuse: true } },
   { key: "reportIntervalHours", type: "number", defaultValue: 8 },
   { key: "retentionIntervalMinutes", type: "number", defaultValue: 60, clamp: [15, 1440] },
 ]

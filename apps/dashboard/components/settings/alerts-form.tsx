@@ -20,6 +20,9 @@ interface AlertEnabledTypes {
   postAuth: boolean
   attackChain: boolean
   sensorOffline: boolean
+  sensorSweep: boolean
+  portScanFanout: boolean
+  credReuse: boolean
 }
 
 interface AlertConfig {
@@ -36,6 +39,9 @@ const ALERT_TYPE_LABELS: { key: keyof AlertEnabledTypes; label: string; descript
   { key: "postAuth",      label: "set.alerts.typePostAuth",      description: "set.alerts.typePostAuthDesc" },
   { key: "attackChain",   label: "set.alerts.typeAttackChain",   description: "set.alerts.typeAttackChainDesc" },
   { key: "sensorOffline", label: "set.alerts.typeSensorOffline", description: "set.alerts.typeSensorOfflineDesc" },
+  { key: "sensorSweep",   label: "set.alerts.typeSensorSweep",   description: "set.alerts.typeSensorSweepDesc" },
+  { key: "portScanFanout",label: "set.alerts.typePortScanFanout",description: "set.alerts.typePortScanFanoutDesc" },
+  { key: "credReuse",     label: "set.alerts.typeCredReuse",     description: "set.alerts.typeCredReuseDesc" },
 ]
 
 const REPORT_INTERVAL_OPTIONS = [
@@ -56,6 +62,9 @@ const DEFAULT_CONFIG: AlertConfig = {
     postAuth: true,
     attackChain: true,
     sensorOffline: true,
+    sensorSweep: true,
+    portScanFanout: true,
+    credReuse: true,
   },
   reportIntervalHours: 8,
 }

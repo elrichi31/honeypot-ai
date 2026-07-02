@@ -8,6 +8,9 @@ interface AlertEnabledTypes {
   postAuth?: boolean
   attackChain?: boolean
   sensorOffline?: boolean
+  sensorSweep?: boolean
+  portScanFanout?: boolean
+  credReuse?: boolean
 }
 
 interface RuntimeConfig {
@@ -69,6 +72,9 @@ export function getAlertConfig(): ResolvedAlertConfig {
       postAuth: types.postAuth ?? true,
       attackChain: types.attackChain ?? true,
       sensorOffline: types.sensorOffline ?? true,
+      sensorSweep: types.sensorSweep ?? true,
+      portScanFanout: types.portScanFanout ?? true,
+      credReuse: types.credReuse ?? true,
     },
     reportIntervalHours: config.reportIntervalHours ?? 8,
   }

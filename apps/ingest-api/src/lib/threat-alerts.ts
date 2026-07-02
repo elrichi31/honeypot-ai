@@ -15,12 +15,18 @@ import {
   checkAttackChain,
   checkDeceptionInteraction,
   checkCanaryReplay,
+  checkSensorSweep,
+  checkPortScanFanout,
+  checkCredReuseCrossSensor,
   type AlertPayload,
   type AlertContext,
 } from './threat-checks.js'
 export {
   deriveMultiServiceLevel,
   deriveAuthBurstLevel,
+  deriveSweepLevel,
+  derivePortFanoutLevel,
+  deriveCredReuseCrossSensorLevel,
   hasExploitAuthSequence,
   hasSuspiciousPostAuthActivity,
 } from './threat-checks.js'
@@ -35,8 +41,9 @@ import {
   queryRecentProtocolAggregate,
   queryRecentCommands,
   queryOfflineSensors,
+  queryRecentSensorActivity,
 } from './threat-queries.js'
-import type { ProtocolAggRow } from './threat-queries.js'
+import type { ProtocolAggRow, RecentSensorActivityRow } from './threat-queries.js'
 
 export type ProtocolSummary = {
   names: string[]
@@ -125,6 +132,52 @@ export function summarizeProtocols(rows: ProtocolAggRow[]): ProtocolSummary {
     credentialReuse,
     uniqueUsernames: usernames.size,
     uniquePasswords: passwords.size,
+  }
+}
+
+export type SensorActivitySummary = {
+  sensorsSeen: number
+  familiesSeen: number
+  distinctPorts: number
+  ports: number[]
+  /** (username, password) pairs seen on ≥2 distinct sensors, most-reused first. */
+  reusedCredentials: Array<{ username: string; password: string; sensors: string[] }>
+}
+
+// One pass over the UNION ALL rows from queryRecentSensorActivity derives all
+// three correlation signals (sensor breadth, port fan-out, cred reuse) without
+// three separate DB round-trips (KISS — see CORRELATION_ALERTS.md §4.1).
+export function summarizeSensorActivity(rows: RecentSensorActivityRow[]): SensorActivitySummary {
+  const sensors = new Set<string>()
+  const families = new Set<string>()
+  const ports = new Set<number>()
+  const credSensors = new Map<string, Set<string>>()
+
+  for (const row of rows) {
+    if (row.sensor_id) sensors.add(row.sensor_id)
+    if (row.protocol) families.add(row.protocol)
+    if (typeof row.dst_port === 'number') ports.add(row.dst_port)
+    if (row.username && row.password && row.sensor_id) {
+      const credKey = JSON.stringify([row.username, row.password])
+      if (!credSensors.has(credKey)) credSensors.set(credKey, new Set())
+      credSensors.get(credKey)!.add(row.sensor_id)
+    }
+  }
+
+  const reusedCredentials = [...credSensors.entries()]
+    .filter(([, s]) => s.size > 1)
+    .map(([credKey, s]) => {
+      const [username, password] = JSON.parse(credKey) as [string, string]
+      return { username, password, sensors: [...s] }
+    })
+    .sort((a, b) => b.sensors.length - a.sensors.length)
+
+  return {
+    sensorsSeen: sensors.size,
+    familiesSeen: families.size,
+    distinctPorts: ports.size,
+    ports: [...ports].sort((a, b) => a - b),
+    reusedCredentials,
   }
 }
 
@@ -491,7 +544,8 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
   const twentyMinAgo = new Date(Date.now() - 20 * 60 * 1000)
 
   const [sshRows, cmdRows, webRows, protocolRows, recentSshRows, recentIdentityRows,
-    recentWebRows, recentProtocolRows, recentProtocolRowsFiveMin, recentCmdRows] = await Promise.all([
+    recentWebRows, recentProtocolRows, recentProtocolRowsFiveMin, recentCmdRows,
+    recentSensorActivityRows, credReuseSensorActivityRows] = await Promise.all([
     querySshAggregate(db, ip),
     querySshCommands(db, ip),
     queryWebAggregate(db, ip),
@@ -502,6 +556,11 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
     queryRecentProtocolAggregate(db, ip, tenMinAgo),
     queryRecentProtocolAggregate(db, ip, fiveMinAgo),
     queryRecentCommands(db, ip, twentyMinAgo),
+    // sensorSweep + portScanFanout: 10-min window (CORRELATION_ALERTS.md §3.1, §3.2)
+    queryRecentSensorActivity(db, ip, tenMinAgo),
+    // credReuseCrossSensor: wider 20-min window (§3.3) — separate query since
+    // rows carry no timestamp to re-filter the 10-min result in JS.
+    queryRecentSensorActivity(db, ip, twentyMinAgo),
   ])
   // Derive the 5-min SSH window from the already-fetched 10-min row by applying
   // the time filter in JS — avoids a redundant DB round-trip per IP evaluation.
@@ -608,6 +667,9 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
   const loginSuccessCount = Number(recentSsh?.login_successes ?? 0)
   const recentLoginSuccesses = Number(recentSsh?.login_successes ?? 0)
 
+  const sensorSweepSummary = summarizeSensorActivity(recentSensorActivityRows)
+  const credReuseSummary = summarizeSensorActivity(credReuseSensorActivityRows)
+
   const checks = [
     alertCfg.types.threatScore && levelPasses(risk.level as 'HIGH' | 'CRITICAL')
       ? checkScoreThreshold(ip, risk, protocolsSeen, alertCfg.cooldownMs, {
@@ -672,6 +734,25 @@ export async function evaluateThreatAlert(prisma: PrismaClient, ip: string): Pro
           ...baseCtx,
           sshAuthAttempts: Number(ssh?.auth_attempts ?? 0),
         })
+      : null,
+    alertCfg.types.sensorSweep
+      ? checkSensorSweep(
+          ip,
+          sensorSweepSummary.sensorsSeen,
+          sensorSweepSummary.familiesSeen,
+          [...new Set(recentSensorActivityRows.map((r) => r.protocol))],
+          alertCfg.cooldownMs,
+          baseCtx,
+        )
+      : null,
+    alertCfg.types.portScanFanout
+      ? checkPortScanFanout(ip, sensorSweepSummary.distinctPorts, sensorSweepSummary.ports, alertCfg.cooldownMs, {
+          ...baseCtx,
+          sensorsSeen: sensorSweepSummary.sensorsSeen,
+        })
+      : null,
+    alertCfg.types.credReuse
+      ? checkCredReuseCrossSensor(ip, credReuseSummary.reusedCredentials, alertCfg.cooldownMs, baseCtx)
       : null,
   ]
 
