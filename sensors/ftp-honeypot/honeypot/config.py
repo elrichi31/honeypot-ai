@@ -11,6 +11,7 @@ CLIENT_SLUG = os.getenv("CLIENT_SLUG", "")
 CLIENT_NAME = os.getenv("CLIENT_NAME", "")
 VERSION = "1.0.0"
 SENSOR_HOST = os.getenv("SENSOR_HOST", socket.gethostname())
+SENSOR_LAYER = os.getenv("SENSOR_LAYER", "external")
 
 CAPTURES_DIR = os.getenv("FTP_CAPTURES_DIR", "/captures")
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(50 * 1024 * 1024)))

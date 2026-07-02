@@ -10,6 +10,7 @@ SENSOR_NAME          = os.getenv("SENSOR_NAME", "SMB Honeypot")
 CLIENT_SLUG          = os.getenv("CLIENT_SLUG", "")
 CLIENT_NAME          = os.getenv("CLIENT_NAME", "")
 SENSOR_HOST          = os.getenv("SENSOR_HOST", socket.gethostname())
+SENSOR_LAYER         = os.getenv("SENSOR_LAYER", "external")
 VERSION              = "1.0.0"
 
 CAPTURE_DIR   = os.getenv("SMB_CAPTURE_DIR", "/captures")

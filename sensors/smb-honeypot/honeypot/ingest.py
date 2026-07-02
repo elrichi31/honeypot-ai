@@ -8,7 +8,7 @@ from urllib.request import Request, urlopen
 
 from .config import (
     INGEST_API_URL, INGEST_SHARED_SECRET, SENSOR_ID, SENSOR_NAME,
-    CLIENT_SLUG, CLIENT_NAME, VERSION, SENSOR_HOST,
+    CLIENT_SLUG, CLIENT_NAME, VERSION, SENSOR_HOST, SENSOR_LAYER,
     DST_PORT, EVENT_LOG_PATH,
 )
 
@@ -62,6 +62,9 @@ def _emit(event: dict):
 
 def send(event_type: str, src_ip: str, src_port: int | None,
          username: str | None = None, extra: dict | None = None):
+    data = dict(extra or {})
+    if SENSOR_LAYER == "internal":
+        data["layer"] = "internal"
     _emit({
         "eventId":   str(uuid.uuid4()),
         "sensorId":  SENSOR_ID,
@@ -71,14 +74,14 @@ def send(event_type: str, src_ip: str, src_port: int | None,
         "dstPort":   DST_PORT,
         "eventType": event_type,
         "username":  username,
-        "data":      extra or {},
+        "data":      data,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
     log.info("shipped event_type=%s src=%s user=%s", event_type, src_ip, username or "-")
 
 
 def send_heartbeat(sensor_ip: str) -> tuple[bool, int | None, str | None]:
-    return _post("/sensors/heartbeat", {
+    payload: dict = {
         "sensorId":   SENSOR_ID,
         "name":       SENSOR_NAME,
         "clientSlug": CLIENT_SLUG,
@@ -89,4 +92,8 @@ def send_heartbeat(sensor_ip: str) -> tuple[bool, int | None, str | None]:
         "ports":      [DST_PORT],
         "probePorts": [int(os.getenv("PORT", "445"))],
         "host":       SENSOR_HOST,
-    })
+    }
+    if SENSOR_LAYER == "internal":
+        payload["layer"] = "internal"
+        payload["realProtocol"] = "smb"
+    return _post("/sensors/heartbeat", payload)

@@ -7,7 +7,7 @@ from urllib.request import Request, urlopen
 
 from .config import (
     INGEST_API_URL, INGEST_SHARED_SECRET, SENSOR_ID, SENSOR_NAME,
-    CLIENT_SLUG, CLIENT_NAME, VERSION, SENSOR_HOST,
+    CLIENT_SLUG, CLIENT_NAME, VERSION, SENSOR_HOST, SENSOR_LAYER,
     DST_PORT, EVENT_LOG_PATH,
 )
 
@@ -55,6 +55,8 @@ def send(event_type, src_ip, src_port, username=None, database=None, extra=None)
         data["database"] = database
     if isinstance(extra, dict):
         data.update(extra)
+    if SENSOR_LAYER == "internal":
+        data["layer"] = "internal"
     _emit({
         "eventId": str(uuid.uuid4()),
         "sensorId": SENSOR_ID,
@@ -70,7 +72,7 @@ def send(event_type, src_ip, src_port, username=None, database=None, extra=None)
 
 
 def send_heartbeat(sensor_ip: str):
-    _post("/sensors/heartbeat", {
+    payload: dict = {
         "sensorId": SENSOR_ID,
         "name": SENSOR_NAME,
         "clientSlug": CLIENT_SLUG,
@@ -81,4 +83,8 @@ def send_heartbeat(sensor_ip: str):
         "ports": [DST_PORT],
         "probePorts": [int(os.getenv("PORT", "3306"))],
         "host": SENSOR_HOST,
-    })
+    }
+    if SENSOR_LAYER == "internal":
+        payload["layer"] = "internal"
+        payload["realProtocol"] = "mysql"
+    _post("/sensors/heartbeat", payload)

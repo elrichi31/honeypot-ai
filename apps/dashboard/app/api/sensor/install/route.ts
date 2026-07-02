@@ -11,11 +11,16 @@ const RAW_BASE = process.env.SENSOR_RAW_BASE ?? "https://raw.githubusercontent.c
 
 export type { ServiceKey }
 
+const VALID_SERVICES: ServiceKey[] = [
+  ...ALL_SERVICES,
+  "internal-canary", "smb", "int-smb", "int-mysql", "int-ssh", "int-http",
+]
+
 function parseServices(value: string | null): ServiceKey[] {
   const requested = (value ?? "")
     .split(",")
     .map((service) => service.trim())
-    .filter((service): service is ServiceKey => (ALL_SERVICES as string[]).includes(service))
+    .filter((service): service is ServiceKey => (VALID_SERVICES as string[]).includes(service))
   const services = requested.length > 0 ? requested : [...ALL_SERVICES]
   // Deception (OpenCanary) is an internal trap network reached via cowrie. Force
   // ssh in so the network has an entry point even if the caller omitted it.

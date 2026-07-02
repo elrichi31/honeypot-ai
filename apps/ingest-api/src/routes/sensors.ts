@@ -24,16 +24,18 @@ const cowrieConfigSchema = z.object({
 const DEFAULT_COWRIE_CONFIG = cowrieConfigSchema.parse({})
 
 const heartbeatSchema = z.object({
-  sensorId:    z.string().min(1),
-  name:        z.string().min(1),
-  protocol:    z.string().min(1),
-  clientSlug:  z.string().default(''),
-  clientName:  z.string().default(''),
-  ip:          z.string().default(''),
-  version:     z.string().default(''),
-  ports:       z.array(z.number().int().min(1).max(65535)).default([]),
-  probePorts:  z.array(z.number().int().min(1).max(65535)).default([]),
-  host:        z.string().default(''),
+  sensorId:     z.string().min(1),
+  name:         z.string().min(1),
+  protocol:     z.string().min(1),
+  clientSlug:   z.string().default(''),
+  clientName:   z.string().default(''),
+  ip:           z.string().default(''),
+  version:      z.string().default(''),
+  ports:        z.array(z.number().int().min(1).max(65535)).default([]),
+  probePorts:   z.array(z.number().int().min(1).max(65535)).default([]),
+  host:         z.string().default(''),
+  layer:        z.enum(['external', 'internal']).default('external'),
+  realProtocol: z.string().optional(),
 })
 
 const assignClientSchema = z.object({
@@ -59,6 +61,7 @@ export async function sensorRoutes(fastify: FastifyInstance) {
     await svc.upsertHeartbeat({
       sensorId: d.sensorId, clientId: client.id, name: d.name, protocol: d.protocol,
       ip: d.ip, version: d.version, ports: d.ports, probePorts, probeHost, now,
+      layer: d.layer, realProtocol: d.realProtocol,
     })
 
     void clearSensorOfflineAlert(fastify.prisma, d.sensorId)

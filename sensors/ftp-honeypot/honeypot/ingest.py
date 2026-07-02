@@ -9,7 +9,7 @@ from urllib.request import Request, urlopen
 from .config import (
     INGEST_API_URL, INGEST_SHARED_SECRET, SENSOR_ID, SENSOR_NAME,
     CLIENT_SLUG, CLIENT_NAME, VERSION, SENSOR_HOST,
-    DST_PORT, EVENT_LOG_PATH, CAPTURES_DIR,
+    DST_PORT, EVENT_LOG_PATH, CAPTURES_DIR, SENSOR_LAYER,
 )
 
 log = logging.getLogger("ftp-honeypot")
@@ -54,6 +54,9 @@ def _emit(event: dict):
 
 
 def send(event_type, src_ip, src_port, username=None, password=None, extra=None):
+    data = extra or {}
+    if SENSOR_LAYER == "internal":
+        data = {**data, "layer": "internal"}
     _emit({
         "eventId": str(uuid.uuid4()),
         "sensorId": SENSOR_ID,
@@ -64,7 +67,7 @@ def send(event_type, src_ip, src_port, username=None, password=None, extra=None)
         "eventType": event_type,
         "username": username,
         "password": password,
-        "data": extra or {},
+        "data": data,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
 
@@ -127,7 +130,7 @@ def save_upload(content: bytes, filename: str, src_ip: str, src_port: int) -> di
 
 
 def send_heartbeat(sensor_ip: str, dst_port: int):
-    _post("/sensors/heartbeat", {
+    payload = {
         "sensorId": SENSOR_ID,
         "name": SENSOR_NAME,
         "clientSlug": CLIENT_SLUG,
@@ -138,4 +141,8 @@ def send_heartbeat(sensor_ip: str, dst_port: int):
         "ports": [dst_port],
         "probePorts": [int(os.getenv("PORT", "21"))],
         "host": SENSOR_HOST,
-    })
+    }
+    if SENSOR_LAYER == "internal":
+        payload["layer"] = "internal"
+        payload["realProtocol"] = "ftp"
+    _post("/sensors/heartbeat", payload)

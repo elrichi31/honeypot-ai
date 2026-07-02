@@ -62,6 +62,10 @@ export const en = {
   "clients.catalog.standalone.title": "Standalone sensors",
   "clients.catalog.standalone.download": "Download .env",
   "clients.catalog.standalone.redownload": "Re-download",
+  "clients.catalog.section.external": "External Sensors",
+  "clients.catalog.section.external.hint": "Install on a DMZ / public-facing VPS. Sensors attract and capture internet traffic.",
+  "clients.catalog.section.deception": "Deception Sensors",
+  "clients.catalog.section.deception.hint": "Deploy inside the corporate LAN. Each node masquerades as a real service to detect lateral movement.",
 
   // ── OVA download ───────────────────────────────────────────────────────────
   "clients.ova.button": "Download OVA Package",
@@ -140,6 +144,10 @@ export const es: Record<keyof typeof en, string> = {
   "clients.catalog.standalone.title": "Sensores independientes",
   "clients.catalog.standalone.download": "Descargar .env",
   "clients.catalog.standalone.redownload": "Volver a descargar",
+  "clients.catalog.section.external": "Sensores externos",
+  "clients.catalog.section.external.hint": "Instalar en un VPS en DMZ / expuesto a internet. Capturan tráfico externo.",
+  "clients.catalog.section.deception": "Sensores de engaño (Deception)",
+  "clients.catalog.section.deception.hint": "Desplegar dentro de la LAN corporativa. Cada nodo simula un servicio real para detectar movimiento lateral.",
 
   "clients.ova.button": "Descargar paquete OVA",
   "clients.ova.title": "Paquete OVA — {name}",

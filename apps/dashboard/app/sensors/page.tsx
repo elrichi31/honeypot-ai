@@ -8,6 +8,7 @@ import { Surface } from "@/components/ui/surface"
 import { SensorCard } from "@/components/sensors/sensor-card"
 import { DeceptionNetworkCard } from "@/components/sensors/deception-network-card"
 import { SensorsLiveWrapper } from "@/components/sensors/sensors-live-wrapper"
+import { SensorLayerFilter } from "@/components/sensors/sensor-layer-filter"
 import { fetchSensors } from "@/lib/api"
 import { readConfig } from "@/lib/server-config"
 import { getServerT } from "@/lib/i18n/server"
@@ -43,8 +44,13 @@ export const metadata: Metadata = {
   title: "Sensors — HoneyTrap",
 }
 
-export default async function SensorsPage() {
+export default async function SensorsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ layer?: string }>
+}) {
   const t = await getServerT()
+  const { layer } = await searchParams
   let sensors: Sensor[] = []
 
   try {
@@ -52,6 +58,13 @@ export default async function SensorsPage() {
   } catch {
     sensors = []
   }
+
+  // Filter by layer: external sensors have protocol !== 'deception',
+  // internal/deception sensors have protocol === 'deception'.
+  const filteredSensors =
+    layer === "external" ? sensors.filter((s) => s.protocol !== "deception")
+    : layer === "internal" ? sensors.filter((s) => s.protocol === "deception")
+    : sensors
 
   const config = readConfig()
   let honeypotPublicIp = config.honeypotIp ?? process.env.HONEYPOT_IP ?? ""
@@ -67,10 +80,10 @@ export default async function SensorsPage() {
     honeypotPublicIp = externalSensor?.ip ?? ""
   }
 
-  const online = sensors.filter((sensor) => sensor.online).length
+  const online = filteredSensors.filter((sensor) => sensor.online).length
   const total = sensors.length
   const groups = groupSensorsByClient(
-    [...sensors].sort(
+    [...filteredSensors].sort(
       (a, b) => (b.online ? 1 : 0) - (a.online ? 1 : 0) || b.eventsTotal - a.eventsTotal,
     ),
   )
@@ -93,7 +106,7 @@ export default async function SensorsPage() {
         </Link>
       </div>
 
-      <div className="mb-6 flex items-center gap-4">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
         <Surface className="flex items-center gap-2 px-4 py-3">
           <Wifi className="h-4 w-4 text-emerald-400" />
           <span className="text-sm font-medium text-foreground">{t("sensors.online", { n: online })}</span>
@@ -106,9 +119,10 @@ export default async function SensorsPage() {
           </span>
           <span className="text-sm text-muted-foreground">{t("sensors.totalEvents")}</span>
         </Surface>
+        <SensorLayerFilter />
       </div>
 
-      {sensors.length === 0 ? (
+      {filteredSensors.length === 0 && sensors.length === 0 ? (
         <Surface className="px-6 py-16 text-center">
           <Server className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
           <p className="text-sm font-medium text-foreground mb-1">{t("sensors.empty.title")}</p>

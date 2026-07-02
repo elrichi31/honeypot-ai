@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { apiFetchAudited } from "@/lib/client-fetch"
-import { Download, Globe, Network, Server, CheckCircle2, Terminal, ChevronRight, Loader2, Radar, AlertTriangle, Building2 } from "lucide-react"
+import { Download, Globe, Network, Server, CheckCircle2, Terminal, ChevronRight, Loader2, Radar, AlertTriangle } from "lucide-react"
 import { useT } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
 import {
@@ -26,6 +26,7 @@ type CatalogEntry = {
   icon: React.ElementType
   iconColor: string
   iconBg: string
+  category: "external" | "deception"
 }
 
 const CATALOG: CatalogEntry[] = [
@@ -39,6 +40,7 @@ const CATALOG: CatalogEntry[] = [
     icon: Server,
     iconColor: "text-cyan-400",
     iconBg: "bg-cyan-400/10",
+    category: "external",
   },
   {
     serviceKey: "http",
@@ -50,6 +52,7 @@ const CATALOG: CatalogEntry[] = [
     icon: Globe,
     iconColor: "text-green-400",
     iconBg: "bg-green-400/10",
+    category: "external",
   },
   {
     serviceKey: "ftp",
@@ -61,6 +64,7 @@ const CATALOG: CatalogEntry[] = [
     icon: Network,
     iconColor: "text-yellow-400",
     iconBg: "bg-yellow-400/10",
+    category: "external",
   },
   {
     serviceKey: "mysql",
@@ -72,6 +76,7 @@ const CATALOG: CatalogEntry[] = [
     icon: Network,
     iconColor: "text-orange-400",
     iconBg: "bg-orange-400/10",
+    category: "external",
   },
   {
     serviceKey: "port",
@@ -83,40 +88,82 @@ const CATALOG: CatalogEntry[] = [
     icon: Network,
     iconColor: "text-blue-400",
     iconBg: "bg-blue-400/10",
-  },
-  {
-    serviceKey: "deception",
-    protocol: "deception",
-    name: "Deception Network (OpenCanary)",
-    description: "Deploys 5 internal trap nodes on 10.0.1.0/24. Requires SSH (Cowrie) as the entry point.",
-    sensorPrefix: "opencanary",
-    ports: "interna 10.0.1.0/24",
-    icon: Radar,
-    iconColor: "text-fuchsia-400",
-    iconBg: "bg-fuchsia-400/10",
-  },
-  {
-    serviceKey: "internal-canary",
-    protocol: "internal-canary",
-    name: "Internal Canary",
-    description: "LAN honeypot for corporate networks. Any interaction signals insider threat or lateral movement. Deploy on a dedicated VM with a corporate IP.",
-    sensorPrefix: "ic",
-    ports: "LAN · SSH + SMB + DB + HTTP",
-    icon: Building2,
-    iconColor: "text-violet-400",
-    iconBg: "bg-violet-400/10",
+    category: "external",
   },
   {
     serviceKey: "smb",
     protocol: "smb",
     name: "SMB Honeypot (Impacket)",
-    description: "Captures NTLM auth, domains, OS fingerprints and file drops on port 445. Requires port 445 to be free.",
+    description: "Captures NTLM auth, domains, OS fingerprints and file drops on port 445.",
     sensorPrefix: "smb",
     ports: ":445",
     icon: Server,
     iconColor: "text-orange-400",
     iconBg: "bg-orange-400/10",
+    category: "external",
   },
+  // ── Deception sensors (deploy inside the corporate LAN) ────────────────────
+  {
+    serviceKey: "int-smb",
+    protocol: "smb",
+    name: "SMB (Internal)",
+    description: "Fake Windows file server. Captures NTLM auth and file drops inside the LAN.",
+    sensorPrefix: "smb-internal",
+    ports: "10.x.x.x:445",
+    icon: Server,
+    iconColor: "text-fuchsia-400",
+    iconBg: "bg-fuchsia-400/10",
+    category: "deception",
+  },
+  {
+    serviceKey: "int-mysql",
+    protocol: "mysql",
+    name: "MySQL (Internal)",
+    description: "Fake DB server. Captures auth attempts targeting internal databases.",
+    sensorPrefix: "mysql-internal",
+    ports: "10.x.x.x:3306",
+    icon: Network,
+    iconColor: "text-fuchsia-400",
+    iconBg: "bg-fuchsia-400/10",
+    category: "deception",
+  },
+  {
+    serviceKey: "int-ssh",
+    protocol: "ssh",
+    name: "SSH (Internal)",
+    description: "Fake internal bastion/jump host. Captures lateral movement via SSH.",
+    sensorPrefix: "ssh-internal",
+    ports: "10.x.x.x:22",
+    icon: Server,
+    iconColor: "text-fuchsia-400",
+    iconBg: "bg-fuchsia-400/10",
+    category: "deception",
+  },
+  {
+    serviceKey: "int-http",
+    protocol: "http",
+    name: "HTTP (Internal)",
+    description: "Fake intranet / admin panel. Captures browser-based lateral movement.",
+    sensorPrefix: "http-internal",
+    ports: "10.x.x.x:80",
+    icon: Globe,
+    iconColor: "text-fuchsia-400",
+    iconBg: "bg-fuchsia-400/10",
+    category: "deception",
+  },
+  {
+    serviceKey: "deception",
+    protocol: "deception",
+    name: "Deception Network (OpenCanary)",
+    description: "Lightweight trap nodes on 10.0.1.0/24. Requires SSH (Cowrie) as entry point.",
+    sensorPrefix: "opencanary",
+    ports: "10.0.1.0/24",
+    icon: Radar,
+    iconColor: "text-fuchsia-400",
+    iconBg: "bg-fuchsia-400/10",
+    category: "deception",
+  },
+  // ── Standalone sensors — downloaded individually as .env ───────────────────
   {
     serviceKey: null,
     protocol: "dionaea",
@@ -127,12 +174,12 @@ const CATALOG: CatalogEntry[] = [
     icon: Network,
     iconColor: "text-red-400",
     iconBg: "bg-red-400/10",
+    category: "external",
   },
 ]
 
-// Entries with a serviceKey can be bundled into a single installer script; the
-// rest (dionaea) only ship as a standalone .env and are downloaded one at a time.
-const SCRIPT_ENTRIES = CATALOG.filter((e) => e.serviceKey)
+const EXTERNAL_ENTRIES = CATALOG.filter((e) => e.serviceKey && e.category === "external")
+const DECEPTION_ENTRIES = CATALOG.filter((e) => e.serviceKey && e.category === "deception")
 const STANDALONE_ENTRIES = CATALOG.filter((e) => !e.serviceKey)
 
 type Props = {
@@ -163,10 +210,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
   function toggle(key: ServiceKey) {
     setError(null)
     setSelected((prev) => {
-      if (key === "internal-canary") {
-        return prev.includes(key) ? [] : ["internal-canary"]
-      }
-      const next = prev.filter((k) => k !== "internal-canary")
+      const next = prev
       const toggled = next.includes(key) ? next.filter((k) => k !== key) : [...next, key]
       if (key === "deception" && toggled.includes("deception") && !toggled.includes("ssh")) {
         toggled.push("ssh")
@@ -245,7 +289,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
         </button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-400/10">
@@ -261,64 +305,138 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
         </DialogHeader>
 
         {/* Bundleable sensors — multi-select into one installer */}
-        <div className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            {SCRIPT_ENTRIES.map((entry) => {
-              const Icon = entry.icon
-              const installed = assignedProtocols.has(entry.protocol)
-              const active = selected.includes(entry.serviceKey!)
-              return (
-                <button
-                  key={entry.protocol}
-                  type="button"
-                  onClick={() => toggle(entry.serviceKey!)}
-                  className={[
-                    "flex flex-col gap-3 rounded-xl border p-4 text-left transition-colors",
-                    active
-                      ? "border-cyan-400/60 bg-cyan-400/[0.06] ring-1 ring-inset ring-cyan-400/25"
-                      : "border-border/70 bg-background/50 hover:border-border hover:bg-accent/60",
-                  ].join(" ")}
-                >
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={[
-                        "mt-0.5 h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors",
-                        active ? "border-cyan-400 bg-cyan-400" : "border-muted-foreground/40",
-                      ].join(" ")}
-                    >
-                      {active && (
-                        <svg className="h-2.5 w-2.5 text-black" viewBox="0 0 10 10" fill="none">
-                          <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </div>
-                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${entry.iconBg}`}>
-                      <Icon className={`h-4 w-4 ${entry.iconColor}`} />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-medium text-foreground text-sm">{entry.name}</p>
-                        {installed && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
-                            <CheckCircle2 className="h-3 w-3" />
-                            {t("clients.catalog.badge.installed")}
-                          </span>
+        <div className="space-y-6">
+
+          {/* ── External Sensors ─────────────────────────────────────────── */}
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">{t("clients.catalog.section.external")}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t("clients.catalog.section.external.hint")}</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {EXTERNAL_ENTRIES.map((entry) => {
+                const Icon = entry.icon
+                const installed = assignedProtocols.has(entry.protocol)
+                const active = selected.includes(entry.serviceKey!)
+                return (
+                  <button
+                    key={entry.serviceKey}
+                    type="button"
+                    onClick={() => toggle(entry.serviceKey!)}
+                    className={[
+                      "flex flex-col gap-3 rounded-xl border p-4 text-left transition-colors",
+                      active
+                        ? "border-cyan-400/60 bg-cyan-400/[0.06] ring-1 ring-inset ring-cyan-400/25"
+                        : "border-border/70 bg-background/50 hover:border-border hover:bg-accent/60",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={[
+                          "mt-0.5 h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors",
+                          active ? "border-cyan-400 bg-cyan-400" : "border-muted-foreground/40",
+                        ].join(" ")}
+                      >
+                        {active && (
+                          <svg className="h-2.5 w-2.5 text-black" viewBox="0 0 10 10" fill="none">
+                            <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">{entry.description}</p>
+                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${entry.iconBg}`}>
+                        <Icon className={`h-4 w-4 ${entry.iconColor}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-foreground text-sm">{entry.name}</p>
+                          {installed && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                              <CheckCircle2 className="h-3 w-3" />
+                              {t("clients.catalog.badge.installed")}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{entry.description}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className={[
-                    "flex items-center justify-between rounded-md px-3 py-1.5 transition-colors",
-                    active ? "bg-cyan-400/10" : "bg-muted/50",
-                  ].join(" ")}>
-                    <p className="font-mono text-xs text-muted-foreground">{entry.ports}</p>
-                    <span className="text-[10px] text-cyan-400/70 font-mono">.sh</span>
-                  </div>
-                </button>
-              )
-            })}
+                    <div className={[
+                      "flex items-center justify-between rounded-md px-3 py-1.5 transition-colors",
+                      active ? "bg-cyan-400/10" : "bg-muted/50",
+                    ].join(" ")}>
+                      <p className="font-mono text-xs text-muted-foreground">{entry.ports}</p>
+                      <span className="text-[10px] text-cyan-400/70 font-mono">.sh</span>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
           </div>
+
+          {/* ── Deception Sensors ────────────────────────────────────────── */}
+          <div className="space-y-3 border-t border-border/60 pt-4">
+            <div>
+              <p className="text-sm font-semibold text-foreground">{t("clients.catalog.section.deception")}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t("clients.catalog.section.deception.hint")}</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {DECEPTION_ENTRIES.map((entry) => {
+                const Icon = entry.icon
+                const installed = assignedProtocols.has(entry.protocol)
+                const active = selected.includes(entry.serviceKey!)
+                return (
+                  <button
+                    key={entry.serviceKey}
+                    type="button"
+                    onClick={() => toggle(entry.serviceKey!)}
+                    className={[
+                      "flex flex-col gap-3 rounded-xl border p-4 text-left transition-colors",
+                      active
+                        ? "border-fuchsia-400/60 bg-fuchsia-400/[0.06] ring-1 ring-inset ring-fuchsia-400/25"
+                        : "border-border/70 bg-background/50 hover:border-border hover:bg-accent/60",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={[
+                          "mt-0.5 h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors",
+                          active ? "border-fuchsia-400 bg-fuchsia-400" : "border-muted-foreground/40",
+                        ].join(" ")}
+                      >
+                        {active && (
+                          <svg className="h-2.5 w-2.5 text-black" viewBox="0 0 10 10" fill="none">
+                            <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </div>
+                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${entry.iconBg}`}>
+                        <Icon className={`h-4 w-4 ${entry.iconColor}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-foreground text-sm">{entry.name}</p>
+                          {installed && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                              <CheckCircle2 className="h-3 w-3" />
+                              {t("clients.catalog.badge.installed")}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{entry.description}</p>
+                      </div>
+                    </div>
+                    <div className={[
+                      "flex items-center justify-between rounded-md px-3 py-1.5 transition-colors",
+                      active ? "bg-fuchsia-400/10" : "bg-muted/50",
+                    ].join(" ")}>
+                      <p className="font-mono text-xs text-muted-foreground">{entry.ports}</p>
+                      <span className="text-[10px] text-fuchsia-400/70 font-mono">.sh</span>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
 
           {selected.includes("deception") && (
             <p className="flex items-start gap-2 rounded-lg bg-amber-400/10 px-3 py-2 text-xs text-amber-300">
@@ -326,12 +444,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
               <span>{t("clients.catalog.deceptionWarning")}</span>
             </p>
           )}
-          {selected.includes("internal-canary") && (
-            <p className="flex items-start gap-2 rounded-lg bg-violet-400/10 px-3 py-2 text-xs text-violet-300">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>Internal Canary deploys on a dedicated VM inside the corporate LAN. Set <span className="font-mono">HTTPS_PROXY</span> in the environment if the VM has no direct internet access.</span>
-            </p>
-          )}
+
 
           {error && <p className="text-xs text-destructive">{error}</p>}
 

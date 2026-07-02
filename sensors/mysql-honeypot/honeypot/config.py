@@ -9,6 +9,7 @@ SENSOR_ID = os.getenv("SENSOR_ID", f"mysql-{socket.gethostname()}")
 SENSOR_NAME = os.getenv("SENSOR_NAME", "MySQL Honeypot")
 CLIENT_SLUG = os.getenv("CLIENT_SLUG", "")
 CLIENT_NAME = os.getenv("CLIENT_NAME", "")
+SENSOR_LAYER = os.getenv("SENSOR_LAYER", "external")
 VERSION = "1.0.0"
 SENSOR_HOST = os.getenv("SENSOR_HOST", socket.gethostname())
 

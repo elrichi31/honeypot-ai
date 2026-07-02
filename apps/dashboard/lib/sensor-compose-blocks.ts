@@ -1,4 +1,6 @@
-export type ServiceKey = "ssh" | "http" | "ftp" | "mysql" | "port" | "deception" | "internal-canary" | "smb"
+export type ServiceKey =
+  | "ssh" | "http" | "ftp" | "mysql" | "port" | "deception" | "internal-canary" | "smb"
+  | "int-smb" | "int-mysql" | "int-ssh" | "int-http"
 
 export const ALL_SERVICES: ServiceKey[] = ["ssh", "http", "ftp", "mysql", "port", "deception"]
 
@@ -552,3 +554,119 @@ const VECTOR_ONLY_TEMPLATE = `  vector:
     networks:
       - edge
     pids_limit: 128`
+
+// ---------------------------------------------------------------------------
+// Internal deception nodes — full-interaction honeypots deployed inside the
+// corporate LAN. SENSOR_LAYER=internal makes each beacon register as
+// protocol='deception' so the DeceptionNetworkCard picks them up, while
+// the actual protocol is preserved in real_protocol for display.
+// ---------------------------------------------------------------------------
+
+const INT_SMB_TEMPLATE = `  smb-honeypot:
+    <<: *service-defaults
+    logging: *json-logging
+    image: {{registry}}/smb-honeypot:latest
+    container_name: smb-honeypot
+    cap_add:
+      - NET_BIND_SERVICE
+    environment:
+      <<: *ingest
+      PORT: "445"
+      DST_PORT: "445"
+      SENSOR_ID: int-smb-{{deployId}}
+      SENSOR_NAME: "SMB Honeypot (Internal)"
+      SENSOR_LAYER: "internal"
+      SMB_SHARE_NAME: "\${SMB_SHARE_NAME:-ADMIN$$}"
+      SMB_SERVER_NAME: "\${SMB_SERVER_NAME:-FILESERVER01}"
+      SMB_SERVER_DOMAIN: "\${SMB_SERVER_DOMAIN:-CORP}"
+      SMB_SHARE_PATH: /share
+      SMB_CAPTURE_DIR: /captures
+    volumes:
+      - smb_share:/share
+      - smb_captures:/captures
+    networks:
+      - deception_net`
+
+const INT_MYSQL_TEMPLATE = `  mysql-honeypot:
+    <<: *service-defaults
+    logging: *json-logging
+    image: {{registry}}/mysql-honeypot:latest
+    container_name: mysql-honeypot
+    environment:
+      <<: *ingest
+      PORT: "3306"
+      DST_PORT: "3306"
+      SENSOR_ID: int-mysql-{{deployId}}
+      SENSOR_NAME: "MySQL Honeypot (Internal)"
+      SENSOR_LAYER: "internal"
+    networks:
+      - deception_net`
+
+const INT_SSH_TEMPLATE = `  cowrie:
+    <<: *service-defaults
+    logging: *json-logging
+    image: {{registry}}/cowrie:latest
+    container_name: cowrie
+    cap_add:
+      - SETUID
+      - SETGID
+    volumes:
+      - cowrie_var:/cowrie/cowrie-git/var
+    networks:
+      - deception_net
+
+  cowrie-beacon:
+    <<: *service-defaults
+    logging: *json-logging
+    image: {{registry}}/cowrie-beacon:latest
+    container_name: cowrie-beacon
+    environment:
+      <<: *ingest
+      SENSOR_ID: int-ssh-{{deployId}}
+      SENSOR_NAME: "SSH Honeypot (Internal)"
+      SENSOR_LAYER: "internal"
+    networks:
+      - deception_net
+
+  vector:
+    <<: *service-defaults
+    logging: *json-logging
+    image: timberio/vector:0.40.0-alpine
+    container_name: vector
+    depends_on:
+      - cowrie
+    volumes:
+      - cowrie_var:/cowrie/cowrie-git/var:ro
+      - vector_data:/var/lib/vector
+    environment:
+      <<: *ingest
+      SENSOR_ID: int-ssh-{{deployId}}
+    networks:
+      - deception_net`
+
+const INT_HTTP_TEMPLATE = `  web-honeypot:
+    <<: *service-defaults
+    logging: *json-logging
+    image: {{registry}}/web-honeypot:latest
+    container_name: web-honeypot
+    environment:
+      <<: *ingest
+      PORT: "8080"
+      SENSOR_ID: int-http-{{deployId}}
+      SENSOR_NAME: "Web Honeypot (Internal)"
+      SENSOR_LAYER: "internal"
+    networks:
+      - deception_net`
+
+export function intSmbBlock(deployId: string, registry: string) {
+  return fill(INT_SMB_TEMPLATE, { deployId, registry })
+}
+export function intMysqlBlock(deployId: string, registry: string) {
+  return fill(INT_MYSQL_TEMPLATE, { deployId, registry })
+}
+export function intSshBlock(deployId: string, registry: string) {
+  return fill(INT_SSH_TEMPLATE, { deployId, registry })
+}
+export function intHttpBlock(deployId: string, registry: string) {
+  return fill(INT_HTTP_TEMPLATE, { deployId, registry })
+}

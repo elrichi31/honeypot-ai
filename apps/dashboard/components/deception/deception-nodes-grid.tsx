@@ -4,6 +4,7 @@ import { Server } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { TimeAgo } from "@/components/time-ago"
 import { Surface } from "@/components/ui/surface"
+import { getMeta } from "@/components/network/constants"
 import type { DeceptionNode } from "@/lib/api/deception"
 
 function StatusDot({ online }: { online: boolean }) {
@@ -25,7 +26,9 @@ export function DeceptionNodesGrid({ nodes }: { nodes: DeceptionNode[] }) {
   }
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {nodes.map(node => (
+      {nodes.map(node => {
+        const meta = getMeta(node.realProtocol ?? "deception")
+        return (
         <Surface key={node.sensorId} padded>
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -33,6 +36,9 @@ export function DeceptionNodesGrid({ nodes }: { nodes: DeceptionNode[] }) {
               <span className="text-sm font-medium text-foreground">{node.name}</span>
             </div>
             <div className="flex items-center gap-1.5">
+              <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${meta.color} ${meta.bg}`}>
+                {meta.label}
+              </span>
               <StatusDot online={node.online} />
               <span className={`text-[10px] ${node.online ? "text-emerald-400" : "text-red-400"}`}>
                 {node.online ? "online" : "offline"}
@@ -54,7 +60,7 @@ export function DeceptionNodesGrid({ nodes }: { nodes: DeceptionNode[] }) {
             {node.lastHit ? `last hit $<TimeAgo timestamp={node.lastHit} />` : "no activity"}
           </p>
         </Surface>
-      ))}
+      )})}
     </div>
   )
 }

@@ -16,6 +16,7 @@ progresses, and link the relevant commit hashes so the history stays traceable.
 
 - [MULTI_TENANT_ROADMAP.md](MULTI_TENANT_ROADMAP.md) — multi-tenant rollout to 100%: page→endpoint table, the `effectiveScope` / `parseSensorScope` pattern, suggested order, and verification data.
 - [PLAN_DECEPTION.md](PLAN_DECEPTION.md) — deception network design and plan.
+- [INTERNAL_SENSORS.md](INTERNAL_SENSORS.md) — reutilizar los honeypots existentes como **sensores internos** (deception en la LAN) vía un env var `SENSOR_LAYER=internal` que fuerza `protocol=deception` en el heartbeat y marca `layer=internal` en los eventos, + rediseño del modal de instalación por cliente en dos secciones (**External Sensors** / **Deception Sensors**, modal más ancho). Extiende el Track C de PLAN_DECEPTION. Topología y motor flexibles (1 VM=1 servicio o bundle; honeypots propios full-interaction u OpenCanary lite). Planificado (2026-07-01).
 - [I18N.md](I18N.md) — i18n system, the English-first convention, the 2026-06-18 Spanish cleanup, and remaining debt (move literals into dicts, AI prompt locale, backend strings).
 - [DOCS.md](DOCS.md) — the documentation site schema, what's been documented, and the rule that features ship with docs.
 - [CICD.md](CICD.md) — CI/CD pipeline: GitHub Actions → VPS auto-redeploy, secrets, and how to move to a new VPS.

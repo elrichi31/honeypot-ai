@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@prisma/client'
 
-const DECEPTION_FILTER = `data->>'source' = 'opencanary'`
+const DECEPTION_FILTER = `(data->>'layer' = 'internal' OR data->>'source' = 'opencanary')`
 const SESSION_FALLBACK_WINDOW = `interval '2 hours'`
 
 export type Scope = { clientId: string; sensorIds: string[] } | null
@@ -64,8 +64,8 @@ export class DeceptionRepository {
     const hitScope = sensorScopeClause(scope, 1)
 
     const [sensors, activity] = await Promise.all([
-      this.prismaRead.$queryRawUnsafe<Array<{ sensor_id: string; name: string; ip: string; ports: unknown; last_seen: Date }>>(`
-        SELECT sensor_id, name, ip, ports, last_seen FROM sensors
+      this.prismaRead.$queryRawUnsafe<Array<{ sensor_id: string; name: string; ip: string; ports: unknown; last_seen: Date; real_protocol: string | null }>>(`
+        SELECT sensor_id, name, ip, ports, last_seen, real_protocol FROM sensors
         WHERE ${sensorWhere} ORDER BY ip ASC
       `, ...sensorParams),
       this.prismaRead.$queryRawUnsafe<Array<{ node_id: string; hits: bigint; auth_attempts: bigint; last_hit: Date | null }>>(`
@@ -87,6 +87,7 @@ export class DeceptionRepository {
         ports: Array.isArray(s.ports) ? s.ports : [],
         online: now - new Date(s.last_seen).getTime() < 2 * 60 * 1000,
         lastSeen: s.last_seen,
+        realProtocol: s.real_protocol ?? null,
         hits: Number(act?.hits ?? 0), authAttempts: Number(act?.auth_attempts ?? 0), lastHit: act?.last_hit ?? null,
       }
     })

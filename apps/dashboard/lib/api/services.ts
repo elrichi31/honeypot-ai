@@ -79,6 +79,7 @@ export interface Sensor {
   ownerType: string
   applicationId: string | null
   applicationName: string | null
+  realProtocol?: string | null
 }
 
 export interface Client {

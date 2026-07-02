@@ -17,6 +17,7 @@ export type DeceptionNode = {
   ports: number[]
   online: boolean
   lastSeen: string
+  realProtocol: string | null
   hits: number
   authAttempts: number
   lastHit: string | null

@@ -10,11 +10,18 @@ import type { SensorResult } from '../../lib/sensor-queries.js'
 export type { ClientRef } from './sensors.repository.js'
 
 const SERVICE_MAP: Record<string, string[]> = {
-  ssh:   ['cowrie', 'cowrie-beacon', 'vector'],
-  http:  ['web-honeypot'],
-  ftp:   ['ftp-honeypot'],
-  mysql: ['mysql-honeypot'],
-  port:  ['port-honeypot'],
+  ssh:          ['cowrie', 'cowrie-beacon', 'vector'],
+  http:         ['web-honeypot'],
+  ftp:          ['ftp-honeypot'],
+  mysql:        ['mysql-honeypot'],
+  port:         ['port-honeypot'],
+  smb:          ['smb-honeypot'],
+  deception:    ['opencanary', 'opencanary-shipper'],
+  // internal deception nodes — each is its own compose block on a dedicated VM
+  'int-smb':    ['smb-honeypot'],
+  'int-mysql':  ['mysql-honeypot'],
+  'int-ssh':    ['cowrie', 'cowrie-beacon', 'vector'],
+  'int-http':   ['web-honeypot'],
 }
 
 export class SensorService {
@@ -32,6 +39,7 @@ export class SensorService {
     sensorId: string; clientId: string | null; name: string; protocol: string
     ip: string; version: string; ports: number[]; probePorts: number[]
     probeHost: string; now: Date
+    layer?: 'external' | 'internal'; realProtocol?: string
   }) {
     return this.repo.upsertHeartbeat(args)
   }
@@ -68,7 +76,7 @@ export class SensorService {
           version: '', ports: [], probeHost: '', eventsTotal: Number(ssh.count),
           lastSeen: ssh.last_seen ?? new Date(0), createdAt: new Date(0),
           online: ssh.last_seen ? ssh.last_seen > twoMinutesAgo : false, degraded: false, portStatus: {},
-          ownerType: 'application', applicationId: null, applicationName: null,
+          ownerType: 'application', applicationId: null, applicationName: null, realProtocol: null,
         })
       }
     }
@@ -158,6 +166,7 @@ export class SensorService {
     await this.repo.markProvisionTokenUsed(row.id)
 
     const selectedKeys = row.services.split(',').filter(s => s in SERVICE_MAP)
+    const isInternal = selectedKeys.some(k => k.startsWith('int-'))
     const composeServices = selectedKeys.flatMap(k => SERVICE_MAP[k]).join(' ')
 
     const linesList = [
@@ -171,8 +180,11 @@ export class SensorService {
       `SENSOR_ID_FTP=${randomUUID()}`,
       `SENSOR_ID_MYSQL=${randomUUID()}`,
       `SENSOR_ID_PORT=${randomUUID()}`,
+      `SENSOR_ID_SMB=${randomUUID()}`,
       `SENSOR_ID_DIONAEA=${randomUUID()}`,
       `ENABLED_COMPOSE_SERVICES=${composeServices}`,
+      // Internal sensors register as deception nodes instead of external protocols.
+      ...(isInternal ? [`SENSOR_LAYER=internal`] : []),
     ]
 
     return { lines: linesList.join('\n') }

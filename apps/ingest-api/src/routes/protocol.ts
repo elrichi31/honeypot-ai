@@ -61,7 +61,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
     })
     scheduleThreatAlert(fastify.prisma, d.srcIp)
 
-    if (d.data?.source === 'opencanary') {
+    if (d.data?.layer === 'internal' || d.data?.source === 'opencanary') {
       const nodeId = typeof d.data.node_id === 'string' ? d.data.node_id : (sensorId ?? 'unknown')
       void evaluateDeceptionAlert(fastify.prisma, {
         internalIp: d.srcIp, nodeId, protocol: d.protocol, eventType: d.eventType,

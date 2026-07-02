@@ -38,6 +38,7 @@ SENSOR_NAME = os.environ.get("SENSOR_NAME", "Web Honeypot")
 CLIENT_SLUG = os.environ.get("CLIENT_SLUG", "")
 CLIENT_NAME = os.environ.get("CLIENT_NAME", "")
 SENSOR_HOST = os.environ.get("SENSOR_HOST", socket.gethostname())
+SENSOR_LAYER = os.environ.get("SENSOR_LAYER", "external")
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
@@ -128,6 +129,7 @@ def catch_all(path: str):
         "clientFingerprint": fingerprint,
         # Session context — enriches each event with the attacker's history
         **session_ctx,
+        **({"layer": "internal"} if SENSOR_LAYER == "internal" else {}),
     }
 
     if canary:
@@ -186,20 +188,24 @@ def _send_heartbeat():
             int(p) for p in os.environ.get("SENSOR_PROBE_PORTS", str(listen_port)).split()
             if p.strip().isdigit()
         ]
+        payload = {
+            "sensorId": SENSOR_ID,
+            "name": SENSOR_NAME,
+            "clientSlug": CLIENT_SLUG,
+            "clientName": CLIENT_NAME,
+            "protocol": "http",
+            "ip": SENSOR_IP,
+            "version": "1.0.0",
+            "ports": display_ports,
+            "probePorts": probe_ports,
+            "host": SENSOR_HOST,
+        }
+        if SENSOR_LAYER == "internal":
+            payload["layer"] = "internal"
+            payload["realProtocol"] = "http"
         requests.post(
             f"{INGEST_URL}/sensors/heartbeat",
-            json={
-                "sensorId": SENSOR_ID,
-                "name": SENSOR_NAME,
-                "clientSlug": CLIENT_SLUG,
-                "clientName": CLIENT_NAME,
-                "protocol": "http",
-                "ip": SENSOR_IP,
-                "version": "1.0.0",
-                "ports": display_ports,
-                "probePorts": probe_ports,
-                "host": SENSOR_HOST,
-            },
+            json=payload,
             headers=headers,
             timeout=5,
         )

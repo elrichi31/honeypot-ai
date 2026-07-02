@@ -25,6 +25,7 @@ PORTS       = [int(p) for p in _ports_raw.split() if p.strip().isdigit()]
 _probe_raw  = os.getenv("SENSOR_PROBE_PORTS",    "")
 PROBE_PORTS = [int(p) for p in _probe_raw.split() if p.strip().isdigit()]
 HOST        = os.getenv("SENSOR_HOST",           "")
+SENSOR_LAYER = os.getenv("SENSOR_LAYER",         "external")
 SIGNAL_DIR  = os.getenv("SIGNAL_DIR",            "/signal")
 
 CONFIG_POLL_INTERVAL = 10  # seconds between config checks
@@ -64,6 +65,9 @@ def send(ip: str) -> None:
         "probePorts": PROBE_PORTS,
         "host":       HOST,
     }
+    if SENSOR_LAYER == "internal":
+        payload["layer"] = "internal"
+        payload["realProtocol"] = PROTOCOL
     try:
         _post(f"{INGEST_URL}/sensors/heartbeat", payload)
         print(f"[beacon] heartbeat ok  sensor={SENSOR_ID}  protocol={PROTOCOL}  ip={ip or '-'}", flush=True)

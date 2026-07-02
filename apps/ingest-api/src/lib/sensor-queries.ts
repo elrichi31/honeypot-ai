@@ -10,6 +10,7 @@ export type SensorRow = {
   probe_ports: number[]; probe_host: string; last_seen: Date
   created_at: Date; event_count: bigint
   owner_type: string; application_id: string | null; application_name: string | null
+  real_protocol: string | null
 }
 
 export type SensorResult = {
@@ -19,6 +20,7 @@ export type SensorResult = {
   probeHost: string; lastSeen: Date; createdAt: Date
   eventsTotal: number; online: boolean; degraded: boolean; portStatus: Record<number, boolean>
   ownerType: string; applicationId: string | null; applicationName: string | null
+  realProtocol: string | null
 }
 
 export async function resolveClientId(
@@ -74,7 +76,7 @@ export async function querySensors(fastify: FastifyInstance): Promise<SensorRow[
     SELECT
       s.sensor_id, c.id AS client_id, c.name AS client_name, c.slug AS client_slug,
       c.code AS client_code, s.name, s.protocol, s.ip, s.version,
-      s.ports, s.probe_ports, s.probe_host, s.last_seen, s.created_at,
+      s.ports, s.probe_ports, s.probe_host, s.last_seen, s.created_at, s.real_protocol,
       COALESCE(
         CASE
           WHEN s.protocol = 'ssh'  THEN sc.n
@@ -139,5 +141,6 @@ export function formatSensor(sensor: SensorRow, portStatus: Record<number, boole
     ownerType:       sensor.owner_type ?? 'application',
     applicationId:   sensor.application_id ?? null,
     applicationName: sensor.application_name ?? null,
+    realProtocol:    sensor.real_protocol ?? null,
   }
 }

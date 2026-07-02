@@ -140,6 +140,7 @@ model Sensor {
   ownerType     String   @default("application") @map("owner_type")
   name          String
   protocol      String
+  realProtocol  String?  @map("real_protocol")
   ip            String
   version       String   @default("")
   ports         Json     @default("[]")

@@ -5,6 +5,10 @@ import {
   headerBlock,
   httpBlock,
   internalCanaryBlock,
+  intHttpBlock,
+  intMysqlBlock,
+  intSmbBlock,
+  intSshBlock,
   mysqlBlock,
   portBlock,
   smbBlock,
@@ -52,6 +56,16 @@ function selectedServiceBlocks(services: ServiceKey[], deployId: string, registr
   // other services which are internet-facing DMZ sensors.
   if (services.includes("internal-canary")) {
     return [internalCanaryBlock(deployId, registry)]
+  }
+  // Internal deception nodes — a single VM with the LAN IP, no Suricata/edge net.
+  const isInternal = services.some(s => (s as string).startsWith("int-"))
+  if (isInternal) {
+    const blocks: string[] = []
+    if (services.includes("int-smb"))   blocks.push(intSmbBlock(deployId, registry))
+    if (services.includes("int-mysql")) blocks.push(intMysqlBlock(deployId, registry))
+    if (services.includes("int-ssh"))   blocks.push(intSshBlock(deployId, registry))
+    if (services.includes("int-http"))  blocks.push(intHttpBlock(deployId, registry))
+    return blocks
   }
   const withDeception = services.includes("deception")
   const blocks: string[] = []
