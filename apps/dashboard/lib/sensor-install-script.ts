@@ -427,12 +427,12 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-INGEST_URL="${INGEST_API_URL:-}"
-TOKEN="${INGEST_SHARED_SECRET:-}"
+INGEST_URL="\${INGEST_API_URL:-}"
+TOKEN="\${INGEST_SHARED_SECRET:-}"
 
 echo ""
 printf "%b=== Honeypot Sensor Test ===%b\n" "$BOLD" "$RESET"
-printf "  Target: %s\n" "${INGEST_URL:-<not set>}"
+printf "  Target: %s\n" "\${INGEST_URL:-<not set>}"
 printf "  Protocol: %s  Count: %s\n" "$PROTOCOL" "$COUNT"
 echo ""
 
@@ -468,7 +468,7 @@ case "$PROTOCOL" in
 esac
 
 # Resolve SENSOR_ID from .env, fall back to "test-sensor"
-SENSOR_ID_VAL="${SENSOR_ID:-test-sensor}"
+SENSOR_ID_VAL="\${SENSOR_ID:-test-sensor}"
 
 SENT=0
 FAIL=0
@@ -518,7 +518,7 @@ if [ "$SENT" -gt 0 ]; then
   # Give the batch writer ~2 s to flush
   sleep 2
   STATS_RESP=$(curl -s --max-time 5 \
-    ${TOKEN:+-H "Authorization: Bearer $TOKEN"} \
+    \${TOKEN:+-H "Authorization: Bearer $TOKEN"} \
     "$INGEST_URL/protocol-hits/stats" 2>/dev/null || echo "")
 
   PROTO_COUNT=$(echo "$STATS_RESP" | python3 -c "
