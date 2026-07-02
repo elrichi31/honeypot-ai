@@ -145,12 +145,12 @@ export class MiscRepository {
     })
   }
 
-  getHeatmap(timezone: string, days: number) {
+  getHeatmap(timezone: string, days: number, scope: SensorScope) {
     return this.prismaRead.$queryRaw<HeatmapRow[]>(Prisma.sql`
       SELECT EXTRACT(DOW  FROM started_at AT TIME ZONE ${timezone})::int AS dow,
              EXTRACT(HOUR FROM started_at AT TIME ZONE ${timezone})::int AS hour,
              COUNT(*)::bigint AS count
-      FROM sessions WHERE started_at >= NOW() - (${days} || ' days')::interval
+      FROM sessions WHERE started_at >= NOW() - (${days} || ' days')::interval ${scope.cond('sensor_id')}
       GROUP BY dow, hour ORDER BY dow, hour
     `)
   }
@@ -438,26 +438,27 @@ export class DashboardRepository {
 export class NoveltyRepository {
   constructor(private prismaRead: PrismaClient) {}
 
-  async getNoveltyStats(windowStart: Date) {
+  async getNoveltyStats(windowStart: Date, scope: SensorScope) {
     const baselineEnd = windowStart
     type CountRow = { count: bigint }
     type NewIpRow = { srcIp: string; hits: bigint }
+    const protoCond = scope.cond("COALESCE(sensor_id, data->>'sensor')")
 
     return Promise.all([
       this.prismaRead.$queryRaw<CountRow[]>(Prisma.sql`
         WITH window_ips AS (
-          SELECT DISTINCT src_ip FROM sessions      WHERE started_at >= ${windowStart}
+          SELECT DISTINCT src_ip FROM sessions      WHERE started_at >= ${windowStart} ${scope.cond('sensor_id')}
           UNION
-          SELECT DISTINCT src_ip FROM web_hits      WHERE timestamp  >= ${windowStart}
+          SELECT DISTINCT src_ip FROM web_hits      WHERE timestamp  >= ${windowStart} ${scope.cond('sensor_id')}
           UNION
-          SELECT DISTINCT src_ip FROM protocol_hits WHERE timestamp  >= ${windowStart}
+          SELECT DISTINCT src_ip FROM protocol_hits WHERE timestamp  >= ${windowStart} ${protoCond}
         ),
         seen_before AS (
-          SELECT DISTINCT src_ip FROM sessions      WHERE started_at < ${baselineEnd}
+          SELECT DISTINCT src_ip FROM sessions      WHERE started_at < ${baselineEnd} ${scope.cond('sensor_id')}
           UNION
-          SELECT DISTINCT src_ip FROM web_hits      WHERE timestamp  < ${baselineEnd}
+          SELECT DISTINCT src_ip FROM web_hits      WHERE timestamp  < ${baselineEnd} ${scope.cond('sensor_id')}
           UNION
-          SELECT DISTINCT src_ip FROM protocol_hits WHERE timestamp  < ${baselineEnd}
+          SELECT DISTINCT src_ip FROM protocol_hits WHERE timestamp  < ${baselineEnd} ${protoCond}
         )
         SELECT COUNT(*)::bigint AS count
         FROM window_ips
@@ -468,13 +469,13 @@ export class NoveltyRepository {
           SELECT DISTINCT username, password
           FROM credential_attempts
           WHERE event_ts >= ${windowStart}
-            AND username IS NOT NULL AND password IS NOT NULL
+            AND username IS NOT NULL AND password IS NOT NULL ${scope.cond('sensor_id')}
         ),
         baseline_creds AS (
           SELECT DISTINCT username, password
           FROM credential_attempts
           WHERE event_ts < ${baselineEnd}
-            AND username IS NOT NULL AND password IS NOT NULL
+            AND username IS NOT NULL AND password IS NOT NULL ${scope.cond('sensor_id')}
         )
         SELECT COUNT(*)::bigint AS count
         FROM window_creds w
@@ -485,10 +486,10 @@ export class NoveltyRepository {
       `),
       this.prismaRead.$queryRaw<CountRow[]>(Prisma.sql`
         WITH window_paths AS (
-          SELECT DISTINCT path FROM web_hits WHERE timestamp >= ${windowStart}
+          SELECT DISTINCT path FROM web_hits WHERE timestamp >= ${windowStart} ${scope.cond('sensor_id')}
         ),
         baseline_paths AS (
-          SELECT DISTINCT path FROM web_hits WHERE timestamp < ${baselineEnd}
+          SELECT DISTINCT path FROM web_hits WHERE timestamp < ${baselineEnd} ${scope.cond('sensor_id')}
         )
         SELECT COUNT(*)::bigint AS count
         FROM window_paths
@@ -497,11 +498,11 @@ export class NoveltyRepository {
       this.prismaRead.$queryRaw<CountRow[]>(Prisma.sql`
         WITH window_cmds AS (
           SELECT DISTINCT command FROM events
-          WHERE event_type = 'command.input' AND event_ts >= ${windowStart} AND command IS NOT NULL
+          WHERE event_type = 'command.input' AND event_ts >= ${windowStart} AND command IS NOT NULL ${eventsScopeSql(scope)}
         ),
         baseline_cmds AS (
           SELECT DISTINCT command FROM events
-          WHERE event_type = 'command.input' AND event_ts < ${baselineEnd} AND command IS NOT NULL
+          WHERE event_type = 'command.input' AND event_ts < ${baselineEnd} AND command IS NOT NULL ${eventsScopeSql(scope)}
         )
         SELECT COUNT(*)::bigint AS count
         FROM window_cmds
@@ -510,19 +511,19 @@ export class NoveltyRepository {
       this.prismaRead.$queryRaw<NewIpRow[]>(Prisma.sql`
         WITH window_ips AS (
           SELECT src_ip, COUNT(*) AS hits FROM (
-            SELECT src_ip FROM sessions      WHERE started_at >= ${windowStart}
+            SELECT src_ip FROM sessions      WHERE started_at >= ${windowStart} ${scope.cond('sensor_id')}
             UNION ALL
-            SELECT src_ip FROM web_hits      WHERE timestamp  >= ${windowStart}
+            SELECT src_ip FROM web_hits      WHERE timestamp  >= ${windowStart} ${scope.cond('sensor_id')}
             UNION ALL
-            SELECT src_ip FROM protocol_hits WHERE timestamp  >= ${windowStart}
+            SELECT src_ip FROM protocol_hits WHERE timestamp  >= ${windowStart} ${protoCond}
           ) u GROUP BY src_ip
         ),
         seen_before AS (
-          SELECT DISTINCT src_ip FROM sessions      WHERE started_at < ${baselineEnd}
+          SELECT DISTINCT src_ip FROM sessions      WHERE started_at < ${baselineEnd} ${scope.cond('sensor_id')}
           UNION
-          SELECT DISTINCT src_ip FROM web_hits      WHERE timestamp  < ${baselineEnd}
+          SELECT DISTINCT src_ip FROM web_hits      WHERE timestamp  < ${baselineEnd} ${scope.cond('sensor_id')}
           UNION
-          SELECT DISTINCT src_ip FROM protocol_hits WHERE timestamp  < ${baselineEnd}
+          SELECT DISTINCT src_ip FROM protocol_hits WHERE timestamp  < ${baselineEnd} ${protoCond}
         )
         SELECT src_ip AS "srcIp", hits
         FROM window_ips

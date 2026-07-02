@@ -6,6 +6,7 @@ import { fetchSessionScanGroupsPage, fetchSessionsPage, fetchClients, fetchSenso
 import { lookupIp } from "@/lib/geo"
 import { ClientSensorFilter } from "@/components/client-sensor-filter"
 import { Surface } from "@/components/ui/surface"
+import { parsePage } from "@/lib/utils"
 
 const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
 
@@ -32,7 +33,7 @@ export default async function SessionsPage({
   }>
 }) {
   const params = await searchParams
-  const page = Number(params.page ?? "1")
+  const page = parsePage(params.page)
   const pageSize = PAGE_SIZE_OPTIONS.has(params.pageSize ?? "") ? Number(params.pageSize) : 20
   const tab = params.tab === "scans" ? "scans" : "sessions"
   const q = params.q?.trim() || undefined

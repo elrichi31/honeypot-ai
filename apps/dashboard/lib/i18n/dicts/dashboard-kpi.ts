@@ -17,6 +17,7 @@ export const en = {
   "dash.error.novelty": "Could not load novelty stats",
   "dash.error.attackerIntel": "Could not load attacker intel",
   "dash.error.botRatio": "Could not load bot/human ratio",
+  "dash.error.heatmap": "Could not load the attack heatmap",
 
   // ── Suspense loading ───────────────────────────────────────────────────────
   "dash.loading.metrics": "Loading metrics…",
@@ -83,6 +84,7 @@ export const es: Record<keyof typeof en, string> = {
   "dash.error.novelty": "No se pudieron cargar las métricas de novedad",
   "dash.error.attackerIntel": "No se pudo cargar la inteligencia del atacante",
   "dash.error.botRatio": "No se pudo cargar la relación bot/humano",
+  "dash.error.heatmap": "No se pudo cargar el mapa de calor de ataques",
 
   "dash.loading.metrics": "Cargando métricas…",
   "dash.loading.activity": "Cargando actividad…",

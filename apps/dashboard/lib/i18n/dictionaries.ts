@@ -12,6 +12,7 @@
 // To add strings: edit (or create) the matching file in ./dicts/ — keep en + es
 // together there. New namespaces just need an import + spread below.
 
+import * as common from "./dicts/common"
 import * as sidebar from "./dicts/sidebar"
 import * as settingsCommon from "./dicts/settings-common"
 import * as settingsInfra from "./dicts/settings-infra"
@@ -46,6 +47,7 @@ export const LOCALE_LABELS: Record<Locale, string> = {
 }
 
 const en = {
+  ...common.en,
   ...sidebar.en,
   ...settingsCommon.en,
   ...settingsInfra.en,
@@ -74,6 +76,7 @@ const en = {
 export type TranslationKey = keyof typeof en
 
 const es: Record<TranslationKey, string> = {
+  ...common.es,
   ...sidebar.es,
   ...settingsCommon.es,
   ...settingsInfra.es,

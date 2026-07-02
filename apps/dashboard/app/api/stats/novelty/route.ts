@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireRole } from "@/lib/roles"
 import { readConfig } from "@/lib/server-config"
+import { effectiveSensorScope } from "@/lib/tenant-scope"
+import { sensorScopeParam } from "@/lib/api/stats"
 
 export const dynamic = "force-dynamic"
 
@@ -11,8 +13,9 @@ export async function GET(req: NextRequest) {
   const config = readConfig()
   const apiUrl = config.ingestApiUrl ?? process.env.INTERNAL_API_URL ?? "http://localhost:3000"
   const hours = req.nextUrl.searchParams.get("hours") ?? "24"
+  const { sensorIds } = await effectiveSensorScope()
 
-  const res = await fetch(`${apiUrl}/stats/novelty?hours=${hours}`, { cache: "no-store" })
+  const res = await fetch(`${apiUrl}/stats/novelty?hours=${hours}${sensorScopeParam(sensorIds)}`, { cache: "no-store" })
   if (!res.ok) {
     return NextResponse.json({
       windowHours: Number(hours), newIps: 0, newCredPairs: 0,

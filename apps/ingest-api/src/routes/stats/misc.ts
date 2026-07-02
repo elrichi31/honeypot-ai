@@ -104,8 +104,9 @@ export async function miscRoutes(fastify: FastifyInstance) {
     const query = request.query as Record<string, string | undefined>
     const timezone = query.timezone || 'UTC'
     const days = Math.min(Math.max(parseInt(query.days || '90', 10), 1), 365)
-    return withCache(fastify.cache, `stats:heatmap:${days}:${timezone.replace(/\//g, '_')}`, 1200, async () => {
-      const rows = await repo.getHeatmap(timezone, days)
+    const scope = parseSensorScope(request.query as Record<string, unknown>)
+    return withCache(fastify.cache, `stats:heatmap:${days}:${timezone.replace(/\//g, '_')}:${scope.cacheSuffix}`, 1200, async () => {
+      const rows = await repo.getHeatmap(timezone, days, scope)
       const cells = rows.map(r => ({ dow: r.dow, hour: r.hour, count: Number(r.count) }))
       const maxCount = cells.reduce((m, c) => Math.max(m, c.count), 0)
       const totalSessions = cells.reduce((s, c) => s + c.count, 0)

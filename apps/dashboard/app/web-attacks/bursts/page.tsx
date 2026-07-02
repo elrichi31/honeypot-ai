@@ -15,6 +15,7 @@ import { Flag } from "@/components/ui/flag"
 import { AttackTypeBadge } from "@/components/attack-type-badge"
 import { readConfig } from "@/lib/server-config"
 import { formatInTimezone } from "@/lib/timezone"
+import { parsePage } from "@/lib/utils"
 
 const VALID_ATTACK_TYPES = new Set(["sqli", "xss", "lfi", "rfi", "cmdi", "log4shell", "ssti", "xxe", "deserialization", "scanner", "info_disclosure", "recon"])
 const VALID_RANGES = new Set(["24h", "7d", "30d", "all"])
@@ -72,7 +73,7 @@ export default async function WebBurstsPage({
   searchParams: Promise<{ page?: string; type?: string; range?: string; gap?: string; clientSlug?: string; sensorId?: string; sort?: string; dir?: string }>
 }) {
   const params = await searchParams
-  const page = Number(params.page ?? "1")
+  const page = parsePage(params.page)
   const attackType = VALID_ATTACK_TYPES.has(params.type ?? "") ? params.type : undefined
   const range = VALID_RANGES.has(params.range ?? "") ? params.range : undefined
   const clientSlug = params.clientSlug?.trim() || undefined

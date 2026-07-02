@@ -25,25 +25,36 @@ export function AttackHeatmap({ days = 90 }: { days?: number }) {
   const t = useT()
   const [data, setData] = useState<HeatmapData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const [tooltip, setTooltip] = useState<{ dow: number; hour: number; count: number; x: number; y: number } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const controller = new AbortController()
     setLoading(true)
+    setError(false)
     fetch(`/api/stats/heatmap?days=${days}`, { signal: controller.signal })
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json()
       })
       .then((d) => { setData(d); setLoading(false) })
-      .catch((err) => { if (err?.name !== "AbortError") setLoading(false) })
+      .catch((err) => {
+        if (err?.name === "AbortError") return
+        setError(true)
+        setLoading(false)
+      })
     return () => controller.abort()
   }, [days])
 
   if (loading) return (
     <Surface className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
       <Loader2 className="h-4 w-4 animate-spin" /> {t("dash.heatmap.loading")}
+    </Surface>
+  )
+  if (error) return (
+    <Surface className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
+      {t("dash.error.heatmap")}
     </Surface>
   )
   if (!data) return null

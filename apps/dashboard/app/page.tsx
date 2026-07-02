@@ -210,9 +210,8 @@ async function OverviewSection() {
           label={t("dash.kpi.activeSources")}
           value={activeSources}
           detail={t("dash.kpi.sensorsInWindow")}
-          deltaPct={trends.uniqueIps.deltaPct}
-          previous={trends.uniqueIps.previous}
-          spark={trends.uniqueIps.spark}
+          deltaPct={null}
+          spark={[]}
         />
       </div>
 
@@ -281,8 +280,9 @@ async function InsightsSection() {
 
 async function NoveltySection() {
   const t = await getServerT()
+  const { sensorIds } = await effectiveSensorScope()
   try {
-    const novelty = await fetchNovelty(24)
+    const novelty = await fetchNovelty(24, sensorIds)
     return <NoveltyStatsView novelty={novelty} />
   } catch {
     return <SectionError title={t("dash.error.novelty")} />

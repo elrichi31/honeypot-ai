@@ -74,10 +74,10 @@ export default function ResourceTimelineChart() {
   const [loading, setLoading] = useState(true)
   const [empty, setEmpty]     = useState(false)
 
-  const load = useCallback(async (r: Range) => {
+  const load = useCallback(async (r: Range, signal: AbortSignal) => {
     setLoading(true)
     try {
-      const res  = await fetch(`/api/monitoring/history?range=${r}`)
+      const res  = await fetch(`/api/monitoring/history?range=${r}`, { signal })
       const rows: Snapshot[] = await res.json()
       if (!Array.isArray(rows) || rows.length === 0) {
         setEmpty(true)
@@ -91,14 +91,19 @@ export default function ResourceTimelineChart() {
           ramUsedGb: parseFloat(fmtGb(s.ramUsedKb)),
         })))
       }
-    } catch {
+    } catch (err) {
+      if ((err as Error)?.name === "AbortError") return
       setEmpty(true)
     } finally {
-      setLoading(false)
+      if (!signal.aborted) setLoading(false)
     }
   }, [])
 
-  useEffect(() => { load(range) }, [range, load])
+  useEffect(() => {
+    const controller = new AbortController()
+    load(range, controller.signal)
+    return () => controller.abort()
+  }, [range, load])
 
   const tickCount = range === "24h" ? 12 : range === "7d" ? 7 : 10
 

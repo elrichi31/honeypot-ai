@@ -9,6 +9,7 @@ import { TableCard, EmptyRow } from "@/components/ui/table-card"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { readConfig } from "@/lib/server-config"
 import { formatInTimezone } from "@/lib/timezone"
+import { parsePage } from "@/lib/utils"
 
 const PROTOCOL_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   ftp: { bg: "bg-yellow-400/10", text: "text-yellow-400", border: "border-yellow-400/30" },
@@ -36,7 +37,7 @@ export default async function ServicesPage({
   searchParams: Promise<{ page?: string; protocol?: string }>
 }) {
   const params = await searchParams
-  const page = Number(params.page ?? "1")
+  const page = parsePage(params.page)
   const protocol = params.protocol || undefined
 
   const config = readConfig()

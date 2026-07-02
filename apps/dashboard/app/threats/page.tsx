@@ -9,6 +9,7 @@ import { Surface } from "@/components/ui/surface"
 import { StatCard } from "@/components/ui/stat-card"
 import { getServerT } from "@/lib/i18n/server"
 import { lookupIp } from "@/lib/geo"
+import { parsePage } from "@/lib/utils"
 
 const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
 
@@ -53,7 +54,7 @@ export default async function ThreatsPage({
 }) {
   const t = await getServerT()
   const params = await searchParams
-  const page = Number(params.page ?? "1")
+  const page = parsePage(params.page)
   const pageSize = PAGE_SIZE_OPTIONS.has(params.pageSize ?? "") ? Number(params.pageSize) : 20
   const q = params.q?.trim() || undefined
   const sortBy = VALID_THREAT_SORT_BY.has(params.sortBy ?? "") ? (params.sortBy as "score" | "sessions" | "webHits" | "protocols") : "score"

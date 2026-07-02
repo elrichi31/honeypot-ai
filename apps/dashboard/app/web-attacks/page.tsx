@@ -15,6 +15,7 @@ import { TablePagination } from "@/components/table-pagination"
 import { Surface } from "@/components/ui/surface"
 import { StatCard } from "@/components/ui/stat-card"
 import { db } from "@/lib/db"
+import { parsePage } from "@/lib/utils"
 
 const countryNames = new Intl.DisplayNames(["en"], { type: "region" })
 
@@ -104,7 +105,7 @@ export default async function WebAttacksPage({
   }>
 }) {
   const params = await searchParams
-  const page = Number(params.page ?? "1")
+  const page = parsePage(params.page)
   const pageSize = PAGE_SIZE_OPTIONS.has(params.pageSize ?? "") ? Number(params.pageSize) : 50
   const q = params.q?.trim() || undefined
   const attackType = VALID_ATTACK_TYPES.has(params.type ?? "") ? params.type : undefined

@@ -3,6 +3,7 @@ import { PageShell } from "@/components/page-shell"
 import { CommandsView } from "@/components/commands-view"
 import { SectionError } from "@/components/section-error"
 import { fetchEventsPage } from "@/lib/api"
+import { parsePage } from "@/lib/utils"
 
 const PAGE_SIZE_OPTIONS = new Set(["50", "100", "200"])
 
@@ -20,7 +21,7 @@ export default async function CommandsPage({
   }>
 }) {
   const params = await searchParams
-  const page = Number(params.page ?? "1")
+  const page = parsePage(params.page)
   const pageSize = PAGE_SIZE_OPTIONS.has(params.pageSize ?? "") ? Number(params.pageSize) : 50
   const q = params.q?.trim() || undefined
 

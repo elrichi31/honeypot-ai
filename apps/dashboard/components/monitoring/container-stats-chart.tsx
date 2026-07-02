@@ -66,16 +66,17 @@ export default function ContainerStatsChart() {
     }
   }, [])
 
-  const loadHistory = useCallback(async (r: Range) => {
+  const loadHistory = useCallback(async (r: Range, signal: AbortSignal) => {
     setHistLoading(true)
     try {
-      const res = await fetch(`/api/monitoring/containers/history?range=${r}`)
+      const res = await fetch(`/api/monitoring/containers/history?range=${r}`, { signal })
       if (res.ok) setHistory(await res.json())
       else setHistory(null)
-    } catch {
+    } catch (err) {
+      if ((err as Error)?.name === "AbortError") return
       setHistory(null)
     } finally {
-      setHistLoading(false)
+      if (!signal.aborted) setHistLoading(false)
     }
   }, [])
 
@@ -87,7 +88,11 @@ export default function ContainerStatsChart() {
     return () => clearInterval(id)
   }, [loadLive])
 
-  useEffect(() => { loadHistory(range) }, [range, loadHistory])
+  useEffect(() => {
+    const controller = new AbortController()
+    loadHistory(range, controller.signal)
+    return () => controller.abort()
+  }, [range, loadHistory])
 
   const containers = history?.containers ?? []
   const tickCount  = range === "24h" ? 12 : range === "7d" ? 7 : 10

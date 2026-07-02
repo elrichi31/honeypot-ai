@@ -19,6 +19,11 @@ export function SearchInput({ defaultValue = "", placeholder = "Search...", clas
   const debounced = useDebounce(value, 350)
 
   useEffect(() => {
+    setValue(defaultValue)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultValue])
+
+  useEffect(() => {
     const current = searchParams.get("q") ?? ""
     if (debounced === current) return
     if (debounced) {

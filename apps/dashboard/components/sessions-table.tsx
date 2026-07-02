@@ -267,6 +267,7 @@ function SessionsTableInner({
             <input type="hidden" name="pageSize" value={String(pagination?.pageSize ?? 20)} />
             {clientSlug && <input type="hidden" name="clientSlug" value={clientSlug} />}
             {sensorId && <input type="hidden" name="sensorId" value={sensorId} />}
+            {actor !== "all" && <input type="hidden" name="actor" value={actor} />}
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <input
