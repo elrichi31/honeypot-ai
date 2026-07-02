@@ -289,7 +289,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
         </button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-none max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-400/10">
@@ -313,7 +313,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
               <p className="text-sm font-semibold text-foreground">{t("clients.catalog.section.external")}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{t("clients.catalog.section.external.hint")}</p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-2 grid-cols-2 lg:grid-cols-3">
               {EXTERNAL_ENTRIES.map((entry) => {
                 const Icon = entry.icon
                 const installed = assignedProtocols.has(entry.protocol)
@@ -376,7 +376,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
               <p className="text-sm font-semibold text-foreground">{t("clients.catalog.section.deception")}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{t("clients.catalog.section.deception.hint")}</p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-2 grid-cols-2 lg:grid-cols-3">
               {DECEPTION_ENTRIES.map((entry) => {
                 const Icon = entry.icon
                 const installed = assignedProtocols.has(entry.protocol)
