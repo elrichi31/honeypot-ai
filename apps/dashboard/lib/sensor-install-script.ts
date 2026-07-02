@@ -309,6 +309,100 @@ ENDOFSTATUS
 chmod +x "$DIR/sensor-status"
 ln -sf "$DIR/sensor-status" /usr/local/bin/sensor-status 2>/dev/null || true
 
+# Install sensor-uninstall helper
+cat > "$DIR/sensor-uninstall" << 'ENDOFUNINSTALL'
+#!/usr/bin/env bash
+# Honeypot sensor uninstaller — reverses everything install-sensor.sh did.
+# Run as root or with sudo: sensor-uninstall
+set -euo pipefail
+
+DIR="/opt/honeypot-sensor"
+
+if [ "$(id -u)" -ne 0 ]; then
+  if command -v sudo &>/dev/null; then
+    exec sudo bash "$0" "$@"
+  fi
+  echo "ERROR: must run as root. Re-run with: sudo sensor-uninstall" >&2
+  exit 1
+fi
+
+RED=$(printf '\x1b[0;31m'); GREEN=$(printf '\x1b[0;32m'); YELLOW=$(printf '\x1b[1;33m')
+RESET=$(printf '\x1b[0m'); BOLD=$(printf '\x1b[1m')
+
+echo ""
+printf "%b=== Honeypot Sensor Uninstaller ===%b\n" "$BOLD" "$RESET"
+echo ""
+
+# ── 1. Stop and remove containers ────────────────────────────────────────────
+if [ -f "$DIR/docker-compose.yml" ]; then
+  echo "==> Stopping and removing containers..."
+  ENV_ARG=""
+  [ -f "$DIR/.env" ] && ENV_ARG="--env-file $DIR/.env"
+  # shellcheck disable=SC2086
+  docker compose -f "$DIR/docker-compose.yml" $ENV_ARG down --volumes --remove-orphans 2>/dev/null || true
+  printf "  %b[+]%b  Containers removed\n" "$GREEN" "$RESET"
+else
+  printf "  %b[!]%b  No docker-compose.yml found in %s — skipping container removal\n" "$YELLOW" "$RESET" "$DIR"
+fi
+
+# ── 2. Restore sshd if the installer moved it ────────────────────────────────
+if [ -f "/etc/ssh/sshd_config.pre-honeypot" ]; then
+  echo "==> Restoring sshd to port 22..."
+  cp /etc/ssh/sshd_config.pre-honeypot /etc/ssh/sshd_config
+
+  # Remove the socket override the installer created
+  rm -f /etc/systemd/system/ssh.socket.d/override.conf
+  # Clean up the drop-in dir if it is now empty
+  rmdir /etc/systemd/system/ssh.socket.d 2>/dev/null || true
+
+  systemctl daemon-reload
+  if systemctl restart ssh.socket 2>/dev/null || systemctl restart sshd 2>/dev/null; then
+    # Wait up to 5 s for sshd to listen on 22
+    _SSH_OK=false
+    for _i in 1 2 3 4 5; do
+      if ss -tlnp | grep -q ':22 '; then
+        _SSH_OK=true; break
+      fi
+      sleep 1
+    done
+    if $_SSH_OK; then
+      # Remove the ufw rule the installer added for port 8022
+      if command -v ufw &>/dev/null && ufw status | grep -q 'active'; then
+        ufw delete allow 8022/tcp 2>/dev/null || true
+      fi
+      rm -f /etc/ssh/sshd_config.pre-honeypot
+      printf "  %b[+]%b  sshd restored to port 22\n" "$GREEN" "$RESET"
+    else
+      printf "  %b[!]%b  WARNING: sshd may not be listening on port 22 — check manually\n" "$YELLOW" "$RESET"
+    fi
+  else
+    printf "  %b[-]%b  ERROR: could not restart sshd — check /etc/ssh/sshd_config manually\n" "$RED" "$RESET"
+  fi
+else
+  printf "  %b[~]%b  sshd was not moved by the installer — nothing to restore\n" "$RESET" "$RESET"
+fi
+
+# ── 3. Remove symlinks ───────────────────────────────────────────────────────
+echo "==> Removing helper symlinks..."
+rm -f /usr/local/bin/sensor-status
+rm -f /usr/local/bin/sensor-uninstall
+printf "  %b[+]%b  Symlinks removed\n" "$GREEN" "$RESET"
+
+# ── 4. Remove sensor directory ───────────────────────────────────────────────
+if [ -d "$DIR" ]; then
+  echo "==> Removing $DIR..."
+  rm -rf "$DIR"
+  printf "  %b[+]%b  %s removed\n" "$GREEN" "$RESET" "$DIR"
+fi
+
+echo ""
+printf "%b%bSensor uninstalled successfully.%b\n" "$GREEN" "$BOLD" "$RESET"
+echo "  The sensor will disappear from the dashboard within ~60 s."
+echo ""
+ENDOFUNINSTALL
+chmod +x "$DIR/sensor-uninstall"
+ln -sf "$DIR/sensor-uninstall" /usr/local/bin/sensor-uninstall 2>/dev/null || true
+
 # --- Post-install health check ---
 echo ""
 echo "==> Running post-install health check..."
@@ -343,14 +437,16 @@ echo ""
 if $_INGEST_OK && $_CONTAINERS_OK; then
   echo "===================================================="
   echo " Sensor is UP and connected."
-  echo " Dashboard: check /sensors -- it should appear in ~60s"
-  echo " Status:    sensor-status"
-  echo " Logs:      cd $DIR && docker compose logs -f"
+  echo " Dashboard:   check /sensors -- it should appear in ~60s"
+  echo " Status:      sensor-status"
+  echo " Logs:        cd $DIR && docker compose logs -f"
+  echo " Uninstall:   sensor-uninstall"
   echo "===================================================="
 else
   echo "===================================================="
   echo " Sensor deployed but needs attention."
   echo " Run 'sensor-status' for details."
+  echo " Uninstall:   sensor-uninstall"
   echo "===================================================="
 fi
 `
