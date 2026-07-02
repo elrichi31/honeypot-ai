@@ -289,7 +289,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
         </button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-400/10">
@@ -313,7 +313,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
               <p className="text-sm font-semibold text-foreground">{t("clients.catalog.section.external")}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{t("clients.catalog.section.external.hint")}</p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {EXTERNAL_ENTRIES.map((entry) => {
                 const Icon = entry.icon
                 const installed = assignedProtocols.has(entry.protocol)
@@ -324,46 +324,44 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
                     type="button"
                     onClick={() => toggle(entry.serviceKey!)}
                     className={[
-                      "flex flex-col gap-3 rounded-xl border p-4 text-left transition-colors",
+                      "flex items-center gap-3 rounded-xl border p-3 text-left transition-colors",
                       active
                         ? "border-cyan-400/60 bg-cyan-400/[0.06] ring-1 ring-inset ring-cyan-400/25"
                         : "border-border/70 bg-background/50 hover:border-border hover:bg-accent/60",
                     ].join(" ")}
                   >
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={[
-                          "mt-0.5 h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors",
-                          active ? "border-cyan-400 bg-cyan-400" : "border-muted-foreground/40",
-                        ].join(" ")}
-                      >
-                        {active && (
-                          <svg className="h-2.5 w-2.5 text-black" viewBox="0 0 10 10" fill="none">
-                            <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
+                    <div
+                      className={[
+                        "h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors",
+                        active ? "border-cyan-400 bg-cyan-400" : "border-muted-foreground/40",
+                      ].join(" ")}
+                    >
+                      {active && (
+                        <svg className="h-2.5 w-2.5 text-black" viewBox="0 0 10 10" fill="none">
+                          <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${entry.iconBg}`}>
+                      <Icon className={`h-4 w-4 ${entry.iconColor}`} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-foreground text-sm leading-tight">{entry.name}</p>
+                        {installed && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">
+                            <CheckCircle2 className="h-2.5 w-2.5" />
+                            {t("clients.catalog.badge.installed")}
+                          </span>
                         )}
                       </div>
-                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${entry.iconBg}`}>
-                        <Icon className={`h-4 w-4 ${entry.iconColor}`} />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-medium text-foreground text-sm">{entry.name}</p>
-                          {installed && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
-                              <CheckCircle2 className="h-3 w-3" />
-                              {t("clients.catalog.badge.installed")}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">{entry.description}</p>
-                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5 leading-tight">{entry.description}</p>
                     </div>
                     <div className={[
-                      "flex items-center justify-between rounded-md px-3 py-1.5 transition-colors",
+                      "shrink-0 flex items-center gap-1 rounded-md px-2 py-1 transition-colors",
                       active ? "bg-cyan-400/10" : "bg-muted/50",
                     ].join(" ")}>
-                      <p className="font-mono text-xs text-muted-foreground">{entry.ports}</p>
+                      <p className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">{entry.ports}</p>
                       <span className="text-[10px] text-cyan-400/70 font-mono">.sh</span>
                     </div>
                   </button>
@@ -378,7 +376,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
               <p className="text-sm font-semibold text-foreground">{t("clients.catalog.section.deception")}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{t("clients.catalog.section.deception.hint")}</p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {DECEPTION_ENTRIES.map((entry) => {
                 const Icon = entry.icon
                 const installed = assignedProtocols.has(entry.protocol)
@@ -389,46 +387,44 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
                     type="button"
                     onClick={() => toggle(entry.serviceKey!)}
                     className={[
-                      "flex flex-col gap-3 rounded-xl border p-4 text-left transition-colors",
+                      "flex items-center gap-3 rounded-xl border p-3 text-left transition-colors",
                       active
                         ? "border-fuchsia-400/60 bg-fuchsia-400/[0.06] ring-1 ring-inset ring-fuchsia-400/25"
                         : "border-border/70 bg-background/50 hover:border-border hover:bg-accent/60",
                     ].join(" ")}
                   >
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={[
-                          "mt-0.5 h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors",
-                          active ? "border-fuchsia-400 bg-fuchsia-400" : "border-muted-foreground/40",
-                        ].join(" ")}
-                      >
-                        {active && (
-                          <svg className="h-2.5 w-2.5 text-black" viewBox="0 0 10 10" fill="none">
-                            <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
+                    <div
+                      className={[
+                        "h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors",
+                        active ? "border-fuchsia-400 bg-fuchsia-400" : "border-muted-foreground/40",
+                      ].join(" ")}
+                    >
+                      {active && (
+                        <svg className="h-2.5 w-2.5 text-black" viewBox="0 0 10 10" fill="none">
+                          <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${entry.iconBg}`}>
+                      <Icon className={`h-4 w-4 ${entry.iconColor}`} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-foreground text-sm leading-tight">{entry.name}</p>
+                        {installed && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">
+                            <CheckCircle2 className="h-2.5 w-2.5" />
+                            {t("clients.catalog.badge.installed")}
+                          </span>
                         )}
                       </div>
-                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${entry.iconBg}`}>
-                        <Icon className={`h-4 w-4 ${entry.iconColor}`} />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-medium text-foreground text-sm">{entry.name}</p>
-                          {installed && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
-                              <CheckCircle2 className="h-3 w-3" />
-                              {t("clients.catalog.badge.installed")}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">{entry.description}</p>
-                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5 leading-tight">{entry.description}</p>
                     </div>
                     <div className={[
-                      "flex items-center justify-between rounded-md px-3 py-1.5 transition-colors",
+                      "shrink-0 flex items-center gap-1 rounded-md px-2 py-1 transition-colors",
                       active ? "bg-fuchsia-400/10" : "bg-muted/50",
                     ].join(" ")}>
-                      <p className="font-mono text-xs text-muted-foreground">{entry.ports}</p>
+                      <p className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">{entry.ports}</p>
                       <span className="text-[10px] text-fuchsia-400/70 font-mono">.sh</span>
                     </div>
                   </button>
