@@ -403,6 +403,155 @@ ENDOFUNINSTALL
 chmod +x "$DIR/sensor-uninstall"
 ln -sf "$DIR/sensor-uninstall" /usr/local/bin/sensor-uninstall 2>/dev/null || true
 
+# Install sensor-test helper
+cat > "$DIR/sensor-test" << 'ENDOFTEST'
+#!/usr/bin/env bash
+# sensor-test — sends synthetic events to the ingest-api and verifies they land.
+# Usage: sensor-test [--protocol ssh|http|ftp|mysql|port|smb] [--count N]
+set -euo pipefail
+
+DIR="/opt/honeypot-sensor"
+[ -f "$DIR/.env" ] && . "$DIR/.env" 2>/dev/null || true
+
+RED=$(printf '\x1b[0;31m'); GREEN=$(printf '\x1b[0;32m'); YELLOW=$(printf '\x1b[1;33m')
+RESET=$(printf '\x1b[0m'); BOLD=$(printf '\x1b[1m')
+
+# ── Parse args ────────────────────────────────────────────────────────────────
+PROTOCOL="ssh"
+COUNT=3
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --protocol) PROTOCOL="$2"; shift 2 ;;
+    --count)    COUNT="$2";    shift 2 ;;
+    *) echo "Usage: sensor-test [--protocol ssh|http|ftp|mysql|port|smb] [--count N]" >&2; exit 1 ;;
+  esac
+done
+
+INGEST_URL="${INGEST_API_URL:-}"
+TOKEN="${INGEST_SHARED_SECRET:-}"
+
+echo ""
+printf "%b=== Honeypot Sensor Test ===%b\n" "$BOLD" "$RESET"
+printf "  Target: %s\n" "${INGEST_URL:-<not set>}"
+printf "  Protocol: %s  Count: %s\n" "$PROTOCOL" "$COUNT"
+echo ""
+
+if [ -z "$INGEST_URL" ]; then
+  printf "%b[!]%b INGEST_API_URL not set in %s/.env\n" "$YELLOW" "$RESET" "$DIR"
+  exit 1
+fi
+
+# ── 1. Health check ───────────────────────────────────────────────────────────
+printf "%bStep 1/3 — Ingest-api reachability%b\n" "$BOLD" "$RESET"
+HTTP_CODE=$(curl -o /dev/null -s -w "%{http_code}" --max-time 5 "$INGEST_URL/health" 2>/dev/null || echo "000")
+if [ "$HTTP_CODE" = "200" ]; then
+  printf "  %b[+]%b  /health → HTTP 200\n" "$GREEN" "$RESET"
+else
+  printf "  %b[-]%b  /health → HTTP %s (cannot reach ingest-api)\n" "$RED" "$RESET" "$HTTP_CODE"
+  echo "  Check: is the ingest-api running? Is INGEST_API_URL correct?"
+  exit 1
+fi
+echo ""
+
+# ── 2. Send synthetic events ──────────────────────────────────────────────────
+printf "%bStep 2/3 — Sending %s synthetic %s event(s)%b\n" "$BOLD" "$COUNT" "$PROTOCOL" "$RESET"
+
+# Map protocol → realistic dstPort
+case "$PROTOCOL" in
+  ssh)   DST_PORT=22   ;;
+  http)  DST_PORT=80   ;;
+  ftp)   DST_PORT=21   ;;
+  mysql) DST_PORT=3306 ;;
+  port)  DST_PORT=3389 ;;
+  smb)   DST_PORT=445  ;;
+  *)     DST_PORT=9999 ;;
+esac
+
+# Resolve SENSOR_ID from .env, fall back to "test-sensor"
+SENSOR_ID_VAL="${SENSOR_ID:-test-sensor}"
+
+SENT=0
+FAIL=0
+LAST_ID=""
+_i=0
+while [ $_i -lt "$COUNT" ]; do
+  _i=$((_i + 1))
+  # Generate a v4-like UUID using /proc/sys/kernel/random/uuid or fallback
+  if [ -r /proc/sys/kernel/random/uuid ]; then
+    EVENT_UUID=$(cat /proc/sys/kernel/random/uuid)
+  else
+    EVENT_UUID=$(python3 -c "import uuid; print(uuid.uuid4())" 2>/dev/null || echo "00000000-0000-4000-8000-$(date +%s%N | tail -c 12)")
+  fi
+
+  TS=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+  SRC_IP="198.51.100.$_i"   # TEST-NET-3 — unroutable, safe to use in tests
+
+  BODY=$(printf '{"eventId":"%s","sensorId":"%s","protocol":"%s","srcIp":"%s","srcPort":%d,"dstPort":%d,"eventType":"auth","username":"test-user","password":"test-pass-%d","data":{"_test":true},"timestamp":"%s"}' \
+    "$EVENT_UUID" "$SENSOR_ID_VAL" "$PROTOCOL" "$SRC_IP" $((30000 + _i)) "$DST_PORT" $_i "$TS")
+
+  AUTH_HEADER=""
+  [ -n "$TOKEN" ] && AUTH_HEADER="-H \"Authorization: Bearer $TOKEN\""
+
+  RESP=$(eval curl -s -o /tmp/sensor_test_resp.json -w "%{http_code}" \
+    -X POST "$INGEST_URL/ingest/protocol/event" \
+    -H "Content-Type: application/json" \
+    $AUTH_HEADER \
+    -d "'$BODY'" \
+    --max-time 10 2>/dev/null || echo "000")
+
+  if [ "$RESP" = "201" ] || [ "$RESP" = "200" ]; then
+    LAST_ID=$(python3 -c "import sys,json; d=json.load(open('/tmp/sensor_test_resp.json')); print(d.get('id',d.get('inserted','?')))" 2>/dev/null || echo "?")
+    printf "  %b[+]%b  Event %d → HTTP %s  id=%s\n" "$GREEN" "$RESET" "$_i" "$RESP" "$LAST_ID"
+    SENT=$((SENT + 1))
+  else
+    BODY_OUT=$(cat /tmp/sensor_test_resp.json 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('error',str(d))[:120])" 2>/dev/null || cat /tmp/sensor_test_resp.json 2>/dev/null || echo "(no body)")
+    printf "  %b[-]%b  Event %d → HTTP %s  %s\n" "$RED" "$RESET" "$_i" "$RESP" "$BODY_OUT"
+    FAIL=$((FAIL + 1))
+  fi
+  rm -f /tmp/sensor_test_resp.json
+done
+echo ""
+
+# ── 3. Verify events landed ───────────────────────────────────────────────────
+printf "%bStep 3/3 — Verifying events in ingest-api%b\n" "$BOLD" "$RESET"
+if [ "$SENT" -gt 0 ]; then
+  # Give the batch writer ~2 s to flush
+  sleep 2
+  STATS_RESP=$(curl -s --max-time 5 \
+    ${TOKEN:+-H "Authorization: Bearer $TOKEN"} \
+    "$INGEST_URL/protocol-hits/stats" 2>/dev/null || echo "")
+
+  PROTO_COUNT=$(echo "$STATS_RESP" | python3 -c "
+import sys,json
+rows=json.load(sys.stdin) if sys.stdin.readable() else []
+rows = rows if isinstance(rows,list) else []
+row=next((r for r in rows if r.get('protocol')=='$PROTOCOL'),None)
+print(row['count'] if row else 'not found')
+" 2>/dev/null || echo "?")
+
+  printf "  %b[i]%b  Total %s events in DB: %s\n" "$GREEN" "$RESET" "$PROTOCOL" "$PROTO_COUNT"
+  printf "  %b[i]%b  Events sent this run: %d / %d\n" "$GREEN" "$RESET" "$SENT" "$COUNT"
+  if [ "$FAIL" -gt 0 ]; then
+    printf "  %b[!]%b  %d event(s) rejected — check token / schema above\n" "$YELLOW" "$RESET" "$FAIL"
+  fi
+fi
+echo ""
+
+# ── Summary ───────────────────────────────────────────────────────────────────
+if [ "$FAIL" -eq 0 ] && [ "$SENT" -gt 0 ]; then
+  printf "%b%bAll %d test event(s) accepted by ingest-api.%b\n" "$GREEN" "$BOLD" "$SENT" "$RESET"
+  echo "  Check the dashboard → /sensors or /clients to see them appear."
+elif [ "$SENT" -gt 0 ]; then
+  printf "%b%b%d/%d events accepted, %d failed.%b\n" "$YELLOW" "$BOLD" "$SENT" "$COUNT" "$FAIL" "$RESET"
+else
+  printf "%b%bAll events rejected. Check your INGEST_SHARED_SECRET and ingest-api logs.%b\n" "$RED" "$BOLD" "$RESET"
+  exit 1
+fi
+echo ""
+ENDOFTEST
+chmod +x "$DIR/sensor-test"
+ln -sf "$DIR/sensor-test" /usr/local/bin/sensor-test 2>/dev/null || true
+
 # --- Post-install health check ---
 echo ""
 echo "==> Running post-install health check..."
@@ -439,6 +588,7 @@ if $_INGEST_OK && $_CONTAINERS_OK; then
   echo " Sensor is UP and connected."
   echo " Dashboard:   check /sensors -- it should appear in ~60s"
   echo " Status:      sensor-status"
+  echo " Test:        sensor-test [--protocol ssh|http|ftp|mysql|port|smb]"
   echo " Logs:        cd $DIR && docker compose logs -f"
   echo " Uninstall:   sensor-uninstall"
   echo "===================================================="
@@ -446,6 +596,7 @@ else
   echo "===================================================="
   echo " Sensor deployed but needs attention."
   echo " Run 'sensor-status' for details."
+  echo " Test:        sensor-test"
   echo " Uninstall:   sensor-uninstall"
   echo "===================================================="
 fi
