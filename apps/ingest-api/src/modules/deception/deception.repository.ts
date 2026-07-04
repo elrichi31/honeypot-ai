@@ -123,12 +123,15 @@ export class DeceptionRepository {
         src_ip: string; src_port: number | null; dst_port: number; event_type: string
         username: string | null; password: string | null; timestamp: Date
         logtype: number | null; logdata: unknown; dst_host: string | null
+        client_id: string | null; client_slug: string | null; client_name: string | null
       }>>(`
         SELECT ph.id, ph.data->>'node_id' AS node_id, sn.name AS node_name, ph.protocol,
                ph.src_ip, ph.src_port, ph.dst_port, ph.event_type, ph.username, ph.password, ph.timestamp,
-               (ph.data->>'logtype')::int AS logtype, ph.data->'logdata' AS logdata, ph.data->>'dst_host' AS dst_host
+               (ph.data->>'logtype')::int AS logtype, ph.data->'logdata' AS logdata, ph.data->>'dst_host' AS dst_host,
+               c.id AS client_id, c.slug AS client_slug, c.name AS client_name
         FROM protocol_hits ph
         LEFT JOIN sensors sn ON sn.sensor_id = ph.data->>'node_id'
+        LEFT JOIN clients c ON c.id = sn.client_id
         WHERE ${DECEPTION_FILTER} AND ($1::text IS NULL OR ph.data->>'node_id' = $1)${rowsScope.clause}
         ORDER BY ph.timestamp DESC LIMIT $2 OFFSET $3
       `, nodeId, limit, offset, ...rowsScope.params),

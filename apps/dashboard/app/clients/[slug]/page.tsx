@@ -1,8 +1,9 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { ArrowLeft, Server, Wifi, Ghost } from "lucide-react"
+import { ArrowLeft, Server, Wifi } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
+import { ClientDetailNav } from "@/components/clients/client-detail-nav"
 import { ClientSensorAssignment } from "@/components/clients/client-sensor-assignment"
 import { ClientForwardingSettings } from "@/components/clients/client-forwarding-settings"
 import { ClientSensorCatalog } from "@/components/clients/client-sensor-catalog"
@@ -14,6 +15,7 @@ import { ClientStatsBar } from "@/components/clients/client-stats-bar"
 import { SectionError } from "@/components/section-error"
 import { Surface } from "@/components/ui/surface"
 import { fetchClients, fetchSensors } from "@/lib/api"
+import { getServerT } from "@/lib/i18n/server"
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
@@ -22,6 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function ClientDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
+  const t = await getServerT()
 
   let clients, sensors
   try {
@@ -50,7 +53,6 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ s
 
   const online = clientSensors.filter((sensor) => sensor.online).length
   const totalEvents = clientSensors.reduce((sum, sensor) => sum + sensor.eventsTotal, 0)
-  const hasDeception = clientSensors.some((sensor) => sensor.protocol === "deception")
 
   return (
     <PageShell>
@@ -64,6 +66,8 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ s
           <p className="text-sm text-muted-foreground">{client.description || "No description available."}</p>
         </div>
       </div>
+
+      <ClientDetailNav slug={client.slug} active="overview" t={t} />
 
       <div className="mb-6 flex flex-wrap items-center gap-4">
         <Surface className="flex items-center gap-2 px-4 py-3">
@@ -79,15 +83,6 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ s
           <span className="text-sm text-muted-foreground">total events</span>
         </Surface>
         <ClientOVADownload client={client} />
-        {hasDeception && (
-          <Link
-            href={`/clients/${client.slug}/deception`}
-            className="inline-flex items-center gap-2 rounded-xl border border-purple-400/30 bg-purple-400/10 px-4 py-3 text-sm font-medium text-purple-300 transition-colors hover:bg-purple-400/20"
-          >
-            <Ghost className="h-4 w-4" />
-            Ver deception
-          </Link>
-        )}
       </div>
 
       <div className="mb-6">

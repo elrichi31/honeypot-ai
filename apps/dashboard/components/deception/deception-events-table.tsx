@@ -57,6 +57,7 @@ function EventDetail({ event }: { event: DeceptionEvent }) {
     <div className="space-y-3 px-4 py-3 bg-background/40">
       {/* Connection facts */}
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+        <Field label="Client" value={event.client_name} />
         <Field label="Source IP (internal)" value={`${event.src_ip}${event.src_port ? `:${event.src_port}` : ""}`} />
         <Field label="Target node" value={event.node_name ?? event.dst_host ?? event.node_id} />
         <Field label="Service" value={`${event.protocol.toUpperCase()} :${event.dst_port}`} />
@@ -90,8 +91,9 @@ function EventDetail({ event }: { event: DeceptionEvent }) {
   )
 }
 
-export function DeceptionEventsTable({ events }: { events: DeceptionEvent[] }) {
+export function DeceptionEventsTable({ events, showClient = true }: { events: DeceptionEvent[]; showClient?: boolean }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const columnCount = showClient ? 8 : 7
 
   return (
     <Surface>
@@ -104,6 +106,7 @@ export function DeceptionEventsTable({ events }: { events: DeceptionEvent[] }) {
           <thead className="sticky top-0 z-10 bg-card text-[10px] uppercase text-muted-foreground/60">
             <tr className="border-b border-border/40">
               <th className="px-4 py-2 font-medium w-6"></th>
+              {showClient && <th className="px-4 py-2 font-medium">Client</th>}
               <th className="px-4 py-2 font-medium">Node</th>
               <th className="px-4 py-2 font-medium">Source</th>
               <th className="px-4 py-2 font-medium">Service</th>
@@ -114,7 +117,7 @@ export function DeceptionEventsTable({ events }: { events: DeceptionEvent[] }) {
           </thead>
           <tbody>
             {events.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">No events.</td></tr>
+              <tr><td colSpan={columnCount} className="px-4 py-8 text-center text-muted-foreground">No events.</td></tr>
             ) : events.map(e => {
               const isExpanded = expandedId === e.id
               return (
@@ -126,6 +129,9 @@ export function DeceptionEventsTable({ events }: { events: DeceptionEvent[] }) {
                     <td className="px-4 py-2 text-muted-foreground/50">
                       {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                     </td>
+                    {showClient && (
+                      <td className="px-4 py-2 text-muted-foreground">{e.client_name ?? "—"}</td>
+                    )}
                     <td className="px-4 py-2 font-mono text-foreground">{e.node_name ?? e.node_id ?? "?"}</td>
                     <td className="px-4 py-2 font-mono text-muted-foreground">{e.src_ip}</td>
                     <td className="px-4 py-2 text-muted-foreground">{e.protocol.toUpperCase()} :{e.dst_port}</td>
@@ -141,7 +147,7 @@ export function DeceptionEventsTable({ events }: { events: DeceptionEvent[] }) {
                   </tr>
                   {isExpanded && (
                     <tr>
-                      <td colSpan={7} className="p-0">
+                      <td colSpan={columnCount} className="p-0">
                         <EventDetail event={e} />
                       </td>
                     </tr>

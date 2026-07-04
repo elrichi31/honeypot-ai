@@ -2,6 +2,12 @@
 // Part of the namespaced dictionary; combined in ../dictionaries.ts.
 
 export const en = {
+  // ── Detail nav ─────────────────────────────────────────────────────────────
+  "clients.detail.nav.overview": "Overview",
+  "clients.detail.nav.deception": "Deception",
+  "clients.detail.deception.empty.title": "No deception network deployed",
+  "clients.detail.deception.empty.desc": "This client has no OpenCanary trap nodes assigned yet. Assign a deception network from the sensor catalog to start detecting lateral movement.",
+
   // ── Logs viewer ────────────────────────────────────────────────────────────
   "clients.logs.title": "Logs",
   "clients.logs.events": "{n} events",
@@ -88,6 +94,11 @@ export const en = {
 } as const
 
 export const es: Record<keyof typeof en, string> = {
+  "clients.detail.nav.overview": "Resumen",
+  "clients.detail.nav.deception": "Deception",
+  "clients.detail.deception.empty.title": "Sin red de deception desplegada",
+  "clients.detail.deception.empty.desc": "Este cliente todavía no tiene nodos trampa de OpenCanary asignados. Asigna una red de deception desde el catálogo de sensores para empezar a detectar movimiento lateral.",
+
   "clients.logs.title": "Registros",
   "clients.logs.events": "{n} eventos",
   "clients.logs.loading": "Cargando…",

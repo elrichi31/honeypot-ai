@@ -62,6 +62,9 @@ export type DeceptionEvent = {
   logtype: number | null
   logdata: Record<string, unknown> | null
   dst_host: string | null
+  client_id: string | null
+  client_slug: string | null
+  client_name: string | null
 }
 
 export type DeceptionEventsResponse = {

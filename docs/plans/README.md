@@ -23,6 +23,7 @@ progresses, and link the relevant commit hashes so the history stays traceable.
 - [CLIENT_FETCH_HARDENING.md](CLIENT_FETCH_HARDENING.md) — fetch client-side confiable en el dashboard (AbortController + `res.ok`). Las 4 componentes de página de cliente arregladas. Pendiente: Tareas 1-8 (resto de páginas).
 - [VECTOR_HOTRELOAD.md](VECTOR_HOTRELOAD.md) — Vector hot-reload (`--config-dir` + SIGHUP). Implementado 2026-06-25. Pendiente: verificación E2E de tráfico real por todos los sensores.
 - [CORRELATION_ALERTS.md](CORRELATION_ALERTS.md) — 3 alertas correlacionadas nuevas para el motor por-IP: `sensorSweep`, `portScanFanout`, `credReuseCrossSensor`. Implementadas (backend + config + UI + tests) 2026-07-02, sin commitear aún. Pendiente: deploy de observación y calibrar umbrales con tráfico real.
+- [CLIENT_DECEPTION_TAB.md](CLIENT_DECEPTION_TAB.md) — viana de Deception por cliente: tabs en `/clients/[slug]` y atribución cliente+sensor real en la tabla de eventos implementadas (2026-07-04). Pendiente: badge/alerta "tocaron un honeypot interno" (Fase 3) y tests.
 - [SSH_CLASSIFICATION_ENGINE.md](SSH_CLASSIFICATION_ENGINE.md) — auditoría y mejora del motor de clasificación SSH: consolidar los dos motores de patrones divergentes (SQL ILIKE vs regex), dejar de descartar comandos/tags cuando `login_success` no es `true`, arreglar el colapso por `duration` nula, y añadir cobertura de tests. Plan no implementado.
 
 ## Completed plans → [done/](done/)

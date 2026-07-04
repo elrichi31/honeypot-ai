@@ -1,18 +1,21 @@
 export const dynamic = "force-dynamic"
 
 import type { Metadata } from "next"
-import Link from "next/link"
 import { notFound } from "next/navigation"
-import { ArrowLeft, Ghost } from "lucide-react"
+import { Ghost } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { SectionError } from "@/components/section-error"
+import { ClientDetailNav } from "@/components/clients/client-detail-nav"
+import { Surface } from "@/components/ui/surface"
 import {
   fetchClients,
+  fetchSensors,
   fetchClientDeceptionOverview,
   fetchClientDeceptionNodes,
   fetchClientDeceptionKillchain,
   fetchClientDeceptionEvents,
 } from "@/lib/api"
+import { getServerT } from "@/lib/i18n/server"
 import { DeceptionOverview } from "@/components/deception/deception-overview"
 import { KillChainView } from "@/components/deception/kill-chain-view"
 import { DeceptionNodesGrid } from "@/components/deception/deception-nodes-grid"
@@ -25,16 +28,35 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function ClientDeceptionPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
+  const t = await getServerT()
 
   // Resolve the client for the header. notFound if the slug doesn't exist.
   let client
+  let hasDeceptionSensors = false
   try {
-    const clients = await fetchClients()
+    const [clients, sensors] = await Promise.all([fetchClients(), fetchSensors()])
     client = clients.find((c) => c.slug === slug)
+    hasDeceptionSensors = sensors.some((s) => s.clientSlug === slug && s.protocol === "deception")
   } catch {
     client = undefined
   }
   if (!client) notFound()
+
+  if (!hasDeceptionSensors) {
+    return (
+      <PageShell>
+        <div className="mb-6">
+          <h1 className="text-2xl font-semibold text-foreground">{client.name}</h1>
+        </div>
+        <ClientDetailNav slug={slug} active="deception" t={t} />
+        <Surface className="flex flex-col items-center justify-center gap-2 px-4 py-14 text-center">
+          <Ghost className="h-7 w-7 text-muted-foreground/40" />
+          <p className="text-sm font-medium text-foreground">{t("clients.detail.deception.empty.title")}</p>
+          <p className="max-w-md text-[13px] text-muted-foreground">{t("clients.detail.deception.empty.desc")}</p>
+        </Surface>
+      </PageShell>
+    )
+  }
 
   let data
   try {
@@ -59,13 +81,6 @@ export default async function ClientDeceptionPage({ params }: { params: Promise<
   return (
     <PageShell>
       <div className="mb-6 space-y-3">
-        <Link
-          href={`/clients/${slug}`}
-          className="inline-flex items-center gap-2 text-sm text-cyan-400 hover:text-cyan-300"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          {client.name}
-        </Link>
         <div className="flex items-center gap-3">
           <Ghost className="h-5 w-5 text-purple-400" />
           <h1 className="text-2xl font-semibold text-foreground">
@@ -77,6 +92,8 @@ export default async function ClientDeceptionPage({ params }: { params: Promise<
           Each interaction with a node confirms they got past the SSH honeypot.
         </p>
       </div>
+
+      <ClientDetailNav slug={slug} active="deception" t={t} />
 
       <div className="space-y-8">
         <DeceptionOverview data={data.overview} />
@@ -91,7 +108,7 @@ export default async function ClientDeceptionPage({ params }: { params: Promise<
           <DeceptionNodesGrid nodes={data.nodes} />
         </section>
 
-        <DeceptionEventsTable events={data.events} />
+        <DeceptionEventsTable events={data.events} showClient={false} />
       </div>
     </PageShell>
   )
