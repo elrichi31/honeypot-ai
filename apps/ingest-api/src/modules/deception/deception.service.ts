@@ -58,10 +58,10 @@ function buildKillchains(steps: KillChainStepRow[]) {
   const chains = new Map<string, Chain>()
 
   for (const row of [...steps].reverse()) {
-    const key = row.session_id ?? `internal:${row.public_ip ?? 'unknown'}`
+    const key = row.session_id ?? `internal:${row.src_ip ?? row.public_ip ?? 'unknown'}`
     let chain = chains.get(key)
     if (!chain) {
-      chain = { key, publicIp: row.public_ip, sessionId: row.session_id, correlation: row.session_id ? 'probable' : 'none', firstSeen: row.timestamp, lastSeen: row.timestamp, steps: [] }
+      chain = { key, publicIp: row.public_ip ?? row.src_ip, sessionId: row.session_id, correlation: row.session_id ? 'probable' : 'none', firstSeen: row.timestamp, lastSeen: row.timestamp, steps: [] }
       chains.set(key, chain)
     }
     chain.lastSeen = row.timestamp
