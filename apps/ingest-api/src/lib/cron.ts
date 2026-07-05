@@ -3,7 +3,7 @@ import type { PrismaClient } from '@prisma/client'
 import { checkSensorHealthAlerts, drainThreatQueue } from './threat-alerts.js'
 import { sendPeriodicReport } from './weekly-report.js'
 import { getAlertConfig } from './runtime-config.js'
-import { readSystemMetrics } from '../routes/monitoring.js'
+import { readSystemMetrics } from './system-metrics.js'
 import { sampleContainerStatsForCron } from './docker-stats.js'
 import { buildRecentRollups } from './rollups.js'
 
