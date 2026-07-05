@@ -8,7 +8,6 @@ import { ClientSensorAssignment } from "@/components/clients/client-sensor-assig
 import { ClientForwardingSettings } from "@/components/clients/client-forwarding-settings"
 import { ClientSensorCatalog } from "@/components/clients/client-sensor-catalog"
 import { ClientOVADownload } from "@/components/clients/client-ova-download"
-import { ClientActivityChart } from "@/components/clients/client-activity-chart"
 import { ClientLogsViewer } from "@/components/clients/client-logs-viewer"
 import { ClientAlerts } from "@/components/clients/client-alerts"
 import { ClientStatsBar } from "@/components/clients/client-stats-bar"
@@ -16,6 +15,12 @@ import { SectionError } from "@/components/section-error"
 import { Surface } from "@/components/ui/surface"
 import { fetchClients, fetchSensors } from "@/lib/api"
 import { getServerT } from "@/lib/i18n/server"
+import nextDynamic from "next/dynamic"
+
+// Code-split the recharts-heavy client component, same pattern as app/page.tsx.
+const ClientActivityChart = nextDynamic(
+  () => import("@/components/clients/client-activity-chart").then(m => ({ default: m.ClientActivityChart })),
+)
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
