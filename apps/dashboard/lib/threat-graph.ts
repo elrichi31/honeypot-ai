@@ -37,7 +37,21 @@ export interface ThreatNodeData {
   copyable?: string
   /** a link target (e.g. pivot to another IP) */
   href?: string
+  /** threat-intel verdict severity, drives the highlight ring/glow on render */
+  severity?: "malicious" | "warn" | null
   [key: string]: unknown
+}
+
+/** Derives a severity from VT + AbuseIPDB so nodes can be visually flagged
+ *  when either feed considers the IP actively malicious, not just "seen". */
+function intelSeverity(enrichment: IpEnrichment | null): "malicious" | "warn" | null {
+  const vt = enrichment?.virustotal
+  const abuseScore = enrichment?.abuseipdb?.abuseConfidenceScore ?? 0
+  const vtMalicious = vt?.last_analysis_stats.malicious ?? 0
+  const vtSuspicious = vt?.last_analysis_stats.suspicious ?? 0
+  if (vtMalicious >= 3 || abuseScore >= 80) return "malicious"
+  if (vtMalicious >= 1 || vtSuspicious >= 2 || abuseScore >= 40) return "warn"
+  return null
 }
 
 export interface GraphNode {
@@ -87,6 +101,7 @@ export function buildThreatGraph(
   const nodes: GraphNode[] = []
   const edges: GraphEdge[] = []
   const ipId = "ip"
+  const severity = intelSeverity(enrichment)
 
   // Center: the IP itself.
   nodes.push({
@@ -99,6 +114,7 @@ export function buildThreatGraph(
       sub: `${threat.risk.score}/100`,
       level: threat.risk.level,
       copyable: threat.ip,
+      severity,
     },
   })
 
@@ -132,7 +148,7 @@ export function buildThreatGraph(
   if (repParts.length > 0) {
     leftNodes.push({
       id: "reputation", type: "threatNode", position: { x: 0, y: 0 },
-      data: { kind: "reputation", label: "Reputation", labelKey: "threatIntel.graph.reputation", sub: repParts.join(" · ") },
+      data: { kind: "reputation", label: "Reputation", labelKey: "threatIntel.graph.reputation", sub: repParts.join(" · "), severity },
     })
   }
   const leftPos = sector(leftNodes.length, 300, 180, 80)

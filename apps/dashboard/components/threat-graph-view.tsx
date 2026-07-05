@@ -4,6 +4,7 @@ import { useCallback, useEffect } from "react"
 import { useT } from "@/components/locale-provider"
 import {
   ReactFlow,
+  ReactFlowProvider,
   Background,
   Controls,
   MiniMap,
@@ -12,6 +13,7 @@ import {
   MarkerType,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   type NodeProps,
   type Node,
   type Edge,
@@ -54,14 +56,20 @@ const KIND_ACCENT: Record<ThreatNodeKind, string> = {
 
 const FOUR_SIDES = [Position.Top, Position.Right, Position.Bottom, Position.Left] as const
 
+const SEVERITY_RING: Record<"malicious" | "warn", string> = {
+  malicious: "ring-2 ring-red-500/70 border-red-500/80 shadow-[0_0_12px_rgba(239,68,68,0.35)]",
+  warn: "ring-1 ring-amber-500/60 border-amber-500/70",
+}
+
 function ThreatNode({ data }: NodeProps<Node<ThreatNodeData>>) {
   const t = useT()
   const Icon = KIND_ICON[data.kind]
   const isCenter = data.kind === "ip"
+  const severityClass = data.severity ? SEVERITY_RING[data.severity] : ""
 
   return (
     <div
-      className={`rounded-lg border px-3 py-2 shadow-sm backdrop-blur-sm ${KIND_ACCENT[data.kind]} ${
+      className={`rounded-lg border px-3 py-2 shadow-sm backdrop-blur-sm ${KIND_ACCENT[data.kind]} ${severityClass} ${
         isCenter ? "min-w-[140px]" : "min-w-[110px] max-w-[180px]"
       }`}
       title={data.copyable ?? data.label}
@@ -92,6 +100,12 @@ function ThreatNode({ data }: NodeProps<Node<ThreatNodeData>>) {
         <span className={`truncate font-mono ${isCenter ? "text-sm font-semibold" : "text-xs"}`}>
           {data.labelKey ? t(data.labelKey) : data.label}
         </span>
+        {data.severity && (
+          <span
+            className={`ml-auto h-1.5 w-1.5 shrink-0 rounded-full ${data.severity === "malicious" ? "bg-red-500" : "bg-amber-500"}`}
+            title={data.severity === "malicious" ? "Flagged malicious by threat intel" : "Suspicious per threat intel"}
+          />
+        )}
       </div>
       {data.sub && <p className="mt-0.5 truncate text-[10px] opacity-70">{data.sub}</p>}
     </div>
@@ -103,6 +117,7 @@ const nodeTypes = { threatNode: ThreatNode }
 // Explicit colors — React Flow draws edges in SVG, where Tailwind CSS vars
 // like var(--border) don't resolve. Use concrete values.
 const EDGE_COLOR = "#475569"      // slate-600
+const EDGE_COLOR_MALICIOUS = "#ef4444" // red-500 — edges touching a flagged node
 const EDGE_LABEL = "#94a3b8"      // slate-400
 const EDGE_LABEL_BG = "#0f172a"   // slate-900
 
@@ -136,13 +151,15 @@ function center(n: Node | undefined): { x: number; y: number } {
   return { x: n.position.x + NODE_W / 2, y: n.position.y + NODE_H / 2 }
 }
 
-function toFlowEdges(graph: ThreatGraph, nodes: Node[]): Edge[] {
+function toFlowEdges(graph: ThreatGraph, nodes: Node<ThreatNodeData>[]): Edge[] {
   const byId = new Map(nodes.map((n) => [n.id, n]))
   return graph.edges.map((e) => {
     const { sourceHandle, targetHandle } = sideHandles(
       center(byId.get(e.source)),
       center(byId.get(e.target)),
     )
+    const touchesMalicious = byId.get(e.source)?.data.severity === "malicious" || byId.get(e.target)?.data.severity === "malicious"
+    const color = touchesMalicious ? EDGE_COLOR_MALICIOUS : EDGE_COLOR
     return {
       id: e.id,
       source: e.source,
@@ -150,10 +167,11 @@ function toFlowEdges(graph: ThreatGraph, nodes: Node[]): Edge[] {
       sourceHandle,
       targetHandle,
       label: e.label,
-      type: "straight",
+      type: "smoothstep",
+      pathOptions: { borderRadius: 24 },
       animated: e.source === "ip",
-      style: { stroke: EDGE_COLOR, strokeWidth: 1.5 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_COLOR, width: 16, height: 16 },
+      style: { stroke: color, strokeWidth: touchesMalicious ? 2 : 1.5 },
+      markerEnd: { type: MarkerType.ArrowClosed, color, width: 16, height: 16 },
       labelStyle: { fill: EDGE_LABEL, fontSize: 10 },
       labelBgStyle: { fill: EDGE_LABEL_BG, fillOpacity: 0.85 },
       labelBgPadding: [4, 2] as [number, number],
@@ -161,20 +179,32 @@ function toFlowEdges(graph: ThreatGraph, nodes: Node[]): Edge[] {
   })
 }
 
-export function ThreatGraphView({ graph }: { graph: ThreatGraph }) {
+function ThreatGraphInner({ graph }: { graph: ThreatGraph }) {
+  const { fitView } = useReactFlow()
   const [nodes, , onNodesChange] = useNodesState<Node<ThreatNodeData>>(
     graph.nodes as Node<ThreatNodeData>[],
   )
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(
-    toFlowEdges(graph, graph.nodes as Node[]),
+    toFlowEdges(graph, graph.nodes as Node<ThreatNodeData>[]),
   )
 
   // Recompute which side each edge attaches to whenever node positions change
   // (initial render, prop change, or dragging a node) so connections always
-  // take the shortest side and stay straight.
+  // take the shortest side and route as smooth curves.
   useEffect(() => {
     setEdges(toFlowEdges(graph, nodes))
   }, [graph, nodes, setEdges])
+
+  // fitView as a prop only runs once, before node dimensions are measured, so
+  // the graph can render off-center or zoomed wrong on first paint. Re-running
+  // it imperatively on a couple of delayed passes (after layout/measurement
+  // settles) keeps it centered without the user having to manually zoom/pan.
+  useEffect(() => {
+    const timers = [50, 200, 500].map((delay) =>
+      setTimeout(() => fitView({ padding: 0.25, duration: 200 }), delay),
+    )
+    return () => timers.forEach(clearTimeout)
+  }, [graph, fitView])
 
   const onNodeClick = useCallback((_: unknown, node: Node<ThreatNodeData>) => {
     const { href, copyable } = node.data
@@ -186,30 +216,38 @@ export function ThreatGraphView({ graph }: { graph: ThreatGraph }) {
   }, [])
 
   return (
+    <ReactFlow
+      nodes={nodes}
+      edges={edges}
+      onNodesChange={onNodesChange}
+      onEdgesChange={onEdgesChange}
+      nodeTypes={nodeTypes}
+      onNodeClick={onNodeClick}
+      fitView
+      fitViewOptions={{ padding: 0.25 }}
+      proOptions={{ hideAttribution: true }}
+      minZoom={0.2}
+      maxZoom={2}
+    >
+      <Background gap={16} className="!bg-transparent" color={EDGE_COLOR} />
+      <Controls className="!bg-card !border-border" showInteractive={false} />
+      <MiniMap
+        className="!bg-card !border-border"
+        maskColor="rgba(0,0,0,0.4)"
+        nodeColor={EDGE_LABEL}
+        pannable
+        zoomable
+      />
+    </ReactFlow>
+  )
+}
+
+export function ThreatGraphView({ graph }: { graph: ThreatGraph }) {
+  return (
     <div className="h-[560px] w-full">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        nodeTypes={nodeTypes}
-        onNodeClick={onNodeClick}
-        fitView
-        fitViewOptions={{ padding: 0.25 }}
-        proOptions={{ hideAttribution: true }}
-        minZoom={0.2}
-        maxZoom={2}
-      >
-        <Background gap={16} className="!bg-transparent" color={EDGE_COLOR} />
-        <Controls className="!bg-card !border-border" showInteractive={false} />
-        <MiniMap
-          className="!bg-card !border-border"
-          maskColor="rgba(0,0,0,0.4)"
-          nodeColor={EDGE_LABEL}
-          pannable
-          zoomable
-        />
-      </ReactFlow>
+      <ReactFlowProvider>
+        <ThreatGraphInner graph={graph} />
+      </ReactFlowProvider>
     </div>
   )
 }
