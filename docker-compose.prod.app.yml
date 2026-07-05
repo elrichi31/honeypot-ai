@@ -46,7 +46,10 @@ services:
     image: redis:7-alpine
     container_name: honeypot-redis
     restart: unless-stopped
-    command: redis-server --save "" --appendonly no
+    # noeviction is Redis's default and would reject writes once full; since
+    # this is a pure query cache (every value is recomputable via withCache),
+    # allkeys-lru lets it evict the least-recently-used entries instead.
+    command: redis-server --save "" --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
