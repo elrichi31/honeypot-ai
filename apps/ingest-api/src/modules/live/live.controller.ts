@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { eventBus, type LiveEvent } from '../lib/event-bus.js'
+import { eventBus, type LiveEvent } from '../../lib/event-bus.js'
 
 export async function liveRoutes(fastify: FastifyInstance) {
   fastify.get('/events/live', (request, reply) => {

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { ClientService } from '../modules/clients/clients.service.js'
+import { ClientService } from './clients.service.js'
 
 const slugParam = z.object({ clientSlug: z.string().trim().min(1) })
 const pageQuery = z.object({

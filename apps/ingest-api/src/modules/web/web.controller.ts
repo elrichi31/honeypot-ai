@@ -1,13 +1,13 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
-import { ensureIngestToken } from '../lib/ingest-auth.js'
-import { eventBus } from '../lib/event-bus.js'
-import { lookupGeo } from '../lib/geo.js'
-import { scheduleThreatAlert, evaluateCanaryAlert } from '../lib/threat-alerts.js'
-import { forwardClientEventBySensorId } from '../lib/client-forward.js'
-import { basePaginationSchema, getPagination } from '../lib/pagination.js'
-import { webHitSchema, normalizeHeaders, parseWebHitBatch } from '../lib/web-normalize.js'
-import { WebService, resolveSensorScope } from '../modules/web/web.service.js'
+import { ensureIngestToken } from '../../lib/ingest-auth.js'
+import { eventBus } from '../../lib/event-bus.js'
+import { lookupGeo } from '../../lib/geo.js'
+import { scheduleThreatAlert, evaluateCanaryAlert } from '../../lib/threat-alerts.js'
+import { forwardClientEventBySensorId } from '../../lib/client-forward.js'
+import { basePaginationSchema, getPagination } from '../../lib/pagination.js'
+import { webHitSchema, normalizeHeaders, parseWebHitBatch } from '../../lib/web-normalize.js'
+import { WebService, resolveSensorScope } from './web.service.js'
 
 const webHitsQuerySchema = z.object({
   limit: z.coerce.number().min(1).max(500).default(100),

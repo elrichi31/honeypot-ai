@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { ensureIngestToken } from '../lib/ingest-auth.js'
-import { SuricataService, type Range } from '../modules/suricata/suricata.service.js'
-import { eveAlertSchema } from '../modules/suricata/suricata.schema.js'
+import { ensureIngestToken } from '../../lib/ingest-auth.js'
+import { SuricataService, type Range } from './suricata.service.js'
+import { eveAlertSchema } from './suricata.schema.js'
 
 const VALID_RANGES = new Set(['24h', '7d', '30d'])
 

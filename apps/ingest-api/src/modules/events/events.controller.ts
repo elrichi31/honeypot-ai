@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { toOffsetISOString } from '../lib/date-utils.js';
-import { basePaginationSchema, getPagination, buildPaginationResponse } from '../lib/pagination.js';
+import { toOffsetISOString } from '../../lib/date-utils.js';
+import { basePaginationSchema, getPagination, buildPaginationResponse } from '../../lib/pagination.js';
 
 const eventListQuerySchema = basePaginationSchema.extend({
   type: z.string().trim().min(1).optional(),

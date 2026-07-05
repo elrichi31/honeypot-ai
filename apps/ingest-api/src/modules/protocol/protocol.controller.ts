@@ -1,12 +1,12 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { ensureIngestToken } from '../lib/ingest-auth.js'
-import { eventBus } from '../lib/event-bus.js'
-import { lookupGeo } from '../lib/geo.js'
-import { scheduleThreatAlert, evaluateDeceptionAlert } from '../lib/threat-alerts.js'
-import { forwardClientEventBySensorId } from '../lib/client-forward.js'
-import { enqueueProtocolHit } from '../lib/protocol-batch.js'
-import { ProtocolService } from '../modules/protocol/protocol.service.js'
+import { ensureIngestToken } from '../../lib/ingest-auth.js'
+import { eventBus } from '../../lib/event-bus.js'
+import { lookupGeo } from '../../lib/geo.js'
+import { scheduleThreatAlert, evaluateDeceptionAlert } from '../../lib/threat-alerts.js'
+import { forwardClientEventBySensorId } from '../../lib/client-forward.js'
+import { enqueueProtocolHit } from '../../lib/protocol-batch.js'
+import { ProtocolService } from './protocol.service.js'
 
 const protocolEventSchema = z.object({
   eventId: z.string().uuid(),

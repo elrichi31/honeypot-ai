@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { basePaginationSchema, getPagination } from '../lib/pagination.js'
-import { SessionService } from '../modules/sessions/session.service.js'
+import { basePaginationSchema, getPagination } from '../../lib/pagination.js'
+import { SessionService } from './session.service.js'
 
 const sessionListQuerySchema = basePaginationSchema.extend({
   startDate: z.string().datetime({ offset: true }).optional(),

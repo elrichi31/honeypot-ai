@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { ensureIngestToken } from '../lib/ingest-auth.js'
-import { ClientService } from '../modules/clients/clients.service.js'
+import { ensureIngestToken } from '../../lib/ingest-auth.js'
+import { ClientService } from './clients.service.js'
 
 const clientSchema = z.object({
   name: z.string().trim().min(1),

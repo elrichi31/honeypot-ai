@@ -1,11 +1,11 @@
 import type { FastifyInstance } from 'fastify';
-import { ingestFileBodySchema, cowrieRawEventSchema, ingestBatchBodySchema, vectorBatchBodySchema } from '../schemas/index.js';
-import { ensureIngestToken } from '../lib/ingest-auth.js';
-import { IngestService } from '../modules/ingest/ingest.service.js';
-import type { CowrieRawEvent } from '../types/index.js';
-import { eventBus } from '../lib/event-bus.js';
-import { lookupGeo } from '../lib/geo.js';
-import { scheduleThreatAlert } from '../lib/threat-alerts.js';
+import { ingestFileBodySchema, cowrieRawEventSchema, ingestBatchBodySchema, vectorBatchBodySchema } from '../../schemas/index.js';
+import { ensureIngestToken } from '../../lib/ingest-auth.js';
+import { IngestService } from './ingest.service.js';
+import type { CowrieRawEvent } from '../../types/index.js';
+import { eventBus } from '../../lib/event-bus.js';
+import { lookupGeo } from '../../lib/geo.js';
+import { scheduleThreatAlert } from '../../lib/threat-alerts.js';
 
 function emitSsh(ip: string, sensorId: string | null, timestamp: string) {
   const geo = lookupGeo(ip)

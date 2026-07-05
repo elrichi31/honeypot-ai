@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import { z } from 'zod'
-import { basePaginationSchema, buildPaginationResponse, getPagination } from '../lib/pagination.js'
+import { basePaginationSchema, buildPaginationResponse, getPagination } from '../../lib/pagination.js'
 import {
   ThreatService,
   RISK_LEVELS,
@@ -10,7 +10,7 @@ import {
   classifyCommands,
   type RiskLevel,
   type ThreatListFilters,
-} from '../modules/threats/threats.service.js'
+} from './threats.service.js'
 
 function csvEnum<T extends string>(allowed: readonly T[]) {
   const allowedSet = new Set<string>(allowed)

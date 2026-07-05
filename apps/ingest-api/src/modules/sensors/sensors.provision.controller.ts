@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { ensureIngestToken } from '../lib/ingest-auth.js'
-import { SensorService } from '../modules/sensors/sensors.service.js'
+import { ensureIngestToken } from '../../lib/ingest-auth.js'
+import { SensorService } from './sensors.service.js'
 
 const VALID_SERVICES = ['ssh', 'http', 'ftp', 'mysql', 'port'] as const
 

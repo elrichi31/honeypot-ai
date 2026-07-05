@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { withCache } from '../lib/cache-helper.js';
+import { withCache } from '../../lib/cache-helper.js';
 
 export async function healthRoutes(fastify: FastifyInstance) {
   // Liveness: must NOT touch the DB. It only confirms the process can serve

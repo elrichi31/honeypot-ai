@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { StorageService, type Range } from '../modules/storage/storage.service.js'
+import { StorageService, type Range } from './storage.service.js'
 
 export async function storageRoutes(fastify: FastifyInstance) {
   const svc = new StorageService(fastify.prisma)

@@ -5,31 +5,31 @@ import cors from '@fastify/cors';
 import { checkIngestRateLimit } from './lib/ingest-rate-limiter.js';
 import prismaPlugin from './plugins/prisma.js';
 import redisPlugin from './plugins/redis.js';
-import { healthRoutes } from './routes/health.js';
-import { ingestRoutes } from './routes/ingest.js';
-import { sessionRoutes } from './routes/sessions.js';
-import { eventRoutes } from './routes/events.js';
-import { statsRoutes } from './routes/stats/index.js';
-import { webRoutes } from './routes/web.js';
-import { threatRoutes } from './routes/threats.js';
-import { liveRoutes } from './routes/live.js';
-import { protocolRoutes } from './routes/protocol.js'
-import { clientRoutes } from './routes/clients.js';
-import { clientObservabilityRoutes } from './routes/client-observability.js';
-import { apiDefenseRoutes } from './routes/api-defense.js';
+import { healthRoutes } from './modules/health/health.controller.js';
+import { ingestRoutes } from './modules/ingest/ingest.controller.js';
+import { sessionRoutes } from './modules/sessions/sessions.controller.js';
+import { eventRoutes } from './modules/events/events.controller.js';
+import { statsRoutes } from './modules/stats/controllers/index.js';
+import { webRoutes } from './modules/web/web.controller.js';
+import { threatRoutes } from './modules/threats/threats.controller.js';
+import { liveRoutes } from './modules/live/live.controller.js';
+import { protocolRoutes } from './modules/protocol/protocol.controller.js'
+import { clientRoutes } from './modules/clients/clients.controller.js';
+import { clientObservabilityRoutes } from './modules/clients/clients.observability.controller.js';
+import { apiDefenseRoutes } from './modules/api-defense/api-defense.controller.js';
 import { defensePlugin } from './plugins/defense.js';
-import { sensorRoutes } from './routes/sensors.js';
-import { attacksTodayRoutes } from './routes/attacksToday.js';
-import { sensorProvisionRoutes } from './routes/sensor-provision.js'
-import { malwareRoutes } from './routes/malware.js';
-import { storageRoutes } from './routes/storage.js';
+import { sensorRoutes } from './modules/sensors/sensors.controller.js';
+import { attacksTodayRoutes } from './modules/attacks-today/attacks-today.controller.js';
+import { sensorProvisionRoutes } from './modules/sensors/sensors.provision.controller.js'
+import { malwareRoutes } from './modules/malware/malware.controller.js';
+import { storageRoutes } from './modules/storage/storage.controller.js';
 import { retentionPlugin } from './plugins/retention.js';
 import { matviewRefreshPlugin } from './plugins/matview-refresh.js';
 import kafkaConsumerPlugin from './plugins/kafka-consumer.js';
-import { suricataRoutes } from './routes/suricata.js';
-import { monitoringRoutes } from './routes/monitoring.js';
-import { alertRoutes } from './routes/alerts.js';
-import { deceptionRoutes } from './routes/deception.js';
+import { suricataRoutes } from './modules/suricata/suricata.controller.js';
+import { monitoringRoutes } from './modules/monitoring/monitoring.controller.js';
+import { alertRoutes } from './modules/alerts/alerts.controller.js';
+import { deceptionRoutes } from './modules/deception/deception.controller.js';
 
 export async function buildApp() {
   // cloudflared runs on the same host and connects from loopback, forwarding the

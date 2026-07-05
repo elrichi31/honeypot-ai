@@ -1,10 +1,10 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { ensureIngestToken } from '../lib/ingest-auth.js'
-import { clearSensorOfflineAlert } from '../lib/threat-alerts.js'
-import { normalizeIp } from '../lib/sensor-utils.js'
-import { SensorService } from '../modules/sensors/sensors.service.js'
-import { eventBus, type SensorHeartbeatEvent } from '../lib/event-bus.js'
+import { ensureIngestToken } from '../../lib/ingest-auth.js'
+import { clearSensorOfflineAlert } from '../../lib/threat-alerts.js'
+import { normalizeIp } from '../../lib/sensor-utils.js'
+import { SensorService } from './sensors.service.js'
+import { eventBus, type SensorHeartbeatEvent } from '../../lib/event-bus.js'
 
 const cowrieConfigSchema = z.object({
   hostname:               z.string().min(1).max(64).default('web-prod-01'),
