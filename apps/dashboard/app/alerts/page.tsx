@@ -5,6 +5,7 @@ import { useTimezone } from "@/components/timezone-provider"
 import { formatInTimezone } from "@/lib/timezone"
 import { Bell, Check, CheckCheck, ChevronDown, Loader2, Trash2 } from "lucide-react"
 import { toast } from "sonner"
+import { assertOk } from "@/lib/client-fetch"
 import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
 import { useTenant } from "@/components/tenant-context"
@@ -99,11 +100,12 @@ export default function AlertsPage() {
     const controller = new AbortController()
     setLoading(true)
     fetch(`/api/alerts?limit=100`, { signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+      .then((res) => assertOk(res, "Could not load alerts"))
+      .then((res) => res.json())
       .then((body) => setData(body))
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return
-        toast.error("Could not load alerts")
+        toast.error(err instanceof Error ? err.message : "Could not load alerts")
       })
       .finally(() => setLoading(false))
     return controller
@@ -122,10 +124,9 @@ export default function AlertsPage() {
       unreadCount: Math.max(0, prev.unreadCount - 1),
     })
     try {
-      const res = await fetch(`/api/alerts/${encodeURIComponent(id)}/read`, { method: "POST" })
-      if (!res.ok) throw new Error()
-    } catch {
-      toast.error("Could not mark as read")
+      await assertOk(await fetch(`/api/alerts/${encodeURIComponent(id)}/read`, { method: "POST" }), "Could not mark as read")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not mark as read")
       fetchAlerts()
     }
   }
@@ -133,13 +134,12 @@ export default function AlertsPage() {
   async function markAllRead() {
     setMarkingAll(true)
     try {
-      const res = await fetch(`/api/alerts/read-all`, { method: "POST" })
-      if (!res.ok) throw new Error()
+      const res = await assertOk(await fetch(`/api/alerts/read-all`, { method: "POST" }), "Could not mark all as read")
       const body = await res.json().catch(() => ({}))
       toast.success(`${body.updated ?? 0} alert(s) marked as read`)
       fetchAlerts()
-    } catch {
-      toast.error("Could not mark all as read")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not mark all as read")
     } finally {
       setMarkingAll(false)
     }
@@ -149,10 +149,9 @@ export default function AlertsPage() {
     // Optimistic removal.
     setData((prev) => prev && { ...prev, alerts: prev.alerts.filter((a) => a.id !== id) })
     try {
-      const res = await fetch(`/api/alerts/${encodeURIComponent(id)}`, { method: "DELETE" })
-      if (!res.ok) throw new Error()
-    } catch {
-      toast.error("Could not delete alert")
+      await assertOk(await fetch(`/api/alerts/${encodeURIComponent(id)}`, { method: "DELETE" }), "Could not delete alert")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete alert")
       fetchAlerts()
     }
   }
@@ -162,13 +161,12 @@ export default function AlertsPage() {
     if (!confirm(`Delete all alerts ${scope}? This cannot be undone.`)) return
     setDeletingAll(true)
     try {
-      const res = await fetch(`/api/alerts`, { method: "DELETE" })
-      if (!res.ok) throw new Error()
+      const res = await assertOk(await fetch(`/api/alerts`, { method: "DELETE" }), "Could not delete alerts")
       const body = await res.json().catch(() => ({}))
       toast.success(`${body.deleted ?? 0} alert(s) deleted`)
       fetchAlerts()
-    } catch {
-      toast.error("Could not delete alerts")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete alerts")
     } finally {
       setDeletingAll(false)
     }
