@@ -69,12 +69,12 @@ export class DeceptionRepository {
         WHERE ${sensorWhere} ORDER BY ip ASC
       `, ...sensorParams),
       this.prismaRead.$queryRawUnsafe<Array<{ node_id: string; hits: bigint; auth_attempts: bigint; last_hit: Date | null }>>(`
-        SELECT data->>'node_id' AS node_id, COUNT(*)::bigint AS hits,
+        SELECT COALESCE(data->>'node_id', sensor_id) AS node_id, COUNT(*)::bigint AS hits,
           COUNT(*) FILTER (WHERE event_type = 'auth')::bigint AS auth_attempts,
           MAX(timestamp) AS last_hit
         FROM protocol_hits
-        WHERE ${DECEPTION_FILTER} AND data->>'node_id' IS NOT NULL${hitScope.clause}
-        GROUP BY data->>'node_id'
+        WHERE ${DECEPTION_FILTER} AND COALESCE(data->>'node_id', sensor_id) IS NOT NULL${hitScope.clause}
+        GROUP BY COALESCE(data->>'node_id', sensor_id)
       `, ...hitScope.params),
     ])
 
@@ -96,11 +96,11 @@ export class DeceptionRepository {
   async getKillchain(scope: Scope, limit: number): Promise<KillChainStepRow[]> {
     const hitScope = sensorScopeClause(scope, 2, 'ph.sensor_id')
     return this.prismaRead.$queryRawUnsafe<KillChainStepRow[]>(`
-      SELECT ph.data->>'node_id' AS node_id, sn.name AS node_name, ph.protocol, ph.dst_port,
+      SELECT COALESCE(ph.data->>'node_id', ph.sensor_id) AS node_id, sn.name AS node_name, ph.protocol, ph.dst_port,
              ph.event_type, ph.username, ph.password, ph.timestamp,
              ph.data->'logdata' AS logdata, s.src_ip AS public_ip, s.id AS session_id
       FROM protocol_hits ph
-      LEFT JOIN sensors sn ON sn.sensor_id = ph.data->>'node_id'
+      LEFT JOIN sensors sn ON sn.sensor_id = COALESCE(ph.data->>'node_id', ph.sensor_id)
       LEFT JOIN LATERAL (
         SELECT s.id, s.src_ip FROM sessions s
         WHERE ph.timestamp >= s.started_at
@@ -125,19 +125,19 @@ export class DeceptionRepository {
         logtype: number | null; logdata: unknown; dst_host: string | null
         client_id: string | null; client_slug: string | null; client_name: string | null
       }>>(`
-        SELECT ph.id, ph.data->>'node_id' AS node_id, sn.name AS node_name, ph.protocol,
+        SELECT ph.id, COALESCE(ph.data->>'node_id', ph.sensor_id) AS node_id, sn.name AS node_name, ph.protocol,
                ph.src_ip, ph.src_port, ph.dst_port, ph.event_type, ph.username, ph.password, ph.timestamp,
                (ph.data->>'logtype')::int AS logtype, ph.data->'logdata' AS logdata, ph.data->>'dst_host' AS dst_host,
                c.id AS client_id, c.slug AS client_slug, c.name AS client_name
         FROM protocol_hits ph
-        LEFT JOIN sensors sn ON sn.sensor_id = ph.data->>'node_id'
+        LEFT JOIN sensors sn ON sn.sensor_id = COALESCE(ph.data->>'node_id', ph.sensor_id)
         LEFT JOIN clients c ON c.id = sn.client_id
-        WHERE ${DECEPTION_FILTER} AND ($1::text IS NULL OR ph.data->>'node_id' = $1)${rowsScope.clause}
+        WHERE ${DECEPTION_FILTER} AND ($1::text IS NULL OR COALESCE(ph.data->>'node_id', ph.sensor_id) = $1)${rowsScope.clause}
         ORDER BY ph.timestamp DESC LIMIT $2 OFFSET $3
       `, nodeId, limit, offset, ...rowsScope.params),
       this.prismaRead.$queryRawUnsafe<[{ count: bigint }]>(`
         SELECT COUNT(*) FROM protocol_hits
-        WHERE ${DECEPTION_FILTER} AND ($1::text IS NULL OR data->>'node_id' = $1)${countScope.clause}
+        WHERE ${DECEPTION_FILTER} AND ($1::text IS NULL OR COALESCE(data->>'node_id', sensor_id) = $1)${countScope.clause}
       `, nodeId, ...countScope.params),
     ])
 

@@ -36,3 +36,9 @@ apps/dashboard/data/
 
 # Claude Code local settings
 .claude/settings.local.json
+.claude/
+.mcp.json
+
+# DB dumps / restore test artifacts
+*.dump
+restore*.log
