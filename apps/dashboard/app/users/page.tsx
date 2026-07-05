@@ -1,13 +1,24 @@
 "use client"
 
-import { apiFetch } from "@/lib/client-fetch"
+import { apiFetch, assertOk } from "@/lib/client-fetch"
 
 import { useEffect, useState } from "react"
 import { formatDistanceToNow } from "date-fns"
 import { es } from "date-fns/locale"
-import { Users, UserPlus, Trash2, X, Eye, EyeOff, ShieldCheck } from "lucide-react"
+import { Users, UserPlus, Trash2, Save, X, Eye, EyeOff, ShieldCheck } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { useSession } from "@/lib/auth-client"
 import { ROLE_LABEL_KEYS, ROLE_COLORS, ROLE_DESCRIPTION_KEYS, hasPermission, type Role } from "@/lib/roles-shared"
 import { useT } from "@/components/locale-provider"
@@ -67,54 +78,44 @@ function CreateUserDialog({
     setError("")
     setLoading(true)
     try {
-      const res = await apiFetch("/api/users", {
+      await assertOk(await apiFetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // superadmin is unscoped by definition; everyone else carries a tenant.
         body: JSON.stringify({ name, email, password, role, clientId: role === "superadmin" ? null : (clientId || null) }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error ?? "Failed to create user"); return }
+      }), t("users.create.error"))
       onCreated()
-    } catch {
-      setError("Network error while creating user")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("users.create.netError"))
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
-        <div className="mb-5 flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">Create user</h2>
-            <p className="text-sm text-muted-foreground">The user will be able to access the dashboard with these credentials.</p>
-          </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="sm:max-w-md">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Name</label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Full name"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring" />
+          <DialogHeader>
+            <DialogTitle>{t("users.create.title")}</DialogTitle>
+            <DialogDescription>{t("users.create.description")}</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Label htmlFor="user-name">{t("users.create.name")}</Label>
+            <Input id="user-name" type="text" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Full name" />
           </div>
 
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="user@company.com"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring" />
+          <div className="space-y-2">
+            <Label htmlFor="user-email">{t("users.create.email")}</Label>
+            <Input id="user-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="user@company.com" />
           </div>
 
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Password</label>
+          <div className="space-y-2">
+            <Label htmlFor="user-password">{t("users.create.password")}</Label>
             <div className="relative">
-              <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)}
-                required minLength={8} placeholder="At least 8 characters"
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring" />
+              <Input id="user-password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)}
+                required minLength={8} placeholder={t("users.create.passwordHint")} className="pr-10" />
               <button type="button" onClick={() => setShowPassword((v) => !v)}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -122,8 +123,8 @@ function CreateUserDialog({
             </div>
           </div>
 
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Role</label>
+          <div className="space-y-2">
+            <Label>{t("users.create.role")}</Label>
             <div className="grid grid-cols-3 gap-2">
               {roleOptions.map((r) => (
                 <button key={r} type="button" onClick={() => setRole(r)}
@@ -146,41 +147,43 @@ function CreateUserDialog({
           {/* Tenant — which client this user is scoped to. Hidden for superadmin
               (global by definition). */}
           {role !== "superadmin" && (
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Tenant (client)</label>
+            <div className="space-y-2">
+              <Label htmlFor="user-tenant">{t("users.create.tenant")}</Label>
               <select
+                id="user-tenant"
                 value={clientId}
                 onChange={(e) => setClientId(e.target.value)}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
               >
-                <option value="">{canSuperadmin ? "Unassigned (no data access)" : "Select a tenant"}</option>
+                <option value="">{canSuperadmin ? t("users.tenant.unassigned") : t("users.tenant.select")}</option>
                 {clients.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
-              <p className="mt-1 text-[10px] text-muted-foreground">The user will only see data for this client.</p>
+              <p className="text-[10px] text-muted-foreground">{t("users.create.tenantHint")}</p>
             </div>
           )}
 
           {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
 
-          <div className="flex justify-end gap-2 pt-1">
-            <button type="button" onClick={onClose}
-              className="rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground">
-              Cancel
-            </button>
-            <button type="submit" disabled={loading}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60">
-              {loading ? "Creating..." : "Create user"}
-            </button>
-          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
+              <X className="h-4 w-4" />
+              {t("users.create.cancel")}
+            </Button>
+            <Button type="submit" disabled={loading}>
+              <Save className="h-4 w-4" />
+              {loading ? t("users.create.creating") : t("users.create.submit")}
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
 function DeleteConfirmDialog({ user, onClose, onDeleted }: { user: User; onClose: () => void; onDeleted: () => void }) {
+  const t = useT()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -188,41 +191,40 @@ function DeleteConfirmDialog({ user, onClose, onDeleted }: { user: User; onClose
     setLoading(true)
     setError("")
     try {
-      const res = await apiFetch(`/api/users/${user.id}`, { method: "DELETE" })
-      if (!res.ok) { const data = await res.json().catch(() => ({})); setError(data.error ?? "Failed to delete"); return }
+      await assertOk(await apiFetch(`/api/users/${user.id}`, { method: "DELETE" }), t("users.delete.error"))
       onDeleted()
-    } catch {
-      setError("Network error while deleting user")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("users.delete.netError"))
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-foreground">Delete user</h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <p className="mb-2 text-sm text-muted-foreground">
-          Delete <span className="font-medium text-foreground">{user.name}</span> ({user.email})?
-        </p>
-        <p className="mb-5 text-xs text-muted-foreground">This action cannot be undone. All of their active sessions will be closed.</p>
-        {error && <p className="mb-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
-        <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground">
-            Cancel
-          </button>
-          <button onClick={handleDelete} disabled={loading}
-            className="rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-60">
-            {loading ? "Deleting..." : "Delete"}
-          </button>
-        </div>
-      </div>
-    </div>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{t("users.page.deleteTitle")}</DialogTitle>
+          <DialogDescription>
+            {t("users.delete.descPrefix")}
+            <span className="font-medium text-foreground">{user.name}</span> ({user.email})
+            {t("users.delete.descSuffix")}
+          </DialogDescription>
+        </DialogHeader>
+
+        {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={loading}>
+            {t("users.delete.cancel")}
+          </Button>
+          <Button variant="destructive" onClick={handleDelete} disabled={loading} className="gap-2">
+            <Trash2 className="h-4 w-4" />
+            {loading ? t("users.delete.deleting") : t("users.delete.submit")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -296,14 +298,14 @@ export default function UsersPage() {
     <PageShell>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Users</h1>
-          <p className="text-sm text-muted-foreground">Manage who has access to the dashboard and with what permissions.</p>
+          <h1 className="text-2xl font-semibold text-foreground">{t("users.page.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("users.page.description")}</p>
         </div>
         {isAdmin && (
           <button onClick={() => setShowCreate(true)}
             className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90">
             <UserPlus className="h-4 w-4" />
-            Create user
+            {t("users.page.createButton")}
           </button>
         )}
       </div>
@@ -320,11 +322,11 @@ export default function UsersPage() {
 
       <Surface className="overflow-hidden">
         {loading ? (
-          <div className="px-6 py-16 text-center text-sm text-muted-foreground">Loading users...</div>
+          <div className="px-6 py-16 text-center text-sm text-muted-foreground">{t("users.page.loading")}</div>
         ) : users.length === 0 ? (
           <div className="px-6 py-16 text-center">
             <Users className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
-            <p className="text-sm font-medium text-foreground mb-1">No users</p>
+            <p className="text-sm font-medium text-foreground mb-1">{t("users.page.empty")}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -398,7 +400,7 @@ export default function UsersPage() {
                       {isAdmin && !isCurrentUser && (
                         <button onClick={() => setDeleteTarget(user)}
                           className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                          title="Delete user">
+                          title={t("users.page.deleteTitle")} aria-label={t("users.page.deleteTitle")}>
                           <Trash2 className="h-4 w-4" />
                         </button>
                       )}
@@ -413,7 +415,7 @@ export default function UsersPage() {
 
       {!isAdmin && !loading && (
         <p className="mt-4 text-xs text-muted-foreground text-center">
-          Only administrators can create, delete, or change user roles.
+          {t("users.page.adminOnlyHint")}
         </p>
       )}
 
