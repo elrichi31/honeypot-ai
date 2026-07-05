@@ -23,10 +23,9 @@ export function ensureIngestToken(request: FastifyRequest, reply: FastifyReply):
   const provided = getProvidedToken(request);
 
   const expectedBuf = Buffer.from(expected);
-  const providedBuf = Buffer.alloc(expectedBuf.length);
-  Buffer.from(provided).copy(providedBuf);
+  const providedBuf = Buffer.from(provided);
 
-  if (!timingSafeEqual(expectedBuf, providedBuf) || provided.length !== expected.length) {
+  if (providedBuf.length !== expectedBuf.length || !timingSafeEqual(expectedBuf, providedBuf)) {
     reply.status(401).send({ error: 'Unauthorized ingest request' });
     return false;
   }
