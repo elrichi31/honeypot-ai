@@ -42,6 +42,11 @@ async function withClientIp(input: string, init: RequestInit): Promise<Response>
 }
 
 /**
+ * Client-side fetch wrapper (`"use client"` components). Distinct from the
+ * server-side `apiFetch` in `lib/api/client.ts` — same name, different contract:
+ * this one returns the raw `Response` (never parses the body), the server one
+ * returns parsed JSON directly. Do not confuse the two on import.
+ *
  * Drop-in replacement for fetch() that injects `x-client-public-ip` on mutating
  * requests. Best-effort: if the public IP can't be resolved, the request still
  * goes out without the header.
@@ -58,4 +63,17 @@ export async function apiFetch(input: string, init: RequestInit = {}): Promise<R
  */
 export async function apiFetchAudited(input: string, init: RequestInit = {}): Promise<Response> {
   return withClientIp(input, init)
+}
+
+export class ApiError extends Error {
+  constructor(message: string, public status: number) {
+    super(message)
+  }
+}
+
+/** Throws ApiError with the server's real error message on a non-ok response. */
+export async function assertOk(res: Response, fallback = "Request failed"): Promise<Response> {
+  if (res.ok) return res
+  const body = await res.json().catch(() => null) as { error?: string } | null
+  throw new ApiError(body?.error || `${fallback} (${res.status})`, res.status)
 }

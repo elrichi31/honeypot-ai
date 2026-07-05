@@ -4,6 +4,12 @@ export function getApiUrl() {
 
 const DEFAULT_FETCH_TIMEOUT_MS = 10000
 
+/**
+ * Server-side fetch wrapper (Server Components, `lib/api/*.ts` data-fetchers).
+ * Distinct from the client-side `apiFetch` in `lib/client-fetch.ts` — same name,
+ * different contract: this one parses and returns JSON directly (or throws),
+ * the client one returns the raw `Response`. Do not confuse the two on import.
+ */
 export async function apiFetch<T>(url: string, revalidate?: number, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS): Promise<T> {
   const init: RequestInit = revalidate != null
     ? { next: { revalidate } }
@@ -20,7 +26,15 @@ export async function apiFetch<T>(url: string, revalidate?: number, timeoutMs = 
     init.headers = { ...init.headers, "X-Ingest-Token": process.env.INGEST_SHARED_SECRET }
   }
   const res = await fetch(url, init)
-  if (!res.ok) throw new Error(`API error ${res.status}: ${url}`)
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    let msg = `API error ${res.status}: ${url}`
+    try {
+      const body = JSON.parse(text)
+      if (body?.error) msg = body.error
+    } catch { /* not JSON, keep default message */ }
+    throw new Error(msg)
+  }
   return res.json()
 }
 
