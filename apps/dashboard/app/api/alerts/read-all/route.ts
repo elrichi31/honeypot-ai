@@ -1,6 +1,6 @@
 import { requireRole } from "@/lib/roles"
 import { effectiveScope } from "@/lib/tenant-scope"
-import { proxyJson } from "@/lib/api/server"
+import { proxyJson, ingestHeaders } from "@/lib/api/server"
 
 export const dynamic = "force-dynamic"
 
@@ -11,7 +11,7 @@ export async function POST() {
   // Scope comes from the tenant cookie; effectiveScope pins non-superadmins.
   const { clientId } = await effectiveScope(auth_check)
   const qs = clientId ? `?clientId=${encodeURIComponent(clientId)}` : ""
-  const result = await proxyJson(`/alerts/read-all${qs}`, { method: "POST" })
+  const result = await proxyJson(`/alerts/read-all${qs}`, { method: "POST", headers: ingestHeaders(false) })
   if (!result.ok) return Response.json({ error: result.error }, { status: result.status })
   return Response.json(result.data, { status: result.status })
 }

@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server"
 import { requireRole } from "@/lib/roles"
 import { effectiveScope } from "@/lib/tenant-scope"
-import { proxyJson } from "@/lib/api/server"
+import { proxyJson, ingestHeaders } from "@/lib/api/server"
 
 export const dynamic = "force-dynamic"
 
@@ -20,7 +20,7 @@ export async function DELETE(
   // Scoped users (incl. fail-closed SCOPE_NONE) pass their clientId; superadmin
   // viewing global passes nothing (may delete any single alert).
   const qs = clientId ? `?clientId=${encodeURIComponent(clientId)}` : ""
-  const result = await proxyJson(`/alerts/${encodeURIComponent(id)}${qs}`, { method: "DELETE" })
+  const result = await proxyJson(`/alerts/${encodeURIComponent(id)}${qs}`, { method: "DELETE", headers: ingestHeaders(false) })
   if (!result.ok) return Response.json({ error: result.error }, { status: result.status })
   return Response.json(result.data, { status: result.status })
 }

@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server"
 import { requireRole, type AuthOk } from "@/lib/roles"
 import { effectiveScope } from "@/lib/tenant-scope"
-import { proxyJson } from "@/lib/api/server"
+import { proxyJson, ingestHeaders } from "@/lib/api/server"
 
 export const dynamic = "force-dynamic"
 
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   if (!auth_check.ok) return auth_check.response
 
   const qs = await scopedQuery(request, auth_check)
-  const result = await proxyJson(`/alerts${qs ? `?${qs}` : ""}`)
+  const result = await proxyJson(`/alerts${qs ? `?${qs}` : ""}`, { headers: ingestHeaders(false) })
   if (!result.ok) return Response.json({ error: result.error }, { status: result.status })
   return Response.json(result.data, { status: result.status })
 }
@@ -33,7 +33,7 @@ export async function DELETE(request: NextRequest) {
   if (!auth_check.ok) return auth_check.response
 
   const qs = await scopedQuery(request, auth_check)
-  const result = await proxyJson(`/alerts${qs ? `?${qs}` : ""}`, { method: "DELETE" })
+  const result = await proxyJson(`/alerts${qs ? `?${qs}` : ""}`, { method: "DELETE", headers: ingestHeaders(false) })
   if (!result.ok) return Response.json({ error: result.error }, { status: result.status })
   return Response.json(result.data, { status: result.status })
 }
