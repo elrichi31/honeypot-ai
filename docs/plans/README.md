@@ -25,6 +25,7 @@ progresses, and link the relevant commit hashes so the history stays traceable.
 - [CORRELATION_ALERTS.md](CORRELATION_ALERTS.md) — 3 alertas correlacionadas nuevas para el motor por-IP: `sensorSweep`, `portScanFanout`, `credReuseCrossSensor`. Implementadas (backend + config + UI + tests) 2026-07-02, sin commitear aún. Pendiente: deploy de observación y calibrar umbrales con tráfico real.
 - [CLIENT_DECEPTION_TAB.md](CLIENT_DECEPTION_TAB.md) — viana de Deception por cliente: tabs en `/clients/[slug]` y atribución cliente+sensor real en la tabla de eventos implementadas (2026-07-04). Pendiente: badge/alerta "tocaron un honeypot interno" (Fase 3) y tests.
 - [SSH_CLASSIFICATION_ENGINE.md](SSH_CLASSIFICATION_ENGINE.md) — auditoría y mejora del motor de clasificación SSH: consolidar los dos motores de patrones divergentes (SQL ILIKE vs regex), dejar de descartar comandos/tags cuando `login_success` no es `true`, arreglar el colapso por `duration` nula, y añadir cobertura de tests. Plan no implementado.
+- [BACKEND_AUDIT.md](BACKEND_AUDIT.md) — auditoría de ingest-api (auth crítica en alerts/deception, timing-safe compare, SQL dinámico) + reorganización `routes/` → `modules/<domain>/*.controller.ts` + repository/service nuevos para api-defense/attacks-today. Todo implementado 2026-07-05, tests/build/docker verificados. Deuda restante: lecturas GET sin token en el resto de módulos, duplicación de auth helpers en el dashboard.
 
 ## Completed plans → [done/](done/)
 
