@@ -37,6 +37,7 @@ export async function GET(request: Request) {
     }
 
     const message = error instanceof Error ? error.message : "Unknown stream error"
+    console.error("[api] /api/events/live", { upstream: `${getApiUrl()}/events/live` }, error)
     return new Response(message, { status: 502 })
   }
 }

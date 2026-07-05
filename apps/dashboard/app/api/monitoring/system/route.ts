@@ -24,6 +24,7 @@ export async function GET() {
     })
   } catch (err) {
     const isTimeout = err instanceof DOMException && err.name === "TimeoutError"
+    console.error("[api] /api/monitoring/system", { upstream: `${apiBase()}/monitoring/system`, isTimeout }, err)
     return Response.json(
       { error: isTimeout ? "Backend timed out" : "Backend unreachable" },
       { status: isTimeout ? 503 : 502 },

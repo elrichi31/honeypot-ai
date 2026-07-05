@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { logAudit } from "@/lib/audit"
 import { requireRole } from "@/lib/roles"
+import { logAndRespond } from "@/lib/api-error"
 
 export async function GET() {
   const auth_check = await requireRole("admin")
@@ -69,6 +70,6 @@ export async function POST(req: NextRequest) {
     if (message.toLowerCase().includes("already") || message.toLowerCase().includes("duplicate") || message.toLowerCase().includes("exist")) {
       return NextResponse.json({ error: "A user with that email already exists" }, { status: 409 })
     }
-    return NextResponse.json({ error: message }, { status: 500 })
+    return logAndRespond(err, { route: "/api/users", email, role })
   }
 }

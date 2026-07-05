@@ -6,6 +6,7 @@ import type { ThreatDetail } from "@/lib/api"
 import { getApiUrl } from "@/lib/api/client"
 import { requireRole } from "@/lib/roles"
 import type { IpEnrichment } from "@/lib/ip-enrichment"
+import { logAndRespond } from "@/lib/api-error"
 
 type CorrelationAlert = { alertKey: string; level: string; title: string; description: string; createdAt: string }
 
@@ -207,7 +208,6 @@ Devuelve UNICAMENTE un JSON valido (sin markdown):
 
     return NextResponse.json(result)
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error"
-    return NextResponse.json({ error: message }, { status: 500 })
+    return logAndRespond(err, { route: "/api/ai/threat-analysis", ip })
   }
 }

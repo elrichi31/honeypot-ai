@@ -58,8 +58,10 @@ export async function GET() {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     if (msg.includes("ENOENT") || msg.includes("EACCES")) {
+      console.error("[api] /api/monitoring/containers", { dockerSocket: DOCKER_SOCKET }, err)
       return NextResponse.json({ error: "socket_unavailable" }, { status: 503 })
     }
+    console.error("[api] /api/monitoring/containers", { dockerSocket: DOCKER_SOCKET, path: "/containers/json?all=true" }, err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

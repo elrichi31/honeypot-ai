@@ -8,6 +8,7 @@ import { generatePdf } from "@/lib/reports/pdf"
 import { translate } from "@/lib/i18n/dictionaries"
 import type { Locale, TranslationKey } from "@/lib/i18n/dictionaries"
 import type { ReportRange } from "@/lib/reports/types"
+import { logAndRespond } from "@/lib/api-error"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 30
@@ -57,8 +58,8 @@ export async function GET(request: NextRequest) {
   if (effectiveClientId && sensorIds === undefined) {
     try {
       sensorIds = await resolveClientSensors(effectiveClientId)
-    } catch {
-      return Response.json({ error: "Failed to resolve client sensors" }, { status: 500 })
+    } catch (err) {
+      return logAndRespond(err, { route: "/api/reports", step: "resolveClientSensors", clientId: effectiveClientId })
     }
   }
 

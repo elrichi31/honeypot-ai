@@ -5,6 +5,7 @@ import { analyzeRisk, preClassify } from "@/lib/risk-score"
 import type { HoneypotEvent, ApiSession } from "@/lib/api"
 import { requireRole } from "@/lib/roles"
 import { getServerLocale } from "@/lib/i18n/server"
+import { logAndRespond } from "@/lib/api-error"
 
 const LOCALE_LANGUAGE: Record<string, string> = {
   en: "English",
@@ -118,7 +119,6 @@ Return ONLY valid JSON with this exact structure (no markdown, no extra text):
 
     return NextResponse.json(result)
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error"
-    return NextResponse.json({ error: message }, { status: 500 })
+    return logAndRespond(err, { route: "/api/ai/session-summary", srcIp: session.srcIp })
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import http from "http"
 import { requireRole } from "@/lib/roles"
 import { logAudit } from "@/lib/audit"
+import { logAndRespond } from "@/lib/api-error"
 
 const ALLOWED_ACTIONS = new Set(["start", "stop", "restart"])
 const SAFE_NAME_RE = /^[a-zA-Z0-9_-]+$/
@@ -137,6 +138,6 @@ export async function POST(
         { status: 503 },
       )
     }
-    return NextResponse.json({ error: message }, { status: 500 })
+    return logAndRespond(err, { route: "/api/sensors/[sensorId]/control", sensorId, action })
   }
 }
