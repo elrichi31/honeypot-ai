@@ -1,6 +1,6 @@
 "use client"
 
-import { apiFetch } from "@/lib/client-fetch"
+import { apiFetch, assertOk } from "@/lib/client-fetch"
 
 import { useMemo, useState } from "react"
 import { Link2, Server, Unlink2, Ghost, Loader2 } from "lucide-react"
@@ -52,18 +52,14 @@ export function ClientSensorAssignment({
   // Caller owns the optimistic list updates so batch callers can update once.
   async function doAssign(sensor: Sensor): Promise<string | null> {
     try {
-      const res = await apiFetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/client`, {
+      await assertOk(await apiFetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/client`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clientId: client.id }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        return (data as { error?: string }).error ?? "Could not assign sensor"
-      }
+      }), "Could not assign sensor")
       return null
-    } catch {
-      return "Could not connect"
+    } catch (err) {
+      return err instanceof Error ? err.message : "Could not connect"
     }
   }
 
@@ -115,13 +111,11 @@ export function ClientSensorAssignment({
     setMessage(null)
 
     try {
-      const res = await apiFetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/client`, {
+      await assertOk(await apiFetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/client`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clientId: null }),
-      })
-
-      if (!res.ok) throw new Error(t("clients.assignment.sensor.unassignError"))
+      }), t("clients.assignment.sensor.unassignError"))
 
       setAssignedSensors((current) => current.filter((item) => item.sensorId !== sensor.sensorId))
       setUnassignedSensors((current) => [
@@ -134,8 +128,8 @@ export function ClientSensorAssignment({
         },
       ])
       setMessage(t("clients.assignment.sensor.unassigned", { name: sensor.name, client: client.name }))
-    } catch {
-      setMessage(t("clients.assignment.sensor.unassignError"))
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : t("clients.assignment.sensor.unassignError"))
     } finally {
       setPendingSensorId(null)
     }

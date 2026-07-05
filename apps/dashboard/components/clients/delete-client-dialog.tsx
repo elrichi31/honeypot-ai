@@ -1,6 +1,6 @@
 "use client"
 
-import { apiFetch } from "@/lib/client-fetch"
+import { apiFetch, assertOk } from "@/lib/client-fetch"
 
 import { useState } from "react"
 import { Trash2, X } from "lucide-react"
@@ -37,16 +37,11 @@ export function DeleteClientDialog({ client, onClose, onDeleted }: Props) {
     setDeleting(true)
     setError(null)
     try {
-      const res = await apiFetch(`/api/clients/${encodeURIComponent(client.id)}`, { method: "DELETE" })
-      if (!res.ok) {
-        const data = await res.json().catch(() => null)
-        setError(data?.error ?? t("clients.delete.error", { status: res.status }))
-        return
-      }
+      await assertOk(await apiFetch(`/api/clients/${encodeURIComponent(client.id)}`, { method: "DELETE" }), t("clients.delete.error"))
       onDeleted(client.id)
       handleClose()
-    } catch {
-      setError(t("clients.delete.netError"))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("clients.delete.netError"))
     } finally {
       setDeleting(false)
     }

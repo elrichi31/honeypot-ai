@@ -1,6 +1,6 @@
 "use client"
 
-import { apiFetch } from "@/lib/client-fetch"
+import { apiFetch, assertOk } from "@/lib/client-fetch"
 
 import { useState } from "react"
 import { Save, X } from "lucide-react"
@@ -51,7 +51,7 @@ export function CreateClientDialog({ trigger, onCreated }: Props) {
     setCreating(true)
     setError("")
     try {
-      const res = await apiFetch("/api/clients", {
+      const res = await assertOk(await apiFetch("/api/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -61,20 +61,13 @@ export function CreateClientDialog({ trigger, onCreated }: Props) {
           description,
           forwardUrl,
         }),
-      })
-      if (!res.ok) {
-        // Surface the server's validation message (e.g. invalid slug/code/URL)
-        // instead of silently leaving the dialog open with no feedback.
-        const data = await res.json().catch(() => ({}))
-        setError(data?.error ?? t("clients.create.error", { status: res.status }))
-        return
-      }
+      }), t("clients.create.error"))
       const client = (await res.json()) as Client
       onCreated(client)
       reset()
       setOpen(false)
-    } catch {
-      setError(t("clients.create.connError"))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("clients.create.connError"))
     } finally {
       setCreating(false)
     }

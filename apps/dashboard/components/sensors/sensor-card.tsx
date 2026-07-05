@@ -1,6 +1,6 @@
 "use client"
 
-import { apiFetch } from "@/lib/client-fetch"
+import { apiFetch, assertOk } from "@/lib/client-fetch"
 
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
@@ -101,19 +101,12 @@ export function SensorCard({
     setDeleteError("")
     setRemoved(true)
     try {
-      const res = await apiFetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}`, { method: "DELETE" })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        setDeleteError(data.error ?? t("sensors.card.error", { status: res.status }))
-        setRemoved(false)
-        setDeleting(false)
-        return
-      }
+      await assertOk(await apiFetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}`, { method: "DELETE" }))
       // Confirmed gone. Refresh in the background to reconcile the server-rendered
       // list; the card is already hidden, so the user doesn't wait on it.
       router.refresh()
-    } catch {
-      setDeleteError(t("sensors.card.couldNotConnect"))
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : t("sensors.card.couldNotConnect"))
       setRemoved(false)
       setDeleting(false)
     }
@@ -123,26 +116,19 @@ export function SensorCard({
     setControlState("loading")
     setControlMsg("")
     try {
-      const res = await apiFetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/control`, {
+      await assertOk(await apiFetch(`/api/sensors/${encodeURIComponent(sensor.sensorId)}/control`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
-      })
-      const data = await res.json()
-      if (res.ok) {
-        setControlState("ok")
-        setControlMsg(t(controlLabelKey(action)))
-        setDockerStatus(optimisticDockerStatus(action))
-        setTimeout(() => fetchDockerStatus(), DOCKER_CONFIRM_DELAY)
-        setTimeout(() => { setControlState("idle"); router.refresh() }, CONTROL_RESET_DELAY)
-      } else {
-        setControlState("error")
-        setControlMsg(data.error ?? t("sensors.card.control.error"))
-        setTimeout(() => setControlState("idle"), CONTROL_ERROR_DELAY)
-      }
-    } catch {
+      }), t("sensors.card.control.error"))
+      setControlState("ok")
+      setControlMsg(t(controlLabelKey(action)))
+      setDockerStatus(optimisticDockerStatus(action))
+      setTimeout(() => fetchDockerStatus(), DOCKER_CONFIRM_DELAY)
+      setTimeout(() => { setControlState("idle"); router.refresh() }, CONTROL_RESET_DELAY)
+    } catch (err) {
       setControlState("error")
-      setControlMsg(t("sensors.card.couldNotConnect"))
+      setControlMsg(err instanceof Error ? err.message : t("sensors.card.couldNotConnect"))
       setTimeout(() => setControlState("idle"), CONTROL_ERROR_DELAY)
     }
   }

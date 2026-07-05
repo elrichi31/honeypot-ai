@@ -1,6 +1,6 @@
 "use client"
 
-import { apiFetch } from "@/lib/client-fetch"
+import { apiFetch, assertOk } from "@/lib/client-fetch"
 
 import { useEffect, useState } from "react"
 import { AlertCircle, Box, CheckCircle2, Download, HardDrive, Loader2, RefreshCw } from "lucide-react"
@@ -55,19 +55,17 @@ export function ClientOVADownload({ client }: Props) {
     setConfigLoading(true)
     setConfigError(null)
     apiFetch("/api/ova/config")
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return r.json() as Promise<OvaConfig & { error?: string }>
-      })
+      .then((r) => assertOk(r, t("sensors.config.loadError")))
+      .then((r) => r.json() as Promise<OvaConfig & { error?: string }>)
       .then((data) => {
         if (cancelled.current) return
         if (data.error) setConfigError(data.error)
         else setConfig(data)
         setConfigLoading(false)
       })
-      .catch(() => {
+      .catch((err) => {
         if (cancelled.current) return
-        setConfigError(t("sensors.config.loadError"))
+        setConfigError(err instanceof Error ? err.message : t("sensors.config.loadError"))
         setConfigLoading(false)
       })
   }
@@ -94,16 +92,11 @@ export function ClientOVADownload({ client }: Props) {
     setError(null)
 
     try {
-      const res = await apiFetch(`/api/clients/${client.id}/ova`, {
+      const res = await assertOk(await apiFetch(`/api/clients/${client.id}/ova`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ services: Array.from(selected) }),
-      })
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { error?: string }
-        throw new Error(body.error || `Error ${res.status}`)
-      }
+      }))
 
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)

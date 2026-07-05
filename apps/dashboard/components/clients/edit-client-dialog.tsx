@@ -1,6 +1,6 @@
 "use client"
 
-import { apiFetch } from "@/lib/client-fetch"
+import { apiFetch, assertOk } from "@/lib/client-fetch"
 
 import { useEffect, useState } from "react"
 import { AlertCircle, Save, X } from "lucide-react"
@@ -51,15 +51,11 @@ export function EditClientDialog({ client, onClose, onSaved }: Props) {
     setSaving(true)
     setSaveError(null)
     try {
-      const res = await apiFetch(`/api/clients/${encodeURIComponent(client.id)}`, {
+      const res = await assertOk(await apiFetch(`/api/clients/${encodeURIComponent(client.id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, code, description, forwardUrl }),
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { error?: string }
-        throw new Error(body.error || `Error ${res.status}`)
-      }
+      }))
       onSaved(await res.json() as Client)
       onClose()
     } catch (err) {

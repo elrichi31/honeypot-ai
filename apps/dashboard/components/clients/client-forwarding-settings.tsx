@@ -1,6 +1,6 @@
 "use client"
 
-import { apiFetch } from "@/lib/client-fetch"
+import { apiFetch, assertOk } from "@/lib/client-fetch"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -77,16 +77,15 @@ export function ClientForwardingSettings({ client }: Props) {
     setSaving(true)
     setMessage(null)
     try {
-      const res = await apiFetch(`/api/clients/${encodeURIComponent(client.id)}`, {
+      await assertOk(await apiFetch(`/api/clients/${encodeURIComponent(client.id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, code, description, forwardUrl, crowdstrikeHecUrl, crowdstrikeApiKey }),
-      })
-      if (!res.ok) throw new Error()
+      }), "Could not save client settings")
       router.refresh()
       setMessage("Settings saved.")
-    } catch {
-      setMessage("Could not save client settings.")
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not save client settings.")
     } finally {
       setSaving(false)
     }
@@ -96,13 +95,9 @@ export function ClientForwardingSettings({ client }: Props) {
     setTestStatus("sending")
     setTestError(null)
     try {
-      const res = await apiFetch(`/api/clients/${encodeURIComponent(client.id)}/crowdstrike-test`, {
+      await assertOk(await apiFetch(`/api/clients/${encodeURIComponent(client.id)}/crowdstrike-test`, {
         method: "POST",
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { error?: string }
-        throw new Error(body.error ?? `HTTP ${res.status}`)
-      }
+      }))
       setTestStatus("ok")
       setTimeout(() => setTestStatus("idle"), 4000)
     } catch (err) {

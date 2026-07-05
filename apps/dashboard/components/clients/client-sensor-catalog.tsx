@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { apiFetchAudited } from "@/lib/client-fetch"
+import { apiFetchAudited, assertOk } from "@/lib/client-fetch"
 import { Download, Globe, Network, Server, CheckCircle2, Terminal, ChevronRight, Loader2, Radar, AlertTriangle } from "lucide-react"
 import { useT } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
@@ -229,11 +229,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
         clientSlug: client.slug,
         clientName: client.name,
       })
-      const res = await apiFetchAudited(`/api/sensor/install?${params}`)
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error((data as { error?: string }).error ?? "Download failed")
-      }
+      const res = await assertOk(await apiFetchAudited(`/api/sensor/install?${params}`), "Download failed")
       const filename = `install-sensor-${client.slug}-${selected.join("-")}.sh`
       triggerDownload(await res.blob(), filename)
     } catch (e) {
@@ -247,10 +243,9 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
     setDownloadingEnv(entry.protocol)
     setError(null)
     try {
-      const res = await apiFetchAudited(
+      const res = await assertOk(await apiFetchAudited(
         `/api/sensor-bundle?clientSlug=${encodeURIComponent(client.slug)}&sensorType=${encodeURIComponent(entry.protocol)}`,
-      )
-      if (!res.ok) throw new Error("Download failed")
+      ), "Download failed")
       const code = client.code || client.slug.toUpperCase().slice(0, 8)
       triggerDownload(await res.blob(), `${entry.sensorPrefix}-01-${code}.env`)
     } catch (e) {

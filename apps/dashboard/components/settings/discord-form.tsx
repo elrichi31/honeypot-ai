@@ -22,7 +22,8 @@ export function DiscordForm() {
       if (res.status === 401 || res.status === 403) {
         setTestError(t("set.discord.testAdmin"))
       } else if (!res.ok) {
-        setTestError(t("set.discord.testFailed"))
+        const body = await res.json().catch(() => null) as { error?: string } | null
+        setTestError(body?.error ? `${t("set.discord.testFailed")}: ${body.error}` : t("set.discord.testFailed"))
       }
     } catch {
       setTestError(t("set.discord.testConnect"))

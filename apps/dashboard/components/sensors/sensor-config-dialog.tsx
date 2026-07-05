@@ -1,6 +1,6 @@
 "use client"
 
-import { apiFetch } from "@/lib/client-fetch"
+import { apiFetch, assertOk } from "@/lib/client-fetch"
 
 import { useEffect, useRef, useState } from "react"
 import { Save, X, RotateCcw, Info, Plus } from "lucide-react"
@@ -167,15 +167,14 @@ export function SensorConfigDialog({
     setSaving(true)
     setError("")
     try {
-      const res = await apiFetch(`/api/sensors/${encodeURIComponent(sensorId)}/config`, {
+      await assertOk(await apiFetch(`/api/sensors/${encodeURIComponent(sensorId)}/config`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(cfg),
-      })
-      if (!res.ok) throw new Error()
+      }), t("sensors.config.saveError"))
       setSaved(true)
-    } catch {
-      setError(t("sensors.config.saveError"))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("sensors.config.saveError"))
     } finally {
       setSaving(false)
     }
