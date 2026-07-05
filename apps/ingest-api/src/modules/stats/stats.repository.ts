@@ -8,11 +8,11 @@ import type {
   CommandRow, CountRow, CountOnlyRow,
   CredentialPairRow, UsernameAggregateRow, PasswordAggregateRow,
   SprayPasswordRow, TargetedUsernameRow, DiversifiedAttackerRow,
-} from '../../routes/stats/types.js'
+} from './stats.types.js'
 import {
   buildAuthWhereSql, buildClauseBlock, eventScopeClause, eventScopeWhere,
   protocolClause, type EventScope,
-} from '../../routes/stats/utils.js'
+} from './stats.utils.js'
 
 export type { EventScope }
 export { buildAuthWhereSql, buildClauseBlock, eventScopeClause, eventScopeWhere, protocolClause }

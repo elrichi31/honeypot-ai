@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
-import type { TimelineBucket, GroupedUsernameRow, GroupedPasswordRow, CountRow, CommandRow } from './types.js'
-import { parseDate, toNumber } from './utils.js'
-import { TimelineRepository } from '../../modules/stats/stats.repository.js'
+import type { TimelineBucket, GroupedUsernameRow, GroupedPasswordRow, CountRow, CommandRow } from '../stats.types.js'
+import { parseDate, toNumber } from '../stats.utils.js'
+import { TimelineRepository } from '../stats.repository.js'
 
 export async function overviewRoute(fastify: FastifyInstance) {
   const repo = new TimelineRepository(fastify.prismaRead)

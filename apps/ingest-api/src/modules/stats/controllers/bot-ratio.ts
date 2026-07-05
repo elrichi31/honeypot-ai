@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
-import { withCache } from '../../lib/cache-helper.js'
-import { parseSensorScope } from '../../lib/sensor-scope.js'
-import { BotRatioRepository } from '../../modules/stats/stats.repository.js'
+import { withCache } from '../../../lib/cache-helper.js'
+import { parseSensorScope } from '../../../lib/sensor-scope.js'
+import { BotRatioRepository } from '../stats.repository.js'
 
 const BOT_RATIO_TTL = 300
 

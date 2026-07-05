@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify'
-import { withCache } from '../../lib/cache-helper.js'
-import { parseSensorScope } from '../../lib/sensor-scope.js'
-import { toNumber, toOffsetISOString } from './utils.js'
-import { DashboardRepository } from '../../modules/stats/stats.repository.js'
+import { withCache } from '../../../lib/cache-helper.js'
+import { parseSensorScope } from '../../../lib/sensor-scope.js'
+import { toNumber, toOffsetISOString } from '../stats.utils.js'
+import { DashboardRepository } from '../stats.repository.js'
 
 const CACHE_TTL = 1800
 

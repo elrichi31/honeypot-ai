@@ -5,11 +5,11 @@ import type {
   CredentialsRankingType, CredentialsMainTab, CredentialsSortDirection,
   CredentialPairRow, UsernameAggregateRow, PasswordAggregateRow,
   SprayPasswordRow, TargetedUsernameRow, DiversifiedAttackerRow, CountOnlyRow,
-} from './types.js'
-import { parseDate, toNumber, toOffsetISOString, buildAuthWhereSql, buildClauseBlock, eventScopeClause, eventScopeWhere, protocolClause, type EventScope } from './utils.js'
-import { withCache } from '../../lib/cache-helper.js'
-import { resolveClientSensors } from '../../lib/client-helpers.js'
-import { CredentialsRepository } from '../../modules/stats/stats.repository.js'
+} from '../stats.types.js'
+import { parseDate, toNumber, toOffsetISOString, buildAuthWhereSql, buildClauseBlock, eventScopeClause, eventScopeWhere, protocolClause, type EventScope } from '../stats.utils.js'
+import { withCache } from '../../../lib/cache-helper.js'
+import { resolveClientSensors } from '../../../lib/client-helpers.js'
+import { CredentialsRepository } from '../stats.repository.js'
 
 const DEFAULT_PAGE_SIZE = 50
 const MAX_PAGE_SIZE = 200

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
-import { withCache } from '../../lib/cache-helper.js'
-import { parseSensorScope } from '../../lib/sensor-scope.js'
+import { withCache } from '../../../lib/cache-helper.js'
+import { parseSensorScope } from '../../../lib/sensor-scope.js'
 import {
   TECHNIQUE_META,
   TACTIC_ORDER,
@@ -9,8 +9,8 @@ import {
   mapSshEvent,
   mapSuricataCategory,
   type Tactic,
-} from '../../lib/mitre.js'
-import { MitreRepository } from '../../modules/stats/stats.repository.js'
+} from '../../../lib/mitre.js'
+import { MitreRepository } from '../stats.repository.js'
 
 const MITRE_TTL = 900
 const DEFAULT_DAYS = 90

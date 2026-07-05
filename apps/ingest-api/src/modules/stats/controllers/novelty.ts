@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
-import { withCache } from '../../lib/cache-helper.js'
-import { parseSensorScope } from '../../lib/sensor-scope.js'
-import { NoveltyRepository } from '../../modules/stats/stats.repository.js'
+import { withCache } from '../../../lib/cache-helper.js'
+import { parseSensorScope } from '../../../lib/sensor-scope.js'
+import { NoveltyRepository } from '../stats.repository.js'
 
 const NOVELTY_TTL = 300
 const DEFAULT_HOURS = 24
