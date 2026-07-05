@@ -100,7 +100,7 @@ export interface SecretFieldProps {
   error: string
   onChange: (v: string) => void
   onSave: () => void
-  onClear: () => void
+  onClear: () => void | Promise<void>
   /** Extra buttons rendered after the clear button (e.g. "Send test"). */
   extra?: React.ReactNode
   /** Disable the save button even when not saving/loading (e.g. not dirty). */
@@ -155,7 +155,11 @@ export function SecretField({
             ? <><CheckCircle className="mr-1.5 h-3.5 w-3.5" />{t("set.common.saved")}</>
             : t("set.common.save")}
         </Button>
-        {hasValue && <Button variant="outline" onClick={onClear}>{t("set.common.clear")}</Button>}
+        {hasValue && (
+          <Button variant="outline" onClick={onClear} disabled={status === "saving" || loading}>
+            {t("set.common.clear")}
+          </Button>
+        )}
         {extra}
       </div>
       <SaveFeedback status={status} error={error} />
@@ -190,7 +194,7 @@ export interface ConfigFieldState {
   dirty: boolean
   setValue: (v: string) => void
   save: (override?: string) => Promise<void>
-  clear: () => void
+  clear: () => Promise<void>
 }
 
 export function useConfigField({ key, hasKey, prePopulate = false }: ConfigFieldOptions): ConfigFieldState {
@@ -232,15 +236,9 @@ export function useConfigField({ key, hasKey, prePopulate = false }: ConfigField
     }
   }
 
-  function clear() {
+  async function clear() {
     setValue("")
-    setHasValue(false)
-    setDirty(false)
-    apiFetch("/api/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ [key]: "" }),
-    })
+    await save("")
   }
 
   return {

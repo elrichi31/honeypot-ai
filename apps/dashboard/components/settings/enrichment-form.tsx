@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { CheckCircle, Loader2, ShieldCheck, Activity } from "lucide-react"
-import { apiFetch } from "@/lib/client-fetch"
+import { apiFetch, assertOk } from "@/lib/client-fetch"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -170,17 +170,16 @@ export function EnrichmentForm() {
     setStatus("saving")
     setError("")
     try {
-      const res = await apiFetch("/api/config", {
+      await assertOk(await apiFetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      })
-      if (!res.ok) throw new Error()
+      }), t("set.common.couldNotSave"))
       afterSave?.()
       setStatus("saved")
       setTimeout(() => setStatus("idle"), 3000)
-    } catch {
-      setError(t("set.common.couldNotSave"))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("set.common.couldNotSave"))
       setStatus("error")
     }
   }
@@ -192,14 +191,12 @@ export function EnrichmentForm() {
     return saveField({ [field]: value }, setStatus, setError, () => setHas(!!value.trim()))
   }
 
-  function clearKey(field: string, setValue: (s: string) => void, setHas: (b: boolean) => void) {
+  async function clearKey(
+    field: string, setValue: (s: string) => void, setHas: (b: boolean) => void,
+    setStatus: (s: SaveStatus) => void, setError: (e: string) => void,
+  ) {
     setValue("")
-    setHas(false)
-    apiFetch("/api/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ [field]: "" }),
-    })
+    return saveField({ [field]: "" }, setStatus, setError, () => setHas(false))
   }
 
   const anyConfigured = hasAbuseKey || hasIpinfoKey || hasSpectraToken || hasVtKey
@@ -225,7 +222,7 @@ export function EnrichmentForm() {
           loading={abuseStatus === "loading"}
           onChange={setAbuseKey}
           onSave={() => saveKey("abuseipdbApiKey", abuseKey, setAbuseStatus, setAbuseError, setHasAbuseKey)}
-          onClear={() => clearKey("abuseipdbApiKey", setAbuseKey, setHasAbuseKey)}
+          onClear={() => clearKey("abuseipdbApiKey", setAbuseKey, setHasAbuseKey, setAbuseStatus, setAbuseError)}
           status={abuseStatus}
           error={abuseError}
         />
@@ -242,7 +239,7 @@ export function EnrichmentForm() {
           loading={ipinfoStatus === "loading"}
           onChange={setIpinfoKey}
           onSave={() => saveKey("ipinfoApiKey", ipinfoKey, setIpinfoStatus, setIpinfoError, setHasIpinfoKey)}
-          onClear={() => clearKey("ipinfoApiKey", setIpinfoKey, setHasIpinfoKey)}
+          onClear={() => clearKey("ipinfoApiKey", setIpinfoKey, setHasIpinfoKey, setIpinfoStatus, setIpinfoError)}
           status={ipinfoStatus}
           error={ipinfoError}
         />
@@ -274,7 +271,7 @@ export function EnrichmentForm() {
           loading={spectraTokenStatus === "loading"}
           onChange={setSpectraToken}
           onSave={() => saveKey("spectraAnalyzeToken", spectraToken, setSpectraTokenStatus, setSpectraTokenError, setHasSpectraToken)}
-          onClear={() => clearKey("spectraAnalyzeToken", setSpectraToken, setHasSpectraToken)}
+          onClear={() => clearKey("spectraAnalyzeToken", setSpectraToken, setHasSpectraToken, setSpectraTokenStatus, setSpectraTokenError)}
           status={spectraTokenStatus}
           error={spectraTokenError}
         />
@@ -291,7 +288,7 @@ export function EnrichmentForm() {
           loading={vtStatus === "loading"}
           onChange={setVtKey}
           onSave={() => saveKey("virustotalApiKey", vtKey, setVtStatus, setVtError, setHasVtKey)}
-          onClear={() => clearKey("virustotalApiKey", setVtKey, setHasVtKey)}
+          onClear={() => clearKey("virustotalApiKey", setVtKey, setHasVtKey, setVtStatus, setVtError)}
           status={vtStatus}
           error={vtError}
         />
