@@ -69,6 +69,7 @@ export async function ingestRoutes(fastify: FastifyInstance) {
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      fastify.log.error({ err, srcIp: parsed.data.src_ip, eventid: parsed.data.eventid }, 'Failed to ingest cowrie event');
       return reply.status(500).send({ error: msg });
     }
   });
@@ -106,6 +107,7 @@ export async function ingestRoutes(fastify: FastifyInstance) {
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
+        fastify.log.error({ err, srcIp: raw.src_ip, eventid: raw.eventid }, 'Failed to ingest cowrie batch event');
         errors.push(msg);
       }
     }
@@ -148,6 +150,7 @@ export async function ingestRoutes(fastify: FastifyInstance) {
           ipsToEvaluate.add(raw.src_ip)
         }
       } catch (err) {
+        fastify.log.error({ err, srcIp: raw.src_ip, eventid: raw.eventid }, 'Failed to ingest vector cowrie event');
         errors.push(err instanceof Error ? err.message : String(err));
       }
     }
