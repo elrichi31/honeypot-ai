@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useT } from "@/components/locale-provider"
-import { apiFetch } from "@/lib/client-fetch"
+import { apiFetch, assertOk } from "@/lib/client-fetch"
 import { CheckCircle, AlertCircle, Loader2, Eye, EyeOff } from "lucide-react"
 
 export type SaveStatus = "idle" | "loading" | "saving" | "saved" | "error"
@@ -217,18 +217,17 @@ export function useConfigField({ key, hasKey, prePopulate = false }: ConfigField
     setStatus("saving")
     setError("")
     try {
-      const res = await apiFetch("/api/config", {
+      await assertOk(await apiFetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [key]: val }),
-      })
-      if (!res.ok) throw new Error()
+      }), t("set.common.couldNotSave"))
       setHasValue(!!val.trim())
       setDirty(false)
       setStatus("saved")
       setTimeout(() => setStatus("idle"), 3000)
-    } catch {
-      setError(t("set.common.couldNotSave"))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("set.common.couldNotSave"))
       setStatus("error")
     }
   }

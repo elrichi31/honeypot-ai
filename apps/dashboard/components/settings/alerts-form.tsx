@@ -1,6 +1,6 @@
 "use client"
 
-import { apiFetch } from "@/lib/client-fetch"
+import { apiFetch, assertOk } from "@/lib/client-fetch"
 
 import { useState, useEffect } from "react"
 import { Switch } from "@/components/ui/switch"
@@ -101,7 +101,7 @@ export function AlertsForm() {
     setStatus("saving")
     setError("")
     try {
-      const res = await apiFetch("/api/config", {
+      await assertOk(await apiFetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -110,12 +110,11 @@ export function AlertsForm() {
           alertEnabledTypes: cfg.alertEnabledTypes,
           reportIntervalHours: cfg.reportIntervalHours,
         }),
-      })
-      if (!res.ok) throw new Error()
+      }), t("set.common.couldNotSave"))
       setStatus("saved")
       setTimeout(() => setStatus("idle"), 3000)
-    } catch {
-      setError(t("set.common.couldNotSave"))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("set.common.couldNotSave"))
       setStatus("error")
     }
   }
