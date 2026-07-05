@@ -18,8 +18,8 @@ export type AlertRow = {
 export class AlertRepository {
   constructor(private prisma: PrismaClient) {}
 
-  async list(args: { limit: number; unreadOnly: boolean; clientId?: string }): Promise<AlertRow[]> {
-    const { limit, unreadOnly, clientId } = args
+  async list(args: { limit: number; unreadOnly: boolean; clientId?: string; srcIp?: string }): Promise<AlertRow[]> {
+    const { limit, unreadOnly, clientId, srcIp } = args
     return this.prisma.$queryRaw<AlertRow[]>`
       SELECT a.id, a.alert_key, a.level, a.title, a.description, a.fields,
              a.src_ip, a.sensor_id, a.client_id, c.name AS client_name,
@@ -27,6 +27,7 @@ export class AlertRepository {
       FROM alerts a
       LEFT JOIN clients c ON c.id = a.client_id
       WHERE (${clientId ?? null}::text IS NULL OR a.client_id = ${clientId ?? null})
+        AND (${srcIp ?? null}::text IS NULL OR a.src_ip = ${srcIp ?? null})
         AND (${unreadOnly} = false OR a.read_at IS NULL)
       ORDER BY a.created_at DESC
       LIMIT ${limit}

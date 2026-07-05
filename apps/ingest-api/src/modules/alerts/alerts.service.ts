@@ -13,6 +13,7 @@ export class AlertService {
     limit: number
     unreadOnly: boolean
     clientId?: string
+    srcIp?: string
   }): Promise<{ alerts: ReturnType<typeof mapAlert>[]; unreadCount: number }> {
     const [rows, unreadCount] = await Promise.all([
       this.repo.list(args),
