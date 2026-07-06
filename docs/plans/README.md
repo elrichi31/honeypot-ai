@@ -16,7 +16,6 @@ progresses, and link the relevant commit hashes so the history stays traceable.
 - [DOCS.md](DOCS.md) — esquema del site de documentación, qué se ha documentado, y la regla de que las features se shippen con docs.
 - [CICD.md](CICD.md) — pipeline CI/CD: GitHub Actions → VPS auto-redeploy, secrets, y cómo migrar a un VPS nuevo.
 - [REALTIME_STREAM.md](REALTIME_STREAM.md) — SSE stream extendido a alert+heartbeat; 3 live features: attack badge, alert bell+toast, sensor live-dot. Pendiente: marcar alerta leída desde toast, contador server-side, live map con `useLiveStream`.
-- [DESIGN_PATTERNS.md](DESIGN_PATTERNS.md) — refactor backlog: 4 oportunidades priorizadas para reducir duplicación (proxy-helper merge, secret-field component, config registry, scoped-route HOF).
 - [MONITORING_PERF.md](MONITORING_PERF.md) — reducir saturación CPU/RAM del muestreo de stats. Tareas 1–4 + 6 parcial implementadas 2026-06-24. Pendiente: Tarea 5 (socket lazy-check) y gemelo BFF Tarea 6.
 - [FRONT_AUDIT_NEXT.md](FRONT_AUDIT_NEXT.md) — auditoría con `vercel-labs/next-best-practices`. Sprint 1+2 completos (2026-06-24). Pendiente no bloqueante: Suspense granular.
 - [PERF_AUDIT.md](PERF_AUDIT.md) — auditoría de rendimiento: A1/B1/B2/C1/C2/D1/M1/M2 implementados 2026-06-24. M3 (métricas de ingesta: `/health/ingest-metrics`, p50/p99 + eventos/s desde el hot-path real de Kafka) implementado 2026-07-05. Pendiente: observar bajo tráfico real y decidir A2/C3/D2 con esos datos.

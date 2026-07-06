@@ -39,27 +39,41 @@ tabla (antes solo tenía `title`, insuficiente para lectores de pantalla).
 Verificado: `tsc --noEmit` limpio, 33/33 tests, rebuild en Docker sin
 errores.
 
-### 2. Único `confirm()` nativo del navegador
+### 2. Único `confirm()` nativo del navegador — RESUELTO (2026-07-05)
 
 `app/alerts/page.tsx:161` — `if (!confirm(...)) return` para "delete all
-alerts". Es el único call site de `confirm()` en toda la app; el resto de
+alerts". Era el único call site de `confirm()` en toda la app; el resto de
 ~10+ acciones destructivas ya usan `Dialog`/`AlertDialog` (ver
 `sensor-header.tsx`'s `DeleteSensorDialog`, `delete-client-dialog.tsx`).
-Inconsistente (el diálogo nativo del navegador rompe el estilo visual y no
-se puede personalizar) pero acotado a 1 lugar — **no atacado en esta
-pasada**, candidato para una próxima si se decide.
 
-### 3. Sin validación inline en formularios de diálogo
+**Fix aplicado**: migrado a `AlertDialog` (mismo patrón que
+`DeleteSensorDialog`), con 5 keys i18n nuevas en `dicts/alerts.ts` (en/es):
+`alerts.deleteAll.{button,title,descScoped,descAll,cancel}`. `deleteAll()`
+ya no llama `confirm()` — la confirmación ahora vive en el render del
+`AlertDialog`. Verificado: `grep -rn "confirm(" apps/dashboard/app
+apps/dashboard/components` → cero resultados.
 
-`create-client-dialog.tsx`, `sensor-config-dialog.tsx`: el único feedback
-de "falta un campo" es que el botón Submit queda deshabilitado
-(`disabled={creating || !name.trim()}`), sin decirle al usuario *por qué*.
-Único ejemplo de validación en vivo: `TagInput` en
-`sensor-config-dialog.tsx` (muestra error por cada tag inválido mientras
-se escribe). Gap compartido por varios formularios de diálogo — **no
-atacado en esta pasada**, requeriría un patrón `FieldError` compartido.
+### 3. Sin validación inline en formularios de diálogo — RESUELTO (2026-07-05)
 
-### 4. Empty states — mayormente buenos, algunos solo texto plano
+`create-client-dialog.tsx`, `edit-client-dialog.tsx`,
+`client-forwarding-settings.tsx`: el único feedback de "falta un campo" era
+que el botón Submit quedaba deshabilitado (`disabled={creating ||
+!name.trim()}`), sin decirle al usuario *por qué*.
+
+**Fix aplicado**: no hizo falta diseñar un patrón nuevo — `FieldError` ya
+existía en [`components/ui/field.tsx`](../../apps/dashboard/components/ui/field.tsx)
+(parte del kit shadcn instalado) pero tenía **cero usos reales** en todo el
+código. Adoptado en los 3 archivos: un flag `xTouched` por campo requerido
+(seteado en `onBlur` y al intentar submit con el campo vacío), gateando
+`aria-invalid` en el `Input` y un `<FieldError>` debajo que solo aparece
+tras ese primer touch/intento — no es agresivo con un formulario recién
+abierto. `sensor-config-dialog.tsx` se revisó y **no necesitaba el fix**:
+todos sus campos tienen defaults o ya validan en vivo (`TagInput`).
+`i18n`: `clients.create.nameRequired`, `clients.edit.codeRequired` (en/es);
+`client-forwarding-settings.tsx` usa texto plano en inglés directo,
+consistente con el resto del archivo (no tiene `useT()`).
+
+### 4. Empty states — mayormente buenos, algunos solo texto plano — RESUELTO (2026-07-05)
 
 Patrón bueno y repetido (icono + título + a veces hint) en:
 `app/alerts/page.tsx`, `app/audit/page.tsx`, `app/sensors/page.tsx`,
@@ -68,14 +82,29 @@ Patrón bueno y repetido (icono + título + a veces hint) en:
 helper compartido `EmptyRow` usado en `services/page.tsx`,
 `protocol-detail-page.tsx`, `protocol-hits-table.tsx`.
 
-Gap: varios lugares muestran solo texto centrado sin ícono ni CTA, pese a
-que a veces hay una acción disponible justo arriba —
-`components/clients/client-manager.tsx:59-60` (sin ícono, aunque el botón
-"crear cliente" está ahí mismo), `web-attacks/[ip]/page.tsx:425-429`,
-`web-attacks/bursts/page.tsx:225-229`, `suricata/suricata-client.tsx:191,213`,
-`web-attacks/timeline/timeline-charts.tsx:43-44`. No roto, solo
-visualmente inconsistente frente al resto de la app — **no atacado en
-esta pasada**, candidato a consolidar en un solo `EmptyState` compartido.
+Gap identificado: varios lugares mostraban solo texto centrado sin ícono ni
+CTA, pese a que a veces hay una acción disponible justo arriba.
+
+**Fix aplicado**, reusando el `EmptyState` compartido de
+[`components/ui/data-states.tsx`](../../apps/dashboard/components/ui/data-states.tsx)
+(ya existía, solo faltaba adoptarlo):
+- `components/clients/client-manager.tsx:59-60` → `<EmptyState
+  title={t("clients.none")} icon="shield" />`.
+- `web-attacks/timeline/timeline-charts.tsx:43-44` → `<EmptyState
+  title="No data yet" />` (reemplaza el chart cuando no hay días).
+- `web-attacks/[ip]/page.tsx:425-429` y `web-attacks/bursts/page.tsx:225-229`:
+  estos viven dentro de un `<tr><td colSpan>` de una tabla HTML cruda, no
+  dentro de un `<div>` — mezclar los primitivos `TableRow`/`TableCell` de
+  shadcn (que usa `EmptyRow`) ahí habría cambiado el padding/hover del resto
+  de filas ya construidas con `<tr>`/`<td>` planos. En vez de forzar
+  `EmptyState`/`EmptyRow`, se agregó el mismo ícono (`SearchX`, el default de
+  `EmptyState`) dentro del `<td>` existente, manteniendo la estructura de
+  tabla intacta pero con la misma jerarquía visual (ícono + texto).
+- `suricata/suricata-client.tsx:191,213`: revisado y **no se tocó a
+  propósito** — no son filas de tabla ni cards standalone, son mini-listas
+  compactas ("top signatures"/"top attackers") dentro de una card más
+  grande; el ícono de 12px/py-16 de `EmptyState` rompería la proporción del
+  widget. Documentado como excepción deliberada, no un olvido.
 
 ### 5. Breadcrumbs / navegación — ya consistente, sin gaps
 
@@ -88,16 +117,23 @@ uso real en ningún lado — no es un problema hoy (la app solo anida un
 nivel), pero no escalaría si en el futuro se agregara un tercer nivel
 (cliente → sensor → sesión). Anotado para cuando/si eso pase.
 
-### 6. Responsive de tablas
+### 6. Responsive de tablas — CONFIRMADO Y RESUELTO (2026-07-05)
 
 `components/table-shell.tsx` da `overflow-auto` centralizado a las tablas
-que lo usan (sessions, malware, etc.) — patrón compartido bueno. Algunas
-tablas construidas con `<table>` crudo fuera de `TableShell`
-(`web-attacks/[ip]/page.tsx`, `web-attacks/bursts/page.tsx`,
-`protocol-detail-page.tsx`) no se confirmaron con su propio wrapper de
-scroll — riesgo de overflow silencioso en mobile. **No atacado en esta
-pasada** — requiere confirmar cada tabla individualmente antes de tocar
-para no romper el layout de escritorio.
+que lo usan (sessions, malware, etc.) — patrón compartido bueno. Se
+confirmaron individualmente las 3 tablas con `<table>` crudo fuera de
+`TableShell`:
+
+- **`web-attacks/bursts/page.tsx`**: ya estaba bien — su wrapper usa
+  `overflow-auto` (ambos ejes) + `min-w-[920px]` en la tabla, mismo patrón
+  que `TableShell`. No necesitó cambios.
+- **`web-attacks/[ip]/page.tsx`**: sí tenía el gap real — el wrapper solo
+  tenía `overflow-y-auto` (vertical), sin eje horizontal. Con 6 columnas
+  (toggle, Method, Path, Type, Count, Last seen) el contenido se recortaba
+  silenciosamente en mobile sin poder scrollear. **Fix**: `overflow-y-auto`
+  → `overflow-auto` + `min-w-[720px]` en la tabla.
+- **`protocol-detail-page.tsx`**: no usa `<table>` crudo (delega a un
+  componente ya envuelto) — el hallazgo original no aplicaba, confirmado.
 
 ### 7. Accesibilidad — icon-only buttons sin aria-label
 
@@ -111,17 +147,17 @@ resto de la app.
 ## Plan de acción
 
 1. **[x] Migrar `app/users/page.tsx`** — hecho 2026-07-05 (ver punto 1).
-2. **[ ] Reemplazar el `confirm()` de `alerts/page.tsx:161`** por
-   `AlertDialog` — bajo esfuerzo, pendiente.
-3. **[ ] Validación inline en formularios de diálogo** — requiere diseñar
-   un patrón `FieldError` compartido antes de aplicarlo, pendiente.
-4. **[ ] Consolidar empty states** en un solo componente compartido —
-   pendiente, bajo riesgo pero toca varios archivos.
-5. **[ ] Confirmar overflow de tablas fuera de `TableShell`** en mobile
-   real antes de decidir si necesitan wrapper — pendiente.
+2. **[x] Reemplazar el `confirm()` de `alerts/page.tsx:161`** por
+   `AlertDialog` — hecho 2026-07-05.
+3. **[x] Validación inline en formularios de diálogo** — hecho 2026-07-05,
+   adoptando el `FieldError` ya existente en `components/ui/field.tsx`.
+4. **[x] Consolidar empty states** en el `EmptyState` compartido ya
+   existente — hecho 2026-07-05.
+5. **[x] Confirmar overflow de tablas fuera de `TableShell`** en mobile —
+   hecho 2026-07-05, 1 de 3 tablas tenía el gap real y se arregló.
 
 ## Estado
 
-Ítem 1 implementado y verificado el 2026-07-05. Ítems 2–5 documentados
-como deuda, priorizados de menor a mayor esfuerzo — a decidir cuándo
-atacarlos en una próxima pasada.
+Todos los ítems (1–6) implementados y verificados el 2026-07-05. Plan sin
+tareas abiertas. Verificado: `tsc --noEmit` limpio en ambas pasadas, 37/37
+tests del dashboard, `grep -rn "confirm(" apps/dashboard` → 0 resultados.

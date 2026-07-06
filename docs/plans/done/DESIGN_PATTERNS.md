@@ -1,11 +1,17 @@
 # Design patterns — refactor opportunities
 
 A code-level audit (2026-06-21) of the dashboard + ingest-api looking for
-duplication that a well-known design pattern would remove. **Nothing here is
-implemented yet** — this is a prioritized backlog. Each item lists the smell,
-the pattern, the concrete files, the win, and the risk so we can pick them off
-one at a time (per the KISS rule: only adopt a pattern where the duplication is
-real, not hypothetical).
+duplication that a well-known design pattern would remove. Each item lists the
+smell, the pattern, the concrete files, the win, and the risk (per the KISS
+rule: only adopt a pattern where the duplication is real, not hypothetical).
+
+**Status (2026-07-05): items 1–3 confirmed implemented in the code** (verified
+against `lib/api/proxy.ts`, `components/settings/setting-card.tsx`, and
+`lib/server-config.ts` — this doc's own "done" markers were accurate, the
+`docs/plans/README.md` index entry had just gone stale). Item 4 remains
+deliberately deferred — see its section for why. No new code needed in this
+pass; this plan is archived to `done/` with item 4 documented as the one
+open, consciously-not-yet item.
 
 Ordered by value/effort. Items 1–2 are high-confidence, low-risk. Items 3–4 are
 worth doing but bigger.
