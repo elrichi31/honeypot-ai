@@ -6,7 +6,8 @@ import { Radar } from "lucide-react"
 import type { DeceptionPortscan } from "@/lib/api/deception"
 import { Surface } from "@/components/ui/surface"
 
-export function DeceptionPortscansTable({ portscans }: { portscans: DeceptionPortscan[] }) {
+export function DeceptionPortscansTable({ portscans, showClient = true }: { portscans: DeceptionPortscan[]; showClient?: boolean }) {
+  const columnCount = showClient ? 6 : 5
   return (
     <Surface>
       <div className="border-b border-border/60 px-4 py-3 flex items-center gap-2">
@@ -20,6 +21,7 @@ export function DeceptionPortscansTable({ portscans }: { portscans: DeceptionPor
         <table className="w-full text-left text-[12px]">
           <thead className="sticky top-0 z-10 bg-card text-[10px] uppercase text-muted-foreground/60">
             <tr className="border-b border-border/40">
+              {showClient && <th className="px-4 py-2 font-medium">Client</th>}
               <th className="px-4 py-2 font-medium">Source IP</th>
               <th className="px-4 py-2 font-medium">Node</th>
               <th className="px-4 py-2 font-medium">Ports scanned</th>
@@ -30,12 +32,15 @@ export function DeceptionPortscansTable({ portscans }: { portscans: DeceptionPor
           <tbody>
             {portscans.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                <td colSpan={columnCount} className="px-4 py-8 text-center text-muted-foreground">
                   No port scans detected yet.
                 </td>
               </tr>
             ) : portscans.map((ps) => (
               <tr key={ps.id} className="border-b border-border/20 hover:bg-white/[0.02]">
+                {showClient && (
+                  <td className="px-4 py-2 text-muted-foreground">{ps.client_name ?? "—"}</td>
+                )}
                 <td className="px-4 py-2 font-mono text-foreground">{ps.src_ip}</td>
                 <td className="px-4 py-2 font-mono text-muted-foreground">
                   {ps.node_id ?? "—"}

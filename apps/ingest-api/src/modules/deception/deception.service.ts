@@ -45,7 +45,7 @@ export class DeceptionService {
   }
 }
 
-function buildKillchains(steps: KillChainStepRow[]) {
+export function buildKillchains(steps: KillChainStepRow[]) {
   type Chain = {
     key: string; publicIp: string | null; sessionId: string | null
     correlation: 'probable' | 'none'; firstSeen: Date; lastSeen: Date
@@ -53,6 +53,7 @@ function buildKillchains(steps: KillChainStepRow[]) {
       nodeId: string | null; nodeName: string | null; protocol: string; dstPort: number
       eventType: string; username: string | null; password: string | null
       timestamp: Date; logdata: unknown
+      clientId: string | null; clientSlug: string | null; clientName: string | null
     }>
   }
   const chains = new Map<string, Chain>()
@@ -65,7 +66,11 @@ function buildKillchains(steps: KillChainStepRow[]) {
       chains.set(key, chain)
     }
     chain.lastSeen = row.timestamp
-    chain.steps.push({ nodeId: row.node_id, nodeName: row.node_name, protocol: row.protocol, dstPort: row.dst_port, eventType: row.event_type, username: row.username, password: row.password, timestamp: row.timestamp, logdata: row.logdata })
+    chain.steps.push({
+      nodeId: row.node_id, nodeName: row.node_name, protocol: row.protocol, dstPort: row.dst_port,
+      eventType: row.event_type, username: row.username, password: row.password, timestamp: row.timestamp, logdata: row.logdata,
+      clientId: row.client_id, clientSlug: row.client_slug, clientName: row.client_name,
+    })
   }
 
   return [...chains.values()]

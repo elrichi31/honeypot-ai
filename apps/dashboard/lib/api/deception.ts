@@ -33,6 +33,9 @@ export type KillChainStep = {
   password: string | null
   timestamp: string
   logdata: Record<string, unknown> | null
+  clientId: string | null
+  clientSlug: string | null
+  clientName: string | null
 }
 
 export type KillChain = {
@@ -80,6 +83,9 @@ export type DeceptionPortscan = {
   dst_ports: number[]
   node_id: string | null
   scan_type: string
+  client_id: string | null
+  client_slug: string | null
+  client_name: string | null
 }
 
 export type DeceptionPortscansResponse = {

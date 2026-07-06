@@ -1,8 +1,10 @@
 # CLIENT_DECEPTION_TAB — Viana de Deception por cliente + atribución + alerta
 
 **Estado:** Fases 1-2 implementadas (2026-07-04). Fase 3 implementada
-parcialmente (2026-07-05, badge en el tab nav — ver detalle abajo). Parte de
-Fase 4 (tests) pendiente — ver "Deuda técnica" al final.
+parcialmente (2026-07-05, badge en el tab nav — ver detalle abajo). Atribución
+cliente extendida a `getKillchain`/`getPortscans` (2026-07-05) — Fase 2 ahora
+completa. Parte de Fase 4 (i18n del resto de la UI de deception, tests de
+componentes) sigue pendiente — ver "Deuda técnica" al final.
 
 ## Objetivo
 
@@ -92,9 +94,21 @@ expuesta y sin atribución de cliente/sensor.
 - [x] Vista per-client pasa `showClient={false}` explícitamente; vista global
   ([`app/deception/page.tsx`](../../apps/dashboard/app/deception/page.tsx))
   no necesitó cambios — usa el default `true`.
-- [ ] **No hecho:** `getKillchain`/`getPortscans` no tienen el mismo join
-  (el plan original solo pedía eventos; el kill-chain view y la tabla de
-  portscans siguen sin columna Cliente). Ver deuda técnica.
+- [x] **`getKillchain`/`getPortscans` con el mismo join — hecho 2026-07-05.**
+  [`DeceptionRepository.getKillchain`](../../apps/ingest-api/src/modules/deception/deception.repository.ts)
+  agrega `LEFT JOIN clients c ON c.id = sn.client_id` (mismo patrón que
+  `getEvents`) y devuelve `client_id`/`client_slug`/`client_name` por fila;
+  `buildKillchains` (ahora exportado para tests) los propaga a cada step del
+  chain (camelCase: `clientId`/`clientSlug`/`clientName` — un chain puede tocar
+  nodos de más de un cliente en la vista global, así que la atribución es
+  por-step, no por-chain). `getPortscans` gana el mismo join contra
+  `sensors`/`clients` (antes consultaba `deception_portscans` sin joins) y
+  expone los mismos tres campos snake_case en `DeceptionPortscan`.
+  **Front:** `KillChainView`/`DeceptionPortscansTable` aceptan `showClient?`
+  (default `true`, igual que `DeceptionEventsTable`); la vista global
+  (`app/deception/page.tsx`) usa el default, la vista per-cliente
+  (`app/clients/[slug]/deception/page.tsx`) pasa `showClient={false}` en
+  `KillChainView` (esa página no renderiza portscans, fuera de alcance).
 
 ### Fase 3 — Aviso "tocaron un honeypot interno"
 
@@ -150,9 +164,15 @@ expuesta y sin atribución de cliente/sensor.
   no vía `useT()`/dicts. Es consistente con el estado previo (English-first ya
   se cumple, pero no hay traducción a otros locales) — no se tocó para no
   ampliar el alcance de esta sesión.
-- [ ] **No hecho:** tests. Sigue sin cobertura el join de atribución en
-  `DeceptionRepository.getEvents` y el render condicional de `showClient` en
-  `DeceptionEventsTable`.
+- [x] **Tests — parcial, 2026-07-05.** `buildKillchains` (lógica pura de
+  agrupación por sesión/IP + atribución de cliente por step) tiene 5 tests
+  nuevos en
+  [`deception-service.test.ts`](../../apps/ingest-api/tests/deception-service.test.ts).
+  **No hecho:** el join SQL en sí (`$queryRaw` con `LEFT JOIN`) no tiene
+  cobertura — el repo de ingest-api no tiene precedente de testear SQL crudo
+  sin una DB real, y el dashboard no tiene infraestructura de component tests
+  (RTL/jsdom) instalada; introducirla solo para esto es una decisión de
+  alcance mayor que se deja fuera de esta sesión (ver deuda técnica).
 - [x] Actualizar [`docs/plans/README.md`](README.md) y este plan (este commit).
 
 ## Deuda técnica dejada (2026-07-04, actualizada 2026-07-05)
@@ -168,12 +188,15 @@ expuesta y sin atribución de cliente/sensor.
    por SSE (`eventBus.emit('alert', ...)`); falta decidir si el toast/bell del
    dashboard ya la muestra genéricamente (verificar contra `REALTIME_STREAM.md`)
    o si necesita tratamiento especial.
-2. **`getKillchain` y `getPortscans` sin atribución de cliente.** Solo
-   `getEvents` recibió el join a `clients`. Si se quiere columna Cliente en el
-   Kill-chain view o en `DeceptionPortscansTable`, hay que repetir el mismo
-   `LEFT JOIN clients c ON c.id = sn.client_id` ahí.
-3. **Sin tests** en toda la cadena (repository, tabla, nav). Pre-existía antes
-   de esta sesión: no se agregó cobertura nueva.
+2. ~~`getKillchain` y `getPortscans` sin atribución de cliente.~~ **Resuelto
+   2026-07-05** — ver Fase 2 arriba.
+3. **Tests parciales.** `buildKillchains` tiene cobertura (lógica pura). Sigue
+   sin cobertura: el SQL crudo de los repositories (`getEvents`/`getKillchain`/
+   `getPortscans`, requeriría una DB real o un harness de integración que no
+   existe hoy) y el render de los componentes (`DeceptionEventsTable`,
+   `KillChainView`, `DeceptionPortscansTable`, `ClientDetailNav` — el dashboard
+   no tiene RTL/jsdom instalado, ningún otro componente del repo tiene test de
+   render hoy).
 4. **i18n parcial.** Solo las strings de Fase 1 (nav + empty state) están en
    dicts; el resto de la UI de deception sigue con texto inglés hardcodeado
    (no bloqueante para English-first, pero bloquea traducción a otros locales

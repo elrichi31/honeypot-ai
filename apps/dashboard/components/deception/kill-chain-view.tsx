@@ -45,7 +45,7 @@ function serviceIcon(protocol: string) {
   }
 }
 
-function StepNode({ step }: { step: KillChainStep }) {
+function StepNode({ step, showClient }: { step: KillChainStep; showClient: boolean }) {
   const isAuth = step.eventType === "auth"
   const cred = step.username
     ? `${step.username}${step.password ? ` / ${step.password}` : ""}`
@@ -63,6 +63,7 @@ function StepNode({ step }: { step: KillChainStep }) {
       {/* hover detail */}
       <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-max max-w-xs rounded-lg border border-border bg-popover px-3 py-2 text-[11px] shadow-lg group-hover:block">
         <p className="font-medium text-foreground">{step.protocol.toUpperCase()} · {step.eventType}</p>
+        {showClient && step.clientName && <p className="text-muted-foreground mt-0.5">Client: {step.clientName}</p>}
         {cred && <p className="text-red-300 font-mono mt-0.5">{cred}</p>}
         <p className="text-muted-foreground mt-0.5">{new Date(step.timestamp).toLocaleString()}</p>
       </div>
@@ -70,7 +71,7 @@ function StepNode({ step }: { step: KillChainStep }) {
   )
 }
 
-function StepTimeline({ chain }: { chain: KillChain }) {
+function StepTimeline({ chain, showClient }: { chain: KillChain; showClient: boolean }) {
   const tz = useTimezone()
   return (
     <div className="mt-3 border-t border-border/40 pt-3">
@@ -107,6 +108,9 @@ function StepTimeline({ chain }: { chain: KillChain }) {
                   <span className="text-[10px] text-muted-foreground/50 font-mono">
                     {formatInTimezone(step.timestamp, tz, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                   </span>
+                  {showClient && step.clientName && (
+                    <span className="text-[10px] text-muted-foreground/60">{step.clientName}</span>
+                  )}
                 </div>
                 {fields.length > 0 && (
                   <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
@@ -127,7 +131,7 @@ function StepTimeline({ chain }: { chain: KillChain }) {
   )
 }
 
-function ChainRow({ chain }: { chain: KillChain }) {
+function ChainRow({ chain, showClient }: { chain: KillChain; showClient: boolean }) {
   const [expanded, setExpanded] = useState(false)
   return (
     <Surface padded>
@@ -170,7 +174,7 @@ function ChainRow({ chain }: { chain: KillChain }) {
         {chain.steps.map((step, i) => (
           <div key={i} className="flex shrink-0 items-center gap-1.5">
             <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40" />
-            <StepNode step={step} />
+            <StepNode step={step} showClient={showClient} />
           </div>
         ))}
       </div>
@@ -183,12 +187,12 @@ function ChainRow({ chain }: { chain: KillChain }) {
         {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         {expanded ? "Hide path" : "View detailed path"}
       </button>
-      {expanded && <StepTimeline chain={chain} />}
+      {expanded && <StepTimeline chain={chain} showClient={showClient} />}
     </Surface>
   )
 }
 
-export function KillChainView({ chains }: { chains: KillChain[] }) {
+export function KillChainView({ chains, showClient = true }: { chains: KillChain[]; showClient?: boolean }) {
   if (chains.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border bg-card/40 px-4 py-10 text-center">
@@ -200,7 +204,7 @@ export function KillChainView({ chains }: { chains: KillChain[] }) {
   }
   return (
     <div className="space-y-3">
-      {chains.map(chain => <ChainRow key={chain.key} chain={chain} />)}
+      {chains.map(chain => <ChainRow key={chain.key} chain={chain} showClient={showClient} />)}
     </div>
   )
 }

@@ -9,6 +9,7 @@ export type KillChainStepRow = {
   node_id: string | null; node_name: string | null; protocol: string; dst_port: number
   event_type: string; username: string | null; password: string | null
   timestamp: Date; public_ip: string | null; session_id: string | null; src_ip: string | null; logdata: unknown
+  client_id: string | null; client_slug: string | null; client_name: string | null
 }
 
 function sensorScopeClause(scope: Scope, col = 'sensor_id'): Prisma.Sql {
@@ -96,9 +97,11 @@ export class DeceptionRepository {
     return this.prismaRead.$queryRaw<KillChainStepRow[]>`
       SELECT COALESCE(ph.data->>'node_id', ph.sensor_id) AS node_id, sn.name AS node_name, ph.protocol, ph.dst_port,
              ph.event_type, ph.username, ph.password, ph.timestamp, ph.src_ip AS src_ip,
-             ph.data->'logdata' AS logdata, s.src_ip AS public_ip, s.id AS session_id
+             ph.data->'logdata' AS logdata, s.src_ip AS public_ip, s.id AS session_id,
+             c.id AS client_id, c.slug AS client_slug, c.name AS client_name
       FROM protocol_hits ph
       LEFT JOIN sensors sn ON sn.sensor_id = COALESCE(ph.data->>'node_id', ph.sensor_id)
+      LEFT JOIN clients c ON c.id = sn.client_id
       LEFT JOIN LATERAL (
         SELECT s.id, s.src_ip FROM sessions s
         WHERE ph.timestamp >= s.started_at
@@ -154,18 +157,26 @@ export class DeceptionRepository {
 
   async getPortscans(scope: Scope, page: number, limit: number, nodeId: string | null) {
     const offset = (page - 1) * limit
-    const rowsScope = sensorScopeClause(scope, 'sensor_id')
-    const nodeClause = nodeId ? Prisma.sql` AND node_id = ${nodeId}` : Prisma.empty
+    const rowsScope = sensorScopeClause(scope, 'dp.sensor_id')
+    const countScope = sensorScopeClause(scope, 'sensor_id')
+    const rowsNodeClause = nodeId ? Prisma.sql` AND dp.node_id = ${nodeId}` : Prisma.empty
+    const countNodeClause = nodeId ? Prisma.sql` AND node_id = ${nodeId}` : Prisma.empty
 
     const [rows, countRows] = await Promise.all([
-      this.prismaRead.$queryRaw<Array<{ id: string; sensor_id: string; timestamp: Date; src_ip: string; dst_ports: number[]; node_id: string | null; scan_type: string }>>`
-        SELECT id, sensor_id, timestamp, src_ip, dst_ports, node_id, scan_type
-        FROM deception_portscans
-        WHERE true${rowsScope}${nodeClause}
-        ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}
+      this.prismaRead.$queryRaw<Array<{
+        id: string; sensor_id: string; timestamp: Date; src_ip: string; dst_ports: number[]; node_id: string | null; scan_type: string
+        client_id: string | null; client_slug: string | null; client_name: string | null
+      }>>`
+        SELECT dp.id, dp.sensor_id, dp.timestamp, dp.src_ip, dp.dst_ports, dp.node_id, dp.scan_type,
+               c.id AS client_id, c.slug AS client_slug, c.name AS client_name
+        FROM deception_portscans dp
+        LEFT JOIN sensors sn ON sn.sensor_id = dp.sensor_id
+        LEFT JOIN clients c ON c.id = sn.client_id
+        WHERE true${rowsScope}${rowsNodeClause}
+        ORDER BY dp.timestamp DESC LIMIT ${limit} OFFSET ${offset}
       `,
       this.prismaRead.$queryRaw<[{ count: bigint }]>`
-        SELECT COUNT(*) FROM deception_portscans WHERE true${rowsScope}${nodeClause}
+        SELECT COUNT(*) FROM deception_portscans WHERE true${countScope}${countNodeClause}
       `,
     ])
 

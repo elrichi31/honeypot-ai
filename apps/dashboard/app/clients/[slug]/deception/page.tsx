@@ -100,7 +100,7 @@ export default async function ClientDeceptionPage({ params }: { params: Promise<
 
         <section>
           <h2 className="mb-3 text-sm font-semibold text-foreground">Kill-chain · lateral movement</h2>
-          <KillChainView chains={data.chains} />
+          <KillChainView chains={data.chains} showClient={false} />
         </section>
 
         <section>
