@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { Zap, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
+import { Zap, ArrowUp, ArrowDown, ArrowUpDown, SearchX } from "lucide-react"
 import { fetchWebBursts, fetchClients, fetchSensors } from "@/lib/api"
 import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
@@ -224,8 +224,11 @@ export default async function WebBurstsPage({
               })}
               {burstsPage.items.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">
-                    No bursts in this window.
+                  <td colSpan={6} className="px-4 py-12 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <SearchX className="h-5 w-5 text-muted-foreground/60" />
+                      <p className="text-sm text-muted-foreground">No bursts in this window.</p>
+                    </div>
                   </td>
                 </tr>
               )}

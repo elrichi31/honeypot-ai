@@ -8,6 +8,7 @@ import { ClientCard } from "./client-card"
 import { CreateClientDialog } from "./create-client-dialog"
 import { EditClientDialog } from "./edit-client-dialog"
 import { DeleteClientDialog } from "./delete-client-dialog"
+import { EmptyState } from "@/components/ui/data-states"
 import { useT } from "@/components/locale-provider"
 
 type Props = {
@@ -57,7 +58,7 @@ export function ClientManager({ initialClients, initialSensors }: Props) {
       </div>
 
       {clients.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t("clients.none")}</p>
+        <EmptyState title={t("clients.none")} icon="shield" />
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

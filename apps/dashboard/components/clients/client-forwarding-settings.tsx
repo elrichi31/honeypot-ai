@@ -18,6 +18,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import type { Client } from "@/lib/api"
+import { FieldError } from "@/components/ui/field"
 
 type Props = { client: Client }
 
@@ -63,6 +64,8 @@ export function ClientForwardingSettings({ client }: Props) {
   const [message, setMessage]         = useState<string | null>(null)
   const [testStatus, setTestStatus]   = useState<TestStatus>("idle")
   const [testError, setTestError]     = useState<string | null>(null)
+  const [nameTouched, setNameTouched] = useState(false)
+  const [codeTouched, setCodeTouched] = useState(false)
 
   function normalizeClientCode(value: string) {
     return value
@@ -74,6 +77,7 @@ export function ClientForwardingSettings({ client }: Props) {
   }
 
   async function saveSettings() {
+    if (!name.trim() || !code.trim()) { setNameTouched(true); setCodeTouched(true); return }
     setSaving(true)
     setMessage(null)
     try {
@@ -168,8 +172,11 @@ export function ClientForwardingSettings({ client }: Props) {
                 id="client-name"
                 value={name}
                 onChange={e => setName(e.target.value)}
+                onBlur={() => setNameTouched(true)}
                 placeholder="Cliente A"
+                aria-invalid={nameTouched && !name.trim()}
               />
+              {nameTouched && !name.trim() && <FieldError>Name is required</FieldError>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="client-code">Client Code</Label>
@@ -177,9 +184,12 @@ export function ClientForwardingSettings({ client }: Props) {
                 id="client-code"
                 value={code}
                 onChange={e => setCode(normalizeClientCode(e.target.value))}
+                onBlur={() => setCodeTouched(true)}
                 placeholder="SLSA"
                 className="font-mono uppercase"
+                aria-invalid={codeTouched && !code.trim()}
               />
+              {codeTouched && !code.trim() && <FieldError>Client code is required</FieldError>}
             </div>
           </div>
 

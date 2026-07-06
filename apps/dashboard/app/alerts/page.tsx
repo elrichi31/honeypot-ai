@@ -8,6 +8,11 @@ import { toast } from "sonner"
 import { assertOk } from "@/lib/client-fetch"
 import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { useTenant } from "@/components/tenant-context"
 import { useT } from "@/components/locale-provider"
 import { cn } from "@/lib/utils"
@@ -157,8 +162,6 @@ export default function AlertsPage() {
   }
 
   async function deleteAll() {
-    const scope = tenantId ? "for the selected tenant" : "in the current scope"
-    if (!confirm(`Delete all alerts ${scope}? This cannot be undone.`)) return
     setDeletingAll(true)
     try {
       const res = await assertOk(await fetch(`/api/alerts`, { method: "DELETE" }), "Could not delete alerts")
@@ -236,14 +239,31 @@ export default function AlertsPage() {
             {markingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
             Mark all as read
           </button>
-          <button
-            onClick={deleteAll}
-            disabled={deletingAll || total === 0}
-            className="flex items-center gap-1.5 rounded-xl border border-destructive/40 bg-card px-3 py-3 text-sm text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {deletingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-            Delete all
-          </button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button
+                disabled={deletingAll || total === 0}
+                className="flex items-center gap-1.5 rounded-xl border border-destructive/40 bg-card px-3 py-3 text-sm text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {deletingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                {t("alerts.deleteAll.button")}
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t("alerts.deleteAll.title")}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {tenantId ? t("alerts.deleteAll.descScoped") : t("alerts.deleteAll.descAll")}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t("alerts.deleteAll.cancel")}</AlertDialogCancel>
+                <AlertDialogAction onClick={deleteAll} className="bg-destructive text-white hover:bg-destructive/90">
+                  {t("alerts.deleteAll.button")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 

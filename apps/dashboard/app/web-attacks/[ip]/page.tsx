@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { PageShell } from "@/components/page-shell"
 import Link from "next/link"
-import { ArrowLeft, Globe, Clock, MousePointerClick, Shield, Target, Fingerprint, GitBranch, Link2 } from "lucide-react"
+import { ArrowLeft, Globe, Clock, MousePointerClick, Shield, Target, Fingerprint, GitBranch, Link2, SearchX } from "lucide-react"
 import { fetchWebHitsByIpPage, fetchWebHits, fetchThreat } from "@/lib/api"
 import { lookupIp } from "@/lib/geo"
 import { enrichIp } from "@/lib/ip-enrichment"
@@ -406,8 +406,8 @@ export default async function WebAttackerDetailPage({
                   <AttackTypeFilter types={Object.keys(byType)} counts={byType} />
                 </div>
               </div>
-              <div className="overflow-y-auto max-h-[620px]">
-              <table className="w-full text-sm">
+              <div className="overflow-auto max-h-[620px]">
+              <table className="min-w-[720px] w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-card">
                   <tr className="border-b border-border">
                     <th className="w-6 px-2 py-2.5"></th>
@@ -424,8 +424,11 @@ export default async function WebAttackerDetailPage({
                   ))}
                   {groupedHits.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-xs text-muted-foreground">
-                        No requests of this type.
+                      <td colSpan={6} className="px-4 py-10 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <SearchX className="h-5 w-5 text-muted-foreground/60" />
+                          <p className="text-xs text-muted-foreground">No requests of this type.</p>
+                        </div>
                       </td>
                     </tr>
                   )}

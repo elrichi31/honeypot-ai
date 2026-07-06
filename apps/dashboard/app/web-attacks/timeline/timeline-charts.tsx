@@ -11,6 +11,7 @@ import {
 import type { ChartConfig } from "@/components/ui/chart"
 import { ATTACK_COLORS_HEX as ATTACK_COLORS, ATTACK_LABELS_LONG as ATTACK_LABELS } from "@/lib/attack-types"
 import { Surface } from "@/components/ui/surface"
+import { EmptyState } from "@/components/ui/data-states"
 import { useT } from "@/components/locale-provider"
 
 const timelineChartConfig: ChartConfig = Object.fromEntries(
@@ -41,7 +42,7 @@ export function TimelineCharts({ days, attackTypes, byAttackType }: Props) {
         <h3 className="mb-1 font-semibold text-foreground">Hits per day</h3>
         <p className="mb-4 text-xs text-muted-foreground">Last 30 days · stacked by attack type</p>
         {days.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+          <EmptyState title="No data yet" />
         ) : (
           <ChartContainer config={timelineChartConfig} className="aspect-auto h-[280px]">
             <BarChart data={days} barSize={14}>

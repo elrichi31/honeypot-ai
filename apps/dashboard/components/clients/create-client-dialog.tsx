@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { FieldError } from "@/components/ui/field"
 import type { Client } from "@/lib/api"
 import { slugify, normalizeClientCode, deriveClientCode } from "./client-utils"
 import { useT } from "@/components/locale-provider"
@@ -36,6 +37,7 @@ export function CreateClientDialog({ trigger, onCreated }: Props) {
   const [forwardUrl, setForwardUrl] = useState("")
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState("")
+  const [nameTouched, setNameTouched] = useState(false)
 
   function reset() {
     setName("")
@@ -44,10 +46,12 @@ export function CreateClientDialog({ trigger, onCreated }: Props) {
     setDescription("")
     setForwardUrl("")
     setError("")
+    setNameTouched(false)
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!name.trim()) { setNameTouched(true); return }
     setCreating(true)
     setError("")
     try {
@@ -92,8 +96,13 @@ export function CreateClientDialog({ trigger, onCreated }: Props) {
                 id="client-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                onBlur={() => setNameTouched(true)}
                 placeholder="Client A"
+                aria-invalid={nameTouched && !name.trim()}
               />
+              {nameTouched && !name.trim() && (
+                <FieldError>{t("clients.create.nameRequired")}</FieldError>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="client-slug">{t("clients.create.slug")}</Label>

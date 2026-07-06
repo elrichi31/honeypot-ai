@@ -15,6 +15,11 @@ export const en = {
   "alerts.group.unknownClient": "Unknown client",
   "alerts.group.count": "{count} alert(s)",
   "alerts.empty.filtered": "No alerts match this filter",
+  "alerts.deleteAll.button": "Delete all",
+  "alerts.deleteAll.title": "Delete all alerts?",
+  "alerts.deleteAll.descScoped": "This will permanently delete all alerts for the selected tenant. This cannot be undone.",
+  "alerts.deleteAll.descAll": "This will permanently delete all alerts in the current scope. This cannot be undone.",
+  "alerts.deleteAll.cancel": "Cancel",
 } as const
 
 export const es: Record<keyof typeof en, string> = {
@@ -31,4 +36,9 @@ export const es: Record<keyof typeof en, string> = {
   "alerts.group.unknownClient": "Cliente desconocido",
   "alerts.group.count": "{count} alerta(s)",
   "alerts.empty.filtered": "Ninguna alerta coincide con este filtro",
+  "alerts.deleteAll.button": "Eliminar todas",
+  "alerts.deleteAll.title": "¿Eliminar todas las alertas?",
+  "alerts.deleteAll.descScoped": "Esto eliminará permanentemente todas las alertas del tenant seleccionado. No se puede deshacer.",
+  "alerts.deleteAll.descAll": "Esto eliminará permanentemente todas las alertas del alcance actual. No se puede deshacer.",
+  "alerts.deleteAll.cancel": "Cancelar",
 }

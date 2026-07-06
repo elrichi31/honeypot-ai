@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { FieldError } from "@/components/ui/field"
 import type { Client } from "@/lib/api"
 import { normalizeClientCode } from "./client-utils"
 import { useT } from "@/components/locale-provider"
@@ -34,6 +35,8 @@ export function EditClientDialog({ client, onClose, onSaved }: Props) {
   const [forwardUrl, setForwardUrl] = useState("")
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [nameTouched, setNameTouched] = useState(false)
+  const [codeTouched, setCodeTouched] = useState(false)
 
   useEffect(() => {
     if (client) {
@@ -42,12 +45,15 @@ export function EditClientDialog({ client, onClose, onSaved }: Props) {
       setDescription(client.description || "")
       setForwardUrl(client.forwardUrl || "")
       setSaveError(null)
+      setNameTouched(false)
+      setCodeTouched(false)
     }
   }, [client])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!client) return
+    if (!name.trim() || !code.trim()) { setNameTouched(true); setCodeTouched(true); return }
     setSaving(true)
     setSaveError(null)
     try {
@@ -81,8 +87,13 @@ export function EditClientDialog({ client, onClose, onSaved }: Props) {
                 id="edit-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                onBlur={() => setNameTouched(true)}
                 placeholder="Client A"
+                aria-invalid={nameTouched && !name.trim()}
               />
+              {nameTouched && !name.trim() && (
+                <FieldError>{t("clients.create.nameRequired")}</FieldError>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-code">{t("clients.edit.code")}</Label>
@@ -90,9 +101,14 @@ export function EditClientDialog({ client, onClose, onSaved }: Props) {
                 id="edit-code"
                 value={code}
                 onChange={(e) => setCode(normalizeClientCode(e.target.value))}
+                onBlur={() => setCodeTouched(true)}
                 placeholder="SLSA"
                 className="font-mono uppercase"
+                aria-invalid={codeTouched && !code.trim()}
               />
+              {codeTouched && !code.trim() && (
+                <FieldError>{t("clients.edit.codeRequired")}</FieldError>
+              )}
             </div>
           </div>
 
