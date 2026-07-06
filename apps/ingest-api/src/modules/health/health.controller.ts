@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { withCache } from '../../lib/cache-helper.js';
+import { getIngestMetrics } from '../../lib/ingest-metrics.js';
 
 export async function healthRoutes(fastify: FastifyInstance) {
   // Liveness: must NOT touch the DB. It only confirms the process can serve
@@ -35,5 +36,13 @@ export async function healthRoutes(fastify: FastifyInstance) {
     } catch {
       return reply.status(503).send({ status: 'degraded', error: 'database unreachable' });
     }
+  });
+
+  // Diagnostics for the Kafka hot path (PERF_AUDIT.md M3): events/s and
+  // processLine p50/p99 latency, measured from the real production path
+  // (kafka-consumer.ts), not the HTTP fallback. In-memory, resets on restart —
+  // this is a live diagnostic to decide A2/D2 with data, not a durable metric.
+  fastify.get('/health/ingest-metrics', async () => {
+    return getIngestMetrics();
   });
 }

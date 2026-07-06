@@ -1,7 +1,8 @@
 # PERF_AUDIT — auditoría + plan de resolución de rendimiento
 
 **Estado:** Implementado — 2026-06-24. A1, C1, C2, D1, B1, B2, M1, M2 resueltos.
-Pendiente instrumentar (M3/A2/C3/D2) — requieren métricas primero.
+M3 implementado 2026-07-05 (métricas de ingesta). Pendiente: A2/C3/D2 —
+ahora sí se pueden decidir con datos reales del endpoint de M3.
 Complementa [MONITORING_PERF.md](MONITORING_PERF.md) (ya resuelve la saturación de
 `dockerd`). Aquí están el resto de cuellos de botella detectados barriendo
 `ingest-api` y `dashboard`, con **el arreglo paso a paso** para cada uno.
@@ -71,8 +72,10 @@ mensaje a mensaje, son 2 viajes a Postgres por evento en serie.
 3. **No tocar** si el throughput actual sobra. Decisión basada en métricas: medir
    eventos/s sostenibles hoy vs. pico de ataque observado.
 
-**Acción:** primero instrumentar (latencia p50/p99 de `processLine`, lag del
-consumer group). Solo entonces elegir. No especular.
+**Acción:** instrumentado 2026-07-05 (M3): `GET /health/ingest-metrics` ya da
+latencia p50/p99 de `processLine` y eventos/s reales. **Falta:** observar esos
+números bajo tráfico de producción real (o un ataque real, no sintético) antes
+de elegir entre las 3 opciones — no especular con datos de desarrollo/idle.
 
 ---
 
@@ -188,10 +191,22 @@ implementar sin evidencia de que el refresh pese.
   exporta `mapWithConcurrency`; `docker-stats.ts` y `malware.repository.ts` lo importan.
 - **M2 — Instancia de service por plugin como convención explícita.** ✅ 2026-06-24 —
   documentado en `docs/project-notes/backend-layering.md` (sección Instantiation).
-- **M3 — Métricas de ingesta.** Exponer en `/health` o un endpoint de métricas:
-  eventos/s, lag del consumer group, latencia p50/p99 de `processLine`. Sin esto,
-  A2/D2 son adivinanza; con esto, decisiones con datos. (Habilita medir el efecto
-  de A1.)
+- **M3 — Métricas de ingesta.** ✅ 2026-07-05 —
+  [`lib/ingest-metrics.ts`](../../apps/ingest-api/src/lib/ingest-metrics.ts):
+  ring buffer de 1000 muestras en memoria (sin deps nuevas) para p50/p99 de
+  `processLine`, más contador total y eventos/s (ventana de 10s). Medido en el
+  hot-path real de producción: `kafka-consumer.ts`'s `handleCowrie` envuelve
+  `svc.processLine(event)` con `performance.now()` antes/después. Expuesto en
+  `GET /health/ingest-metrics` (nuevo, en
+  [`health.controller.ts`](../../apps/ingest-api/src/modules/health/health.controller.ts)).
+  Tests en
+  [`ingest-metrics.test.ts`](../../apps/ingest-api/tests/ingest-metrics.test.ts)
+  (percentiles, orden de inserción, wraparound del ring buffer). **No incluye
+  lag del consumer group**: kafkajs no lo expone en `eachMessage` (solo estaría
+  disponible vía `eachBatch` o una llamada aparte al admin API
+  `fetchTopicOffsets` para comparar contra el offset consumido) — se dejó fuera
+  para no fabricar un cálculo aproximado poco confiable; si se necesita, es
+  trabajo aparte, no una extensión trivial de esto.
 - **M4 — Índice de expresión para el shasum** (apoya C1) si `EXPLAIN` muestra
   scan secuencial: `CREATE INDEX CONCURRENTLY ... ON events ((normalized_json->>'shasum'))
   WHERE event_type = 'file.download'`. Una migración, una `CREATE INDEX
@@ -205,7 +220,9 @@ implementar sin evidencia de que el refresh pese.
 2. **C1** — query sin techo, arreglo localizado y medible.
 3. **B1 (+B2)** — alto valor multiusuario; B2 sale gratis dentro del provider.
 4. **C2 / D1 / M1 / M2** — pulido y consolidación (DRY).
-5. **A2 / C3 / D2 / M3** — instrumentar primero (M3), decidir con datos.
+5. **M3** — instrumentación ✅ 2026-07-05. **A2 / C3 / D2** — pendientes,
+   ahora decidibles con los datos de `/health/ingest-metrics` (A2) o pendientes
+   de auditoría de índices (C3) / evidencia de que el refresh pese (D2).
 
 **Principios:** SQL nuevo solo en repositories; sin dependencias nuevas (reusar
 `mapWithConcurrency`); medir antes de las tareas marcadas "investigación".

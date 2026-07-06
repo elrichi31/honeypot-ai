@@ -9,6 +9,7 @@ import type { CowrieRawEvent } from '../types/index.js'
 import { eventBus } from '../lib/event-bus.js'
 import { lookupGeo } from '../lib/geo.js'
 import { scheduleThreatAlert } from '../lib/threat-alerts.js'
+import { recordProcessLineLatency } from '../lib/ingest-metrics.js'
 
 // 'disabled' = no KAFKA_BROKERS (dev without Kafka, healthy by design)
 // 'connecting' = booting / between crash and rejoin
@@ -42,7 +43,9 @@ async function handleCowrie(raw: unknown, fastify: FastifyInstance, svc: IngestS
     return
   }
   const event = parsed.data as CowrieRawEvent
+  const startedAt = performance.now()
   const { sessionCreated, eventCreated } = await svc.processLine(event)
+  recordProcessLineLatency(performance.now() - startedAt)
   if (sessionCreated && event.src_ip) emitSsh(event.src_ip, typeof event.sensor === 'string' ? event.sensor : null, event.timestamp)
   if (eventCreated && shouldEvaluateThreat(event)) scheduleThreatAlert(fastify.prisma, event.src_ip)
 }
