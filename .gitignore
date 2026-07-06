@@ -34,10 +34,16 @@ __pycache__/
 # Dashboard runtime data (API keys, AI cache, enrichment cache)
 apps/dashboard/data/
 
-# Claude Code local settings
-.claude/settings.local.json
-.claude/
+# Claude Code local settings (everything under .claude/ except the skills
+# directory, which is tracked so skills travel with the repo)
+.claude/*
+!.claude/skills/
 .mcp.json
+
+# .agents/ is the symlink target cache for .claude/skills/ — regenerable,
+# and the symlinks themselves were dereferenced into real copies under
+# .claude/skills/ before committing (they were absolute-path, machine-specific).
+.agents/
 
 # DB dumps / restore test artifacts
 *.dump
