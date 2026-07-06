@@ -21,20 +21,27 @@ export function OvaConfigCard() {
   const [error, setError]     = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
-  function load() {
+  function load(signal?: AbortSignal) {
     setLoading(true)
     setError(null)
-    fetch("/api/ova/config")
-      .then(r => r.json())
-      .then((d: OvaConfig & { error?: string }) => {
+    fetch("/api/ova/config", { signal })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json() as Promise<OvaConfig & { error?: string }>
+      })
+      .then((d) => {
         if (d.error) setError(d.error)
         else setConfig(d)
+        setLoading(false)
       })
-      .catch(() => setError(t("set.ingestApi.fetchError")))
-      .finally(() => setLoading(false))
+      .catch((err) => { if (err?.name !== "AbortError") { setError(t("set.ingestApi.fetchError")); setLoading(false) } })
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    const controller = new AbortController()
+    load(controller.signal)
+    return () => controller.abort()
+  }, [])
 
   return (
     <Surface>
@@ -93,7 +100,7 @@ export function OvaConfigCard() {
             )}
 
             <button
-              onClick={load}
+              onClick={() => load()}
               className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               <RefreshCw className="h-3 w-3" />

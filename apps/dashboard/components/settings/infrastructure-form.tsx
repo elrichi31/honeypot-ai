@@ -52,19 +52,27 @@ export function InfrastructureForm() {
     setOvaLoading(true)
     setOvaError(null)
     apiFetch("/api/ova/config")
-      .then((r) => r.json())
-      .then((d: OvaConfig & { error?: string }) => {
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json() as Promise<OvaConfig & { error?: string }>
+      })
+      .then((d) => {
         if (d.error) setOvaError(d.error)
         else setOvaConfig(d)
+        setOvaLoading(false)
       })
-      .catch(() => setOvaError(t("set.infra.detectError")))
-      .finally(() => setOvaLoading(false))
+      .catch(() => { setOvaError(t("set.infra.detectError")); setOvaLoading(false) })
   }
 
   useEffect(() => {
+    let cancelled = false
     apiFetch("/api/config")
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
       .then((data) => {
+        if (cancelled) return
         const hasManualUrl = !!data.ingestApiUrl &&
           !data.ingestApiUrl.includes("localhost") &&
           !data.ingestApiUrl.includes("ingest-api")
@@ -78,9 +86,10 @@ export function InfrastructureForm() {
         })
         setStatus("idle")
       })
-      .catch(() => setStatus("idle"))
+      .catch(() => { if (!cancelled) setStatus("idle") })
 
     loadOvaConfig()
+    return () => { cancelled = true }
   }, [])
 
   function field(key: keyof FormState) {

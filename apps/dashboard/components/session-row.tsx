@@ -23,11 +23,20 @@ export function SessionRow({ session }: { session: SessionItem }) {
 
   useEffect(() => {
     if (!expanded || events !== null) return
+    let cancelled = false
     setLoading(true)
     fetch(`/api/sessions/${session.id}`)
-      .then((r) => r.json())
-      .then((d) => setEvents(d.events ?? []))
-      .finally(() => setLoading(false))
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
+      .then((d) => {
+        if (cancelled) return
+        setEvents(d.events ?? [])
+        setLoading(false)
+      })
+      .catch(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [expanded, events, session.id])
 
   const t = useT()

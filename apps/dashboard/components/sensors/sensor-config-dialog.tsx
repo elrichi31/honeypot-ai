@@ -145,16 +145,24 @@ export function SensorConfigDialog({
 
   useEffect(() => {
     if (!open) return
+    let cancelled = false
     setLoading(true)
     setError("")
     setSaved(false)
     apiFetch(`/api/sensors/${encodeURIComponent(sensorId)}/config`, { cache: "no-store" })
+      .then((r) => assertOk(r))
       .then((r) => r.json())
       .then((data) => {
+        if (cancelled) return
         if (data?.config) setCfg({ ...DEFAULTS, ...data.config })
+        setLoading(false)
       })
-      .catch(() => setError(t("sensors.config.loadError")))
-      .finally(() => setLoading(false))
+      .catch(() => {
+        if (cancelled) return
+        setError(t("sensors.config.loadError"))
+        setLoading(false)
+      })
+    return () => { cancelled = true }
   }, [open, sensorId])
 
   function set<K extends keyof CowrieConfig>(key: K, value: CowrieConfig[K]) {

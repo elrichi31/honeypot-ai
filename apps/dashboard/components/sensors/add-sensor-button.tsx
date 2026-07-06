@@ -39,17 +39,25 @@ export function AddSensorButton() {
 
   function handleOpen(isOpen: boolean) {
     setOpen(isOpen)
+    // Gated by `!config`: once the fetch resolves into `config`, re-opening
+    // never re-triggers it, so there's no competing-request race to guard here.
     if (isOpen && !config) {
       setLoadingConfig(true)
       setConfigError(null)
       fetch("/api/ova/config")
-        .then((r) => r.json())
-        .then((d: OvaConfig & { error?: string }) => {
+        .then(async (r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`)
+          return r.json() as Promise<OvaConfig & { error?: string }>
+        })
+        .then((d) => {
           if (d.error) setConfigError(d.error)
           else setConfig(d)
+          setLoadingConfig(false)
         })
-        .catch(() => setConfigError(t("sensors.config.loadError")))
-        .finally(() => setLoadingConfig(false))
+        .catch(() => {
+          setConfigError(t("sensors.config.loadError"))
+          setLoadingConfig(false)
+        })
     }
   }
 

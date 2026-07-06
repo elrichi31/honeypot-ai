@@ -53,23 +53,31 @@ export function DefenseEventsTable() {
     timer.current = setTimeout(() => { setDebouncedIp(v.trim()); setPage(1) }, 300)
   }
 
-  const load = useCallback((p: number, f: AttackFilter, ip: string) => {
+  const load = useCallback((p: number, f: AttackFilter, ip: string, signal?: AbortSignal) => {
     setLoading(true)
     const params = new URLSearchParams({ page: String(p), pageSize: "25" })
     if (f !== "all") params.set("attackType", f)
     if (ip)          params.set("ip", ip)
-    fetch(`/api/defense/events?${params}`)
-      .then(r => r.json())
+    fetch(`/api/defense/events?${params}`, { signal })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
       .then((d: unknown) => {
         const obj = d && typeof d === "object" ? d as Record<string, unknown> : {}
         setItems(Array.isArray(obj.items) ? obj.items : [])
         setMeta(obj.pagination && typeof obj.pagination === "object" ? obj.pagination as PaginationMeta : null)
+        setLoading(false)
       })
-      .catch(() => { setItems([]); setMeta(null) })
-      .finally(() => setLoading(false))
+      .catch((err) => { if (err?.name !== "AbortError") { setItems([]); setMeta(null); setLoading(false) } })
   }, [])
 
-  useEffect(() => { setPage(1); load(1, filter, debouncedIp) }, [filter, debouncedIp, load])
+  useEffect(() => {
+    const controller = new AbortController()
+    setPage(1)
+    load(1, filter, debouncedIp, controller.signal)
+    return () => controller.abort()
+  }, [filter, debouncedIp, load])
 
   function goPage(p: number) { setPage(p); load(p, filter, debouncedIp) }
 

@@ -468,3 +468,70 @@ After all tasks:
   `ip-enrichment.tsx` `doFetch()` is a manual trigger (not an effect), so
   `.finally(() => setLoading(false))` is retained there — only the `res.ok`
   check was missing.
+- **2026-07-05 — audit found 11 more components with the same antipattern**,
+  none of them in the original Tasks 1-8 list (the index README said "Tasks
+  1-8 pending" but this file's own log said done — both were stale about the
+  remaining surface). Fixed all 11, verified `tsc --noEmit` clean and the
+  plan's grep guards (`.finally(` with a state setter, `.then(r => r.json())`
+  without an `.ok` check) both return zero hits outside `node_modules`.
+
+  **Task 9 — `components/defense/blocked-ips-table.tsx`**: mount effect
+  (`useEffect(load, [])`), no cleanup, no `res.ok`. `load()` now takes an
+  optional `signal`, effect wraps it in `AbortController`.
+
+  **Task 10 — `components/defense/defense-allowlist.tsx`**: identical shape
+  to Task 9, same fix.
+
+  **Task 11 — `components/defense/defense-events-table.tsx`**: `load(p, f,
+  ip)` effect re-runs on filter/search change — a fast filter toggle could
+  let a stale response overwrite the current one. Added `signal` param,
+  `AbortController` in the effect; `goPage()` (manual pagination) still calls
+  `load()` without a signal since it's a one-off user action, not a race.
+
+  **Task 12 — `components/settings/ingest-api-card.tsx`**: mount effect +
+  manual "re-detect" button sharing `load()`. Same `signal` param fix as
+  Task 1 (`client-ova-download.tsx`); `onClick={load}` changed to
+  `onClick={() => load()}` so the click `MouseEvent` isn't passed as a
+  signal.
+
+  **Task 13 — `app/alerts/page.tsx` (`fetchAlerts`)**: already used
+  `AbortController` correctly, but still had `setLoading(false)` in
+  `.finally()` — the same "finally runs even after abort" bug the plan's
+  intro describes, just missed in the original audit because the component
+  looked correct at a glance. Moved `setLoading(false)` into `.then`/`.catch`.
+
+  **Task 14 — `components/sensors/add-sensor-button.tsx`**: dialog-open
+  handler, fetch gated by `!config` so re-opening never re-triggers it once
+  resolved — no real race to guard against. Added `res.ok` only, no
+  cancellation needed.
+
+  **Task 15 — `components/sensors/sensor-config-dialog.tsx`**: real
+  `useEffect` keyed on `[open, sensorId]`, uses the `apiFetch` client wrapper
+  (doesn't forward a signal) — used the `cancelled`-flag variant, and
+  switched the parse to reuse the already-imported `assertOk` instead of a
+  bespoke `res.ok` check.
+
+  **Task 16 — `components/session-row.tsx`**: `useEffect` keyed on
+  `[expanded, events, session.id]` — expand/collapse quickly could leave a
+  stale response landing after collapse. `cancelled`-flag fix.
+
+  **Task 17 — `app/malware/malware-table.tsx` (`ArtifactRow.toggle`)**: same
+  shape as Task 14 — gated by `lookup === null`, no real race. `res.ok` only.
+
+  **Task 18 — `components/settings/infrastructure-form.tsx`**: two fetches
+  (`loadOvaConfig`, reused by a manual "re-detect" button, and the `/api/config`
+  mount effect). Added `res.ok` to both; the mount effect also got a
+  `cancelled` flag since it's a real `useEffect`.
+
+  **Task 19 — `components/ip-enrichment.tsx`**: `doFetch()` already had the
+  `res.ok` check (from the earlier pass), but the mount effect is keyed on
+  `[ip]` — switching between two IPs fast (e.g. hovering different enrichment
+  popovers) had no cancellation, so a slow response for the first IP could
+  overwrite the second IP's data. Added `AbortController`; the manual "Query
+  now" retry button now calls `doFetch()` (no signal) since it's a one-off
+  action, not a race with itself.
+
+  Cross-cutting hook (mentioned in the plan as optional, deferred): still not
+  extracted — 19 components now share the same ~10-line shape, which is a
+  stronger case for `useFetchJson` than before, but out of scope for this
+  pass. Left as a follow-up, not re-opened as a task here.

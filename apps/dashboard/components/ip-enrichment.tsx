@@ -324,22 +324,25 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
   const [loading, setLoading] = useState(autoFetch && !initialData)
   const [showAllReports, setShowAllReports] = useState(false)
 
-  function doFetch() {
+  function doFetch(signal?: AbortSignal) {
     setLoading(true)
-    fetch(`/api/enrich/${encodeURIComponent(ip)}`)
+    fetch(`/api/enrich/${encodeURIComponent(ip)}`, { signal })
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json()
       })
       .then((d: IpEnrichment) => {
         if (d.abuseipdb || d.ipinfo || d.spectraAnalyze || d.virustotal) setData(d)
+        setLoading(false)
       })
-      .catch(() => {})
-      .finally(() => setLoading(false))
+      .catch((err) => { if (err?.name !== "AbortError") setLoading(false) })
   }
 
   useEffect(() => {
-    if (autoFetch && !initialData) doFetch()
+    if (!(autoFetch && !initialData)) return
+    const controller = new AbortController()
+    doFetch(controller.signal)
+    return () => controller.abort()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ip])
 
@@ -360,7 +363,7 @@ export function IpEnrichment({ ip, initialData, autoFetch = true }: Props) {
             <ShieldCheck className="h-4 w-4 text-cyan-400" />
             <span>IP Enrichment - no cached data</span>
           </div>
-          <button onClick={doFetch} className="rounded-lg border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/80">
+          <button onClick={() => doFetch()} className="rounded-lg border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/80">
             Query now
           </button>
         </Surface>

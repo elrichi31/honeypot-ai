@@ -27,16 +27,22 @@ export function BlockedIpsTable() {
   const [saving, setSaving]         = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  function load() {
+  function load(signal?: AbortSignal) {
     setLoading(true)
-    fetch("/api/defense/blocked")
-      .then(r => r.json())
-      .then((d: unknown) => setItems(Array.isArray(d) ? d : []))
-      .catch(() => setItems([]))
-      .finally(() => setLoading(false))
+    fetch("/api/defense/blocked", { signal })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
+      .then((d: unknown) => { setItems(Array.isArray(d) ? d : []); setLoading(false) })
+      .catch((err) => { if (err?.name !== "AbortError") { setItems([]); setLoading(false) } })
   }
 
-  useEffect(load, [])
+  useEffect(() => {
+    const controller = new AbortController()
+    load(controller.signal)
+    return () => controller.abort()
+  }, [])
 
   async function handleBlock(e: React.FormEvent) {
     e.preventDefault()

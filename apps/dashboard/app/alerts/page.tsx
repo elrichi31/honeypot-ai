@@ -102,12 +102,12 @@ export default function AlertsPage() {
     fetch(`/api/alerts?limit=100`, { signal: controller.signal })
       .then((res) => assertOk(res, "Could not load alerts"))
       .then((res) => res.json())
-      .then((body) => setData(body))
+      .then((body) => { setData(body); setLoading(false) })
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return
         toast.error(err instanceof Error ? err.message : "Could not load alerts")
+        setLoading(false)
       })
-      .finally(() => setLoading(false))
     return controller
   }, [])
 
