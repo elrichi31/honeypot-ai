@@ -55,8 +55,31 @@ test("login only: logged in, no post-login activity", () => {
 })
 
 test("threat tag wins over heuristics when logged in", () => {
-  const c = classify(session({ loginSuccess: true, threatTags: ["crypto_mining"] }))
+  const c = classify(session({ loginSuccess: true, commandCount: 3, threatTags: ["crypto_mining"] }))
   assert.equal(c.key, "cryptoMiner")
+})
+
+test("threat tag wins even when loginSuccess is false/null (Cowrie doesn't always record a clean auth.success)", () => {
+  const withFalse = classify(session({ loginSuccess: false, commandCount: 3, threatTags: ["crypto_mining"] }))
+  assert.equal(withFalse.key, "cryptoMiner")
+
+  const withNull = classify(session({ loginSuccess: null, commandCount: 2, threatTags: ["ssh_backdoor"] }))
+  assert.equal(withNull.key, "sshBackdoor")
+})
+
+test("malware_drop tag maps to malwareDropper classification", () => {
+  const c = classify(session({ loginSuccess: true, commandCount: 4, threatTags: ["malware_drop"] }))
+  assert.equal(c.key, "malwareDropper")
+})
+
+test("persistence tag surfaces its own classification, not thrown away", () => {
+  const c = classify(session({ loginSuccess: true, commandCount: 2, threatTags: ["persistence"] }))
+  assert.equal(c.key, "persistence")
+})
+
+test("null duration does not force isAutomated=true (unlike the old duration ?? 0 collapse)", () => {
+  const c = classify(session({ loginSuccess: true, duration: null, commandCount: 10, sessionType: "human" }))
+  assert.equal(c.key, "interactive")
 })
 
 test("severity ranking: worst classification wins for an IP group", () => {

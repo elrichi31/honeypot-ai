@@ -44,6 +44,28 @@ export interface RiskResult {
   topFactors: string[]
 }
 
+/**
+ * Threat tags for the session-list `threatTags` column, derived from the same
+ * `classifyCommands()`/`CMD_PATTERNS` engine that drives the risk score — the
+ * single source of truth for command-pattern matching (see SSH_CLASSIFICATION_ENGINE.md
+ * Task 1). Previously this used a separate, weaker SQL `ILIKE` engine that
+ * disagreed with the regex engine here.
+ */
+export function deriveThreatTags(commands: string[]): string[] {
+  const cats = classifyCommands(commands)
+  const tags: CommandCategory[] = [
+    'ssh_backdoor',
+    'honeypot_evasion',
+    'container_escape',
+    'crypto_mining',
+    'malware_drop',
+    'persistence',
+    'data_exfil',
+    'solana_targeting',
+  ]
+  return tags.filter((tag) => cats[tag].length > 0)
+}
+
 export function computeRiskScore(input: RiskInput): RiskResult {
   const cats = classifyCommands(input.commands)
   const uniqueProtocols = [...new Set(input.protocolsSeen)]

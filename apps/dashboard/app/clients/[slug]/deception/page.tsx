@@ -93,7 +93,7 @@ export default async function ClientDeceptionPage({ params }: { params: Promise<
         </p>
       </div>
 
-      <ClientDetailNav slug={slug} active="deception" t={t} />
+      <ClientDetailNav slug={slug} active="deception" t={t} deceptionBadge={data.overview.hits24h} />
 
       <div className="space-y-8">
         <DeceptionOverview data={data.overview} />

@@ -6,10 +6,13 @@ export function ClientDetailNav({
   slug,
   active,
   t,
+  deceptionBadge,
 }: {
   slug: string
   active: "overview" | "deception"
   t: Awaited<ReturnType<typeof getServerT>>
+  /** Interactions with an internal trap node in the last 24h — surfaced next to the Deception tab so it's visible without opening it. */
+  deceptionBadge?: number
 }) {
   const tabs = [
     { key: "overview" as const, label: t("clients.detail.nav.overview"), href: `/clients/${slug}` },
@@ -23,13 +26,21 @@ export function ClientDetailNav({
           key={tab.key}
           href={tab.href}
           className={cn(
-            "rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
+            "flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
             tab.key === active
               ? "bg-card text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
           )}
         >
           {tab.label}
+          {tab.key === "deception" && !!deceptionBadge && deceptionBadge > 0 && (
+            <span
+              className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white"
+              title={t("clients.detail.deception.badgeTitle", { n: String(deceptionBadge) })}
+            >
+              {deceptionBadge > 99 ? "99+" : deceptionBadge}
+            </span>
+          )}
         </Link>
       ))}
     </div>

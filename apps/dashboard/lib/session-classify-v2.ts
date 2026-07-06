@@ -1,4 +1,4 @@
-import { Cpu, Eye, Download, Shield, Crosshair, KeyRound, Ghost, Container, Database, Coins, type LucideIcon } from "lucide-react"
+import { Cpu, Eye, Download, Shield, Crosshair, KeyRound, Ghost, Container, Database, Coins, Lock, type LucideIcon } from "lucide-react"
 import type { TranslationKey } from "@/lib/i18n/dictionaries"
 
 // Stable, non-translatable identifier for each classification. This is the logic
@@ -12,6 +12,7 @@ export type ClassificationKey =
   | "cryptoMiner"
   | "dataExfil"
   | "targetedCrypto"
+  | "persistence"
   | "portProbe"
   | "burstBrute"
   | "slowBrute"
@@ -63,28 +64,39 @@ function authRatePerMinute(session: SessionItem): number {
 
 export function classify(session: SessionItem): Classification {
   const loggedIn = session.loginSuccess === true
-  const duration = session.duration ?? 0
+  // `null` (endedAt missing, e.g. session still open) is "unknown", not "instant" —
+  // forcing it to 0 previously made every null-duration session look automated.
+  const duration = session.duration
   const authAttempts = session.authAttemptCount
   const commandCount = session.commandCount
   const authRate = authRatePerMinute(session)
   const tags = session.threatTags ?? []
 
   // ── Threat-tag labels take priority over generic heuristics ──────────────
+  // Evaluated whenever a tag matched, regardless of `loginSuccess`: Cowrie doesn't
+  // always record a clean auth.success even when commands ran, so gating this on
+  // `loggedIn` silently dropped malicious sessions (e.g. a miner dropped without a
+  // recorded login) into the scanner/brute ladder below.
   const TAG_CLASSIFICATIONS: Array<{ tag: string; result: Classification }> = [
     { tag: 'ssh_backdoor',      result: { key: "sshBackdoor",     icon: KeyRound, color: "text-red-500",     bg: "bg-red-500/15",     summaryKey: "sessions.class.sshBackdoor.summary" } },
     { tag: 'honeypot_evasion',  result: { key: "honeypotEvasion", icon: Ghost,    color: "text-purple-400",  bg: "bg-purple-400/15",  summaryKey: "sessions.class.honeypotEvasion.summary" } },
     { tag: 'container_escape',  result: { key: "containerEscape", icon: Container, color: "text-orange-500", bg: "bg-orange-500/15",  summaryKey: "sessions.class.containerEscape.summary" } },
     { tag: 'crypto_mining',     result: { key: "cryptoMiner",     icon: Cpu,      color: "text-yellow-400",  bg: "bg-yellow-400/15",  summaryKey: "sessions.class.cryptoMiner.summary" } },
+    { tag: 'malware_drop',      result: { key: "malwareDropper",  icon: Download, color: "text-destructive", bg: "bg-destructive/15", summaryKey: "sessions.class.malwareDropper.summary", summaryVars: { commandCount } } },
     { tag: 'data_exfil',        result: { key: "dataExfil",       icon: Database, color: "text-red-400",     bg: "bg-red-400/15",     summaryKey: "sessions.class.dataExfil.summary" } },
     { tag: 'solana_targeting',  result: { key: "targetedCrypto",  icon: Coins,    color: "text-emerald-400", bg: "bg-emerald-400/15", summaryKey: "sessions.class.targetedCrypto.summary" } },
+    { tag: 'persistence',       result: { key: "persistence",     icon: Lock,     color: "text-orange-400",  bg: "bg-orange-400/15",  summaryKey: "sessions.class.persistence.summary" } },
   ]
 
-  if (loggedIn) {
+  if (commandCount > 0) {
     const match = TAG_CLASSIFICATIONS.find(({ tag }) => tags.includes(tag))
     if (match) return match.result
   }
 
-  if (!loggedIn) {
+  // Pure brute/scan ladder: no login, no commands ever ran. Decoupled from "ran
+  // commands" (see above) — a session with commands but no recorded login success
+  // is handled by the tag match or the post-login tree below, never here.
+  if (!loggedIn && commandCount === 0) {
     if (authAttempts === 0 && session.eventCount <= 3) {
       return {
         key: "portProbe",
@@ -106,14 +118,14 @@ export function classify(session: SessionItem): Classification {
       }
     }
 
-    if (authAttempts >= 12 && duration >= 1800) {
+    if (authAttempts >= 12 && (duration ?? 0) >= 1800) {
       return {
         key: "slowBrute",
         icon: Cpu,
         color: "text-yellow-400",
         bg: "bg-yellow-400/15",
         summaryKey: "sessions.class.slowBrute.summary",
-        summaryVars: { authAttempts, min: Math.round(duration / 60) },
+        summaryVars: { authAttempts, min: Math.round((duration ?? 0) / 60) },
       }
     }
 
@@ -137,11 +149,16 @@ export function classify(session: SessionItem): Classification {
     }
   }
 
-  // Bot script: DB-tagged as bot, or logged in but bailed out too fast to be human
-  // Real humans need at least 20 s to type commands; automated scripts run in <5 s
-  const isAutomated = session.sessionType === 'bot' || duration < 20
+  // Bot script: DB-tagged as bot, or logged in but bailed out too fast to be human.
+  // Real humans need at least 20 s to type commands; automated scripts run in <5 s.
+  // When duration is unknown (session still open), lean on sessionType alone rather
+  // than assuming automation — an unclosed session isn't necessarily a fast one.
+  // `unknown` sessionType (bot score 26-59) is deliberately treated the same as
+  // `human` here, not as automated: an ambiguous score shouldn't suppress
+  // interactive/recon labels the way a confident 'bot' classification does.
+  const isAutomated = session.sessionType === 'bot' || (duration !== null && duration < 20)
 
-  if (duration >= 1800 || (commandCount > 20 && !isAutomated)) {
+  if ((duration !== null && duration >= 1800) || (commandCount > 20 && !isAutomated)) {
     return {
       key: "malwareDropper",
       icon: Download,
@@ -180,7 +197,7 @@ export function classify(session: SessionItem): Classification {
       color: "text-slate-400",
       bg: "bg-slate-400/10",
       summaryKey: "sessions.class.botScript.summary",
-      summaryVars: { commandCount, duration },
+      summaryVars: { commandCount, duration: duration ?? 0 },
     }
   }
 
@@ -252,6 +269,7 @@ const SEVERITY_ORDER: ClassificationKey[] = [
   "targetedCrypto",
   "sshBackdoor",
   "honeypotEvasion",
+  "persistence",
   "burstBrute",
   "slowBrute",
   "interactive",

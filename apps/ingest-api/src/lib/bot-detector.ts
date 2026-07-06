@@ -50,6 +50,19 @@ const HUMAN_CLIENT_PATTERNS: RegExp[] = [
   /SSH-2\.0-MobaXterm/i,             // MobaXterm
 ]
 
+// HASSH fingerprints (SSH client key-exchange hash) known to belong to scanner/bot
+// tooling — identical crypto stack means the same tool regardless of the
+// self-reported client-version banner, which is easier to spoof. Empty by default:
+// there's no hardcoded list of "known bad" HASSH values to ship blind, since a wrong
+// guess here silently mislabels real traffic. Populate via `BOT_HASSH_FINGERPRINTS`
+// env var (comma-separated) once real values are derived from production data, e.g.:
+//   SELECT hassh, COUNT(*) FROM sessions WHERE session_type = 'bot' AND hassh IS NOT NULL
+//   GROUP BY hassh ORDER BY COUNT(*) DESC LIMIT 20;
+function isBotHassh(hassh: string): boolean {
+  const configured = process.env.BOT_HASSH_FINGERPRINTS ?? ''
+  return configured.split(',').map(h => h.trim()).filter(Boolean).includes(hassh)
+}
+
 // Commands that are essentially the first thing every automated recon bot runs
 const BASIC_RECON_PATTERN = /^(id|whoami|uname(\s+-a)?|hostname|w\b|who\b|uptime|cat\s+\/etc\/issue|cat\s+\/proc\/(version|cpuinfo))(\s|$)/i
 
@@ -87,6 +100,12 @@ export function detectBot(input: BotDetectionInput): BotDetectionResult {
       score -= 15
       reasons.push(`Human SSH client: ${input.clientVersion}`)
     }
+  }
+
+  // ── HASSH fingerprint ────────────────────────────────────────────────────────
+  if (input.hassh && isBotHassh(input.hassh)) {
+    score += 30
+    reasons.push(`Known bot HASSH fingerprint: ${input.hassh}`)
   }
 
   // ── Commands ─────────────────────────────────────────────────────────────────

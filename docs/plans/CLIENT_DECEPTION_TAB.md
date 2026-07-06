@@ -1,7 +1,8 @@
 # CLIENT_DECEPTION_TAB — Viana de Deception por cliente + atribución + alerta
 
-**Estado:** Fases 1-2 implementadas (2026-07-04). Fase 3 (alertas) y parte de
-Fase 4 (tests) pendientes — ver "Deuda técnica" al final.
+**Estado:** Fases 1-2 implementadas (2026-07-04). Fase 3 implementada
+parcialmente (2026-07-05, badge en el tab nav — ver detalle abajo). Parte de
+Fase 4 (tests) pendiente — ver "Deuda técnica" al final.
 
 ## Objetivo
 
@@ -97,16 +98,46 @@ expuesta y sin atribución de cliente/sensor.
 
 ### Fase 3 — Aviso "tocaron un honeypot interno"
 
-- [ ] Definir la señal: interacción con nodo interno = evento de deception con
-  `event_type` de interacción (auth / command / etc.).
-- [ ] **Badge/contador** en la tab de deception del cliente: "N interacciones
-  internas en 24h", destacado (color de alerta) cuando > 0.
-- [ ] Integrar con el motor de alertas por cliente
-  ([`ClientAlerts`](../../apps/dashboard/components/clients/client-alerts.tsx)) y el
-  stream en vivo (ver [`REALTIME_STREAM.md`](REALTIME_STREAM.md)) para que salga
-  como alerta cuando ocurre, no solo en la tabla.
-- [ ] Revisar si conviene una alerta correlacionada nueva en el motor por-IP
-  (ver [`CORRELATION_ALERTS.md`](CORRELATION_ALERTS.md)): "internal node touched".
+- [x] **Señal ya existía, confirmado 2026-07-05**: no hacía falta definirla de
+  cero. Cada interacción con un nodo interno ya dispara
+  [`checkDeceptionInteraction`](../../apps/ingest-api/src/lib/threat-checks.ts)
+  desde el motor de alertas **por-evento** (no la cola por-IP) — ver el caller
+  en [`threat-alerts.ts`](../../apps/ingest-api/src/lib/threat-alerts.ts:449).
+  Genera un `AlertPayload` con `key: deception:${nodeId}:${ip}`, nivel
+  `critical`, correlación de sesión cowrie (dwell time, atribución
+  session/fallback), y pasa por `sendAlertOnce` → `persistAlert` → tabla
+  `alerts` (con `clientId` ya resuelto vía `resolveClientId`, que funciona para
+  esta key porque termina en la IP pública) + Discord + CrowdStrike + SSE.
+  **No hizo falta tocar el backend de alertas.**
+- [x] **Badge/contador** en el tab nav del cliente — hecho 2026-07-05.
+  [`ClientDetailNav`](../../apps/dashboard/components/clients/client-detail-nav.tsx)
+  acepta un prop `deceptionBadge?: number` y muestra un pill rojo junto al
+  label "Deception" cuando `> 0`. Alimentado por `overview.hits24h` (ya
+  devuelto por `DeceptionRepository.getOverview`, sin cambios de backend):
+  la página de deception del cliente lo pasa directo (ya tenía el fetch);
+  la página Overview del cliente hace un fetch condicional nuevo a
+  `fetchClientDeceptionOverview(slug)` **solo si** el cliente tiene sensores
+  `protocol === "deception"` asignados, para no pagar esa llamada en clientes
+  sin red de deception. i18n: `clients.detail.deception.badgeTitle` (en/es).
+- [ ] **No hecho**: integración con
+  [`ClientAlerts`](../../apps/dashboard/components/clients/client-alerts.tsx)
+  o el stream en vivo. `ClientAlerts` hoy lee `/api/clients/:slug/threats`
+  (agregado por IP desde `sessions`/`protocol_hits`/`web_hits`, ver
+  `ThreatService`), un pipeline distinto de la tabla `alerts` donde caen las
+  alertas de `checkDeceptionInteraction`. El badge del nav cubre el caso de
+  "verlo sin entrar a la tab"; mostrar la alerta específica dentro de
+  `ClientAlerts` o empujarla por SSE al toast/bell (ver
+  [`REALTIME_STREAM.md`](REALTIME_STREAM.md)) queda como trabajo aparte —
+  requiere decidir explícitamente cuál pipeline extender (la nota de deuda
+  técnica de abajo ya lo señalaba).
+- [ ] **No hecho**: alerta correlacionada nueva en el motor por-IP (ver
+  [`CORRELATION_ALERTS.md`](CORRELATION_ALERTS.md)) — evaluado y descartado
+  por ahora: la señal por-evento (`checkDeceptionInteraction`) ya cubre "tocó
+  un nodo interno" con severidad `critical` inmediata; una alerta agregada
+  por-IP en la cola de 10-20 min añadiría latencia sin una señal nueva que
+  aportar, a menos que se quiera detectar un patrón específico (ej. "tocó
+  ≥2 nodos internos distintos"), que no estaba en el alcance original de esta
+  fase.
 
 ### Fase 4 — i18n + tests + docs
 
@@ -124,16 +155,19 @@ expuesta y sin atribución de cliente/sensor.
   `DeceptionEventsTable`.
 - [x] Actualizar [`docs/plans/README.md`](README.md) y este plan (este commit).
 
-## Deuda técnica dejada (2026-07-04)
+## Deuda técnica dejada (2026-07-04, actualizada 2026-07-05)
 
-1. **Fase 3 completa sin implementar.** No hay badge/contador de
-   interacciones internas en la tab de deception del cliente, ni integración
-   con `ClientAlerts` o el stream en vivo. Nota importante para quien retome
-   esto: `ClientAlerts` (`/api/clients/:slug/threats`) y el motor de alertas
+1. **Fase 3 — badge implementado, integración con `ClientAlerts`/stream en
+   vivo sigue sin hacer (2026-07-05).** El badge de conteo en el tab nav ya
+   está (ver Fase 3 arriba). Lo que sigue pendiente: `ClientAlerts`
+   (`/api/clients/:slug/threats`) y el motor de alertas
    `alerts`/`AlertRepository` (`alert_key`, `deception:${nodeId}:${ip}` vía
    `checkDeceptionInteraction` en `threat-checks.ts`) son **dos pipelines
-   distintos hoy** — la Fase 3 tiene que decidir explícitamente cuál extender
-   (o ambos) antes de tocar código.
+   distintos hoy** — quien retome esto tiene que decidir explícitamente cuál
+   extender (o ambos) antes de tocar código. La alerta ya se persiste y emite
+   por SSE (`eventBus.emit('alert', ...)`); falta decidir si el toast/bell del
+   dashboard ya la muestra genéricamente (verificar contra `REALTIME_STREAM.md`)
+   o si necesita tratamiento especial.
 2. **`getKillchain` y `getPortscans` sin atribución de cliente.** Solo
    `getEvents` recibió el join a `clients`. Si se quiere columna Cliente en el
    Kill-chain view o en `DeceptionPortscansTable`, hay que repetir el mismo

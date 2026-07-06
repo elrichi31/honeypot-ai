@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify'
 import { SessionRepository } from './session.repository.js'
 import { buildSessionClauses, buildWhereSql, type SessionListRow, type SessionSummaryRow } from '../../lib/session-queries.js'
 import { detectBot } from '../../lib/bot-detector.js'
+import { deriveThreatTags } from '../../lib/risk-score.js'
 import { toOffsetISOString } from '../../lib/date-utils.js'
 import { withCache } from '../../lib/cache-helper.js'
 import { resolveClientSensors } from '../../lib/client-helpers.js'
@@ -22,7 +23,7 @@ function toDurationSec(startedAt: Date, endedAt: Date | null): number | null {
   return Math.max(0, Math.round((endedAt.getTime() - startedAt.getTime()) / 1000))
 }
 
-export function formatSession(row: SessionListRow) {
+export function formatSession(row: SessionListRow, threatTags: string[] = []) {
   return {
     id: row.id,
     cowrieSessionId: row.cowrieSessionId,
@@ -42,7 +43,7 @@ export function formatSession(row: SessionListRow) {
     authAttemptCount: row.authAttemptCount,
     commandCount: row.commandCount,
     durationSec: toDurationSec(row.startedAt, row.endedAt),
-    threatTags: row.threatTags ?? [],
+    threatTags,
     _count: { events: row.eventCount },
   }
 }
@@ -60,6 +61,24 @@ function resolveTotal(summary: SessionSummaryRow, outcome?: string): number {
   if (outcome === 'compromised') return summary.compromised
   if (outcome === 'blocked') return summary.blocked
   return summary.total
+}
+
+async function threatTagsBySessionId(repo: SessionRepository, rows: SessionListRow[]): Promise<Map<string, string[]>> {
+  const map = new Map<string, string[]>()
+  if (rows.length === 0) return map
+
+  const commandsBySession = new Map<string, string[]>()
+  const commandRows = await repo.queryCommandsForSessions(rows.map(r => r.id))
+  for (const row of commandRows) {
+    if (!row.command) continue
+    if (!commandsBySession.has(row.session_id)) commandsBySession.set(row.session_id, [])
+    commandsBySession.get(row.session_id)!.push(row.command)
+  }
+
+  for (const row of rows) {
+    map.set(row.id, deriveThreatTags(commandsBySession.get(row.id) ?? []))
+  }
+  return map
 }
 
 async function resolveSessionScope(
@@ -95,9 +114,10 @@ export class SessionService {
         this.repo.querySummary(this.prismaRead, buildWhereSql(baseClauses)),
         this.repo.queryList(this.prismaRead, buildWhereSql(listClauses), params.sortDir, pageSize, offset),
       ])
+      const tagsById = await threatTagsBySessionId(this.repo, sessionRows)
 
       return {
-        items: sessionRows.map(formatSession),
+        items: sessionRows.map(row => formatSession(row, tagsById.get(row.id))),
         summary,
         pagination: buildPaginationResponse(resolveTotal(summary, params.outcome), page, pageSize),
       }
@@ -119,9 +139,10 @@ export class SessionService {
         this.repo.queryScanGroupCount(this.prismaRead, blockedWhere),
         this.repo.queryScanGroups(this.prismaRead, blockedWhere, pageSize, offset),
       ])
+      const tagsById = await threatTagsBySessionId(this.repo, sessionRows)
 
       return {
-        items: sessionRows.map(formatSession),
+        items: sessionRows.map(row => formatSession(row, tagsById.get(row.id))),
         summary,
         pagination: buildPaginationResponse(totalGroups, page, pageSize),
       }
@@ -140,7 +161,7 @@ export class SessionService {
     const { actor: sessionType } = detectBot({ clientVersion: session.clientVersion, hassh: session.hassh, durationSec, commands, authAttemptCount, loginSuccess: session.loginSuccess, password: session.password })
 
     return {
-      ...formatSession({ ...session, sessionType, eventCount: session.events.length, authAttemptCount, commandCount, threatTags: [] }),
+      ...formatSession({ ...session, sessionType, eventCount: session.events.length, authAttemptCount, commandCount }, deriveThreatTags(commands)),
       events: session.events.map(formatEvent),
     }
   }

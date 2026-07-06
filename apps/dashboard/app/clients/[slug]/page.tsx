@@ -13,7 +13,7 @@ import { ClientAlerts } from "@/components/clients/client-alerts"
 import { ClientStatsBar } from "@/components/clients/client-stats-bar"
 import { SectionError } from "@/components/section-error"
 import { Surface } from "@/components/ui/surface"
-import { fetchClients, fetchSensors } from "@/lib/api"
+import { fetchClients, fetchSensors, fetchClientDeceptionOverview } from "@/lib/api"
 import { getServerT } from "@/lib/i18n/server"
 import nextDynamic from "next/dynamic"
 
@@ -59,6 +59,13 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ s
   const online = clientSensors.filter((sensor) => sensor.online).length
   const totalEvents = clientSensors.reduce((sum, sensor) => sum + sensor.eventsTotal, 0)
 
+  // Interactions with an internal trap node in 24h, surfaced as a badge on the
+  // Deception tab — only fetched when the client actually has a deception network.
+  const hasDeceptionSensors = clientSensors.some((s) => s.protocol === "deception")
+  const deceptionBadge = hasDeceptionSensors
+    ? await fetchClientDeceptionOverview(slug).then((o) => o.hits24h).catch(() => undefined)
+    : undefined
+
   return (
     <PageShell>
       <div className="mb-6 space-y-3">
@@ -72,7 +79,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ s
         </div>
       </div>
 
-      <ClientDetailNav slug={client.slug} active="overview" t={t} />
+      <ClientDetailNav slug={client.slug} active="overview" t={t} deceptionBadge={deceptionBadge} />
 
       <div className="mb-6 flex flex-wrap items-center gap-4">
         <Surface className="flex items-center gap-2 px-4 py-3">

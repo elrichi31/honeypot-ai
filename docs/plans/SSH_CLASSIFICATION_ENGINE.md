@@ -1,6 +1,6 @@
 # SSH Classification Engine — audit & improvement plan
 
-**Status:** Not started · plan authored 2026-07-02
+**Status:** Tasks 1–6 implemented 2026-07-05. Task 7 (pattern hardening) optional, not started.
 **Goal:** Fix the cases where SSH sessions are mislabeled ("a veces no clasifica
 bien") by consolidating the pattern engines, closing the data-flow gaps that
 silently drop threat signals, and adding test coverage so future changes are safe.
@@ -198,3 +198,61 @@ loader/dropper filenames. Add each with a test payload.
 ### Change log
 - **2026-07-02** — Plan authored from codegraph audit of the SSH classification
   path (layers 1–3 + risk engine). No code changed yet.
+- **2026-07-05** — Tasks 1–6 implemented and verified (`tsc --noEmit` clean in
+  both apps; `vitest run` 91/91 in `ingest-api`; `tsx --test` 12/12 in
+  `dashboard`'s `session-classify-v2.test.ts`).
+  - **Task 1**: `buildThreatTagsSql()` (the weaker SQL `ILIKE` engine) deleted
+    from [`session-queries.ts`](../../apps/ingest-api/src/lib/session-queries.ts).
+    `threatTags` is now derived in TS from the same `classifyCommands()`/
+    `CMD_PATTERNS` regex engine that drives the risk score, via the new
+    `deriveThreatTags()` in
+    [`risk-score.ts`](../../apps/ingest-api/src/lib/risk-score.ts). Wired into
+    `SessionService.list`/`scanGroups` (new `threatTagsBySessionId()` helper,
+    one extra `queryCommandsForSessions` call reusing the existing
+    repository method) and `getById` (commands already in memory, no extra
+    query). `sessionListQuery`/`scanGroupListQuery` no longer compute or
+    return `threatTags` — one engine, no more drift between SQL and risk-score
+    regex.
+  - **Task 2**: `classify()` no longer gates tag matching or the post-login
+    heuristic tree behind `loginSuccess === true`. Tags are evaluated whenever
+    `commandCount > 0`, regardless of login outcome; the pure brute/scan ladder
+    (portProbe/burstBrute/slowBrute/credSpray/scanner) is now scoped to
+    `!loggedIn && commandCount === 0` only.
+  - **Task 3**: `malware_drop` → `malwareDropper` (existing key, now also
+    reachable via tag match) and `persistence` → new `persistence`
+    classification key, with its own icon/color, `SEVERITY_ORDER` slot (between
+    `honeypotEvasion` and `burstBrute`), and i18n label/summary in
+    `dicts/sessions.ts` (en + es).
+  - **Task 4**: `classify()` treats `session.duration === null` as unknown
+    rather than coercing to `0` — `isAutomated` no longer defaults to `true`
+    for open/unclosed sessions; `malwareDropper`'s duration check and the
+    `slowBrute`/`botScript` summary vars handle `null` explicitly instead of
+    silently becoming "instant".
+  - **Task 5**: Added a HASSH-based signal to
+    [`bot-detector.ts`](../../apps/ingest-api/src/lib/bot-detector.ts) —
+    intentionally **not** hardcoded with guessed fingerprint values (fabricating
+    "known bad" hashes without production data would silently mislabel real
+    traffic). Configurable via `BOT_HASSH_FINGERPRINTS` env var (comma-separated),
+    with the diagnostic query to derive real values from `session_type='bot'`
+    documented inline. Populate once real data is available — see Task 5 in the
+    original design. Reorder of tag-vs-`isAutomated` priority was already
+    resolved by Task 2 (tags are checked before the post-login tree is ever
+    reached). `unknown` sessionType is documented as deliberately treated like
+    `human` (not automated) in `isAutomated`'s comment.
+  - **Task 6**: New
+    [`bot-detector.test.ts`](../../apps/ingest-api/tests/bot-detector.test.ts)
+    (7 tests: bot client, human client, null duration, single-shot auth,
+    HASSH signal on/off, date-password). New `classifyCommands`/
+    `deriveThreatTags` tests in
+    [`risk-score.test.ts`](../../apps/ingest-api/tests/risk-score.test.ts)
+    (parity test asserting both engines agree on the same corpus — guards
+    against Task 1 regressing into two divergent engines again). Extended
+    [`session-classify-v2.test.ts`](../../apps/dashboard/lib/session-classify-v2.test.ts)
+    with cases for Tasks 2–4 (tag wins with `loginSuccess: false/null`,
+    `malware_drop`/`persistence` tag mapping, null-duration not forcing
+    automated).
+  - **Not done**: Task 7 (pattern hardening — base64-piped execution,
+    `tee`/`>>` to `authorized_keys`, reverse-shell label, loader/dropper
+    filenames) remains optional and unstarted, as originally scoped. Real HASSH
+    fingerprint values for Task 5 still need to be derived from production data
+    before `BOT_HASSH_FINGERPRINTS` has any effect.

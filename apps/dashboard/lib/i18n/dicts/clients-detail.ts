@@ -7,6 +7,7 @@ export const en = {
   "clients.detail.nav.deception": "Deception",
   "clients.detail.deception.empty.title": "No deception network deployed",
   "clients.detail.deception.empty.desc": "This client has no OpenCanary trap nodes assigned yet. Assign a deception network from the sensor catalog to start detecting lateral movement.",
+  "clients.detail.deception.badgeTitle": "{n} internal trap node interactions in the last 24h",
 
   // ── Logs viewer ────────────────────────────────────────────────────────────
   "clients.logs.title": "Logs",
@@ -98,6 +99,7 @@ export const es: Record<keyof typeof en, string> = {
   "clients.detail.nav.deception": "Deception",
   "clients.detail.deception.empty.title": "Sin red de deception desplegada",
   "clients.detail.deception.empty.desc": "Este cliente todavía no tiene nodos trampa de OpenCanary asignados. Asigna una red de deception desde el catálogo de sensores para empezar a detectar movimiento lateral.",
+  "clients.detail.deception.badgeTitle": "{n} interacciones con nodos trampa internos en las últimas 24h",
 
   "clients.logs.title": "Registros",
   "clients.logs.events": "{n} eventos",
