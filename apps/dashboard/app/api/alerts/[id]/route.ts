@@ -21,6 +21,6 @@ export async function DELETE(
   // viewing global passes nothing (may delete any single alert).
   const qs = clientId ? `?clientId=${encodeURIComponent(clientId)}` : ""
   const result = await proxyJson(`/alerts/${encodeURIComponent(id)}${qs}`, { method: "DELETE", headers: ingestHeaders(false) })
-  if (!result.ok) return Response.json({ error: result.error }, { status: result.status })
+  if (!result.ok) return Response.json({ error: result.error, requestId: result.requestId }, { status: result.status })
   return Response.json(result.data, { status: result.status })
 }

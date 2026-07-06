@@ -317,9 +317,7 @@ ya resuelven el grueso del problema.
 
 ## Estado
 
-**Fases 1-4 implementadas (2026-07-05).** Fase 5 (request-id de correlación
-end-to-end) queda pendiente, sin empezar — es la de mayor esfuerzo y el plan
-la marcaba como opcional/a evaluar después de validar el resto.
+**Fases 1-5 implementadas (2026-07-05).** Todo el plan cerrado.
 
 - **Fase 1** — `assertOk`/`ApiError` agregados a
   [`lib/client-fetch.ts`](../../apps/dashboard/lib/client-fetch.ts); `apiFetch`
@@ -352,7 +350,49 @@ la marcaba como opcional/a evaluar después de validar el resto.
   artefactos". Se barrieron el resto de controllers de `ingest-api`
   (`suricata.controller.ts`) — ya logueaban correctamente, no hizo falta
   tocarlos.
+- **Fase 5** — request-id de correlación end-to-end, implementada 2026-07-05.
+  - **`apps/ingest-api/src/app.ts`**: `setErrorHandler`'s branch ≥500 ahora
+    devuelve `{ error: 'Internal server error', requestId: request.id }`
+    (Fastify ya asigna `request.id` por request; solo faltaba exponerlo).
+  - **`apps/dashboard/lib/api/proxy.ts`**: `ProxyResult`'s variante de error
+    ganó un `requestId?: string`; `proxyRaw` lo extrae del body cuando el
+    backend lo manda; `proxyGet`/`proxyResponse` lo incluyen en el
+    `NextResponse.json` automáticamente — las 14 rutas que usan `proxyGet`
+    tal cual heredan el passthrough sin tocarlas.
+  - **Las 4 rutas de `/api/alerts`** (`route.ts` GET+DELETE, `read-all`,
+    `[id]`, `[id]/read`) que arman su propio `Response.json({ error: ... })`
+    a mano ahora también incluyen `requestId: result.requestId` — son las
+    que alimentan los 5 toasts de `alerts/page.tsx` arreglados en la Fase 2.
+  - **`apps/dashboard/lib/client-fetch.ts`**: `ApiError` ganó un campo
+    `requestId?: string`; `assertOk` lo lee del body y, si está presente,
+    lo agrega al mensaje como `"... (ref: xxxx)"` — automático para los
+    ~147 call-sites de `assertOk` en toda la app, sin tocar cada componente.
+  - **`apps/dashboard/lib/api/client.ts`** (server-side `apiFetch`): mismo
+    tratamiento — agrega `(ref: ...)` al mensaje del `throw` cuando el body
+    trae `requestId`.
+  - **`apps/dashboard/lib/api-error.ts`**'s `logAndRespond`: para las rutas
+    que no proxean a ingest-api (OpenAI, Docker control, etc.) genera su
+    propio id corto (`crypto.randomUUID().slice(0,8)`), lo loguea junto al
+    contexto y lo devuelve en el body.
+  - **Alcance deliberado**: no se migraron las ~11 rutas restantes que
+    arman `Response.json({ error })` a mano fuera de `/api/alerts` — el
+    mecanismo (`ProxyResult.requestId`) ya existe y queda disponible para
+    adoptarlo oportunistamente la próxima vez que se toque cada una; migrar
+    todas de una fue considerado fuera de alcance (KISS, no era el pedido).
+  - **Verificado en vivo** (Docker local, `docker compose up -d --build
+    ingest-api dashboard`): con Postgres detenido momentáneamente,
+    `GET /clients` contra `ingest-api` directo devolvió
+    `{"error":"Internal server error","requestId":"req-e"}` con HTTP 500 —
+    confirma el mecanismo real de punta a punta, no solo el tipo. La
+    propagación completa BFF→toast se confirmó por code review + los tests
+    existentes (matar Postgres también invalida la sesión de better-auth
+    antes de llegar a la ruta de alerts, así que ese tramo específico no se
+    pudo ejercitar en vivo sin romper el login; el parseo de `assertOk` se
+    verificó aparte con el mismo body JSON que produce `ingest-api`,
+    reproduciendo exactamente el mensaje `"Internal server error (ref:
+    req-e)"`).
 
 `tsc --noEmit` verificado limpio en `apps/dashboard` y `apps/ingest-api` tras
 los cambios (los errores preexistentes de `@react-pdf/renderer` types y
-`.next/types/validator.ts` no están relacionados).
+`.next/types/validator.ts` no están relacionados). `vitest run` 96/96 en
+`ingest-api`, `tsx --test` 37/37 en `dashboard`.

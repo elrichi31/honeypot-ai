@@ -66,14 +66,22 @@ export async function apiFetchAudited(input: string, init: RequestInit = {}): Pr
 }
 
 export class ApiError extends Error {
-  constructor(message: string, public status: number) {
+  constructor(message: string, public status: number, public requestId?: string) {
     super(message)
   }
 }
 
-/** Throws ApiError with the server's real error message on a non-ok response. */
+/**
+ * Throws ApiError with the server's real error message on a non-ok response.
+ * When the backend attached a `requestId` (ingest-api's setErrorHandler on 5xx,
+ * relayed through the BFF proxy routes), it's appended as "(ref: xxxx)" so a
+ * user-reported toast is grepped to the exact server log line — see
+ * ERROR_HANDLING.md Fase 5. Every caller of `assertOk` gets this for free.
+ */
 export async function assertOk(res: Response, fallback = "Request failed"): Promise<Response> {
   if (res.ok) return res
-  const body = await res.json().catch(() => null) as { error?: string } | null
-  throw new ApiError(body?.error || `${fallback} (${res.status})`, res.status)
+  const body = await res.json().catch(() => null) as { error?: string; requestId?: string } | null
+  const message = body?.error || `${fallback} (${res.status})`
+  const withRef = body?.requestId ? `${message} (ref: ${body.requestId})` : message
+  throw new ApiError(withRef, res.status, body?.requestId)
 }

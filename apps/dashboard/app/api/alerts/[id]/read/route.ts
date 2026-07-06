@@ -9,6 +9,6 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
   const { id } = await params
   const result = await proxyJson(`/alerts/${encodeURIComponent(id)}/read`, { method: "POST", headers: ingestHeaders(false) })
-  if (!result.ok) return Response.json({ error: result.error }, { status: result.status })
+  if (!result.ok) return Response.json({ error: result.error, requestId: result.requestId }, { status: result.status })
   return Response.json(result.data, { status: result.status })
 }

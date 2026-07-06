@@ -12,6 +12,6 @@ export async function POST() {
   const { clientId } = await effectiveScope(auth_check)
   const qs = clientId ? `?clientId=${encodeURIComponent(clientId)}` : ""
   const result = await proxyJson(`/alerts/read-all${qs}`, { method: "POST", headers: ingestHeaders(false) })
-  if (!result.ok) return Response.json({ error: result.error }, { status: result.status })
+  if (!result.ok) return Response.json({ error: result.error, requestId: result.requestId }, { status: result.status })
   return Response.json(result.data, { status: result.status })
 }

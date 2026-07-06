@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 
   const qs = await scopedQuery(request, auth_check)
   const result = await proxyJson(`/alerts${qs ? `?${qs}` : ""}`, { headers: ingestHeaders(false) })
-  if (!result.ok) return Response.json({ error: result.error }, { status: result.status })
+  if (!result.ok) return Response.json({ error: result.error, requestId: result.requestId }, { status: result.status })
   return Response.json(result.data, { status: result.status })
 }
 
@@ -34,6 +34,6 @@ export async function DELETE(request: NextRequest) {
 
   const qs = await scopedQuery(request, auth_check)
   const result = await proxyJson(`/alerts${qs ? `?${qs}` : ""}`, { method: "DELETE", headers: ingestHeaders(false) })
-  if (!result.ok) return Response.json({ error: result.error }, { status: result.status })
+  if (!result.ok) return Response.json({ error: result.error, requestId: result.requestId }, { status: result.status })
   return Response.json(result.data, { status: result.status })
 }

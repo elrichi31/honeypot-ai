@@ -50,7 +50,9 @@ export async function buildApp() {
     const statusCode = error.statusCode ?? 500
     if (statusCode >= 500) {
       request.log.error({ err: error, url: request.url }, 'Unhandled route error')
-      return reply.status(statusCode).send({ error: 'Internal server error' })
+      // requestId lets a user-reported error be grepped to this exact log line
+      // without reproducing the bug — see ERROR_HANDLING.md Fase 5.
+      return reply.status(statusCode).send({ error: 'Internal server error', requestId: request.id })
     }
     request.log.warn({ err: error, url: request.url }, 'Client error')
     return reply.status(statusCode).send({ error: error.message })

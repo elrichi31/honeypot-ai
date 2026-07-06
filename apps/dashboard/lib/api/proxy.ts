@@ -17,7 +17,7 @@ export function ingestHeaders(withJsonBody = true): Record<string, string> {
 
 export type ProxyResult =
   | { ok: true; status: number; data: unknown }
-  | { ok: false; status: number; error: string }
+  | { ok: false; status: number; error: string; requestId?: string }
 
 /**
  * Core proxy primitive. Fetches `${getApiUrl()}${path}` with a bounded timeout
@@ -62,11 +62,12 @@ export async function proxyRaw(
   }
 
   if (!res.ok) {
-    const error =
-      (data && typeof data === "object" && "error" in data && typeof (data as Record<string, unknown>).error === "string"
-        ? (data as Record<string, unknown>).error as string
-        : null) ?? `Ingest API error (status ${res.status})`
-    return { ok: false, status: res.status, error }
+    const body = data && typeof data === "object" ? data as Record<string, unknown> : null
+    const error = (body && typeof body.error === "string" ? body.error : null) ?? `Ingest API error (status ${res.status})`
+    // requestId (set by ingest-api's setErrorHandler on 5xx) lets a user-reported
+    // toast be grepped to the exact backend log line — see ERROR_HANDLING.md Fase 5.
+    const requestId = body && typeof body.requestId === "string" ? body.requestId : undefined
+    return { ok: false, status: res.status, error, ...(requestId ? { requestId } : {}) }
   }
 
   return { ok: true, status: res.status, data }
@@ -82,7 +83,10 @@ export async function proxyGet(
 ): Promise<NextResponse> {
   const result = await proxyRaw(path, init)
   if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
+    return NextResponse.json(
+      { error: result.error, ...(result.requestId ? { requestId: result.requestId } : {}) },
+      { status: result.status },
+    )
   }
   return NextResponse.json(result.data, { status: result.status })
 }

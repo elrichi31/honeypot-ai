@@ -32,6 +32,9 @@ export async function apiFetch<T>(url: string, revalidate?: number, timeoutMs = 
     try {
       const body = JSON.parse(text)
       if (body?.error) msg = body.error
+      // requestId (ingest-api's setErrorHandler on 5xx) lets a bug report be
+      // grepped to the exact backend log line — see ERROR_HANDLING.md Fase 5.
+      if (body?.requestId) msg = `${msg} (ref: ${body.requestId})`
     } catch { /* not JSON, keep default message */ }
     throw new Error(msg)
   }
