@@ -214,6 +214,41 @@ implementar sin evidencia de que el refresh pese.
 
 ---
 
+## D2 — matview `credential_attempts`: CPU de la réplica ✅ 2026-07-07
+
+**Incidente (2026-07-06/07):** la réplica de Postgres consumía CPU sostenida
+(133–157%) muy por encima del primary. Causa raíz medida en prod:
+`REFRESH MATERIALIZED VIEW CONCURRENTLY credential_attempts` cada 5 min tardaba
+232–275 s sobre una vista derivada de ~1.6M filas. `CONCURRENTLY` hace un diff
+fila-por-fila (UPDATE/DELETE/INSERT diferencial) del resultado nuevo contra el
+viejo → mucho CPU y **WAL enorme**, que la réplica replaya en single-thread.
+
+**Descarte de hipótesis previa:** primero se redujo la ventana de 90→30 días
+(migración `20260706120000_credential_attempts_30d_window`), pero al medir en
+prod el 100% de las filas ya eran de <30 días (`min(event_ts)` = exactamente 30d
+atrás): el honeypot genera ~1.6M intentos de auth cada 30 días. La ventana **no**
+era el cuello de botella; el costo es `CONCURRENTLY` sobre el volumen puro.
+
+**Fix aplicado** ([matview-refresh.ts](../../apps/ingest-api/src/plugins/matview-refresh.ts)):
+- `REFRESH` normal (TRUNCATE + INSERT) en vez de `CONCURRENTLY`. Salta el diff →
+  mucho menos CPU/WAL. Costo: `AccessExclusiveLock` de unos segundos que bloquea
+  lecturas del matview, invisible al usuario porque el dashboard lee tras
+  `withCache` (TTL 600 s, stale-while-revalidate).
+- `MATVIEW_REFRESH_MINUTES` default 5 → **30** (el evento caro corre menos seguido).
+
+**Pendiente / seguimiento:**
+- Verificar en prod que el CPU de la réplica bajó y el refresh nuevo tarda menos.
+- El índice único `credential_attempts_id_idx` ya no es requerido (era solo para
+  `CONCURRENTLY`); se deja porque no molesta. Podría eliminarse en una migración
+  futura junto con el `ROW_NUMBER() AS id` si se quiere aligerar el refresh.
+- Si el `REFRESH` normal aún pesa demasiado, el siguiente escalón es convertir la
+  vista en tabla real y refrescar solo el borde (append de filas nuevas + borrado
+  de las expiradas) en vez de reconstruir 1.6M filas.
+- `threat_ip_summary` no tiene filtro de ventana (agrega toda la historia); hoy es
+  chico (~11MB/7.2k filas) pero vigilar su crecimiento.
+
+---
+
 ## Orden de ejecución sugerido
 
 1. **A1** — hot-path real (Kafka + HTTP), cambio pequeño, riesgo bajo, máximo retorno.

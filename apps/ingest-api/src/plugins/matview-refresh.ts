@@ -3,28 +3,22 @@ import { Prisma } from '@prisma/client'
 import type { FastifyInstance } from 'fastify'
 
 // How often to refresh materialized views. Both credential_attempts and
-// threat_ip_summary tolerate a few minutes of staleness; CONCURRENTLY never
-// blocks reads. Configurable via env for tuning.
-const REFRESH_INTERVAL_MS = Number(process.env.MATVIEW_REFRESH_MINUTES ?? 5) * 60 * 1000
+// threat_ip_summary tolerate several minutes of staleness (the dashboard reads
+// them behind withCache), so we default to 30 min. Configurable via env.
+const REFRESH_INTERVAL_MS = Number(process.env.MATVIEW_REFRESH_MINUTES ?? 30) * 60 * 1000
 
-async function refreshConcurrently(fastify: FastifyInstance, viewName: string) {
+// Plain REFRESH (TRUNCATE + INSERT), not CONCURRENTLY. credential_attempts is a
+// derived view of ~1.6M rows; CONCURRENTLY additionally diffs the whole new
+// result against the old rows, which burned CPU (~275s/refresh) and generated
+// enough WAL to peg the replica's single-threaded replay. Plain REFRESH skips
+// the diff — far less CPU/WAL — at the cost of a brief AccessExclusiveLock that
+// blocks reads for a few seconds. Invisible to users thanks to withCache.
+async function refreshView(fastify: FastifyInstance, viewName: string) {
   const started = Date.now()
   try {
-    try {
-      await fastify.prisma.$executeRaw(
-        Prisma.sql`REFRESH MATERIALIZED VIEW CONCURRENTLY ${Prisma.raw(viewName)}`,
-      )
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      // CONCURRENTLY cannot run on a never-populated view; fall back once.
-      if (/has not been populated|cannot refresh/i.test(msg)) {
-        await fastify.prisma.$executeRaw(
-          Prisma.sql`REFRESH MATERIALIZED VIEW ${Prisma.raw(viewName)}`,
-        )
-      } else {
-        throw err
-      }
-    }
+    await fastify.prisma.$executeRaw(
+      Prisma.sql`REFRESH MATERIALIZED VIEW ${Prisma.raw(viewName)}`,
+    )
     fastify.log.info(`[matview] refreshed ${viewName} in ${Date.now() - started}ms`)
   } catch (err) {
     fastify.log.error(`[matview] ${viewName} refresh failed: ${err}`)
@@ -41,7 +35,7 @@ async function refreshCredentialAttempts(fastify: FastifyInstance) {
     return
   }
   credRefreshing = true
-  try { await refreshConcurrently(fastify, 'credential_attempts') }
+  try { await refreshView(fastify, 'credential_attempts') }
   finally { credRefreshing = false }
 }
 
@@ -51,7 +45,7 @@ async function refreshThreatIpSummary(fastify: FastifyInstance) {
     return
   }
   threatRefreshing = true
-  try { await refreshConcurrently(fastify, 'threat_ip_summary') }
+  try { await refreshView(fastify, 'threat_ip_summary') }
   finally { threatRefreshing = false }
 }
 

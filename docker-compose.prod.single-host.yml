@@ -341,10 +341,11 @@ services:
       FTP_CAPTURES_PATH: /ftp-captures
       SURICATA_OWN_IPS: ${SURICATA_OWN_IPS:-}
       KAFKA_BROKERS: kafka:9092
-      # credential_attempts refresh takes 100-300s at 30d window (was 90d);
-      # 5min was too tight and pegged the replica's WAL-replay CPU (see
-      # docs/project-notes for the 2026-07-06 incident). 15min gives headroom.
-      MATVIEW_REFRESH_MINUTES: ${MATVIEW_REFRESH_MINUTES:-15}
+      # credential_attempts is a ~1.6M-row derived view; the scheduler now uses a
+      # plain REFRESH (not CONCURRENTLY) to avoid the row-by-row diff that pegged
+      # the replica's WAL-replay CPU (2026-07-06 incident). 30min keeps the (now
+      # cheaper) refresh infrequent; reads are shielded by withCache.
+      MATVIEW_REFRESH_MINUTES: ${MATVIEW_REFRESH_MINUTES:-30}
     group_add:
       - "112"
     volumes:
