@@ -40,6 +40,8 @@ export interface AppConfig {
   reportIntervalHours?: number
   // Data retention
   retentionIntervalMinutes?: number
+  // Instance-wide branding (login page + sidebar identity)
+  brand?: 'default' | 'ist-americas'
 }
 
 // ---------------------------------------------------------------------------
@@ -87,6 +89,7 @@ export const CONFIG_FIELDS: ConfigFieldDef[] = [
   { key: "alertEnabledTypes",   type: "object", defaultValue: { threatScore: true, multiService: true, authBurst: true, postAuth: true, attackChain: true, sensorOffline: true, sensorSweep: true, portScanFanout: true, credReuse: true } },
   { key: "reportIntervalHours", type: "number", defaultValue: 8 },
   { key: "retentionIntervalMinutes", type: "number", defaultValue: 60, clamp: [15, 1440] },
+  { key: "brand",                type: "enum",   defaultValue: "default", allowedValues: ["default", "ist-americas"] },
 ]
 
 /** Keys that must not be saved in plain text in the audit log */

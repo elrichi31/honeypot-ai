@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const PUBLIC_PATHS = ["/login", "/setup", "/api/auth", "/api/setup-status"]
+const PUBLIC_PATHS = ["/login", "/setup", "/api/auth", "/api/setup-status", "/api/brand", "/brands"]
 const SESSION_COOKIE_NAMES = [
   "better-auth.session_token",
   "__Secure-better-auth.session_token",

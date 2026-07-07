@@ -42,6 +42,14 @@ export const en = {
   "set.openai.keyLabel": "OpenAI API Key",
   "set.openai.keyHint": "Get your key at platform.openai.com/api-keys. Stored locally, never exposed in plain text.",
   "set.openai.howBody": "Open any session and click Analyze session. The dashboard sends session data to GPT-4o mini and returns a threat assessment.",
+
+  // ── Brand ───────────────────────────────────────────────────────────────
+  "set.brand.title": "Brand",
+  "set.brand.description": "The identity shown on the login page and sidebar for this instance.",
+  "set.brand.label": "Active brand",
+  "set.brand.default": "Default (HoneyTrap)",
+  "set.brand.istAmericas": "IST Americas (corporate)",
+  "set.brand.note": "Applies to every user of this instance. The page reloads after saving so you can confirm the change right away.",
 } as const
 
 export const es: Record<keyof typeof en, string> = {
@@ -79,4 +87,11 @@ export const es: Record<keyof typeof en, string> = {
   "set.openai.keyLabel": "API Key de OpenAI",
   "set.openai.keyHint": "Obtén tu clave en platform.openai.com/api-keys. Se guarda localmente, nunca se expone en texto plano.",
   "set.openai.howBody": "Abre cualquier sesión y haz clic en Analizar sesión. El dashboard envía los datos de la sesión a GPT-4o mini y devuelve una evaluación de amenaza.",
+
+  "set.brand.title": "Marca",
+  "set.brand.description": "La identidad que se muestra en el inicio de sesión y el sidebar de esta instancia.",
+  "set.brand.label": "Marca activa",
+  "set.brand.default": "Default (HoneyTrap)",
+  "set.brand.istAmericas": "IST Americas (corporativa)",
+  "set.brand.note": "Aplica a todos los usuarios de esta instancia. La página se recarga al guardar para que confirmes el cambio de inmediato.",
 }

@@ -2,8 +2,10 @@
 
 import { Suspense, useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Bug, Loader2, AlertCircle, CheckCircle } from "lucide-react"
+import { Loader2, AlertCircle, CheckCircle } from "lucide-react"
 import { signIn, fetchPublicIp } from "@/lib/auth-client"
+import { BrandMark } from "@/components/brand-mark"
+import { useBrand } from "@/lib/use-brand"
 
 function LoginForm() {
   const router = useRouter()
@@ -14,6 +16,7 @@ function LoginForm() {
   const [error, setError] = useState("")
   const [phase, setPhase] = useState<"idle" | "signing-in" | "redirecting">("idle")
   const [checking, setChecking] = useState(true)
+  const brand = useBrand()
 
   useEffect(() => {
     let cancelled = false
@@ -74,13 +77,13 @@ function LoginForm() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent">
-            <Bug className="h-6 w-6 text-accent-foreground" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold text-foreground">HoneyTrap</h1>
-            <p className="text-sm text-muted-foreground">Sign in to your dashboard</p>
-          </div>
+          <BrandMark variant="full" />
+          {brand !== "ist-americas" && (
+            <div>
+              <h1 className="text-xl font-semibold text-foreground">HoneyTrap</h1>
+              <p className="text-sm text-muted-foreground">Sign in to your dashboard</p>
+            </div>
+          )}
         </div>
 
         {setupSuccess && (

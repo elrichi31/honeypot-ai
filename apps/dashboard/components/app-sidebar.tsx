@@ -10,7 +10,6 @@ import {
   Shield,
   Activity,
   Settings,
-  Bug,
   Crosshair,
   Globe,
   ChevronDown,
@@ -42,6 +41,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useSidebarCollapse } from "@/components/sidebar-collapse-context"
 import { SidebarUserCard } from "@/components/sidebar-user-card"
 import { useT } from "@/components/locale-provider"
+import { BrandMark } from "@/components/brand-mark"
+import { useBrand } from "@/lib/use-brand"
 import type { TranslationKey } from "@/lib/i18n/dictionaries"
 
 // `key` is a stable identifier (used for React keys + open/closed state), since
@@ -164,6 +165,7 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
   const pathname = usePathname()
   const health = useHealthCheck()
   const t = useT()
+  const brand = useBrand()
   const { collapsed: collapsedState, toggle, setCollapsed } = useSidebarCollapse()
   // The rail (collapsed) mode only applies to the fixed desktop sidebar. Inside
   // the mobile sheet we always render the full expanded panel.
@@ -240,15 +242,19 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
             row so the toggle doesn't waste a line of its own. When collapsed, just
             the logo lives here and the toggle drops to its own compact row below. */}
         <div className={cn("flex h-14 items-center border-b border-border", collapsed ? "justify-center px-2" : "gap-2 px-4")}>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent">
-            <Bug className="h-4 w-4 text-accent-foreground" />
-          </div>
+          {collapsed || brand !== "ist-americas" ? <BrandMark variant="mark" /> : null}
           {!collapsed && (
             <>
-              <div className="flex-1">
-                <p className="font-semibold text-sidebar-foreground">HoneyTrap</p>
-                <p className="text-[11px] text-muted-foreground">{t("sidebar.tagline")}</p>
-              </div>
+              {brand === "ist-americas" ? (
+                <div className="flex flex-1 items-center justify-center">
+                  <BrandMark variant="wide" />
+                </div>
+              ) : (
+                <div className="flex-1">
+                  <p className="font-semibold text-sidebar-foreground">HoneyTrap</p>
+                  <p className="text-[11px] text-muted-foreground">{t("sidebar.tagline")}</p>
+                </div>
+              )}
               <AlertsBell />
               {!mobile && (
                 <Tooltip>

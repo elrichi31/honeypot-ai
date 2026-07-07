@@ -79,6 +79,17 @@
   --warning: oklch(0.75 0.18 85);
 }
 
+/* IST Americas corporate brand accent (Settings → Brand). Additive only —
+   scoped to [data-brand], never touches :root/.dark so the default identity
+   above is untouched when the brand switch is off. */
+[data-brand="ist-americas"] {
+  --accent: #bd1622;
+  --accent-foreground: oklch(0.95 0 0);
+  --ring: #bd1622;
+  --sidebar-primary: #bd1622;
+  --sidebar-ring: #bd1622;
+}
+
 @theme inline {
   --font-sans: 'Geist', 'Geist Fallback';
   --font-mono: 'Geist Mono', 'Geist Mono Fallback';

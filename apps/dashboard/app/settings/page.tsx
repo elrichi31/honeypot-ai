@@ -3,6 +3,7 @@
 import { PageShell } from "@/components/page-shell"
 import { useT } from "@/components/locale-provider"
 import { LanguageForm } from "@/components/settings/language-form"
+import { BrandForm } from "@/components/settings/brand-form"
 import { InfrastructureForm } from "@/components/settings/infrastructure-form"
 import { IngestSecretForm } from "@/components/settings/ingest-secret-form"
 import { SessionConfigForm } from "@/components/settings/session-config-form"
@@ -22,6 +23,7 @@ export default function SettingsPage() {
 
       <div className="max-w-2xl space-y-6">
         <LanguageForm />
+        <BrandForm />
         <InfrastructureForm />
         <IngestSecretForm />
         <SessionConfigForm />
