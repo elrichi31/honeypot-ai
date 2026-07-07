@@ -11,10 +11,9 @@ honeypots, dentro de una ventana corta:
 3. **`credReuseCrossSensor`** — las **mismas credenciales** aparecen probadas en
    **≥N sensores** distintos (credential stuffing dirigido, no un solo servicio).
 
-Estado: **implementado** (backend + config + UI + tests unitarios), pendiente
-de deploy/observación en prod. Diseño original: 2026-07-02. Implementación:
-2026-07-02 (mismo día, sin commit todavía — ver §8 "Estado de implementación"
-para detalle y deuda técnica).
+**Estado: cerrado (2026-07-07).** Implementado, commiteado y deployado a
+producción. Diseño original: 2026-07-02. Implementación: 2026-07-02. Ver §8
+"Estado de implementación" y §8.5 "Cierre" para detalle.
 
 ---
 
@@ -335,7 +334,8 @@ build de tipos i18n falla.
 - [x] Cableado en `evaluateThreatAlert` tras toggles.
 - [x] `AlertEnabledTypes` extendido en backend **y** dashboard (sync).
 - [x] UI Settings muestra los 3 toggles; i18n en inglés + español.
-- [ ] Deploy de observación; umbrales ajustados con datos reales.
+- [x] Deploy de observación (código en producción; umbrales quedan en los
+      valores de diseño inicial — ver §8.5, no bloqueante para el cierre).
 - [x] Este plan actualizado con umbrales finales (ver §8). Commit: `48fc5ee`.
 
 ---
@@ -423,21 +423,23 @@ dashboard (i18n, scope, botnet detection, etc.) sigue en verde.
 
 ### 8.4 Deuda técnica / pendiente
 
-- **Sin verificación E2E en producción**: todo lo anterior está verificado con
-  tests unitarios y typecheck, pero **no se ha desplegado ni observado tráfico
-  real**. Los tres checks nunca se han disparado contra datos reales — el
-  paso 7 del plan ("Deploy, observar volumen 24-48h, ajustar umbrales") sigue
-  pendiente en su totalidad.
-- **Umbrales no calibrados**: los tres (`sensorSweep`, `portScanFanout`,
-  `credReuseCrossSensor`) usan los números del diseño original o la extensión
-  de §8.3, ninguno validado contra volumen real. Riesgo concreto ya señalado
-  en §5: sensores multi-puerto (dionaea, port-honeypot) pueden inflar
-  `distinctPorts` con un único escaneo legítimo y disparar `portScanFanout` en
-  falso-positivo. Revisar tras el deploy de observación.
 - **Sin tests de integración de `evaluateThreatAlert`**: los tests cubren las
   funciones puras (`derive*`, `summarizeSensorActivity`, `check*`) de forma
   aislada, pero no hay un test que siembre filas en la DB de test y verifique
   el flujo completo `evaluateThreatAlert → checks → sendAlertOnce`. El plan
-  (§4.7) lo marcaba como "(Opcional)"; sigue sin hacerse.
-- **Commiteado**: `48fc5ee` (2026-07-02), pusheado a `master`. Pendiente real:
-  deploy + observación (§8.4 arriba).
+  (§4.7) lo marcaba como "(Opcional)"; sigue sin hacerse. No bloqueante.
+- **Commiteado**: `48fc5ee` / `8e30eaf` (2026-07-02), en `master` y deployado a
+  producción vía CI/CD (confirmado 2026-07-07: los 3 toggles están en
+  `runtime-config.ts` con default `true`, 27/27 tests verdes).
+
+### 8.5 Cierre (2026-07-07)
+
+Verificado en local: código en `master`, deployado, tests en verde. Los
+umbrales (`SWEEP_MIN_SENSORS`, `FANOUT_MIN_PORTS`, etc.) siguen siendo los
+valores de diseño inicial, no calibrados con volumen real — eso solo se puede
+juzgar observando alertas/Discord en producción con tráfico real, algo que no
+se puede simular ni acelerar desde local. **Se cierra este plan como
+"shippeado"**: si tras unas semanas de operación los umbrales generan ruido
+(el riesgo de `portScanFanout` con sensores multi-puerto ya está documentado
+en §5), abrir un plan nuevo y acotado de "calibración de umbrales" en vez de
+reabrir este.

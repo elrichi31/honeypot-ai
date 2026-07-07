@@ -1,6 +1,9 @@
 # SSH Classification Engine — audit & improvement plan
 
-**Status:** Tasks 1–6 implemented 2026-07-05. Task 7 (pattern hardening) optional, not started.
+**Status: closed (2026-07-07).** Tasks 1–6 implemented 2026-07-05 and shipped.
+Task 7 (pattern hardening) and real `BOT_HASSH_FINGERPRINTS` values (Task 5)
+remain optional/data-dependent — see change log entry below for why they're
+closed rather than left open.
 **Goal:** Fix the cases where SSH sessions are mislabeled ("a veces no clasifica
 bien") by consolidating the pattern engines, closing the data-flow gaps that
 silently drop threat signals, and adding test coverage so future changes are safe.
@@ -256,3 +259,20 @@ loader/dropper filenames. Add each with a test payload.
     filenames) remains optional and unstarted, as originally scoped. Real HASSH
     fingerprint values for Task 5 still need to be derived from production data
     before `BOT_HASSH_FINGERPRINTS` has any effect.
+- **2026-07-07** — Attempted to derive real `BOT_HASSH_FINGERPRINTS` values
+  from the local Docker DB (`honeypot-postgres` / `honeypot_prod`) per the
+  diagnostic query in [`bot-detector.ts`](../../apps/ingest-api/src/lib/bot-detector.ts).
+  Found the dataset is **synthetic/seed data, not real Cowrie traffic**: the
+  same `hassh` appears with different `client_version` banners across rows
+  (e.g. `6d1f4b0a7bde04b4b8b7c2e3a1d9f3c5` paired with both `libssh2` and
+  `OpenSSH_7.4` — not possible organically, since HASSH is derived from the
+  client's own announced KEX algorithms), `sensor_id` is empty on every row,
+  and `session_type` never advanced past `unknown` (no backfill has run
+  against this dataset). Populating `BOT_HASSH_FINGERPRINTS` from this data
+  would silently mislabel real traffic, so it was not done.
+  **Closing this plan** rather than leaving Task 5/7 open indefinitely: both
+  are genuinely blocked on production data that doesn't exist yet, not on
+  remaining engineering work. If real HASSH signal becomes available later
+  (e.g. after `session_type` backfill runs against real prod traffic), treat
+  populating `BOT_HASSH_FINGERPRINTS` as a small standalone follow-up rather
+  than reopening this plan.
