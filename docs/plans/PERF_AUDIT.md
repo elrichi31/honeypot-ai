@@ -1,8 +1,9 @@
 # PERF_AUDIT — auditoría + plan de resolución de rendimiento
 
 **Estado:** Implementado — 2026-06-24. A1, C1, C2, D1, B1, B2, M1, M2 resueltos.
-M3 implementado 2026-07-05 (métricas de ingesta). Pendiente: A2/C3/D2 —
-ahora sí se pueden decidir con datos reales del endpoint de M3.
+M3 implementado 2026-07-05 (métricas de ingesta). C3 auditado 2026-07-07 (ver
+sección). Pendiente: A2/D2 — requieren datos reales del endpoint de M3 bajo
+tráfico de producción.
 Complementa [MONITORING_PERF.md](MONITORING_PERF.md) (ya resuelve la saturación de
 `dockerd`). Aquí están el resto de cuellos de botella detectados barriendo
 `ingest-api` y `dashboard`, con **el arreglo paso a paso** para cada uno.
@@ -148,18 +149,30 @@ leer `.meta.json` por archivo. Con muchos artefactos → ráfaga de file descrip
 introducido en MONITORING_PERF (DRY, sin dep nueva); (b) cachear `fileType` por
 `(md5, mtime)` en memoria — el contenido de un artefacto es inmutable. Riesgo bajo.
 
-### C3 — (Verificación) Réplica de lectura e índices en stats ⏳ pendiente auditoría
+### C3 — (Verificación) Réplica de lectura e índices en stats ✅ auditado 2026-07-07
 **Evidencia:** los repos de `stats/*` ya reciben `fastify.prismaRead` (bien).
 `getHoneypotOverview` ([`stats.repository.ts:35-70`](../../apps/ingest-api/src/modules/stats/stats.repository.ts#L35-L70))
 lanza varias queries en `Promise.all` con cutoff de 90 días sobre
 `sessions`/`web_hits`/`protocol_hits`.
 
-**Acción:** (a) grep de control: que ninguna ruta de stats use `fastify.prisma`
-(escritura) por error; (b) confirmar índices `(sensor_id, started_at)` /
-`(sensor_id, timestamp)` que cubran `WHERE cutoff + scope`; (c) confirmar que las
-páginas más pesadas leen de las matviews (`credential_attempts`,
-`threat_ip_summary`) y no de la tabla cruda. Solo medir + ajustar índices; sin
-reescrituras especulativas.
+**Auditoría (2026-07-07):**
+- (a) Grep de control: ninguna ruta de `stats/*` usa `fastify.prisma` (escritura)
+  por error — todo pasa por `prismaRead` vía constructor de cada repository.
+- (b) Índices: `protocol_hits` sí tiene el compuesto
+  `protocol_hits_sensor_id_timestamp_idx (sensor_id, timestamp)`. **`sessions`
+  no tiene el equivalente** — solo `sessions_sensor_id_idx` (single-column) más
+  el `started_at` sin combinar. Todas las queries de `getHoneypotOverview`,
+  `getKpiTrends`, `getWindow`, `getRecurringIps`, etc. filtran
+  `WHERE started_at >= cutoff AND sensor_id = ...`, así que el índice compuesto
+  faltante es un gap real, no solo una casilla por marcar. No se puede medir el
+  impacto con `EXPLAIN ANALYZE` en local (252 filas → seq scan de todos modos),
+  pero el gap estructural es independiente del volumen de datos. **Pendiente:**
+  crear `CREATE INDEX CONCURRENTLY sessions_sensor_id_started_at_idx ON sessions (sensor_id, started_at)`
+  en un cambio aparte (índice nuevo en prod = migración cuidadosa, no bloquea
+  el cierre de este plan).
+- (c) Confirmado: las páginas pesadas leen de los matviews
+  (`stats.repository.ts`, `stats.utils.ts`, `threats.repository.ts`,
+  `credentials.ts` controller), no de tablas crudas.
 
 ---
 

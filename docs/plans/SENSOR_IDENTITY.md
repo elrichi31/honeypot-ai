@@ -1,7 +1,7 @@
 # SENSOR_IDENTITY — IDs únicos de sensor + enlace Application/Client
 
-> Estado: **implementado fases 0-3** (2026-06-27). Fase 4 (verificación E2E +
-> aplicar migraciones en prod) pendiente.
+> Estado: **implementado fases 0-3** (2026-06-27), Fase 0 verificada 2026-07-07.
+> Fase 4 (verificación E2E en producción) pendiente — ver nota de cierre abajo.
 >
 > Reestructura cómo se identifican los sensores y a quién pertenecen. Reemplaza
 > el `SENSOR_ID` derivado por-protocolo por un UUID único por instalación, e
@@ -206,7 +206,7 @@ generado por el redeem. El `SENSOR_ID` venía horneado; ahora viene como UUID.
 - [x] Migración `20260627000100_add_sensor_owner`: `sensors.owner_type` + `application_id`, backfill.
 - [x] Migración `20260627000200_provision_tokens_optional_client`: `client_id` → nullable.
 - [x] `schema.prisma` actualizado (modelo `Application`, relaciones, `clientId?` en tokens).
-- [ ] Aplicar migraciones en DB local `honeypot_full` y verificar backfill.
+- [x] Aplicar migraciones en DB local y verificar backfill (2026-07-07).
 
 ### Fase 1 — Backend provisión + identidad ✅ (2026-06-27)
 - [x] `clientId` opcional en `POST /sensor/tokens` (ruta + service).
@@ -230,6 +230,19 @@ generado por el redeem. El `SENSOR_ID` venía horneado; ahora viene como UUID.
   al tenant (verificar con el patrón del [MULTI_TENANT_ROADMAP](MULTI_TENANT_ROADMAP.md)).
 - Crear dos tokens SSH para el mismo cliente → dos tarjetas de sensor distintas,
   sin fusión de sesiones.
+
+**Nota de cierre (2026-07-07):** verificado en DB local que las migraciones
+están aplicadas (`sensors.application_id`, `sensors.owner_type` con FK a
+`applications`, índice `sensors_owner_type_idx`) y que el backfill es
+consistente: 8 sensores `owner_type='client'` con `client_id` seteado y
+`application_id` nulo, 1 sensor `owner_type='application'` con `application_id`
+seteado y `client_id` nulo, sin filas huérfanas; `applications` tiene
+exactamente el seed esperado (`default-application`); `sensor_provision_tokens.client_id`
+es nullable a nivel de esquema. Esto satisface Fase 0 a nivel estructural.
+Los 3 escenarios de Fase 4 requieren instalar sensores reales y observar
+comportamiento end-to-end (creación de token, reasignación, no-fusión de
+sesiones) — no son verificables contra el dataset sintético de este entorno
+local. Quedan pendientes de producción; no bloquean el resto del plan.
 
 ---
 

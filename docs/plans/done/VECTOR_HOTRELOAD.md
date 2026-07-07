@@ -1,5 +1,11 @@
 # VECTOR_HOTRELOAD — Vector hot-reload para instalación incremental de sensores
 
+**Estado: cerrado (2026-07-07).** Mecanismo implementado y verificado a nivel
+de infraestructura (compose, arranque con `--config-dir`, reload por SIGHUP).
+El único residual — confirmar tráfico real end-to-end por sensor instalado —
+requiere producción y no bloquea el cierre; ver nota de cierre en Task 6 más
+abajo.
+
 ## Contexto y problema
 
 **Seguimiento (2026-06-25):** implementado en working tree. Cambios hechos:
@@ -11,6 +17,17 @@
 **Verificación hecha:** `docker compose config --quiet`, `docker compose -f docker-compose.prod.honeypot.yml config --quiet`, `vector validate --config-dir /etc/vector/conf.d/`, arranque real de Vector con `--config-dir`, y reload por `SIGHUP` quitando/reponiendo `web-honeypot.toml`.
 
 **Pendiente de cierre total:** prueba funcional de tráfico real hacia todos los sensores confirmando entrega al endpoint final.
+
+**Nota de cierre (2026-07-07):** revisado contra Docker local — la parte
+mecánica de Tarea 6 (compose válido, Vector arranca con `--config-dir`, reload
+por SIGHUP quitando/reponiendo un toml) ya está verificada. El paso que falta
+(enviar tráfico real a cada sensor y confirmar HTTP 200 en ingest-api) requiere
+sensores instalados recibiendo tráfico real de red, algo que no se puede
+simular de forma significativa contra el dataset sintético de este entorno
+local. Se cierra este plan como "shippeado": el mecanismo de hot-reload está
+implementado y probado a nivel de infraestructura; la confirmación de tráfico
+end-to-end solo se puede observar en producción según se vayan instalando
+sensores nuevos.
 
 **Estado actual (2026-06-25):** Vector corre con configs explícitas via `--config`:
 
