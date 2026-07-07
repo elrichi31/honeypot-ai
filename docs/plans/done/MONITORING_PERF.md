@@ -1,6 +1,6 @@
 # MONITORING_PERF — bajar la saturación de CPU/RAM del monitoreo de contenedores
 
-**Estado:** Tareas 1–4 + Tarea 6 parcial implementadas. 2026-06-24.
+**Estado:** Tareas 1–6 completas. 2026-07-07: Tarea 5 y el gemelo de Tarea 6 cerrados. Sin pendientes.
 
 ## Problema
 
@@ -117,22 +117,28 @@ propia cadencia explícita.
 **Verificación:** el histórico 24h/7d/30d se ve igual; el pico de `dockerd` ya solo
 ocurre 1×/min (cron) y nunca en el refresco del front.
 
-### Tarea 5 — (Mejora) Robustez del socket Docker
-**Qué:** `SOCKET_AVAILABLE` se evalúa **una vez al import**
+### Tarea 5 — (Mejora) Robustez del socket Docker ✅ 2026-07-07
+**Qué:** `SOCKET_AVAILABLE` se evaluaba **una vez al import**
 ([`docker-stats.ts:8`](../../apps/ingest-api/src/lib/docker-stats.ts#L8)). Si el
-contenedor arranca antes de que el mount del socket esté listo, queda "no
+contenedor arranca antes de que el mount del socket esté listo, quedaba "no
 disponible" para siempre. Reevaluar perezosamente o cachear con TTL corto.
 
 - Mínimo: log de un `warn` 1× cuando el socket falta, para que sea visible en el
   monitoreo en vez de un silencioso `[]`.
 
-### Tarea 6 — (Mejora) `body += chunk` → acumular buffers ✅ 2026-06-24 (parcial)
+**Hecho:** `isSocketAvailable()` reemplaza la constante congelada: cachea el
+resultado de `existsSync` con TTL de 30s, re-evalúa cuando expira, y el `warn`
+se emite una sola vez mientras el socket falte (se resetea si vuelve a estar
+disponible, para poder avisar de nuevo si vuelve a caerse).
+
+### Tarea 6 — (Mejora) `body += chunk` → acumular buffers ✅ 2026-07-07 (completa)
 **Qué:** En `dockerGet` ([`docker-stats.ts:33-47`](../../apps/ingest-api/src/lib/docker-stats.ts#L33-L47)
 y el gemelo en [`app/api/monitoring/containers/route.ts`](../../apps/dashboard/app/api/monitoring/containers/route.ts#L20-L33))
 se concatenan strings. Para payloads de `/stats` (cada uno KBs) ×N×frecuencia
 genera GC. Acumular `Buffer[]` y `Buffer.concat(...).toString()` al final.
-Impacto menor; hacerlo solo si Tareas 1–4 no bastan.
-**Hecho:** `dockerGet` en `docker-stats.ts` ahora acumula `Buffer[]`. El gemelo en el BFF queda pendiente (impacto menor dado que ya no muestrea live).
+**Hecho:** `dockerGet` en `docker-stats.ts` ya acumulaba `Buffer[]` (2026-06-24).
+El gemelo en el BFF (`app/api/monitoring/containers/route.ts`) ahora también
+acumula `Buffer[]` en vez de `body += chunk`.
 
 ---
 

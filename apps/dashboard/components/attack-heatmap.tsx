@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useState, useRef } from "react"
 import { Loader2, Flame } from "lucide-react"
 import { useT } from "@/components/locale-provider"
 import { Surface } from "@/components/ui/surface"
 import { heatmapColor, HEATMAP_LEGEND_STEPS } from "@/lib/heatmap-color"
+import { useFetchJson } from "@/lib/use-fetch-json"
 
 interface Cell { dow: number; hour: number; count: number }
 interface HeatmapData {
@@ -23,29 +24,9 @@ const DAYS_ORDER = [1, 2, 3, 4, 5, 6, 0] // Mon→Sun
 
 export function AttackHeatmap({ days = 90 }: { days?: number }) {
   const t = useT()
-  const [data, setData] = useState<HeatmapData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
+  const { data, loading, error } = useFetchJson<HeatmapData>(`/api/stats/heatmap?days=${days}`, [days])
   const [tooltip, setTooltip] = useState<{ dow: number; hour: number; count: number; x: number; y: number } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const controller = new AbortController()
-    setLoading(true)
-    setError(false)
-    fetch(`/api/stats/heatmap?days=${days}`, { signal: controller.signal })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return r.json()
-      })
-      .then((d) => { setData(d); setLoading(false) })
-      .catch((err) => {
-        if (err?.name === "AbortError") return
-        setError(true)
-        setLoading(false)
-      })
-    return () => controller.abort()
-  }, [days])
 
   if (loading) return (
     <Surface className="flex items-center gap-2 p-6 text-sm text-muted-foreground">

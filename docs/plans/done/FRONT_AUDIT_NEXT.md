@@ -1,6 +1,6 @@
 # FRONT_AUDIT_NEXT — auditoría del dashboard con `vercel-labs/next-best-practices`
 
-**Estado:** En progreso. Creado 2026-06-24. Sprint 1 completo 2026-06-24. Sprint 2 completo 2026-06-24.
+**Estado:** Cerrado 2026-07-07. Sprint 1 completo 2026-06-24. Sprint 2 completo 2026-06-24. Área 5 (Suspense granular) evaluada y pospuesta deliberadamente — no es deuda, es una decisión de timing (ver Área 5).
 **Skill guía:** `vercel-labs/next-best-practices` (UI Skills) — RSC boundaries,
 data patterns, async APIs, metadata, error handling, optimización en App Router.
 **Stack:** Next.js 16.2 + React 19, App Router, BFF en `app/api/*`, Tailwind +
@@ -140,8 +140,15 @@ streamear secciones pesadas (un gráfico, una tabla larga) sin bloquear el resto
 secciones lentas en `Suspense` con su propio fallback, para que los KPIs aparezcan
 antes que la tabla. Solo donde haya diferencia real de latencia; no por defecto.
 
-**⏳ PENDIENTE:** aplica a las páginas que se conviertan a RSC (Área 1). Atacar
-junto con cada conversión en el sprint siguiente.
+**⏸️ POSPUESTO deliberadamente (revisado 2026-07-07):** `suricata` y `storage`
+hoy hacen `await Promise.all(...)` en la página antes de renderizar nada — para
+que `<Suspense>` streamee de verdad haría falta no esperar el fetch en la
+página y pasar promesas a los hijos (patrón `use()` + `<Suspense>`), lo cual es
+una reestructura de la arquitectura de datos, no un cambio cosmético. Envolver
+secciones ya resueltas en `<Suspense>` no aporta nada real. Decisión: no
+implementar hasta medir latencia real de estas páginas y confirmar que el
+streaming granular resolvería un problema visible, tal como dice el propio
+criterio de éxito ("posponer hasta medir").
 
 ### Área 6 — Async request APIs (Next 15/16)
 **Patrón Next:** en Next 15+ `cookies()`, `headers()`, `params`, `searchParams`
@@ -199,7 +206,7 @@ detrás de tabs. Medir con el build de Next (`next build` → tamaños por ruta)
 - [x] Recharts bajo `dynamic` en homepage, suricata, web-attacks/timeline.
 - [x] Páginas client clasificadas: 2 convertidas a RSC (suricata, storage); 9 legítimamente client.
 - [x] `next build` verde — 46 rutas compilan (tras corregir el bug de `ssr: false`).
-- [ ] Suspense granular en páginas RSC multi-sección (posponer hasta medir).
+- [x] Suspense granular evaluado (2026-07-07): pospuesto deliberadamente, requeriría reestructurar el data flow (no-await + `use()`), no aporta valor real sin esa reestructura.
 
 ## Riesgos / notas
 

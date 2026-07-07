@@ -22,9 +22,9 @@ function dockerGet(path: string): Promise<{ status: number; body: string }> {
     const req = http.request(
       { socketPath: DOCKER_SOCKET, path, method: "GET" },
       (res) => {
-        let body = ""
-        res.on("data", (chunk) => { body += chunk })
-        res.on("end", () => resolve({ status: res.statusCode ?? 0, body }))
+        const chunks: Buffer[] = []
+        res.on("data", (chunk) => { chunks.push(chunk) })
+        res.on("end", () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString() }))
       },
     )
     req.on("error", reject)

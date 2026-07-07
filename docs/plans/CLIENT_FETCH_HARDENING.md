@@ -535,3 +535,14 @@ After all tasks:
   extracted — 19 components now share the same ~10-line shape, which is a
   stronger case for `useFetchJson` than before, but out of scope for this
   pass. Left as a follow-up, not re-opened as a task here.
+
+- **2026-07-07 — cross-cutting hook extracted and piloted.** Added
+  `apps/dashboard/lib/use-fetch-json.ts` — `useFetchJson<T>(url, deps)`
+  encapsulates `AbortController`, `res.ok` check, `AbortError` swallowing, and
+  `loading`/`error` lifecycle. Migrated `components/attack-heatmap.tsx` (Task 3)
+  as the pilot: its effect was an exact match for the canonical pattern
+  (single fetch keyed on `days`, no bespoke parsing), so it collapsed to one
+  hook call. `tsc --noEmit` clean. Components with bespoke parsing/pagination
+  (logs viewer, alerts, defense tables) are left hand-written per the plan's
+  own guidance — only migrate components that match the canonical shape
+  exactly, not speculatively.

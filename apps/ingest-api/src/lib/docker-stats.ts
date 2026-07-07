@@ -6,10 +6,24 @@ const SOCKET = existsSync('/host/var/run/docker.sock')
   ? '/host/var/run/docker.sock'
   : '/var/run/docker.sock'
 
-const SOCKET_AVAILABLE = existsSync(SOCKET)
+// Re-checked with a short TTL instead of once at import — the socket mount can
+// become available after this module loads (e.g. host mount race on boot).
+const SOCKET_CHECK_TTL_MS = 30_000
+let socketCheck: { at: number; available: boolean } | null = null
+let warnedSocketMissing = false
 
-if (!SOCKET_AVAILABLE) {
-  console.warn('[docker-stats] Docker socket not found at', SOCKET, '— container stats will be empty')
+function isSocketAvailable(): boolean {
+  if (socketCheck && Date.now() - socketCheck.at < SOCKET_CHECK_TTL_MS) {
+    return socketCheck.available
+  }
+  const available = existsSync(SOCKET)
+  socketCheck = { at: Date.now(), available }
+  if (!available && !warnedSocketMissing) {
+    console.warn('[docker-stats] Docker socket not found at', SOCKET, '— container stats will be empty')
+    warnedSocketMissing = true
+  }
+  if (available) warnedSocketMissing = false
+  return available
 }
 
 interface DockerContainer { Id: string; Names: string[]; State: string }
@@ -46,7 +60,7 @@ let lastCronStats: { at: number; data: ContainerStat[] } | null = null
 
 function dockerGet(path: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    if (!SOCKET_AVAILABLE) return reject(new Error('Docker socket not available'))
+    if (!isSocketAvailable()) return reject(new Error('Docker socket not available'))
     const req = http.request(
       { socketPath: SOCKET, path, method: 'GET' },
       (res) => {
@@ -94,7 +108,7 @@ async function getRunningContainers(): Promise<DockerContainer[]> {
 
 // Used by cron — fast (one-shot), bounded concurrency, cache-based delta
 export async function sampleContainerStatsForCron(): Promise<ContainerStat[]> {
-  if (!SOCKET_AVAILABLE) return []
+  if (!isSocketAvailable()) return []
   try {
     const running = await getRunningContainers()
     const limit = Math.min(5, running.length)
