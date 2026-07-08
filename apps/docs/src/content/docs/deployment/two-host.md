@@ -29,8 +29,12 @@ internet publico
 | Archivo | Donde corre |
 |---------|-------------|
 | `docker-compose.prod.honeypot.yml` | VPS honeypot (Cowrie + web-honeypot + Vector) |
-| `docker-compose.prod.app.yml` | Servidor app (postgres + ingest-api + dashboard + Caddy) |
+| `docker-compose.prod.app.yml` | Servidor app (postgres + redis + ingest-api + dashboard + Caddy) |
 | `Caddyfile` | Servidor app (montado por el contenedor caddy) |
+
+<Aside>
+Esta topologia usa Postgres directo (sin `pgbouncer` ni `postgres-replica`) y Redis como cache — un nivel de base de datos mas simple que single-host o [platform-only](/deployment/platform-only/), acorde a que sirve a un unico cliente. `ingest-api` y `dashboard` tienen cada uno su propia conexion directa a `postgres`. Tampoco incluye Kafka: los honeypots de este stack (Cowrie, web-honeypot) van por HTTP.
+</Aside>
 
 ## Variables de entorno necesarias
 
@@ -213,6 +217,8 @@ Aunque el dashboard es publico, la base de datos y ingest-api siguen siendo inac
 | Aislamiento honeypot / datos | Redes Docker | Hosts fisicamente separados |
 | Blast radius si escapa contenedor | Todo el mismo host | Solo el VPS honeypot |
 | Postgres expuesto | No | No |
+| Base de datos | Postgres + pgbouncer + replica | Postgres directo (sin pooler ni replica) |
+| Kafka | Si (Cowrie, Suricata) | No (todo por HTTP) |
 | SSH key en servidor app | No | No (Vector push) |
 | Complejidad operativa | Baja | Media |
 

@@ -35,6 +35,7 @@ export default defineConfig({
 					items: [
 						{ label: 'Single-host (un VPS)', slug: 'deployment/single-host' },
 						{ label: 'Two-host (recomendado)', slug: 'deployment/two-host' },
+						{ label: 'Platform-only (multi-cliente)', slug: 'deployment/platform-only' },
 						{ label: 'Lab multi-VM local', slug: 'deployment/multi-vm-local' },
 					],
 				},

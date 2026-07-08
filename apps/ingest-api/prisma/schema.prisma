@@ -29,7 +29,10 @@ model Session {
 
   @@index([srcIp])
   @@index([srcIp, startedAt(sort: Desc)])
-  @@index([sensorId])
+  // Composite supersedes the standalone sensorId index: getKpiTrends,
+  // getHoneypotOverview and friends all filter WHERE started_at >= cutoff
+  // AND sensor_id = ...
+  @@index([sensorId, startedAt])
   @@index([startedAt(sort: Desc)])
   @@index([loginSuccess, startedAt(sort: Desc)])
   @@index([sessionType])

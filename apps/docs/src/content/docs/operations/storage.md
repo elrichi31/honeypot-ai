@@ -49,7 +49,7 @@ La purga es **irreversible**. Antes de bajar los días de retención de una tabl
 | `GET` | `/storage/retention` | Política por tabla + última/próxima ejecución |
 | `PUT` | `/storage/retention/:id` | Cambia `retentionDays` o `enabled` |
 
-Ver [API Reference](/api-reference/#almacenamiento-y-retención).
+Ver [API Reference](/api-reference/#almacenamiento-y-retencion).
 
 ---
 

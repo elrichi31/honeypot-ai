@@ -24,10 +24,8 @@ export async function fetchGeoSummary(
   sensorIds?: string[],
   opts?: { fresh?: boolean },
 ): Promise<{ srcIp: string; loginSuccess: boolean | null }[]> {
-  const cache: RequestInit = opts?.fresh ? { cache: "no-store" } : { next: { revalidate: 600 } }
-  const res = await fetch(`${getApiUrl()}/stats/geo?_=1${sensorScopeParam(sensorIds)}`, cache)
-  if (!res.ok) return []
-  return res.json()
+  const revalidate = opts?.fresh ? undefined : 600
+  return apiFetch(`${getApiUrl()}/stats/geo?_=1${sensorScopeParam(sensorIds)}`, revalidate, 30000)
 }
 
 // /stats/dashboards runs 8 heavy aggregate queries and /stats/honeypot-overview
@@ -57,7 +55,7 @@ export async function fetchCrossSensorTimeline(params: {
 }): Promise<CrossSensorTimeline> {
   const { sensorIds, ...rest } = params
   const sp = buildSearchParams({ ...rest })
-  return apiFetch(`${getApiUrl()}/stats/cross-sensor-timeline?${sp}${sensorScopeParam(sensorIds)}`, 120)
+  return apiFetch(`${getApiUrl()}/stats/cross-sensor-timeline?${sp}${sensorScopeParam(sensorIds)}`, 120, 30000)
 }
 
 export async function fetchSessionCommands(): Promise<Record<string, string[]>> {
@@ -67,9 +65,9 @@ export async function fetchSessionCommands(): Promise<Record<string, string[]>> 
 }
 
 export async function fetchNovelty(hours = 24, sensorIds?: string[]): Promise<NoveltyStats> {
-  return apiFetch(`${getApiUrl()}/stats/novelty?hours=${hours}${sensorScopeParam(sensorIds)}`, 300)
+  return apiFetch(`${getApiUrl()}/stats/novelty?hours=${hours}${sensorScopeParam(sensorIds)}`, 300, 30000)
 }
 
 export async function fetchBotRatio(sensorIds?: string[]): Promise<BotRatio> {
-  return apiFetch(`${getApiUrl()}/stats/bot-ratio?_=1${sensorScopeParam(sensorIds)}`, 300)
+  return apiFetch(`${getApiUrl()}/stats/bot-ratio?_=1${sensorScopeParam(sensorIds)}`, 300, 30000)
 }

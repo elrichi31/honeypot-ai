@@ -101,43 +101,53 @@ graph LR
 
 ```
 .
-├── docker-compose.yml                     # Dev: todo en un host
-├── docker-compose.local.core.yml          # Lab multi-VM: VM central
-├── docker-compose.local.sensor-cowrie.yml # Lab multi-VM: sensor SSH
-├── docker-compose.local.sensor-web.yml    # Lab multi-VM: sensor HTTP
-├── docker-compose.local.sensor-ssh-web.yml
-├── docker-compose.local.sensor-port.yml
-├── docker-compose.prod.single-host.yml    # Prod: un solo VPS
-├── docker-compose.prod.honeypot.yml       # Prod: VPS sensor
-├── docker-compose.prod.app.yml            # Prod: servidor app
-├── cowrie/                                # Cowrie custom build
-│   ├── Dockerfile
-│   ├── cowrie.cfg
-│   ├── userdb.txt
-│   ├── heartbeat.py                       # Beacon sidecar (reutilizable)
-│   ├── patch_auth.py
-│   ├── honeyfs/                           # Filesystem falso (/etc, /home, /proc)
-│   └── txtcmds/                           # Salidas falsas de comandos
-├── galah/                                 # Honeypot HTTP con IA
-│   ├── Dockerfile
-│   └── config/config.yaml
+├── docker-compose.yml                     # Dev: todo en un host (incluye Kafka + Redis)
+├── docker-compose.prod.single-host.yml    # Prod: un solo VPS (Kafka, pgbouncer, replica, redis)
+├── docker-compose.prod.honeypot.yml       # Prod: VPS de sensores (sin Kafka)
+├── docker-compose.prod.app.yml            # Prod: servidor app (two-host, postgres directo + redis)
+├── docker-compose.prod.platform.yml       # Prod: servidor central platform-only (multi-cliente)
+├── deploy/
+│   └── local/                             # Lab multi-VM: un compose por VM
+│       ├── core.yml                       # VM central: postgres, ingest-api, dashboard
+│       ├── sensor-cowrie.yml              # VM sensor SSH: cowrie, cowrie-beacon, vector
+│       ├── sensor-web.yml                 # VM sensor HTTP: web-honeypot
+│       ├── sensor-ssh-web.yml             # VM combinada: cowrie + web-honeypot
+│       └── sensor-port.yml                # VM sensor de puertos: port-honeypot
+├── env/                                   # Plantillas .env.example por topologia
+├── sensors/
+│   ├── cowrie/                            # Cowrie custom build
+│   │   ├── Dockerfile
+│   │   ├── cowrie.cfg
+│   │   ├── userdb.txt
+│   │   ├── heartbeat.py                   # Beacon sidecar (unico sensor con beacon separado)
+│   │   ├── patch_auth.py
+│   │   ├── honeyfs/                       # Filesystem falso (/etc, /home, /proc)
+│   │   └── txtcmds/                       # Salidas falsas de comandos
+│   ├── galah/                             # Honeypot HTTP con IA
+│   │   ├── Dockerfile
+│   │   └── config/config.yaml
+│   ├── dionaea/                           # Sensor multi-protocolo (FTP, SMB, MSSQL, MySQL, HTTP)
+│   │   ├── docker-compose.local.yml
+│   │   ├── docker-compose.sensor.yml
+│   │   ├── shipper.py
+│   │   └── services-enabled/
+│   ├── suricata/                          # IDS, envia por Kafka
+│   ├── opencanary/                        # Red de engano
+│   ├── web-honeypot/
+│   ├── ftp-honeypot/
+│   ├── mysql-honeypot/
+│   ├── port-honeypot/
+│   └── smb-honeypot/
 ├── vector/
-│   ├── cowrie.toml                        # Shipper para Cowrie
-│   └── galah.toml                         # Shipper para Galah
-├── integrations/
-│   └── dionaea/                           # Sensor multi-protocolo
-│       ├── docker-compose.local.yml
-│       ├── docker-compose.sensor.yml
-│       ├── shipper.py
-│       └── services-enabled/
+│   ├── cowrie.toml                        # Shipper Cowrie → Kafka
+│   ├── suricata.toml                      # Shipper Suricata → Kafka
+│   ├── galah.toml                         # Shipper Galah → HTTP
+│   ├── web-honeypot.toml
+│   └── protocol.toml
 └── apps/
-    ├── web-honeypot/
-    ├── ftp-honeypot/
-    ├── mysql-honeypot/
-    ├── port-honeypot/
     ├── ingest-api/
     │   ├── src/
-    │   │   ├── routes/          # ingest, protocol, sensors, threats, web, sessions, stats
+    │   │   ├── modules/         # route→service→repository por dominio (ingest, alerts, sensors, threats, web, clients, malware...)
     │   │   └── lib/             # risk-score, bot-detector, threat-alerts, discord, cron
     │   └── prisma/
     ├── dashboard/

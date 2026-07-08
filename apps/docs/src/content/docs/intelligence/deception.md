@@ -70,7 +70,7 @@ La correlación se hace preferentemente por `session_id` (misma sesión Cowrie) 
 | `GET` | `/deception/portscans` | Port scans internos (paginado) |
 | `POST` | `/ingest/deception/portscan` | Ingesta de un port scan interno |
 
-Cada `GET` tiene su variante por cliente en `/clients/:clientSlug/deception/*`. Ver [API Reference](/api-reference/#red-de-engaño).
+Cada `GET` tiene su variante por cliente en `/clients/:clientSlug/deception/*`. Ver [API Reference](/api-reference/#red-de-engano).
 
 ---
 
@@ -78,4 +78,4 @@ Cada `GET` tiene su variante por cliente en `/clients/:clientSlug/deception/*`. 
 
 - [SSH Honeypot (Cowrie)](/services/cowrie/) — el punto de entrada.
 - [Threat Intelligence](/intelligence/threat-intelligence/) — `lateral_movement` suma al risk score.
-- [Arquitectura](/architecture/#pipeline-red-de-engaño-opencanary--ingest-api).
+- [Arquitectura](/architecture/#pipeline-red-de-engano-opencanary--ingest-api).

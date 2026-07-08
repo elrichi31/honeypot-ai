@@ -25,6 +25,7 @@ import { malwareRoutes } from './modules/malware/malware.controller.js';
 import { storageRoutes } from './modules/storage/storage.controller.js';
 import { retentionPlugin } from './plugins/retention.js';
 import { matviewRefreshPlugin } from './plugins/matview-refresh.js';
+import { cacheWarmupPlugin } from './plugins/cache-warmup.js';
 import kafkaConsumerPlugin from './plugins/kafka-consumer.js';
 import { suricataRoutes } from './modules/suricata/suricata.controller.js';
 import { monitoringRoutes } from './modules/monitoring/monitoring.controller.js';
@@ -108,6 +109,7 @@ export async function buildApp() {
   await app.register(deceptionRoutes);
   await app.register(retentionPlugin);
   await app.register(matviewRefreshPlugin);
+  await app.register(cacheWarmupPlugin);
 
   return app;
 }

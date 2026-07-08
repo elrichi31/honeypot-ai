@@ -20,28 +20,28 @@ graph TD
     subgraph "VM Sensor SSH — 192.168.56.11"
         COW[Cowrie :2222]
         VEC[Vector]
-        HB_SSH[heartbeat.py\nbeacon]
+        HB_SSH[cowrie-beacon]
     end
 
     subgraph "VM Sensor HTTP — 192.168.56.12"
         WEB[web-honeypot :8080]
-        HB_WEB[heartbeat.py\nbeacon]
     end
 
     subgraph "VM Sensor Port — 192.168.56.13"
         PORT[port-honeypot]
-        HB_PORT[heartbeat.py\nbeacon]
     end
 
     COW --> VEC -->|192.168.56.10:3000| API
-    WEB -->|192.168.56.10:3000| API
-    PORT -->|192.168.56.10:3000| API
-    HB_SSH & HB_WEB & HB_PORT -->|heartbeat| API
+    WEB -->|heartbeat propio + eventos| API
+    PORT -->|heartbeat propio + eventos| API
+    HB_SSH -->|heartbeat| API
     API --> POSTGRES
     POSTGRES --> DASH
 ```
 
-> Puedes tambien usar `docker-compose.local.sensor-ssh-web.yml` en una sola VM para tener Cowrie + web-honeypot juntos, si quieres ahorrar VMs.
+Solo Cowrie usa un sidecar `cowrie-beacon` separado para el heartbeat; `web-honeypot` y `port-honeypot` reportan su propio estado de salud sin un contenedor aparte.
+
+> Puedes tambien usar `deploy/local/sensor-ssh-web.yml` en una sola VM para tener Cowrie + web-honeypot juntos, si quieres ahorrar VMs.
 
 ---
 
@@ -49,11 +49,13 @@ graph TD
 
 | Archivo | VM sugerida | Servicios |
 |---------|------------|-----------|
-| `docker-compose.local.core.yml` | 192.168.56.10 | postgres, ingest-api, dashboard |
-| `docker-compose.local.sensor-cowrie.yml` | 192.168.56.11 | cowrie, cowrie-beacon, vector |
-| `docker-compose.local.sensor-web.yml` | 192.168.56.12 | web-honeypot, beacon |
-| `docker-compose.local.sensor-ssh-web.yml` | 192.168.56.11 | cowrie + web-honeypot + beacons + vector |
-| `docker-compose.local.sensor-port.yml` | 192.168.56.13 | port-honeypot, beacon |
+| `deploy/local/core.yml` | 192.168.56.10 | postgres, ingest-api, dashboard |
+| `deploy/local/sensor-cowrie.yml` | 192.168.56.11 | cowrie, cowrie-beacon, vector |
+| `deploy/local/sensor-web.yml` | 192.168.56.12 | web-honeypot |
+| `deploy/local/sensor-ssh-web.yml` | 192.168.56.11 | cowrie + cowrie-beacon + vector + web-honeypot |
+| `deploy/local/sensor-port.yml` | 192.168.56.13 | port-honeypot |
+
+Solo Cowrie tiene un contenedor `cowrie-beacon` separado para el heartbeat. `web-honeypot` y `port-honeypot` reportan su propio estado de salud directamente a `ingest-api`, sin un sidecar de beacon aparte. Este lab tampoco incluye Kafka, Redis, pgbouncer ni replica de Postgres — es una topologia liviana pensada para probar la comunicacion entre sensores y el core, no para replicar el nivel de base de datos de produccion.
 
 ---
 

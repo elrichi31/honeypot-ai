@@ -156,7 +156,8 @@ async function OverviewSection() {
   let overview
   try {
     overview = await fetchHoneypotOverview(sensorIds)
-  } catch {
+  } catch (err) {
+    console.error("[dashboard] OverviewSection failed:", err)
     return <SectionError title={t("dash.error.metrics")} />
   }
 
@@ -166,8 +167,10 @@ async function OverviewSection() {
   let trends: KpiTrends = { events: empty, sshSessions: empty, webHits: empty, uniqueIps: empty }
   try {
     trends = await fetchKpiTrends(sensorIds)
-  } catch {
-    // degrade silently — deltas show "—"
+  } catch (err) {
+    // degrade silently in the UI — deltas show "—" — but still log so a real
+    // bug (not just a timeout) doesn't go unnoticed.
+    console.error("[dashboard] OverviewSection kpi-trends failed:", err)
   }
 
   const activeSources = overview.totals.activeSources
@@ -230,7 +233,8 @@ async function CrossTimelineSection({ timezone }: { timezone: string }) {
   let crossTimeline
   try {
     crossTimeline = await fetchCrossSensorTimeline({ range: "day", timezone, sensorIds })
-  } catch {
+  } catch (err) {
+    console.error("[dashboard] CrossTimelineSection failed:", err)
     return <SectionError title={t("dash.error.crossSensor")} />
   }
   return <CrossSensorActivityChart timeline={crossTimeline} range="day" />
@@ -242,7 +246,8 @@ async function GlobeSection() {
   let geoData
   try {
     geoData = await fetchGeoSummary(sensorIds)
-  } catch {
+  } catch (err) {
+    console.error("[dashboard] GlobeSection failed:", err)
     return <SectionError title={t("dash.error.map")} />
   }
   return <GlobeMap countryAttacks={geolocateIps(geoData)} />
@@ -254,7 +259,8 @@ async function MitreSection() {
   let matrix
   try {
     matrix = await fetchMitreMatrix(sensorIds)
-  } catch {
+  } catch (err) {
+    console.error("[dashboard] MitreSection failed:", err)
     return <SectionError title={t("dash.error.mitre")} />
   }
   return <MitreMatrixView matrix={matrix} />
@@ -266,7 +272,8 @@ async function InsightsSection() {
   let insights
   try {
     insights = await fetchDashboardInsights(sensorIds)
-  } catch {
+  } catch (err) {
+    console.error("[dashboard] InsightsSection failed:", err)
     return <SectionError title={t("dash.error.sshAnalysis")} />
   }
   return (
@@ -284,7 +291,8 @@ async function NoveltySection() {
   try {
     const novelty = await fetchNovelty(24, sensorIds)
     return <NoveltyStatsView novelty={novelty} />
-  } catch {
+  } catch (err) {
+    console.error("[dashboard] NoveltySection failed:", err)
     return <SectionError title={t("dash.error.novelty")} />
   }
 }
@@ -297,7 +305,8 @@ async function AttackerIntelSection() {
     const activeIps = geoData.map((r) => r.srcIp).filter(Boolean)
     const intel = await fetchAttackerIntel(activeIps)
     return <AttackerIntelView intel={intel} />
-  } catch {
+  } catch (err) {
+    console.error("[dashboard] AttackerIntelSection failed:", err)
     return <SectionError title={t("dash.error.attackerIntel")} />
   }
 }
@@ -308,7 +317,8 @@ async function BotRatioSection() {
   try {
     const ratio = await fetchBotRatio(sensorIds)
     return <BotRatioView ratio={ratio} />
-  } catch {
+  } catch (err) {
+    console.error("[dashboard] BotRatioSection failed:", err)
     return <SectionError title={t("dash.error.botRatio")} />
   }
 }

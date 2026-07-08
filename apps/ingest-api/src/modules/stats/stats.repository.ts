@@ -163,6 +163,21 @@ export class MiscRepository {
 type SparkRow = { count: number }
 type ProtoCountRow = { protocol: string; count: bigint }
 type ProtoSparkRow = { protocol: string; count: number }
+type WindowCountsRow = { curCount: bigint; prevCount: bigint }
+
+// One pass over [prevStart, now] instead of two separate [prevStart, curStart)
+// and [curStart, now] queries — a single COUNT(*) FILTER splits the two
+// periods, since both scan the same rows either way (see DASHBOARD_FIRST_LOAD.md
+// Fase 3.1).
+function windowCountsSql(table: string, tsCol: string, prevStart: Date, curStart: Date, now: Date, scope: SensorScope) {
+  return Prisma.sql`
+    SELECT
+      COUNT(*) FILTER (WHERE ${Prisma.raw(tsCol)} >= ${curStart})::bigint AS "curCount",
+      COUNT(*) FILTER (WHERE ${Prisma.raw(tsCol)} < ${curStart})::bigint AS "prevCount"
+    FROM ${Prisma.raw(table)}
+    WHERE ${Prisma.raw(tsCol)} >= ${prevStart} AND ${Prisma.raw(tsCol)} <= ${now} ${scope.cond('sensor_id')}
+  `
+}
 
 function sparkSql(table: string, tsCol: string, start: Date, end: Date, scope: SensorScope) {
   return Prisma.sql`
@@ -185,22 +200,28 @@ function sparkSql(table: string, tsCol: string, start: Date, end: Date, scope: S
 export class KpiRepository {
   constructor(private prismaRead: PrismaClient) {}
 
-  private windowCount(table: string, tsCol: string, start: Date, end: Date, scope: SensorScope) {
-    return this.prismaRead.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
-      SELECT COUNT(*)::bigint AS count FROM ${Prisma.raw(table)}
-      WHERE ${Prisma.raw(tsCol)} >= ${start} AND ${Prisma.raw(tsCol)} <= ${end} ${scope.cond('sensor_id')}
-    `)
+  private windowCounts(table: string, tsCol: string, prevStart: Date, curStart: Date, now: Date, scope: SensorScope) {
+    return this.prismaRead.$queryRaw<WindowCountsRow[]>(windowCountsSql(table, tsCol, prevStart, curStart, now, scope))
   }
 
-  private uniqueIpCount(start: Date, end: Date, scope: SensorScope) {
-    return this.prismaRead.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
-      SELECT COUNT(DISTINCT src_ip)::bigint AS count FROM (
-        SELECT src_ip FROM sessions      WHERE started_at >= ${start} AND started_at <= ${end} ${scope.cond('sensor_id')}
+  // Fuses the old uniqueIpCount(current) + uniqueIpCount(previous) into one
+  // scan over [prevStart, now] with a period-tagged DISTINCT count.
+  private uniqueIpCounts(prevStart: Date, curStart: Date, now: Date, scope: SensorScope) {
+    return this.prismaRead.$queryRaw<WindowCountsRow[]>(Prisma.sql`
+      WITH ips AS (
+        SELECT src_ip, (started_at >= ${curStart}) AS is_current FROM sessions
+          WHERE started_at >= ${prevStart} AND started_at <= ${now} ${scope.cond('sensor_id')}
         UNION ALL
-        SELECT src_ip FROM web_hits      WHERE timestamp  >= ${start} AND timestamp  <= ${end} ${scope.cond('sensor_id')}
+        SELECT src_ip, (timestamp >= ${curStart}) AS is_current FROM web_hits
+          WHERE timestamp >= ${prevStart} AND timestamp <= ${now} ${scope.cond('sensor_id')}
         UNION ALL
-        SELECT src_ip FROM protocol_hits WHERE timestamp  >= ${start} AND timestamp  <= ${end} ${scope.cond('sensor_id')}
-      ) u
+        SELECT src_ip, (timestamp >= ${curStart}) AS is_current FROM protocol_hits
+          WHERE timestamp >= ${prevStart} AND timestamp <= ${now} ${scope.cond('sensor_id')}
+      )
+      SELECT
+        COUNT(DISTINCT src_ip) FILTER (WHERE is_current)::bigint AS "curCount",
+        COUNT(DISTINCT src_ip) FILTER (WHERE NOT is_current)::bigint AS "prevCount"
+      FROM ips
     `)
   }
 
@@ -227,32 +248,35 @@ export class KpiRepository {
     `)
   }
 
+  // Fuses the old protocol-breakdown current + previous queries into one
+  // period-tagged GROUP BY over [prevStart, now].
+  private protocolBreakdownCounts(prevStart: Date, curStart: Date, now: Date, scope: SensorScope) {
+    return this.prismaRead.$queryRaw<Array<{ protocol: string; curCount: bigint; prevCount: bigint }>>(Prisma.sql`
+      SELECT
+        protocol,
+        COUNT(*) FILTER (WHERE timestamp >= ${curStart})::bigint AS "curCount",
+        COUNT(*) FILTER (WHERE timestamp < ${curStart})::bigint AS "prevCount"
+      FROM protocol_hits
+      WHERE timestamp >= ${prevStart} AND timestamp <= ${now} ${scope.cond('sensor_id')}
+      GROUP BY protocol
+    `)
+  }
+
   async getKpiTrends(scope: SensorScope) {
     const now = new Date()
     const curStart = new Date(now.getTime() - 24 * 60 * 60 * 1000)
     const prevStart = new Date(now.getTime() - 48 * 60 * 60 * 1000)
 
     return Promise.all([
-      this.windowCount('sessions', 'started_at', curStart, now, scope),
-      this.windowCount('sessions', 'started_at', prevStart, curStart, scope),
+      this.windowCounts('sessions', 'started_at', prevStart, curStart, now, scope),
       this.prismaRead.$queryRaw<SparkRow[]>(sparkSql('sessions', 'started_at', curStart, now, scope)),
-      this.windowCount('web_hits', 'timestamp', curStart, now, scope),
-      this.windowCount('web_hits', 'timestamp', prevStart, curStart, scope),
+      this.windowCounts('web_hits', 'timestamp', prevStart, curStart, now, scope),
       this.prismaRead.$queryRaw<SparkRow[]>(sparkSql('web_hits', 'timestamp', curStart, now, scope)),
-      this.windowCount('protocol_hits', 'timestamp', curStart, now, scope),
-      this.windowCount('protocol_hits', 'timestamp', prevStart, curStart, scope),
+      this.windowCounts('protocol_hits', 'timestamp', prevStart, curStart, now, scope),
       this.prismaRead.$queryRaw<SparkRow[]>(sparkSql('protocol_hits', 'timestamp', curStart, now, scope)),
-      this.uniqueIpCount(curStart, now, scope),
-      this.uniqueIpCount(prevStart, curStart, scope),
+      this.uniqueIpCounts(prevStart, curStart, now, scope),
       this.uniqueIpSpark(curStart, now, scope),
-      this.prismaRead.$queryRaw<ProtoCountRow[]>(Prisma.sql`
-        SELECT protocol, COUNT(*)::bigint AS count FROM protocol_hits
-        WHERE timestamp >= ${curStart} AND timestamp <= ${now} ${scope.cond('sensor_id')} GROUP BY protocol
-      `),
-      this.prismaRead.$queryRaw<ProtoCountRow[]>(Prisma.sql`
-        SELECT protocol, COUNT(*)::bigint AS count FROM protocol_hits
-        WHERE timestamp >= ${prevStart} AND timestamp <= ${curStart} ${scope.cond('sensor_id')} GROUP BY protocol
-      `),
+      this.protocolBreakdownCounts(prevStart, curStart, now, scope),
       this.prismaRead.$queryRaw<ProtoSparkRow[]>(Prisma.sql`
         SELECT protocol, COALESCE(counts.count, 0)::int AS count
         FROM (
