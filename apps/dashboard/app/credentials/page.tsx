@@ -72,7 +72,8 @@ export default async function CredentialsPage({
       fetchClients().catch(() => []),
       fetchSensors().catch(() => []),
     ])
-  } catch {
+  } catch (error) {
+    console.error("[credentials] initial load failed:", error)
     return (
       <PageShell>
         <div className="mb-6">

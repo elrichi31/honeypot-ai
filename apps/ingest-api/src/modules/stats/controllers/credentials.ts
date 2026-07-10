@@ -8,6 +8,7 @@ import type {
 } from '../stats.types.js'
 import { parseDate, toNumber, toOffsetISOString, buildAuthWhereSql, buildClauseBlock, eventScopeClause, eventScopeWhere, protocolClause, type EventScope } from '../stats.utils.js'
 import { withCache } from '../../../lib/cache-helper.js'
+import { mapWithConcurrency } from '../../../lib/concurrency.js'
 import { resolveClientSensors } from '../../../lib/client-helpers.js'
 import { CredentialsRepository } from '../stats.repository.js'
 
@@ -217,45 +218,56 @@ export async function credentialsRoute(fastify: FastifyInstance) {
       const wantPatterns = p.mainTab === 'patterns'
       const wantRecent = p.mainTab === 'recent'
 
-      const [totalAttempts, successfulAttempts, failedAttempts,
-        uniqueUsernamesRows, uniquePasswordsRows, uniquePairsRows, repeatedPairsRows,
-        sprayPasswordsCountRows, targetedUsernamesCountRows,
-        sprayPasswordRows, targetedUsernameRows, diversifiedAttackerRows,
-        rankingCountRows, rankingRows, recentAttempts, recentAttemptsTotal] = await Promise.all([
-        repo.countAttempts('all', authWhere),
-        repo.countAttempts('success', authWhere),
-        repo.countAttempts('failed', authWhere),
-        repo.queryRaw<CountOnlyRow>(Prisma.sql`SELECT COUNT(DISTINCT username)::int AS count FROM credential_attempts ${userWhere}`),
-        repo.queryRaw<CountOnlyRow>(Prisma.sql`SELECT COUNT(DISTINCT password)::int AS count FROM credential_attempts ${passWhere}`),
-        repo.queryRaw<CountOnlyRow>(Prisma.sql`SELECT COUNT(DISTINCT (COALESCE(username, '<null>') || E'\\x1f' || COALESCE(password, '<null>')))::int AS count FROM credential_attempts ${anyCredWhere}`),
-        repo.queryRaw<CountOnlyRow>(Prisma.sql`SELECT COUNT(*)::int AS count FROM (SELECT 1 FROM credential_attempts ${anyCredWhere} GROUP BY username, password HAVING COUNT(*) > 1) t`),
-        repo.queryRaw<CountOnlyRow>(Prisma.sql`SELECT COUNT(*)::int AS count FROM (SELECT password FROM credential_attempts ${passWhere} GROUP BY password HAVING COUNT(DISTINCT username) >= 3) t`),
-        repo.queryRaw<CountOnlyRow>(Prisma.sql`SELECT COUNT(*)::int AS count FROM (SELECT username FROM credential_attempts ${userWhere} GROUP BY username HAVING COUNT(DISTINCT password) >= 3) t`),
-        wantPatterns
+      const queries: Array<() => Promise<unknown>> = [
+        () => repo.countAttempts('all', authWhere),
+        () => repo.countAttempts('success', authWhere),
+        () => repo.countAttempts('failed', authWhere),
+        () => repo.queryRaw<CountOnlyRow>(Prisma.sql`SELECT COUNT(DISTINCT username)::int AS count FROM credential_attempts ${userWhere}`),
+        () => repo.queryRaw<CountOnlyRow>(Prisma.sql`SELECT COUNT(DISTINCT password)::int AS count FROM credential_attempts ${passWhere}`),
+        () => repo.queryRaw<CountOnlyRow>(Prisma.sql`SELECT COUNT(DISTINCT (COALESCE(username, '<null>') || E'\\x1f' || COALESCE(password, '<null>')))::int AS count FROM credential_attempts ${anyCredWhere}`),
+        () => repo.queryRaw<CountOnlyRow>(Prisma.sql`SELECT COUNT(*)::int AS count FROM (SELECT 1 FROM credential_attempts ${anyCredWhere} GROUP BY username, password HAVING COUNT(*) > 1) t`),
+        () => repo.queryRaw<CountOnlyRow>(Prisma.sql`SELECT COUNT(*)::int AS count FROM (SELECT password FROM credential_attempts ${passWhere} GROUP BY password HAVING COUNT(DISTINCT username) >= 3) t`),
+        () => repo.queryRaw<CountOnlyRow>(Prisma.sql`SELECT COUNT(*)::int AS count FROM (SELECT username FROM credential_attempts ${userWhere} GROUP BY username HAVING COUNT(DISTINCT password) >= 3) t`),
+        () => wantPatterns
           ? repo.queryRaw<SprayPasswordRow>(Prisma.sql`SELECT password, COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(DISTINCT username)::int AS "usernameCount", COUNT(DISTINCT src_ip)::int AS "ipCount" FROM credential_attempts ${passWhere} GROUP BY password HAVING COUNT(DISTINCT username) >= 2 ORDER BY "usernameCount" DESC, attempts DESC, "successCount" DESC LIMIT 20`)
           : Promise.resolve([] as SprayPasswordRow[]),
-        wantPatterns
+        () => wantPatterns
           ? repo.queryRaw<TargetedUsernameRow>(Prisma.sql`SELECT username, COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(DISTINCT password)::int AS "passwordCount", COUNT(DISTINCT src_ip)::int AS "ipCount" FROM credential_attempts ${userWhere} GROUP BY username HAVING COUNT(DISTINCT password) >= 2 ORDER BY "passwordCount" DESC, attempts DESC, "successCount" DESC LIMIT 20`)
           : Promise.resolve([] as TargetedUsernameRow[]),
-        wantPatterns
+        () => wantPatterns
           ? repo.queryRaw<DiversifiedAttackerRow>(Prisma.sql`SELECT src_ip AS "srcIp", COUNT(*)::int AS attempts, COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successCount", COUNT(DISTINCT (COALESCE(username, '<null>') || E'\\x1f' || COALESCE(password, '<null>')))::int AS "credentialCount", COUNT(DISTINCT username)::int AS "usernameCount", COUNT(DISTINCT password)::int AS "passwordCount", MAX(event_ts) AS "lastSeen" FROM credential_attempts ${authWhere} GROUP BY src_ip HAVING COUNT(*) >= 2 ORDER BY "credentialCount" DESC, attempts DESC, "successCount" DESC LIMIT 20`)
           : Promise.resolve([] as DiversifiedAttackerRow[]),
-        wantRankings
+        () => wantRankings
           ? buildCountQuery(repo, p.rankingType, rankingClauses, havingClauses)
           : Promise.resolve([] as CountOnlyRow[]),
-        wantRankings
+        () => wantRankings
           ? buildRankingQuery(repo, p.rankingType, rankingClauses, havingClauses, rankingSortBy, rankingSortDir, pageSize, offset)
           : Promise.resolve([] as CredentialPairRow[]),
-        wantRecent
+        () => wantRecent
           ? repo.queryRaw<RecentRow>(Prisma.sql`
               SELECT event_ts, src_ip, username, password, success, protocol
               FROM credential_attempts ${recentWhere} ${recentOrderBy}
               LIMIT ${pageSize} OFFSET ${offset}`)
           : Promise.resolve([] as RecentRow[]),
-        wantRecent
+        () => wantRecent
           ? repo.queryRaw<CountOnlyRow>(Prisma.sql`SELECT COUNT(*)::int AS count FROM credential_attempts ${recentWhere}`).then(r => toNumber(r[0]?.count))
           : Promise.resolve(0),
-      ])
+      ]
+      const settled = await mapWithConcurrency(queries, 4, (run) => run())
+      const values = settled.map((result) => {
+        if (result.status === 'rejected') throw result.reason
+        return result.value
+      }) as unknown as [
+        number, number, number,
+        CountOnlyRow[], CountOnlyRow[], CountOnlyRow[], CountOnlyRow[], CountOnlyRow[], CountOnlyRow[],
+        SprayPasswordRow[], TargetedUsernameRow[], DiversifiedAttackerRow[],
+        CountOnlyRow[], CredentialPairRow[], RecentRow[], number,
+      ]
+      const [totalAttempts, successfulAttempts, failedAttempts,
+        uniqueUsernamesRows, uniquePasswordsRows, uniquePairsRows, repeatedPairsRows,
+        sprayPasswordsCountRows, targetedUsernamesCountRows,
+        sprayPasswordRows, targetedUsernameRows, diversifiedAttackerRows,
+        rankingCountRows, rankingRows, recentAttempts, recentAttemptsTotal] = values
 
       const rankingTotal = toNumber(rankingCountRows[0]?.count)
       const rankingTotalPages = rankingTotal === 0 ? 1 : Math.ceil(rankingTotal / pageSize)

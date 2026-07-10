@@ -21,9 +21,7 @@ export async function fetchCredentialsAnalytics(params?: {
     startDate: params?.startDate, endDate: params?.endDate,
     clientSlug: params?.clientSlug, sensorId: params?.sensorId, protocol: params?.protocol,
   })
-  // Reads from the credential_attempts materialized view (indexed), so it's fast;
-  // a modest timeout above the default covers a cold cache.
-  return apiFetch(`${getApiUrl()}/stats/credentials?${sp}`, 60, 15000)
+  return apiFetch(`${getApiUrl()}/stats/credentials?${sp}`, 60, 30000)
 }
 
 export async function fetchCredentialsAnalyticsClient(params?: Parameters<typeof fetchCredentialsAnalytics>[0]): Promise<CredentialsAnalytics> {

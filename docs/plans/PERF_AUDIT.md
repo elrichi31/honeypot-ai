@@ -204,8 +204,9 @@ implementar sin evidencia de que el refresh pese.
 
 - La consolidación de seis agregados con varios `COUNT DISTINCT` en una sola
   query y el warm-up de Credentials causaron timeouts contra el volumen real de
-  `credential_attempts`. Se revirtió por completo ese enfoque y se restauraron
-  las queries paralelas originales y el timeout de 15 segundos.
+  `credential_attempts`. Se revirtió ese enfoque. Las queries originales se
+  mantienen, pero su concurrencia interna se limita a 4 para no agotar el pool
+  de 10 conexiones de la réplica; el timeout server-side vuelve a 30 segundos.
 - El cache key conserva `protocol`, evitando reutilizar datos de otro protocolo.
 - Antes de intentar otra optimización, medir `EXPLAIN ANALYZE` y duración real
   de cada agregado en producción; no reintroducir warm-up sin reducir primero
@@ -215,7 +216,7 @@ implementar sin evidencia de que el refresh pese.
   no se reemplazan durante la carga; el cambio deja de navegar/renderizar de
   nuevo toda la página. Pendiente: medir y dividir el endpoint si la primera
   carga de un tab sigue excediendo el umbral aceptable.
-- Commits: [`c43fd2d`](https://github.com/elrichi31/honeypot-ai/commit/c43fd2d), [`a34b4d8`](https://github.com/elrichi31/honeypot-ai/commit/a34b4d8), [`34fc42a`](https://github.com/elrichi31/honeypot-ai/commit/34fc42a), [`35e980a`](https://github.com/elrichi31/honeypot-ai/commit/35e980a), [`635a8f2`](https://github.com/elrichi31/honeypot-ai/commit/635a8f2).
+- Commits: [`c43fd2d`](https://github.com/elrichi31/honeypot-ai/commit/c43fd2d), [`a34b4d8`](https://github.com/elrichi31/honeypot-ai/commit/a34b4d8), [`34fc42a`](https://github.com/elrichi31/honeypot-ai/commit/34fc42a), [`35e980a`](https://github.com/elrichi31/honeypot-ai/commit/35e980a), [`635a8f2`](https://github.com/elrichi31/honeypot-ai/commit/635a8f2) + limitación de concurrencia pendiente.
 
 - **M1 — Helper de concurrencia compartido.** ✅ 2026-06-24 — `lib/concurrency.ts`
   exporta `mapWithConcurrency`; `docker-stats.ts` y `malware.repository.ts` lo importan.
