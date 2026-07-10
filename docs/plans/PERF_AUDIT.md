@@ -210,7 +210,7 @@ implementar sin evidencia de que el refresh pese.
 - Antes de intentar otra optimización, medir `EXPLAIN ANALYZE` y duración real
   de cada agregado en producción; no reintroducir warm-up sin reducir primero
   la presión total sobre la réplica.
-- Commits: [`c43fd2d`](https://github.com/elrichi31/honeypot-ai/commit/c43fd2d), [`a34b4d8`](https://github.com/elrichi31/honeypot-ai/commit/a34b4d8), [`34fc42a`](https://github.com/elrichi31/honeypot-ai/commit/34fc42a) + rollback pendiente.
+- Commits: [`c43fd2d`](https://github.com/elrichi31/honeypot-ai/commit/c43fd2d), [`a34b4d8`](https://github.com/elrichi31/honeypot-ai/commit/a34b4d8), [`34fc42a`](https://github.com/elrichi31/honeypot-ai/commit/34fc42a), [`35e980a`](https://github.com/elrichi31/honeypot-ai/commit/35e980a).
 
 - **M1 — Helper de concurrencia compartido.** ✅ 2026-06-24 — `lib/concurrency.ts`
   exporta `mapWithConcurrency`; `docker-stats.ts` y `malware.repository.ts` lo importan.
