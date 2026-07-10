@@ -21,8 +21,7 @@ export async function fetchCredentialsAnalytics(params?: {
     startDate: params?.startDate, endDate: params?.endDate,
     clientSlug: params?.clientSlug, sensorId: params?.sensorId, protocol: params?.protocol,
   })
-  // The global default is warmed at API boot and cached for 10 minutes. Keep the
-  // same 30s timeout as the dashboard stats so a cache miss can finish instead
-  // of failing while the replica is briefly busy.
-  return apiFetch(`${getApiUrl()}/stats/credentials?${sp}`, 60, 30000)
+  // Reads from the credential_attempts materialized view (indexed), so it's fast;
+  // a modest timeout above the default covers a cold cache.
+  return apiFetch(`${getApiUrl()}/stats/credentials?${sp}`, 60, 15000)
 }

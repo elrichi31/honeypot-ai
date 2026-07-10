@@ -5,7 +5,7 @@ import type {
   InsightWindowRow, FunnelRow, CountrySuccessCandidateRow,
   CredentialCampaignRow, RecurringIpRow, CommandPatternRow,
   DepthBucketRow, DepthStatsRow, SessionTimelineRow,
-  CommandRow, CountRow, CountOnlyRow, CredentialsSummaryRow,
+  CommandRow, CountRow, CountOnlyRow,
   CredentialPairRow, UsernameAggregateRow, PasswordAggregateRow,
   SprayPasswordRow, TargetedUsernameRow, DiversifiedAttackerRow,
 } from './stats.types.js'
@@ -687,22 +687,16 @@ export class BotRatioRepository {
 export class CredentialsRepository {
   constructor(private prismaRead: PrismaClient) {}
 
-  async getSummary(where: Prisma.Sql): Promise<CredentialsSummaryRow> {
-    const rows = await this.prismaRead.$queryRaw<CredentialsSummaryRow[]>(
-      Prisma.sql`SELECT
-        COUNT(*)::int AS "totalAttempts",
-        COUNT(*) FILTER (WHERE success IS TRUE)::int AS "successfulAttempts",
-        COUNT(*) FILTER (WHERE success IS DISTINCT FROM TRUE)::int AS "failedAttempts",
-        COUNT(DISTINCT username) FILTER (WHERE username IS NOT NULL)::int AS "uniqueUsernames",
-        COUNT(DISTINCT password) FILTER (WHERE password IS NOT NULL)::int AS "uniquePasswords",
-        COUNT(DISTINCT (COALESCE(username, '<null>') || E'\\x1f' || COALESCE(password, '<null>')))
-          FILTER (WHERE username IS NOT NULL OR password IS NOT NULL)::int AS "uniqueCredentialPairs"
-        FROM credential_attempts ${where}`,
+  async countAttempts(type: 'all' | 'success' | 'failed', where: Prisma.Sql): Promise<number> {
+    const outcome = type === 'success'
+      ? Prisma.sql` AND success IS TRUE`
+      : type === 'failed'
+        ? Prisma.sql` AND success IS DISTINCT FROM TRUE`
+        : Prisma.empty
+    const rows = await this.prismaRead.$queryRaw<CountOnlyRow[]>(
+      Prisma.sql`SELECT COUNT(*)::int AS count FROM credential_attempts ${where}${outcome}`,
     )
-    return rows[0] ?? {
-      totalAttempts: 0, successfulAttempts: 0, failedAttempts: 0,
-      uniqueUsernames: 0, uniquePasswords: 0, uniqueCredentialPairs: 0,
-    }
+    return typeof rows[0]?.count === 'bigint' ? Number(rows[0].count) : (rows[0]?.count ?? 0)
   }
 
   queryRaw<T>(sql: Prisma.Sql): Promise<T[]> {

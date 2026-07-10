@@ -200,23 +200,17 @@ implementar sin evidencia de que el refresh pese.
 
 ## Mejoras propuestas (más allá de tapar los hallazgos)
 
-### Credentials first-load — cache warm-up + menos agregados ✅ 2026-07-10
+### Credentials first-load — optimización revertida 2026-07-10
 
-- El estado inicial de `/credentials` lanzaba nueve agregados de resumen sobre
-  `credential_attempts` en paralelo, además de los dos queries de ranking. Se
-  consolidaron los seis conteos simples (total, outcomes y distintos) en una
-  sola pasada del materialized view, dejando el contrato JSON intacto.
-- Se añadió `/stats/credentials` al warm-up serial de caché del arranque del
-  API. Hereda la retención de 24 horas y el semáforo global implementados para
-  el dashboard, por lo que la primera visita global ya recibe un valor cacheado.
-- El fetch server-side ahora comparte el timeout de 30 segundos y los retries
-  de los demás stats para tolerar un miss aislado de caché.
-- El cache key incluye `protocol`, evitando reutilizar datos de otro protocolo.
-- Se descartó el warm-up de `patterns`/`recent` y la precarga por hover: cada
-  tab aún dispara varias agregaciones en paralelo; calentarlos durante el boot
-  puede saturar la réplica. Cualquier optimización adicional debe reducir o
-  separar esas queries antes de volver a precalentar esas rutas.
-- Commits: [`c43fd2d`](https://github.com/elrichi31/honeypot-ai/commit/c43fd2d), [`a34b4d8`](https://github.com/elrichi31/honeypot-ai/commit/a34b4d8), [`34fc42a`](https://github.com/elrichi31/honeypot-ai/commit/34fc42a).
+- La consolidación de seis agregados con varios `COUNT DISTINCT` en una sola
+  query y el warm-up de Credentials causaron timeouts contra el volumen real de
+  `credential_attempts`. Se revirtió por completo ese enfoque y se restauraron
+  las queries paralelas originales y el timeout de 15 segundos.
+- El cache key conserva `protocol`, evitando reutilizar datos de otro protocolo.
+- Antes de intentar otra optimización, medir `EXPLAIN ANALYZE` y duración real
+  de cada agregado en producción; no reintroducir warm-up sin reducir primero
+  la presión total sobre la réplica.
+- Commits: [`c43fd2d`](https://github.com/elrichi31/honeypot-ai/commit/c43fd2d), [`a34b4d8`](https://github.com/elrichi31/honeypot-ai/commit/a34b4d8), [`34fc42a`](https://github.com/elrichi31/honeypot-ai/commit/34fc42a) + rollback pendiente.
 
 - **M1 — Helper de concurrencia compartido.** ✅ 2026-06-24 — `lib/concurrency.ts`
   exporta `mapWithConcurrency`; `docker-stats.ts` y `malware.repository.ts` lo importan.
