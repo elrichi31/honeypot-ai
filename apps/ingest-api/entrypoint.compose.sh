@@ -9,6 +9,19 @@
 # any setuid — so an in-container privilege drop fails with EPERM. Running as
 # `node` from the start (USER node in the Dockerfile) sidesteps that entirely.
 
+# GEODATADIR points at the geoip_data volume, shared with the geoip-updater
+# sidecar. geoip-updater's updatedb.js only ever refreshes geoip-country.dat;
+# the other bundled bases (country6, asn, asn6, city...) are never written
+# there. Seed any missing base from the package's own bundled copy so a fresh
+# (empty) volume doesn't crash geoip-lite's module-load-time file read.
+if [ -n "$GEODATADIR" ]; then
+  mkdir -p "$GEODATADIR"
+  for f in node_modules/geoip-lite/data/*.dat; do
+    base=$(basename "$f")
+    [ -f "$GEODATADIR/$base" ] || cp "$f" "$GEODATADIR/$base"
+  done
+fi
+
 echo "[entrypoint] Waiting for PostgreSQL..."
 
 MIGRATED=false
