@@ -18,6 +18,8 @@ const WARMUP_ROUTES = [
   '/stats/novelty?hours=24',
   '/stats/bot-ratio',
   '/stats/credentials',
+  '/stats/credentials?mainTab=patterns',
+  '/stats/credentials?mainTab=recent',
 ]
 
 async function warmupOne(fastify: FastifyInstance, route: string) {

@@ -180,7 +180,7 @@ export async function credentialsRoute(fastify: FastifyInstance) {
     const recentSortBy = p.mainTab === 'recent' ? activeSortBy : 'eventTs'
     const recentSortDir: CredentialsSortDirection = p.mainTab === 'recent' ? activeSortDir : 'desc'
 
-    const cacheKey = `credentials${scopeKey}:${JSON.stringify({ mainTab: p.mainTab, rankingType: p.rankingType, outcome: p.outcome, frequency: p.frequency, search: search ?? '', sortBy: activeSortBy, sortDir: activeSortDir, page, pageSize, startDate: p.startDate ?? '', endDate: p.endDate ?? '' })}`
+    const cacheKey = `credentials${scopeKey}:${JSON.stringify({ mainTab: p.mainTab, rankingType: p.rankingType, outcome: p.outcome, frequency: p.frequency, search: search ?? '', sortBy: activeSortBy, sortDir: activeSortDir, page, pageSize, startDate: p.startDate ?? '', endDate: p.endDate ?? '', protocol: p.protocol ?? '' })}`
 
     return withCache(fastify.cache, cacheKey, 600, async () => {
       const proto = p.protocol
