@@ -341,6 +341,11 @@ services:
       FTP_CAPTURES_PATH: /ftp-captures
       SURICATA_OWN_IPS: ${SURICATA_OWN_IPS:-}
       KAFKA_BROKERS: kafka:9092
+      # geoip-lite reads its GeoLite2 .dat files from here instead of its
+      # bundled (never-updated) node_modules copy. geoip-updater refreshes
+      # them weekly in the shared geoip_data volume; geoip-lite's own
+      # fsWatcher hot-reloads changed .dat files, so no restart is needed.
+      GEODATADIR: /app/geodata
       # credential_attempts is a ~1.6M-row derived view; the scheduler now uses a
       # plain REFRESH (not CONCURRENTLY) to avoid the row-by-row diff that pegged
       # the replica's WAL-replay CPU (2026-07-06 incident). 30min keeps the (now
@@ -353,6 +358,7 @@ services:
       - dionaea_var:/dionaea:ro
       - cowrie_var:/cowrie:ro
       - ftp_captures:/ftp-captures:ro
+      - geoip_data:/app/geodata
       - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
       test:
@@ -379,6 +385,34 @@ services:
         limits:
           cpus: "1.5"
           pids: 256
+
+  geoip-updater:
+    <<: *service-defaults
+    logging: *json-logging
+    build:
+      context: ./apps/ingest-api
+      dockerfile: Dockerfile.compose
+    container_name: geoip-updater
+    # Reuses the ingest-api image — it already has geoip-lite (and its
+    # updatedb.js script) in node_modules, so no separate build is needed.
+    entrypoint: ["sh"]
+    command:
+      - -c
+      - >
+        while true; do
+          echo "[geoip-updater] $$(date): refreshing GeoLite2 databases";
+          node node_modules/geoip-lite/scripts/updatedb.js license_key=${MAXMIND_LICENSE_KEY} geodatadir=/app/geodata || echo "[geoip-updater] update failed, will retry next cycle";
+          echo "[geoip-updater] $$(date): done — sleeping 7d";
+          sleep 604800;
+        done
+    volumes:
+      - geoip_data:/app/geodata
+    networks: []
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          pids: 32
 
   suricata:
     logging: *json-logging
@@ -800,6 +834,7 @@ volumes:
   smb_share:
   smb_captures:
   ftp_captures:
+  geoip_data:
 
 networks:
   edge:
