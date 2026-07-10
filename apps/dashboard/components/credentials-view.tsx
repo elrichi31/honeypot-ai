@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { NavTransitionProvider, useNavTransition } from "@/lib/use-nav-transition"
 import { TableLoadingOverlay } from "@/components/table-loading-overlay"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -12,6 +12,7 @@ import { PatternsTab } from "@/components/credentials/patterns-tab"
 import { RecentTab } from "@/components/credentials/recent-tab"
 import { buildExportRows, downloadCsv, downloadJson, exportBaseName } from "@/components/credentials/export-utils"
 import { useT } from "@/components/locale-provider"
+import { fetchCredentialsAnalyticsClient } from "@/lib/api"
 import type { CredentialsAnalytics, CredentialsFrequencyFilter, CredentialsMainTab, CredentialsOutcomeFilter, CredentialsRankingType } from "@/lib/api"
 
 const DEFAULT_SORT_BY: Record<CredentialsRankingType, string> = {
@@ -20,32 +21,48 @@ const DEFAULT_SORT_BY: Record<CredentialsRankingType, string> = {
   usernames: "attempts",
 }
 
-export function CredentialsView({ analytics }: { analytics: CredentialsAnalytics }) {
+export function CredentialsView({ analytics, scope }: {
+  analytics: CredentialsAnalytics
+  scope: { clientSlug?: string; sensorId?: string }
+}) {
   return (
     <NavTransitionProvider>
-      <CredentialsViewInner analytics={analytics} />
+      <CredentialsViewInner analytics={analytics} scope={scope} />
     </NavTransitionProvider>
   )
 }
 
-function CredentialsViewInner({ analytics }: { analytics: CredentialsAnalytics }) {
+function CredentialsViewInner({ analytics, scope }: {
+  analytics: CredentialsAnalytics
+  scope: { clientSlug?: string; sensorId?: string }
+}) {
   const t = useT()
   const { pushParams, isPending } = useNavTransition()
+  const tabCache = useRef(new Map<string, CredentialsAnalytics>())
+  const [activeAnalytics, setActiveAnalytics] = useState(analytics)
+  const [activeTab, setActiveTab] = useState(analytics.current.mainTab)
+  const [tabError, setTabError] = useState<string | null>(null)
+  const [isTabPending, startTabTransition] = useTransition()
   const [search, setSearch] = useState(analytics.current.search)
 
-  useEffect(() => { setSearch(analytics.current.search) }, [analytics.current.search])
+  useEffect(() => {
+    setSearch(analytics.current.search)
+    setActiveAnalytics(analytics)
+    setActiveTab(analytics.current.mainTab)
+    tabCache.current.clear()
+  }, [analytics])
 
-  const { mainTab, rankingType, outcome: outcomeFilter, frequency: frequencyFilter, sortBy, sortDir } = analytics.current
+  const { rankingType, outcome: outcomeFilter, frequency: frequencyFilter, sortBy, sortDir } = activeAnalytics.current
 
   const patterns = useMemo(() => ({
-    sprays: filterPatternRows(analytics.sprayPasswords, search, (item) => item.password ?? ""),
-    targets: filterPatternRows(analytics.targetedUsernames, search, (item) => item.username ?? ""),
-    attackers: filterPatternRows(analytics.diversifiedAttackers, search, (item) => item.srcIp),
-  }), [analytics.sprayPasswords, analytics.targetedUsernames, analytics.diversifiedAttackers, search])
+    sprays: filterPatternRows(activeAnalytics.sprayPasswords, search, (item) => item.password ?? ""),
+    targets: filterPatternRows(activeAnalytics.targetedUsernames, search, (item) => item.username ?? ""),
+    attackers: filterPatternRows(activeAnalytics.diversifiedAttackers, search, (item) => item.srcIp),
+  }), [activeAnalytics.sprayPasswords, activeAnalytics.targetedUsernames, activeAnalytics.diversifiedAttackers, search])
 
   const exportRows = useMemo(
-    () => buildExportRows(mainTab, rankingType, analytics, patterns),
-    [mainTab, rankingType, analytics, patterns],
+    () => buildExportRows(activeTab, rankingType, activeAnalytics, patterns),
+    [activeTab, rankingType, activeAnalytics, patterns],
   )
 
   function handleSearchSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -54,7 +71,43 @@ function CredentialsViewInner({ analytics }: { analytics: CredentialsAnalytics }
   }
 
   function handleMainTabChange(value: CredentialsMainTab) {
-    pushParams({ mainTab: value, page: "1", sortBy: value === "recent" ? "eventTs" : DEFAULT_SORT_BY[rankingType], sortDir: "desc" })
+    if (value === activeTab) return
+    setActiveTab(value)
+    setTabError(null)
+    const sortByForTab = value === "recent" ? "eventTs" : DEFAULT_SORT_BY[rankingType]
+    const urlParams = new URLSearchParams(window.location.search)
+    urlParams.set("mainTab", value)
+    urlParams.set("page", "1")
+    urlParams.set("sortBy", sortByForTab)
+    urlParams.set("sortDir", "desc")
+    window.history.pushState(null, "", `${window.location.pathname}?${urlParams.toString()}`)
+    const cacheKey = JSON.stringify({ value, rankingType, outcome: outcomeFilter, frequency: frequencyFilter, search: activeAnalytics.current.search, sortBy: sortByForTab, scope })
+    const cached = tabCache.current.get(cacheKey)
+    if (cached) {
+      setActiveAnalytics(cached)
+      return
+    }
+    startTabTransition(async () => {
+      try {
+        const next = await fetchCredentialsAnalyticsClient({
+          mainTab: value,
+          rankingType,
+          outcome: outcomeFilter,
+          frequency: frequencyFilter,
+          search: activeAnalytics.current.search || undefined,
+          sortBy: sortByForTab,
+          sortDir: "desc",
+          page: 1,
+          pageSize: activeAnalytics.rankingsPage.pagination.pageSize,
+          clientSlug: scope.clientSlug,
+          sensorId: scope.sensorId,
+        })
+        tabCache.current.set(cacheKey, next)
+        setActiveAnalytics(next)
+      } catch {
+        setTabError(t("cred.tabLoadError"))
+      }
+    })
   }
 
   function handleRankingTypeChange(value: CredentialsRankingType) {
@@ -71,16 +124,16 @@ function CredentialsViewInner({ analytics }: { analytics: CredentialsAnalytics }
     pushParams({ search: "", page: "1" })
   }
 
-  const baseName = exportBaseName(mainTab, rankingType)
+  const baseName = exportBaseName(activeTab, rankingType)
 
   return (
     <div className="space-y-6">
-      <SummaryStats summary={analytics.summary} />
+      <SummaryStats summary={activeAnalytics.summary} />
 
       <FilterBar
         search={search}
         activeSearch={analytics.current.search}
-        mainTab={mainTab}
+        mainTab={activeTab}
         rankingType={rankingType}
         outcomeFilter={outcomeFilter}
         frequencyFilter={frequencyFilter}
@@ -95,7 +148,7 @@ function CredentialsViewInner({ analytics }: { analytics: CredentialsAnalytics }
         onDownloadJson={() => downloadJson(baseName, exportRows)}
       />
 
-      <Tabs value={mainTab} onValueChange={(v) => handleMainTabChange(v as CredentialsMainTab)} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(v) => handleMainTabChange(v as CredentialsMainTab)} className="space-y-4">
         <TabsList className="flex h-auto w-fit flex-wrap gap-1 rounded-lg bg-secondary p-1">
           <TabsTrigger value="rankings">{t("cred.tab.rankings")}</TabsTrigger>
           <TabsTrigger value="patterns">{t("cred.tab.patterns")}</TabsTrigger>
@@ -103,21 +156,26 @@ function CredentialsViewInner({ analytics }: { analytics: CredentialsAnalytics }
         </TabsList>
 
         <div className="relative">
-          <TableLoadingOverlay show={isPending} />
+          <TableLoadingOverlay show={isPending || isTabPending} />
 
           <TabsContent value="rankings">
-            <RankingsTab analytics={analytics} rankingType={rankingType} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+            {isTabPending ? <TabState /> : <RankingsTab analytics={activeAnalytics} rankingType={rankingType} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />}
           </TabsContent>
 
           <TabsContent value="patterns">
-            <PatternsTab patterns={patterns} />
+            {isTabPending ? <TabState /> : <PatternsTab patterns={patterns} />}
           </TabsContent>
 
           <TabsContent value="recent">
-            <RecentTab analytics={analytics} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+            {isTabPending ? <TabState /> : <RecentTab analytics={activeAnalytics} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />}
           </TabsContent>
+          {tabError && <p className="mt-3 text-sm text-destructive">{tabError}</p>}
         </div>
       </Tabs>
     </div>
   )
+}
+
+function TabState() {
+  return <div className="min-h-[320px] rounded-xl border border-border bg-card" />
 }

@@ -104,7 +104,7 @@ export default async function CredentialsPage({
           </div>
         </Surface>
 
-        <CredentialsView analytics={analytics} />
+        <CredentialsView analytics={analytics} scope={{ clientSlug, sensorId }} />
   </PageShell>
   )
 }

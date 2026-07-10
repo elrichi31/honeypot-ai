@@ -11,6 +11,7 @@ export const en = {
   "cred.tab.rankings": "Common Credentials",
   "cred.tab.patterns": "Deep Analysis",
   "cred.tab.recent": "Recent Attempts",
+  "cred.tabLoadError": "Could not load this tab. Please try again.",
 
   // Summary stats
   "cred.summary.successful": "Successful",
@@ -97,6 +98,7 @@ export const es: Record<keyof typeof en, string> = {
   "cred.tab.rankings": "Credenciales comunes",
   "cred.tab.patterns": "Análisis profundo",
   "cred.tab.recent": "Intentos recientes",
+  "cred.tabLoadError": "No se pudo cargar esta pestaña. Inténtalo de nuevo.",
 
   // Summary stats
   "cred.summary.successful": "Exitosos",

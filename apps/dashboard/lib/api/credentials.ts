@@ -25,3 +25,18 @@ export async function fetchCredentialsAnalytics(params?: {
   // a modest timeout above the default covers a cold cache.
   return apiFetch(`${getApiUrl()}/stats/credentials?${sp}`, 60, 15000)
 }
+
+export async function fetchCredentialsAnalyticsClient(params?: Parameters<typeof fetchCredentialsAnalytics>[0]): Promise<CredentialsAnalytics> {
+  const sp = buildSearchParams({
+    limit: params?.limit, recentLimit: params?.recentLimit,
+    page: params?.page, pageSize: params?.pageSize,
+    mainTab: params?.mainTab, rankingType: params?.rankingType,
+    outcome: params?.outcome, frequency: params?.frequency,
+    search: params?.search, sortBy: params?.sortBy, sortDir: params?.sortDir,
+    startDate: params?.startDate, endDate: params?.endDate,
+    clientSlug: params?.clientSlug, sensorId: params?.sensorId, protocol: params?.protocol,
+  })
+  const res = await fetch(`/api/credentials?${sp}`, { signal: AbortSignal.timeout(30_000) })
+  if (!res.ok) throw new Error(`Credentials request failed (${res.status})`)
+  return res.json()
+}
