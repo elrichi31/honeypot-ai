@@ -22,6 +22,7 @@ import { sensorRoutes } from './modules/sensors/sensors.controller.js';
 import { attacksTodayRoutes } from './modules/attacks-today/attacks-today.controller.js';
 import { sensorProvisionRoutes } from './modules/sensors/sensors.provision.controller.js'
 import { malwareRoutes } from './modules/malware/malware.controller.js';
+import { iocsRoutes } from './modules/iocs/iocs.controller.js';
 import { storageRoutes } from './modules/storage/storage.controller.js';
 import { retentionPlugin } from './plugins/retention.js';
 import { matviewRefreshPlugin } from './plugins/matview-refresh.js';
@@ -102,6 +103,7 @@ export async function buildApp() {
   await app.register(attacksTodayRoutes);
   await app.register(sensorProvisionRoutes);
   await app.register(malwareRoutes);
+  await app.register(iocsRoutes);
   await app.register(storageRoutes);
   await app.register(suricataRoutes);
   await app.register(monitoringRoutes);

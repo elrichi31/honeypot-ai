@@ -1,22 +1,60 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Copy, Check, Download, Search, Crosshair, Biohazard } from "lucide-react"
+import Link from "next/link"
+import { Copy, Check, Download, Search, Crosshair, Biohazard, Radio, KeyRound, ExternalLink } from "lucide-react"
 import { Surface } from "@/components/ui/surface"
 import { useT } from "@/components/locale-provider"
-import { toPlainList, toCsv, toStixBundle, type IocEntry, type IocType } from "@/lib/ioc-export"
+import { toPlainList, toCsv, toStixBundle, toMispEvent, type IocEntry, type IocType } from "@/lib/ioc-export"
 
-// Icon + per-row metadata are resolved here (a Client Component) by `kind`,
-// because functions/components can't be passed as props from the Server
-// Component page — doing so crashes the RSC render.
-const KIND_ICON = { ip: Crosshair, hash: Biohazard } as const
+// Icon + per-row metadata resolved here (a Client Component) by `kind`, because
+// icon components/functions can't be passed as props from a Server Component
+// page — doing so crashes the RSC render.
+const KIND_ICON = { ip: Crosshair, hash: Biohazard, c2: Radio, sshkey: KeyRound } as const
 
 function metaLine(e: IocEntry): string {
   if (e.type === "ip") {
     const protos = e.meta?.protocols ? ` · ${String(e.meta.protocols).replace(/\|/g, ", ")}` : ""
     return `${e.meta?.level ?? ""} · score ${e.meta?.score ?? ""}${protos}`
   }
+  if (e.type === "c2") {
+    const src = e.meta?.srcIp ? ` · from ${e.meta.srcIp}` : ""
+    const seen = e.meta?.firstSeen ? ` · ${String(e.meta.firstSeen).slice(0, 10)}` : ""
+    return `${e.meta?.host ?? ""}${e.meta?.port ? `:${e.meta.port}` : ""}${src}${seen}`
+  }
+  if (e.type === "sshkey") {
+    const src = e.meta?.srcIp ? ` · from ${e.meta.srcIp}` : ""
+    const comment = e.meta?.comment ? ` · "${e.meta.comment}"` : ""
+    return `${e.meta?.algorithm ?? ""}${comment}${src}`
+  }
   return [e.meta?.source, e.meta?.fileType, e.meta?.srcIp].filter(Boolean).join(" · ")
+}
+
+// A drill-down link for a row, or null when the value isn't pivotable.
+function RowLink({ e }: { e: IocEntry }) {
+  if (e.type === "ip") {
+    return (
+      <Link href={`/threats/${encodeURIComponent(e.value)}`} className="text-muted-foreground hover:text-foreground" title="View threat">
+        <ExternalLink className="h-3.5 w-3.5" />
+      </Link>
+    )
+  }
+  if (e.type === "hash") {
+    return (
+      <a href={`https://www.virustotal.com/gui/file/${e.value}`} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground" title="VirusTotal">
+        <ExternalLink className="h-3.5 w-3.5" />
+      </a>
+    )
+  }
+  const src = e.meta?.srcIp ? String(e.meta.srcIp) : null
+  if (src) {
+    return (
+      <Link href={`/threats/${encodeURIComponent(src)}`} className="text-muted-foreground hover:text-foreground" title="View source threat">
+        <ExternalLink className="h-3.5 w-3.5" />
+      </Link>
+    )
+  }
+  return null
 }
 
 const INITIAL_VISIBLE = 500
@@ -88,7 +126,7 @@ export function IocSection({
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <CopyButton value={plain} label="Copiar todo" />
+          <CopyButton value={plain} label={t("iocs.copyAll")} />
           <button
             type="button"
             onClick={() => download(`${fileBase}.csv`, toCsv(filtered), "text/csv")}
@@ -103,6 +141,13 @@ export function IocSection({
           >
             <Download className="h-3.5 w-3.5" /> STIX
           </button>
+          <button
+            type="button"
+            onClick={() => download(`${fileBase}.misp.json`, toMispEvent(filtered), "application/json")}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          >
+            <Download className="h-3.5 w-3.5" /> MISP
+          </button>
         </div>
       </div>
 
@@ -116,7 +161,7 @@ export function IocSection({
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Filtrar…"
+                placeholder={t("iocs.filter")}
                 className="h-9 w-full rounded-md border border-border bg-background pl-9 pr-3 text-sm text-foreground"
               />
             </div>
@@ -129,6 +174,7 @@ export function IocSection({
                   <p className="truncate font-mono text-foreground">{e.value}</p>
                   <p className="truncate text-xs text-muted-foreground">{metaLine(e)}</p>
                 </div>
+                <RowLink e={e} />
                 <CopyButton value={e.value} />
               </div>
             ))}
@@ -140,7 +186,7 @@ export function IocSection({
               onClick={() => setShowAll(true)}
               className="w-full border-t border-border py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground"
             >
-              Ver los {(filtered.length - INITIAL_VISIBLE).toLocaleString("en-US")} restantes
+              {t("iocs.showRest", { n: (filtered.length - INITIAL_VISIBLE).toLocaleString("en-US") })}
             </button>
           )}
         </>
