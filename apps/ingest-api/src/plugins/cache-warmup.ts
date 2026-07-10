@@ -17,6 +17,7 @@ const WARMUP_ROUTES = [
   '/stats/cross-sensor-timeline?range=day',
   '/stats/novelty?hours=24',
   '/stats/bot-ratio',
+  '/stats/credentials',
 ]
 
 async function warmupOne(fastify: FastifyInstance, route: string) {

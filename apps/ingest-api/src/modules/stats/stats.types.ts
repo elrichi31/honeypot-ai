@@ -9,6 +9,10 @@ export interface TimelineRow { bucketStart: string; label: string; count: number
 export interface SessionTimelineRow { bucketStart: string; label: string; sessions: number; successfulLogins: number }
 export interface CountRow { count: number | bigint }
 export interface CountOnlyRow { count: number | bigint }
+export interface CredentialsSummaryRow {
+  totalAttempts: number | bigint; successfulAttempts: number | bigint; failedAttempts: number | bigint
+  uniqueUsernames: number | bigint; uniquePasswords: number | bigint; uniqueCredentialPairs: number | bigint
+}
 export interface CommandRow { command: string; count: number | bigint }
 export interface GroupedUsernameRow { username: string | null; _count: { username: number | bigint } }
 export interface GroupedPasswordRow { password: string | null; _count: { password: number | bigint } }

@@ -200,6 +200,19 @@ implementar sin evidencia de que el refresh pese.
 
 ## Mejoras propuestas (más allá de tapar los hallazgos)
 
+### Credentials first-load — cache warm-up + menos agregados ✅ 2026-07-10
+
+- El estado inicial de `/credentials` lanzaba nueve agregados de resumen sobre
+  `credential_attempts` en paralelo, además de los dos queries de ranking. Se
+  consolidaron los seis conteos simples (total, outcomes y distintos) en una
+  sola pasada del materialized view, dejando el contrato JSON intacto.
+- Se añadió `/stats/credentials` al warm-up serial de caché del arranque del
+  API. Hereda la retención de 24 horas y el semáforo global implementados para
+  el dashboard, por lo que la primera visita global ya recibe un valor cacheado.
+- El fetch server-side ahora comparte el timeout de 30 segundos y los retries
+  de los demás stats para tolerar un miss aislado de caché.
+- Commit: [`c43fd2d`](https://github.com/elrichi31/honeypot-ai/commit/c43fd2d).
+
 - **M1 — Helper de concurrencia compartido.** ✅ 2026-06-24 — `lib/concurrency.ts`
   exporta `mapWithConcurrency`; `docker-stats.ts` y `malware.repository.ts` lo importan.
 - **M2 — Instancia de service por plugin como convención explícita.** ✅ 2026-06-24 —

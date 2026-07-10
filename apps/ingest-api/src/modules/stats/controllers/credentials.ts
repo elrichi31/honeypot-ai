@@ -217,17 +217,11 @@ export async function credentialsRoute(fastify: FastifyInstance) {
       const wantPatterns = p.mainTab === 'patterns'
       const wantRecent = p.mainTab === 'recent'
 
-      const [totalAttempts, successfulAttempts, failedAttempts,
-        uniqueUsernamesRows, uniquePasswordsRows, uniquePairsRows, repeatedPairsRows,
+      const [summaryRows, repeatedPairsRows,
         sprayPasswordsCountRows, targetedUsernamesCountRows,
         sprayPasswordRows, targetedUsernameRows, diversifiedAttackerRows,
         rankingCountRows, rankingRows, recentAttempts, recentAttemptsTotal] = await Promise.all([
-        repo.countAttempts('all', authWhere),
-        repo.countAttempts('success', authWhere),
-        repo.countAttempts('failed', authWhere),
-        repo.queryRaw<CountOnlyRow>(Prisma.sql`SELECT COUNT(DISTINCT username)::int AS count FROM credential_attempts ${userWhere}`),
-        repo.queryRaw<CountOnlyRow>(Prisma.sql`SELECT COUNT(DISTINCT password)::int AS count FROM credential_attempts ${passWhere}`),
-        repo.queryRaw<CountOnlyRow>(Prisma.sql`SELECT COUNT(DISTINCT (COALESCE(username, '<null>') || E'\\x1f' || COALESCE(password, '<null>')))::int AS count FROM credential_attempts ${anyCredWhere}`),
+        repo.getSummary(authWhere),
         repo.queryRaw<CountOnlyRow>(Prisma.sql`SELECT COUNT(*)::int AS count FROM (SELECT 1 FROM credential_attempts ${anyCredWhere} GROUP BY username, password HAVING COUNT(*) > 1) t`),
         repo.queryRaw<CountOnlyRow>(Prisma.sql`SELECT COUNT(*)::int AS count FROM (SELECT password FROM credential_attempts ${passWhere} GROUP BY password HAVING COUNT(DISTINCT username) >= 3) t`),
         repo.queryRaw<CountOnlyRow>(Prisma.sql`SELECT COUNT(*)::int AS count FROM (SELECT username FROM credential_attempts ${userWhere} GROUP BY username HAVING COUNT(DISTINCT password) >= 3) t`),
@@ -262,7 +256,7 @@ export async function credentialsRoute(fastify: FastifyInstance) {
       const recentTotalPages = (recentAttemptsTotal as number) === 0 ? 1 : Math.ceil((recentAttemptsTotal as number) / pageSize)
 
       return {
-        summary: { totalAttempts, successfulAttempts, failedAttempts, uniqueUsernames: toNumber(uniqueUsernamesRows[0]?.count), uniquePasswords: toNumber(uniquePasswordsRows[0]?.count), uniqueCredentialPairs: toNumber(uniquePairsRows[0]?.count), repeatedCredentialPairs: toNumber(repeatedPairsRows[0]?.count), sprayPasswords: toNumber(sprayPasswordsCountRows[0]?.count), targetedUsernames: toNumber(targetedUsernamesCountRows[0]?.count), successRate: totalAttempts > 0 ? successfulAttempts / totalAttempts : 0 },
+        summary: { totalAttempts: toNumber(summaryRows.totalAttempts), successfulAttempts: toNumber(summaryRows.successfulAttempts), failedAttempts: toNumber(summaryRows.failedAttempts), uniqueUsernames: toNumber(summaryRows.uniqueUsernames), uniquePasswords: toNumber(summaryRows.uniquePasswords), uniqueCredentialPairs: toNumber(summaryRows.uniqueCredentialPairs), repeatedCredentialPairs: toNumber(repeatedPairsRows[0]?.count), sprayPasswords: toNumber(sprayPasswordsCountRows[0]?.count), targetedUsernames: toNumber(targetedUsernamesCountRows[0]?.count), successRate: toNumber(summaryRows.totalAttempts) > 0 ? toNumber(summaryRows.successfulAttempts) / toNumber(summaryRows.totalAttempts) : 0 },
         sprayPasswords: (sprayPasswordRows as SprayPasswordRow[]).map(r => ({ password: r.password, attempts: toNumber(r.attempts), successCount: toNumber(r.successCount), usernameCount: toNumber(r.usernameCount), ipCount: toNumber(r.ipCount) })),
         targetedUsernames: (targetedUsernameRows as TargetedUsernameRow[]).map(r => ({ username: r.username, attempts: toNumber(r.attempts), successCount: toNumber(r.successCount), passwordCount: toNumber(r.passwordCount), ipCount: toNumber(r.ipCount) })),
         diversifiedAttackers: (diversifiedAttackerRows as DiversifiedAttackerRow[]).map(r => ({ srcIp: r.srcIp, attempts: toNumber(r.attempts), successCount: toNumber(r.successCount), credentialCount: toNumber(r.credentialCount), usernameCount: toNumber(r.usernameCount), passwordCount: toNumber(r.passwordCount), lastSeen: toOffsetISOString(r.lastSeen) })),
