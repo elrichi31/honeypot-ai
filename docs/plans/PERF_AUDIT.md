@@ -211,11 +211,12 @@ implementar sin evidencia de que el refresh pese.
   el dashboard, por lo que la primera visita global ya recibe un valor cacheado.
 - El fetch server-side ahora comparte el timeout de 30 segundos y los retries
   de los demás stats para tolerar un miss aislado de caché.
-- Los tabs `patterns` y `recent` tenían su propia clave de caché, pero solo se
-  calentaba `rankings`. Se añadieron los tres estados iniciales al warm-up y se
-  precarga en el navegador el tab apuntado por hover o foco. El cache key ahora
-  también incluye `protocol`, evitando reutilizar datos de otro protocolo.
-- Commits: [`c43fd2d`](https://github.com/elrichi31/honeypot-ai/commit/c43fd2d), [`a34b4d8`](https://github.com/elrichi31/honeypot-ai/commit/a34b4d8).
+- El cache key incluye `protocol`, evitando reutilizar datos de otro protocolo.
+- Se descartó el warm-up de `patterns`/`recent` y la precarga por hover: cada
+  tab aún dispara varias agregaciones en paralelo; calentarlos durante el boot
+  puede saturar la réplica. Cualquier optimización adicional debe reducir o
+  separar esas queries antes de volver a precalentar esas rutas.
+- Commits: [`c43fd2d`](https://github.com/elrichi31/honeypot-ai/commit/c43fd2d), [`a34b4d8`](https://github.com/elrichi31/honeypot-ai/commit/a34b4d8) + rollback pendiente.
 
 - **M1 — Helper de concurrencia compartido.** ✅ 2026-06-24 — `lib/concurrency.ts`
   exporta `mapWithConcurrency`; `docker-stats.ts` y `malware.repository.ts` lo importan.

@@ -1,7 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useMemo, useState } from "react"
 import { NavTransitionProvider, useNavTransition } from "@/lib/use-nav-transition"
 import { TableLoadingOverlay } from "@/components/table-loading-overlay"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -32,9 +31,6 @@ export function CredentialsView({ analytics }: { analytics: CredentialsAnalytics
 function CredentialsViewInner({ analytics }: { analytics: CredentialsAnalytics }) {
   const t = useT()
   const { pushParams, isPending } = useNavTransition()
-  const pathname = usePathname()
-  const router = useRouter()
-  const searchParams = useSearchParams()
   const [search, setSearch] = useState(analytics.current.search)
 
   useEffect(() => { setSearch(analytics.current.search) }, [analytics.current.search])
@@ -60,16 +56,6 @@ function CredentialsViewInner({ analytics }: { analytics: CredentialsAnalytics }
   function handleMainTabChange(value: CredentialsMainTab) {
     pushParams({ mainTab: value, page: "1", sortBy: value === "recent" ? "eventTs" : DEFAULT_SORT_BY[rankingType], sortDir: "desc" })
   }
-
-  const prefetchTab = useCallback((value: CredentialsMainTab) => {
-    if (value === mainTab) return
-    const next = new URLSearchParams(searchParams.toString())
-    next.set("mainTab", value)
-    next.set("page", "1")
-    next.set("sortBy", value === "recent" ? "eventTs" : DEFAULT_SORT_BY[rankingType])
-    next.set("sortDir", "desc")
-    router.prefetch(`${pathname}?${next.toString()}`)
-  }, [mainTab, pathname, rankingType, router, searchParams])
 
   function handleRankingTypeChange(value: CredentialsRankingType) {
     pushParams({ rankingType: value, page: "1", sortBy: DEFAULT_SORT_BY[value], sortDir: "desc" })
@@ -111,9 +97,9 @@ function CredentialsViewInner({ analytics }: { analytics: CredentialsAnalytics }
 
       <Tabs value={mainTab} onValueChange={(v) => handleMainTabChange(v as CredentialsMainTab)} className="space-y-4">
         <TabsList className="flex h-auto w-fit flex-wrap gap-1 rounded-lg bg-secondary p-1">
-          <TabsTrigger value="rankings" onMouseEnter={() => prefetchTab("rankings")} onFocus={() => prefetchTab("rankings")}>{t("cred.tab.rankings")}</TabsTrigger>
-          <TabsTrigger value="patterns" onMouseEnter={() => prefetchTab("patterns")} onFocus={() => prefetchTab("patterns")}>{t("cred.tab.patterns")}</TabsTrigger>
-          <TabsTrigger value="recent" onMouseEnter={() => prefetchTab("recent")} onFocus={() => prefetchTab("recent")}>{t("cred.tab.recent")}</TabsTrigger>
+          <TabsTrigger value="rankings">{t("cred.tab.rankings")}</TabsTrigger>
+          <TabsTrigger value="patterns">{t("cred.tab.patterns")}</TabsTrigger>
+          <TabsTrigger value="recent">{t("cred.tab.recent")}</TabsTrigger>
         </TabsList>
 
         <div className="relative">
