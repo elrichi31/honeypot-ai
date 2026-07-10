@@ -215,7 +215,7 @@ implementar sin evidencia de que el refresh pese.
   calentaba `rankings`. Se añadieron los tres estados iniciales al warm-up y se
   precarga en el navegador el tab apuntado por hover o foco. El cache key ahora
   también incluye `protocol`, evitando reutilizar datos de otro protocolo.
-- Commits: [`c43fd2d`](https://github.com/elrichi31/honeypot-ai/commit/c43fd2d), [`64123fd`](https://github.com/elrichi31/honeypot-ai/commit/64123fd).
+- Commits: [`c43fd2d`](https://github.com/elrichi31/honeypot-ai/commit/c43fd2d), [`a34b4d8`](https://github.com/elrichi31/honeypot-ai/commit/a34b4d8).
 
 - **M1 — Helper de concurrencia compartido.** ✅ 2026-06-24 — `lib/concurrency.ts`
   exporta `mapWithConcurrency`; `docker-stats.ts` y `malware.repository.ts` lo importan.
