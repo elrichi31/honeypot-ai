@@ -216,7 +216,7 @@ implementar sin evidencia de que el refresh pese.
   no se reemplazan durante la carga; el cambio deja de navegar/renderizar de
   nuevo toda la página. Pendiente: medir y dividir el endpoint si la primera
   carga de un tab sigue excediendo el umbral aceptable.
-- Commits: [`c43fd2d`](https://github.com/elrichi31/honeypot-ai/commit/c43fd2d), [`a34b4d8`](https://github.com/elrichi31/honeypot-ai/commit/a34b4d8), [`34fc42a`](https://github.com/elrichi31/honeypot-ai/commit/34fc42a), [`35e980a`](https://github.com/elrichi31/honeypot-ai/commit/35e980a), [`635a8f2`](https://github.com/elrichi31/honeypot-ai/commit/635a8f2) + limitación de concurrencia pendiente.
+- Commits: [`c43fd2d`](https://github.com/elrichi31/honeypot-ai/commit/c43fd2d), [`a34b4d8`](https://github.com/elrichi31/honeypot-ai/commit/a34b4d8), [`34fc42a`](https://github.com/elrichi31/honeypot-ai/commit/34fc42a), [`35e980a`](https://github.com/elrichi31/honeypot-ai/commit/35e980a), [`635a8f2`](https://github.com/elrichi31/honeypot-ai/commit/635a8f2), [`7aaf1dc`](https://github.com/elrichi31/honeypot-ai/commit/7aaf1dc).
 
 - **M1 — Helper de concurrencia compartido.** ✅ 2026-06-24 — `lib/concurrency.ts`
   exporta `mapWithConcurrency`; `docker-stats.ts` y `malware.repository.ts` lo importan.
