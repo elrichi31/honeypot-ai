@@ -188,10 +188,18 @@ function ThreatGraphInner({ graph }: { graph: ThreatGraph }) {
     toFlowEdges(graph, graph.nodes as Node<ThreatNodeData>[]),
   )
 
-  // Recompute which side each edge attaches to whenever node positions change
-  // (initial render, prop change, or dragging a node) so connections always
-  // take the shortest side and route as smooth curves.
+  // Recompute which side each edge attaches to when the graph (re)loads, so
+  // connections take the shortest side and route as smooth curves.
   useEffect(() => {
+    setEdges(toFlowEdges(graph, graph.nodes as Node<ThreatNodeData>[]))
+  }, [graph, setEdges])
+
+  // Recompute again once a drag settles — not on every drag frame. `nodes`
+  // changes on each `onNodesChange` tick while dragging (React Flow fires it
+  // per mousemove), and toFlowEdges() rebuilds a node-id map and recalculates
+  // sideHandles() for every edge, which is visible jank on graphs with more
+  // than a few dozen edges if run on each tick.
+  const onNodeDragStop = useCallback(() => {
     setEdges(toFlowEdges(graph, nodes))
   }, [graph, nodes, setEdges])
 
@@ -221,6 +229,7 @@ function ThreatGraphInner({ graph }: { graph: ThreatGraph }) {
       edges={edges}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
+      onNodeDragStop={onNodeDragStop}
       nodeTypes={nodeTypes}
       onNodeClick={onNodeClick}
       fitView

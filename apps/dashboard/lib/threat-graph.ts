@@ -247,9 +247,24 @@ export function buildThreatGraph(
       copyable: h, href: `https://www.virustotal.com/gui/file/${h}`,
     }),
   )
-  const iocPos = sector(iocNodes.length, 560, 0, 120)
+  // Cap rendered IoC nodes: unlike credentials/protocol subs (which just
+  // truncate their summary text), each IoC is a full node + edge, so an
+  // uncapped list from a session with many distinct C2/keys/hashes would grow
+  // the graph unbounded and make every drag-driven edge recompute proportionally
+  // more expensive.
+  const MAX_IOC_NODES = 24
+  const visibleIocNodes = iocNodes.slice(0, MAX_IOC_NODES)
+  if (iocNodes.length > MAX_IOC_NODES) {
+    visibleIocNodes.push({
+      id: "ioc-more",
+      label: `+${iocNodes.length - MAX_IOC_NODES} more`,
+      sub: "not shown",
+      copyable: "",
+    })
+  }
+  const iocPos = sector(visibleIocNodes.length, 560, 0, 120)
   const iocAnchor = family ? "family" : ipId
-  iocNodes.forEach((n, i) => {
+  visibleIocNodes.forEach((n, i) => {
     nodes.push({
       id: n.id, type: "threatNode", position: iocPos(i),
       data: { kind: "ioc", label: n.label, sub: n.sub, copyable: n.copyable, href: n.href },
