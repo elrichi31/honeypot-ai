@@ -8,6 +8,7 @@ import { forwardClientEventBySensorId } from '../../lib/client-forward.js'
 import { basePaginationSchema, getPagination } from '../../lib/pagination.js'
 import { webHitSchema, normalizeHeaders, parseWebHitBatch } from '../../lib/web-normalize.js'
 import { WebService, resolveSensorScope } from './web.service.js'
+import { isInternalIp } from '../../lib/internal-ip.js'
 
 const webHitsQuerySchema = z.object({
   limit: z.coerce.number().min(1).max(500).default(100),
@@ -73,6 +74,7 @@ export async function webRoutes(fastify: FastifyInstance) {
 
     const d = { ...parsed.data, headers: normalizeHeaders(parsed.data.headers) }
     const sensorId = d.sensorId ?? null
+    if (isInternalIp(d.srcIp)) return reply.status(202).send({ ignored: 'internal source IP' })
 
     try {
       const row = await svc.insertWebHit(d, sensorId)
@@ -109,6 +111,7 @@ export async function webRoutes(fastify: FastifyInstance) {
 
     let inserted = 0
     for (const d of events) {
+      if (isInternalIp(d.srcIp)) continue
       try {
         const row = await svc.insertWebHit(d, d.sensorId ?? null)
         if (row) {

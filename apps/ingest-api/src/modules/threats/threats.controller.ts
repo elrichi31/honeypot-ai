@@ -11,6 +11,7 @@ import {
   type RiskLevel,
   type ThreatListFilters,
 } from './threats.service.js'
+import { isInternalIp } from '../../lib/internal-ip.js'
 
 function csvEnum<T extends string>(allowed: readonly T[]) {
   const allowedSet = new Set<string>(allowed)
@@ -92,6 +93,7 @@ export async function threatRoutes(fastify: FastifyInstance) {
 
   fastify.get('/threats/:ip', async (request, reply) => {
     const { ip } = request.params as { ip: string }
+    if (isInternalIp(ip)) return reply.status(404).send({ error: 'Threat not found' })
     const { threat, cmdRows, cmds, portScanEvents, portScanUniquePorts, scannedPorts } = await svc.getThreatByIp(ip)
     return reply.send({
       ip,

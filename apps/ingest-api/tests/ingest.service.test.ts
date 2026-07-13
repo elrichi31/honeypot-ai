@@ -81,6 +81,16 @@ describe('IngestService', () => {
     expect(summary.insertedEvents).toBe(0);
   });
 
+  it('does not persist events from an internal source IP', async () => {
+    const result = await service.processLine({
+      eventid: 'cowrie.login.failed', src_ip: '10.0.1.100', session: 'internal', timestamp: '2026-04-12T00:00:00Z',
+    });
+
+    expect(result).toEqual({ sessionCreated: false, eventCreated: false });
+    expect(sessionUpsert).not.toHaveBeenCalled();
+    expect(eventCreateIfNotExists).not.toHaveBeenCalled();
+  });
+
   it('captures errors per line without stopping', async () => {
     vi.mocked(readFileSync).mockReturnValue(SAMPLE_LINES);
 

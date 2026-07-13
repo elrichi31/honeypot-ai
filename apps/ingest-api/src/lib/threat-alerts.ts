@@ -6,6 +6,7 @@ import { sendCrowdStrikeAlert } from './crowdstrike.js'
 import { getAlertConfig, getTimezone } from './runtime-config.js'
 import { formatInTimezone } from './date-utils.js'
 import { lookupGeo } from './geo.js'
+import { isInternalIp } from './internal-ip.js'
 import {
   checkScoreThreshold,
   checkFirstLoginSuccess,
@@ -368,7 +369,7 @@ export async function clearSensorOfflineAlert(prisma: PrismaClient, sensorId: st
  * into a single queued entry.
  */
 export function scheduleThreatAlert(_prisma: PrismaClient, ip: string): void {
-  if (!ip) return
+  if (!ip || isInternalIp(ip)) return
   pendingThreatIps.add(ip)
 }
 

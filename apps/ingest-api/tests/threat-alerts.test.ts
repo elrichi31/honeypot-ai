@@ -41,6 +41,12 @@ describe('threat evaluation queue', () => {
     expect(pendingThreatCount()).toBe(0)
   })
 
+  it('does not enqueue internal IPs', () => {
+    scheduleThreatAlert(fakePrisma, '10.0.1.100')
+    scheduleThreatAlert(fakePrisma, 'fd00::1')
+    expect(pendingThreatCount()).toBe(0)
+  })
+
   it('clears the queue after draining', async () => {
     scheduleThreatAlert(fakePrisma, '9.9.9.9')
     expect(pendingThreatCount()).toBe(1)

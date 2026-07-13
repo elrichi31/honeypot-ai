@@ -12,6 +12,7 @@ import {
 import { computeRiskScore, classifyCommands } from '../../lib/risk-score.js'
 import { resolveClientSensors } from '../../lib/client-helpers.js'
 import { withCache } from '../../lib/cache-helper.js'
+import { isInternalIp } from '../../lib/internal-ip.js'
 
 export type { ThreatScope, ThreatItem }
 
@@ -99,7 +100,7 @@ export class ThreatService {
       this.repo.queryCommandRows(ipFilter, scope, windowDays),
     ])
     const cmdsByIp = groupCommands(cmdRows)
-    return summaryRows.map((row) =>
+    return summaryRows.filter((row) => !isInternalIp(row.src_ip)).map((row) =>
       buildThreat(
         row.src_ip,
         summaryRowToSshRow(row),

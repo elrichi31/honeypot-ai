@@ -6,6 +6,7 @@ import { EventRepository } from '../events/event.repository.js';
 import type { IngestSummary, CowrieRawEvent } from '../../types/index.js';
 import { sendDiscordAlert } from '../../lib/discord.js';
 import { forwardClientEventBySensorId } from '../../lib/client-forward.js';
+import { isInternalIp } from '../../lib/internal-ip.js';
 
 export class IngestService {
   private prisma: PrismaClient;
@@ -19,6 +20,8 @@ export class IngestService {
   }
 
   async processLine(raw: CowrieRawEvent): Promise<{ sessionCreated: boolean; eventCreated: boolean }> {
+    if (isInternalIp(raw.src_ip)) return { sessionCreated: false, eventCreated: false };
+
     const sessionData = extractSessionData(raw);
     const { id: sessionDbId, created: sessionCreated } = await this.sessionRepo.upsert(sessionData);
 

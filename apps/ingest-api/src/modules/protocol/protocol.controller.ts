@@ -7,6 +7,7 @@ import { scheduleThreatAlert, evaluateDeceptionAlert } from '../../lib/threat-al
 import { forwardClientEventBySensorId } from '../../lib/client-forward.js'
 import { enqueueProtocolHit } from '../../lib/protocol-batch.js'
 import { ProtocolService } from './protocol.service.js'
+import { isInternalIp } from '../../lib/internal-ip.js'
 
 const protocolEventSchema = z.object({
   eventId: z.string().uuid(),
@@ -35,7 +36,8 @@ const insightsQuerySchema = z.object({
 export async function protocolRoutes(fastify: FastifyInstance) {
   const svc = new ProtocolService(fastify.prismaRead)
 
-  function processProtocolEvent(d: z.infer<typeof protocolEventSchema>): string {
+  function processProtocolEvent(d: z.infer<typeof protocolEventSchema>): string | null {
+    if (isInternalIp(d.srcIp)) return null
     const sensorId = d.sensorId ?? (typeof d.data?.sensor === 'string' ? d.data.sensor : null)
 
     const id = enqueueProtocolHit({
@@ -84,8 +86,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
       for (const item of request.body) {
         const parsed = protocolEventSchema.safeParse(item)
         if (!parsed.success) { invalid++; continue }
-        processProtocolEvent(parsed.data)
-        inserted++
+        if (processProtocolEvent(parsed.data)) inserted++
       }
       if (invalid > 0) fastify.log.warn({ invalid, total: request.body.length }, 'Rejected invalid protocol events')
       return reply.status(200).send({ inserted, total: request.body.length, invalid })
@@ -94,7 +95,8 @@ export async function protocolRoutes(fastify: FastifyInstance) {
     const parsed = protocolEventSchema.safeParse(request.body)
     if (!parsed.success) return reply.status(400).send({ error: 'Invalid event', details: parsed.error.flatten() })
 
-    return reply.status(201).send({ id: processProtocolEvent(parsed.data) })
+    const id = processProtocolEvent(parsed.data)
+    return reply.status(id ? 201 : 202).send(id ? { id } : { ignored: 'internal source IP' })
   })
 
   fastify.get('/protocol-hits', async (request, reply) => {
