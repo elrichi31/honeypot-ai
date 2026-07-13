@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 
 export const TENANT_COOKIE = "tenant_scope"
@@ -71,11 +71,13 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     router.refresh()
   }, [router])
 
-  return (
-    <TenantContext.Provider value={{ isSuperadmin, tenantId, setTenant, clients }}>
-      {children}
-    </TenantContext.Provider>
+  const value = useMemo<TenantContextValue>(
+    () => ({ isSuperadmin, tenantId, setTenant, clients }),
+    [isSuperadmin, tenantId, setTenant, clients],
   )
+
+  return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>
+
 }
 
 export function useTenant(): TenantContextValue {

@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 
 const STORAGE_KEY = "sidebar_collapsed"
 
@@ -34,11 +34,11 @@ export function SidebarCollapseProvider({ children }: { children: React.ReactNod
     if (hydrated) localStorage.setItem(STORAGE_KEY, String(collapsed))
   }, [collapsed, hydrated])
 
-  const value: SidebarCollapseValue = {
-    collapsed,
-    toggle: () => setCollapsedState((c) => !c),
-    setCollapsed: setCollapsedState,
-  }
+  const toggle = useCallback(() => setCollapsedState((c) => !c), [])
+  const value = useMemo<SidebarCollapseValue>(
+    () => ({ collapsed, toggle, setCollapsed: setCollapsedState }),
+    [collapsed, toggle],
+  )
 
   return (
     <SidebarCollapseContext.Provider value={value}>

@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import {
   DEFAULT_LOCALE,
   isLocale,
@@ -56,11 +56,13 @@ export function LocaleProvider({
     [locale],
   )
 
-  return (
-    <LocaleContext.Provider value={{ locale, setLocale, t }}>
-      {children}
-    </LocaleContext.Provider>
+  const value = useMemo<LocaleContextValue>(
+    () => ({ locale, setLocale, t }),
+    [locale, setLocale, t],
   )
+
+  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
+
 }
 
 export function useLocale(): LocaleContextValue {
