@@ -7,8 +7,9 @@ import { collectClientReport } from "@/lib/reports/collect"
 import { generatePdf } from "@/lib/reports/pdf"
 import { translate } from "@/lib/i18n/dictionaries"
 import type { Locale, TranslationKey } from "@/lib/i18n/dictionaries"
-import type { ReportRange } from "@/lib/reports/types"
 import { logAndRespond } from "@/lib/api-error"
+
+const MAX_SPAN_MS = 92 * 24 * 60 * 60 * 1000
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 30
@@ -28,12 +29,21 @@ export async function GET(request: NextRequest) {
   }
 
   const sp = request.nextUrl.searchParams
-  const range = (sp.get("range") ?? "week") as ReportRange
+  const startDate = sp.get("startDate")
+  const endDate = sp.get("endDate")
   const timezone = sp.get("timezone") ?? "UTC"
   const locale = (sp.get("locale") ?? "en") as Locale
 
-  if (range !== "week" && range !== "month") {
-    return Response.json({ error: "Invalid range. Use week or month." }, { status: 400 })
+  const start = startDate ? new Date(startDate) : null
+  const end = endDate ? new Date(endDate) : null
+  if (!start || !end || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return Response.json({ error: "startDate and endDate are required (ISO 8601)." }, { status: 400 })
+  }
+  if (start.getTime() >= end.getTime()) {
+    return Response.json({ error: "startDate must be before endDate." }, { status: 400 })
+  }
+  if (end.getTime() - start.getTime() > MAX_SPAN_MS) {
+    return Response.json({ error: "Date range must not exceed 92 days." }, { status: 400 })
   }
 
   let effectiveClientId = scope.clientId
@@ -81,13 +91,17 @@ export async function GET(request: NextRequest) {
   const t = (key: TranslationKey, vars?: Record<string, string | number>) =>
     translate(locale, key, vars)
 
+  const startIso = start.toISOString()
+  const endIso = end.toISOString()
+
   let data
   try {
     data = await collectClientReport({
       sensorIds,
-      range,
+      startDate: startIso,
+      endDate: endIso,
       timezone,
-      meta: { clientName, clientSlug, range, timezone },
+      meta: { clientName, clientSlug, startDate: startIso, endDate: endIso, timezone },
     })
   } catch (err) {
     console.error("[reports] collectClientReport failed:", err)
@@ -102,13 +116,12 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "Failed to generate PDF" }, { status: 500 })
   }
 
-  const date = new Date().toISOString().slice(0, 10)
-  const filename = `report-${clientSlug}-${range}-${date}.pdf`
+  const filename = `report-${clientSlug}-${startIso.slice(0, 10)}_${endIso.slice(0, 10)}.pdf`
 
   return new Response(pdf, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Disposition": `inline; filename="${filename}"`,
     },
   })
 }

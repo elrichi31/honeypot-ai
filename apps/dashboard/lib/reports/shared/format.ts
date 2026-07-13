@@ -1,26 +1,53 @@
-import type { ReportRange } from "../types"
-
-export function rangeToDays(range: ReportRange): number {
-  return range === "week" ? 7 : 30
+// Timeline buckets come from an endpoint that only accepts a granularity enum,
+// not explicit dates, so map the window span to the closest bucket size.
+// ponytail: buckets not clipped to exact custom dates; add start/end to
+// /stats/cross-sensor-timeline if precise binning is needed.
+export function timelineGranularity(startDate: string, endDate: string): "day" | "week" | "month" {
+  const spanDays = (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000
+  if (spanDays <= 2) return "day"
+  if (spanDays <= 10) return "week"
+  return "month"
 }
 
-export function buildPeriodLabel(range: ReportRange, generatedAt: Date, timezone: string): string {
+export type ReportPreset = "last7" | "last30" | "thisMonth" | "lastMonth" | "custom"
+
+// Resolves a preset (or custom YYYY-MM-DD dates) to an ISO window, or null if
+// the custom range is missing/invalid. `now` is injectable for tests.
+export function resolvePresetWindow(
+  preset: ReportPreset,
+  custom: { start?: string; end?: string },
+  now: Date = new Date(),
+): { startDate: string; endDate: string } | null {
+  const endIso = now.toISOString()
+  if (preset === "last7" || preset === "last30") {
+    const start = new Date(now)
+    start.setDate(start.getDate() - (preset === "last7" ? 7 : 30))
+    return { startDate: start.toISOString(), endDate: endIso }
+  }
+  if (preset === "thisMonth") {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1)
+    return { startDate: start.toISOString(), endDate: endIso }
+  }
+  if (preset === "lastMonth") {
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    const end = new Date(now.getFullYear(), now.getMonth(), 1)
+    return { startDate: start.toISOString(), endDate: end.toISOString() }
+  }
+  if (!custom.start || !custom.end) return null
+  const start = new Date(`${custom.start}T00:00:00`)
+  const end = new Date(`${custom.end}T23:59:59.999`)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start.getTime() >= end.getTime()) return null
+  return { startDate: start.toISOString(), endDate: end.toISOString() }
+}
+
+export function buildPeriodLabel(startDate: string, endDate: string, timezone: string): string {
   const fmt = new Intl.DateTimeFormat("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
     timeZone: timezone,
   })
-  const end = new Date(generatedAt)
-  const start = new Date(end)
-  start.setDate(start.getDate() - rangeToDays(range))
-  return `${fmt.format(start)} - ${fmt.format(end)}`
-}
-
-export function buildPeriodStart(range: ReportRange, generatedAt: Date): Date {
-  const start = new Date(generatedAt)
-  start.setDate(start.getDate() - rangeToDays(range))
-  return start
+  return `${fmt.format(new Date(startDate))} - ${fmt.format(new Date(endDate))}`
 }
 
 export function fmt(n: number | null | undefined): string {

@@ -6,7 +6,7 @@ progresses, and link the relevant commit hashes so the history stays traceable.
 
 ## Active plans
 
-- [CLIENT_REPORTS_PDF.md](CLIENT_REPORTS_PDF.md) — módulo de reportería por cliente: PDF semanal/mensual scopeado por tenant, generado HTML→PDF con Playwright. Fase 1: descarga on-demand en `/reports`. Fase 2: cron automático.
+- [CLIENT_REPORTS_PDF.md](CLIENT_REPORTS_PDF.md) — módulo de reportería por cliente: PDF scopeado por tenant, generado con `@react-pdf/renderer`. Fase 1 (done): descarga on-demand en `/reports`. Fase 1.5 (implementada 2026-07-13): preview del PDF en `<iframe>` antes de exportar + rango de fechas custom/presets. Fase 2: cron automático.
 - [SENSOR_REMOTE_CONTROL.md](SENSOR_REMOTE_CONTROL.md) — WebSocket control plane para sensores: config remota, comandos con ACK, estado en vivo, fallback HTTP, seguridad, auditoría y rollout por fases.
 - [SENSOR_IDENTITY.md](SENSOR_IDENTITY.md) — IDs únicos de sensor (UUID por instalación) + enlace Application/Client. Fases 0-3 implementadas (2026-06-27), Fase 0 verificada en DB local 2026-07-07. Pendiente: Fase 4, verificación E2E en prod (instalar sensores reales, reasignación, no-fusión de sesiones).
 - [SENSOR_REALISM.md](SENSOR_REALISM.md) — realismo e reestructuración de los 5 honeypots Python: paquetes con responsabilidad única, identidad de marca unificada, corrección de fingerprint tells.

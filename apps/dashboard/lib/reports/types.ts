@@ -11,8 +11,6 @@ import type {
 import type { Sensor } from "@/lib/api/services"
 import type { MalwareArtifact } from "@/lib/api/malware"
 
-export type ReportRange = "week" | "month"
-
 export interface ReportGeoEntry {
   country: string
   countryCode: string
@@ -152,7 +150,8 @@ export interface ReportSensorProfile {
 export interface ClientReportMeta {
   clientName: string
   clientSlug: string
-  range: ReportRange
+  startDate: string
+  endDate: string
   timezone: string
   generatedAt: string
   periodLabel: string

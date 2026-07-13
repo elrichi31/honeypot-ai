@@ -132,6 +132,116 @@ labels de KPIs y leyendas.
 
 ---
 
+## Fase 1.5 — Preview en pantalla + rango de fechas (custom + presets)
+
+Estado: **implementada** (2026-07-13). `tsc --noEmit` limpio; test de presets
+(`lib/reports/shared/format.test.ts`, 6 casos) en verde. Falta verificación E2E
+contra la DB local (pasos abajo).
+
+### Objetivo
+1. **Ver el reporte antes de exportarlo**, con exactamente la misma data que sale al PDF.
+2. **Elegir el período**: presets (últimos 7 días, últimos 30 días, este mes, mes
+   anterior) **y** rango de fechas custom (desde/hasta).
+
+### Decisión de diseño (la importante): el preview ES el PDF
+
+La plantilla (`lib/reports/template.tsx`) usa `@react-pdf/renderer` — primitivas de
+PDF (`<Document>/<Page>/<Canvas>`), **no** DOM. No se renderiza en el browser como
+HTML. Por lo tanto:
+
+- **El preview se hace embebiendo el propio PDF en un `<iframe>`** (el visor de PDF
+  nativo del browser). Es byte-idéntico al export por construcción.
+- **Rechazado:** construir un render HTML/React paralelo desde `ClientReportData`.
+  Duplicaría toda la plantilla (viola DRY), y preview y PDF divergirían para siempre.
+- **Una sola generación por click.** Flujo: "Generate/Preview" → `fetch` al endpoint
+  → blob PDF → `URL.createObjectURL` → `iframe.src`. El botón "Download" guarda **el
+  mismo blob en memoria** (no re-genera, no segundo request). El PDF es la única
+  fuente de verdad; preview y descarga comparten el mismo Buffer.
+
+### Contrato del endpoint: de `range` enum a ventana explícita
+
+Hoy `/api/reports?range=week|month` mapea a una ventana relativa a `now` vía
+`buildPeriodStart(range)`. Se cambia a **fechas explícitas**:
+
+- `GET /api/reports?startDate=<ISO>&endDate=<ISO>&timezone=&locale=&clientId=`
+- El **cliente** resuelve preset/custom → `startDate`/`endDate` concretos y los manda.
+  El servidor deja de interpretar presets (KISS: una sola forma de expresar la ventana).
+- Validación nueva en el route: ambas fechas presentes, parseables, `start < end`,
+  y `end - start ≤ 92 días` (techo para no reventar el `maxDuration = 30`). Si falta o
+  es inválida → 400. Se elimina la validación `range !== week|month`.
+- Auth/scope/isolation **sin cambios** (`requireRole` + `effectiveSensorScope` +
+  `clientId` obligatorio para superadmin siguen igual).
+
+### Cambios en la recolección (`lib/reports/`)
+
+- `collect.ts`: `collectClientReport` recibe `{ startDate, endDate }` en vez de
+  `range`. Se elimina `buildPeriodStart(range)`; `startDate`/`endDate` vienen dados.
+  Las piezas basadas en SQL ya aceptan `startDate`/`endDate` y se re-ventanan **gratis**:
+  `collectReportKpis`, `collectGeoSummary`, `fetchCredentialsAnalytics`,
+  `collectSensorProfiles`. El período previo (deltas) se sigue derivando del span actual.
+- `shared/format.ts`: `buildPeriodLabel` se reescribe para tomar `startDate`/`endDate`
+  explícitos (hoy toma `range`). `rangeToDays`/`buildPeriodStart` quedan sin uso → borrar.
+- **Timeline (`fetchCrossSensorTimeline`)**: su parámetro `range: day|week|month` es
+  **granularidad de buckets**, no una ventana; el backend no acepta fechas explícitas.
+  Se mapea el span custom → el enum más cercano: `≤ 2d → day`, `≤ 10d → week`, `else month`.
+  <!-- ponytail: buckets del timeline no se recortan a las fechas custom exactas; si se
+  necesita precisión, agregar start/end al endpoint /stats/cross-sensor-timeline -->
+- `types.ts`: `ClientReportMeta` reemplaza `range: ReportRange` por `startDate`/`endDate`
+  (o un `{ startDate, endDate }`). `ReportRange` queda solo como tipo de granularidad
+  del timeline (renombrar a `TimelineGranularity` si aporta claridad; opcional).
+
+### Límite conocido y honesto (pre-existente, NO se arregla aquí)
+
+Varias piezas del reporte **ya hoy** ignoran la ventana y usan la ventana por defecto
+de su endpoint: `fetchHoneypotOverview`, `fetchBotRatio`, `fetchDashboardInsights`,
+`fetchMitreMatrix`. Cambiar a fechas custom **no** las re-ventana (no aceptan ventana).
+Se re-ventanan solo KPIs, geo, credenciales y perfiles de sensor (las SQL-based). Hay
+que dejarlo explícito en el copy/UI o asumirlo; ampliar esos endpoints a `startDate/endDate`
+es trabajo aparte (candidato a fase futura, no bloquea esto).
+
+### UI (`components/report-download.tsx` + `app/reports/page.tsx`)
+
+Selector de período nuevo, reemplaza el toggle week/month:
+- Botones de preset: **Last 7 days / Last 30 days / This month / Last month / Custom**.
+  Cada preset resuelve `{startDate, endDate}` en el cliente (mismo patrón que
+  `campaigns/page.tsx`, ampliado con "this/last month" y custom).
+- Custom → dos `<input type="date">` nativos (desde/hasta). **Feature nativa del
+  browser, sin librería de date-picker.** Validación cliente: `start ≤ end`.
+- Layout: [ selector de período ] · [ selector de cliente (superadmin) ] ·
+  [ botón **Generate preview** ] → al resolver, `<iframe>` con el PDF a ancho completo +
+  botón **Download PDF** (guarda el blob ya generado) arriba del iframe.
+- Estados: loading (spinner mientras genera), error (mensaje existente), vacío
+  (sin preview aún → placeholder).
+- El `<iframe>` puede ir alto (~80vh) dentro del `PageShell`.
+
+### i18n (`lib/i18n/dicts/reports.ts`, en + es)
+
+Keys nuevas: `reports.range.last7`, `reports.range.last30`, `reports.range.thisMonth`,
+`reports.range.lastMonth`, `reports.range.custom`, `reports.range.from`,
+`reports.range.to`, `reports.preview` ("Generate preview"), `reports.download` ("Download PDF"),
+`reports.preview.empty` ("Choose a period and generate a preview"),
+`reports.range.invalid` ("Start date must be before end date"). Reusar
+`reports.generating`. Las viejas `reports.range.week/month` quedan sin uso → borrar.
+
+### Verificación
+1. `cd apps/dashboard && npx tsc --noEmit` limpio.
+2. Test `tsx` de la resolución de presets → `{startDate,endDate}` (this month / last month
+   en bordes de mes; span → granularidad de timeline). Assert-based, un archivo.
+3. Contra DB local `honeypot_full`: generar preview de un cliente, confirmar que el
+   iframe muestra el PDF; "Download" baja **el mismo** PDF (mismos números).
+4. Custom range acotado (p.ej. 3 días con datos) → KPIs/geo/creds cuadran con ese rango;
+   confirmar que overview/mitre/bot NO cambian con el rango (límite conocido, esperado).
+5. Isolation sin regresión: superadmin con dos clientes → números distintos; scoped user
+   pidiendo otro `clientId` → sus datos o 403, nunca cruzados.
+
+### Archivos
+**Modificados:** `app/api/reports/route.ts` (contrato dates), `lib/reports/collect.ts`,
+`lib/reports/shared/format.ts`, `lib/reports/types.ts`, `components/report-download.tsx`,
+`lib/i18n/dicts/reports.ts`. **Nuevo:** test de presets (`lib/reports/*.test.ts`).
+Sin dependencias nuevas. `app/reports/page.tsx` casi no cambia (solo props si hiciera falta).
+
+---
+
 ## Fase 2 — Automatización (cron) — tras validar el diseño
 
 Reusar el patrón de `weekly-report.ts` + `cron.ts`; el PDF se arma con la MISMA lógica de

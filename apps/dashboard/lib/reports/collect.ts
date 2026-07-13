@@ -15,11 +15,10 @@ import type {
   ClientReportData,
   ClientReportMeta,
   ReportGeoEntry,
-  ReportRange,
   ReportTopCredential,
 } from "./types"
 import type { KpiTrends } from "@/lib/api/types"
-import { buildPeriodLabel, buildPeriodStart } from "./shared/format"
+import { buildPeriodLabel, timelineGranularity } from "./shared/format"
 import { collectSensorProfiles } from "./sensors/collect"
 
 function aggregateGeo(raw: { srcIp: string; loginSuccess: boolean | null }[]): ReportGeoEntry[] {
@@ -225,20 +224,19 @@ async function collectReportKpis(
 
 export async function collectClientReport(params: {
   sensorIds: string[] | undefined
-  range: ReportRange
+  startDate: string
+  endDate: string
   timezone: string
   meta: Omit<ClientReportMeta, "generatedAt" | "periodLabel">
 }): Promise<ClientReportData> {
-  const { sensorIds, range, timezone, meta } = params
-const generatedAt = new Date()
-  const startDate = buildPeriodStart(range, generatedAt).toISOString()
-  const endDate = generatedAt.toISOString()
+  const { sensorIds, startDate, endDate, timezone, meta } = params
+  const generatedAt = new Date()
 
   const [overview, kpiTrends, timeline, mitre, botRatio, geoRaw, insights, creds, sensorProfiles] =
     await Promise.allSettled([
       fetchHoneypotOverview(sensorIds),
       collectReportKpis(sensorIds, startDate, endDate),
-      fetchCrossSensorTimeline({ range, timezone, sensorIds }),
+      fetchCrossSensorTimeline({ range: timelineGranularity(startDate, endDate), timezone, sensorIds }),
       fetchMitreMatrix(sensorIds),
       fetchBotRatio(sensorIds),
       collectGeoSummary(sensorIds, startDate, endDate),
@@ -312,7 +310,7 @@ const generatedAt = new Date()
     meta: {
       ...meta,
       generatedAt: generatedAt.toISOString(),
-      periodLabel: buildPeriodLabel(range, generatedAt, timezone),
+      periodLabel: buildPeriodLabel(startDate, endDate, timezone),
     },
     overview: unwrap(overview, defaultOverview),
     kpiTrends: unwrap(kpiTrends, defaultKpiTrends),
