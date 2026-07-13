@@ -19,7 +19,7 @@ type PaginationMeta = {
   hasNextPage: boolean; hasPreviousPage: boolean
 }
 
-type AttackFilter = "all" | "scanner" | "path_probe" | "injection" | "brute_force"
+type AttackFilter = "all" | "scanner" | "path_probe" | "injection" | "brute_force" | "rate_limit"
 
 const TABS: { key: AttackFilter; labelKey: TranslationKey }[] = [
   { key: "all",         labelKey: "defense.events.tab.all" },
@@ -27,6 +27,7 @@ const TABS: { key: AttackFilter; labelKey: TranslationKey }[] = [
   { key: "path_probe",  labelKey: "defense.type.pathProbe"  },
   { key: "injection",   labelKey: "defense.type.injection"  },
   { key: "brute_force", labelKey: "defense.type.bruteForce" },
+  { key: "rate_limit",  labelKey: "defense.type.rateLimit"  },
 ]
 
 const TYPE_STYLE: Record<string, { dot: string; text: string; label: string }> = {
@@ -34,6 +35,7 @@ const TYPE_STYLE: Record<string, { dot: string; text: string; label: string }> =
   path_probe:  { dot: "bg-yellow-500", text: "text-yellow-400", label: "PROBE" },
   injection:   { dot: "bg-red-500",    text: "text-red-400",    label: "INJECT"},
   brute_force: { dot: "bg-purple-500", text: "text-purple-400", label: "BRUTE" },
+  rate_limit:  { dot: "bg-blue-500",   text: "text-blue-400",   label: "RATE"  },
 }
 
 export function DefenseEventsTable() {

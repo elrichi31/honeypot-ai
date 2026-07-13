@@ -15,6 +15,7 @@ type BlockedEntry = {
 const REASON_STYLE: Record<string, { labelKey: TranslationKey; color: string }> = {
   injection:   { labelKey: "defense.blocked.reason.injection",  color: "text-red-400"    },
   brute_force: { labelKey: "defense.blocked.reason.bruteForce", color: "text-purple-400" },
+  rate_limit:  { labelKey: "defense.blocked.reason.rateLimit",  color: "text-blue-400"   },
   manual:      { labelKey: "defense.blocked.reason.manual",     color: "text-muted-foreground" },
 }
 

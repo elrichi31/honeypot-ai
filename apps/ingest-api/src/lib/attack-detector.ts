@@ -1,4 +1,4 @@
-export type AttackType = 'scanner' | 'path_probe' | 'injection' | 'brute_force'
+export type AttackType = 'scanner' | 'path_probe' | 'injection' | 'brute_force' | 'rate_limit'
 
 export type DetectionResult = {
   type: AttackType

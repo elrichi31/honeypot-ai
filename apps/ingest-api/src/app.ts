@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import type { FastifyError } from 'fastify';
 import { ZodError } from 'zod';
 import cors from '@fastify/cors';
-import { checkIngestRateLimit } from './lib/ingest-rate-limiter.js';
+import { checkRateLimit } from './lib/ingest-rate-limiter.js';
 import prismaPlugin from './plugins/prisma.js';
 import redisPlugin from './plugins/redis.js';
 import { healthRoutes } from './modules/health/health.controller.js';
@@ -80,7 +80,7 @@ export async function buildApp() {
   const ingestRpmLimit = parseInt(process.env.INGEST_RATE_LIMIT_RPM ?? '300', 10)
   app.addHook('preHandler', async (request, reply) => {
     if (!request.url.startsWith('/ingest/')) return
-    if (!checkIngestRateLimit(request.ip, ingestRpmLimit)) {
+    if (!checkRateLimit(request.ip, ingestRpmLimit)) {
       return reply.status(429).send({
         error: `Rate limit exceeded. Maximum ${ingestRpmLimit} ingest requests per minute per IP.`,
       })

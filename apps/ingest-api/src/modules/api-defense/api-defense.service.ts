@@ -3,7 +3,7 @@ import type { PrismaClient } from '@prisma/client'
 import { buildPagination } from '../../lib/client-helpers.js'
 import { ApiDefenseRepository, type EventRow, type AllowRow, type BlockedRow } from './api-defense.repository.js'
 
-const VALID_TYPES = new Set(['scanner', 'path_probe', 'injection', 'brute_force'])
+const VALID_TYPES = new Set(['scanner', 'path_probe', 'injection', 'brute_force', 'rate_limit'])
 
 function mapEvent(r: EventRow) {
   return {

@@ -17,6 +17,7 @@ const TYPE_LABEL_KEYS: Record<string, TranslationKey> = {
   path_probe:  "defense.type.pathProbe",
   injection:   "defense.type.injection",
   brute_force: "defense.type.bruteForce",
+  rate_limit:  "defense.type.rateLimit",
 }
 
 export function DefenseStats() {

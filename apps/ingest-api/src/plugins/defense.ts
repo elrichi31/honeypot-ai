@@ -2,11 +2,18 @@ import { randomUUID } from 'crypto'
 import fp from 'fastify-plugin'
 import type { FastifyInstance } from 'fastify'
 import { classifyRequest, type DetectionResult } from '../lib/attack-detector.js'
+import { checkRateLimit } from '../lib/ingest-rate-limiter.js'
 
 const BRUTE_WINDOW_MS = 60_000
 const BRUTE_THRESHOLD = 5
 const SKIP_PATHS      = new Set(['/health'])
 const SKIP_PREFIXES   = ['/sensors/', '/ingest/']
+// Requests/min per IP across the whole API (no upstream WAF assumed). Over this
+// → temp block. Generous vs the ingest limit; a scanner blows past it, a real UI
+// user does not.
+const GENERAL_RPM      = parseInt(process.env.DEFENSE_RATE_LIMIT_RPM ?? '600', 10)
+// Auto-blocks expire so a heuristic false positive can't ban an IP forever.
+const AUTO_BLOCK_TTL_MS = parseInt(process.env.DEFENSE_BLOCK_TTL_HOURS ?? '24', 10) * 3_600_000
 
 // ── CIDR utilities ────────────────────────────────────────────────────────────
 function parseCidr(entry: string): { base: number; mask: number } | null {
@@ -44,6 +51,9 @@ function isAllowlisted(ip: string): boolean {
 let blockedCache = new Set<string>()
 
 async function refreshBlocked(fastify: FastifyInstance) {
+  // Prune expired auto-blocks first so the cache, the DB, and the dashboard's
+  // blocked list all agree — manual blocks (expires_at NULL) are never pruned.
+  await fastify.prisma.$executeRaw`DELETE FROM blocked_ips WHERE expires_at IS NOT NULL AND expires_at <= now()`
   const rows = await fastify.prisma.$queryRaw<{ ip: string }[]>`SELECT ip FROM blocked_ips`
   blockedCache = new Set(rows.map(r => r.ip))
 }
@@ -52,9 +62,10 @@ async function autoBlock(fastify: FastifyInstance, ip: string, reason: string) {
   if (blockedCache.has(ip) || isAllowlisted(ip)) return
   blockedCache.add(ip)
   const id = randomUUID()
+  const expiresAt = new Date(Date.now() + AUTO_BLOCK_TTL_MS)
   await fastify.prisma.$executeRaw`
-    INSERT INTO blocked_ips (id, ip, reason, auto_blocked)
-    VALUES (${id}, ${ip}, ${reason}, true)
+    INSERT INTO blocked_ips (id, ip, reason, auto_blocked, expires_at)
+    VALUES (${id}, ${ip}, ${reason}, true, ${expiresAt})
     ON CONFLICT (ip) DO NOTHING
   `
 }
@@ -119,7 +130,19 @@ export const defensePlugin = fp(async function (fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Forbidden' })
     }
 
-    const ua     = request.headers['user-agent'] ?? ''
+    const ua = request.headers['user-agent'] ?? ''
+
+    // Volume ceiling: without an upstream WAF this is the only cap on requests
+    // that don't trip the signature rules. Namespaced key keeps its own counter.
+    if (!checkRateLimit(`def:${request.ip}`, GENERAL_RPM)) {
+      persist(fastify, request.ip, request.method, path, ua, {
+        type: 'rate_limit',
+        details: { limit: String(GENERAL_RPM), window: '60s' },
+      }).catch(() => {})
+      autoBlock(fastify, request.ip, 'rate_limit').catch(() => {})
+      return reply.status(429).send({ error: 'Too many requests' })
+    }
+
     const rawUrl = request.raw.url ?? '/'
     const result = classifyRequest(path, ua, rawUrl)
     if (result) {

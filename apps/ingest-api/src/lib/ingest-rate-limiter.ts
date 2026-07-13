@@ -11,12 +11,17 @@ setInterval(() => {
   }
 }, 5 * 60_000).unref()
 
-export function checkIngestRateLimit(ip: string, limit = DEFAULT_LIMIT): boolean {
+/**
+ * Fixed-window per-key rate limit. `key` is usually an IP, but callers can
+ * namespace it (e.g. `def:1.2.3.4`) to keep independent counters in one map.
+ * Returns true if the request is allowed, false once the window limit is hit.
+ */
+export function checkRateLimit(key: string, limit = DEFAULT_LIMIT): boolean {
   const now = Date.now()
-  const entry = windows.get(ip)
+  const entry = windows.get(key)
 
   if (!entry || now - entry.windowStart >= WINDOW_MS) {
-    windows.set(ip, { count: 1, windowStart: now })
+    windows.set(key, { count: 1, windowStart: now })
     return true
   }
 

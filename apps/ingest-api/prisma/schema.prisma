@@ -215,11 +215,12 @@ model SensorProvisionToken {
 }
 
 model BlockedIp {
-  id          String   @id @default(uuid())
-  ip          String   @unique
-  reason      String   @default("manual")
-  autoBlocked Boolean  @default(false) @map("auto_blocked")
-  blockedAt   DateTime @default(now()) @map("blocked_at")
+  id          String    @id @default(uuid())
+  ip          String    @unique
+  reason      String    @default("manual")
+  autoBlocked Boolean   @default(false) @map("auto_blocked")
+  blockedAt   DateTime  @default(now()) @map("blocked_at")
+  expiresAt   DateTime? @map("expires_at") // null = permanent (manual); set = auto-expires
 
   @@index([ip])
   @@map("blocked_ips")
