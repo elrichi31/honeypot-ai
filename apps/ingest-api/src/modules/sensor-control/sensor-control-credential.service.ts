@@ -1,0 +1,51 @@
+import type { PrismaClient } from '@prisma/client'
+import { generateControlSecret, hashSecret, secretPrefix, verifySecret } from './sensor-control-credential.crypto.js'
+import { SensorControlCredentialRepository } from './sensor-control-credential.repository.js'
+import { SensorControlRepository } from './sensor-control.repository.js'
+import type { ControlActor } from './sensor-control.service.js'
+
+type IssueResult =
+  | { ok: true; value: { sensorId: string; secret: string; secretPrefix: string } }
+  | { ok: false; error: string; status: number }
+
+export class SensorControlCredentialService {
+  private repo: SensorControlCredentialRepository
+  private sensors: SensorControlRepository
+  private pepper: string
+
+  constructor(prisma: PrismaClient, pepper: string) {
+    this.repo = new SensorControlCredentialRepository(prisma)
+    this.sensors = new SensorControlRepository(prisma)
+    this.pepper = pepper
+  }
+
+  async issue(args: { sensorId: string; actor: ControlActor }): Promise<IssueResult> {
+    const roleOrder = { viewer: 0, analyst: 1, admin: 2, superadmin: 3 } as const
+    if (roleOrder[args.actor.role] < roleOrder.admin) {
+      return { ok: false, error: 'Insufficient role', status: 403 }
+    }
+
+    const scope = await this.sensors.findSensorScope(args.sensorId)
+    if (!scope) return { ok: false, error: 'Sensor not found', status: 404 }
+    if (!args.actor.isSuperadmin && (!args.actor.clientId || scope.clientId !== args.actor.clientId)) {
+      return { ok: false, error: 'Sensor is outside the actor scope', status: 403 }
+    }
+
+    const secret = generateControlSecret()
+    const prefix = secretPrefix(secret)
+    await this.repo.upsert({
+      sensorId: args.sensorId,
+      secretHash: hashSecret(secret, this.pepper),
+      secretPrefix: prefix,
+      createdBy: args.actor.id,
+    })
+
+    return { ok: true, value: { sensorId: args.sensorId, secret, secretPrefix: prefix } }
+  }
+
+  async verify(sensorId: string, providedSecret: string): Promise<boolean> {
+    const credential = await this.repo.findBySensorId(sensorId)
+    if (!credential || credential.revokedAt) return false
+    return verifySecret(providedSecret, credential.secretHash, this.pepper)
+  }
+}

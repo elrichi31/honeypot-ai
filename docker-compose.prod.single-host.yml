@@ -327,6 +327,8 @@ services:
       # Dashboard read queries are routed here by the read-replicas Prisma extension.
       REPLICA_DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres-replica:5432/honeypot_prod
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      CONTROL_API_SECRET: ${CONTROL_API_SECRET:-}
+      SENSOR_CONTROL_CREDENTIAL_PEPPER: ${SENSOR_CONTROL_CREDENTIAL_PEPPER:-}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       REDIS_URL: redis://redis:6379
       PORT: "3000"
@@ -743,6 +745,7 @@ services:
       NEXT_PUBLIC_API_URL: http://localhost:3000
       INTERNAL_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      CONTROL_API_SECRET: ${CONTROL_API_SECRET:-}
       DATABASE_URL: postgresql://honeypot:${POSTGRES_PASSWORD}@postgres:5432/honeypot_prod
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:4000}

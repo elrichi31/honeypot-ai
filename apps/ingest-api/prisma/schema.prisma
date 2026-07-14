@@ -152,13 +152,75 @@ model Sensor {
   lastSeen      DateTime @map("last_seen")
   createdAt     DateTime @default(now()) @map("created_at")
 
-  client      Client?      @relation(fields: [clientId], references: [id])
-  application Application? @relation(fields: [applicationId], references: [id])
+  client            Client?                   @relation(fields: [clientId], references: [id])
+  application       Application?              @relation(fields: [applicationId], references: [id])
+  commands          SensorCommand[]
+  controlCredential SensorControlCredential?
 
   @@index([clientId])
   @@index([ownerType])
   @@index([lastSeen(sort: Desc)])
   @@map("sensors")
+}
+
+model SensorCommand {
+  id             String   @id
+  sensorId       String   @map("sensor_id")
+  action         String
+  payload        Json     @default("{}")
+  status         String
+  requestedBy    String   @map("requested_by")
+  requestedIp    String?  @map("requested_ip")
+  idempotencyKey String?  @map("idempotency_key")
+  result         Json?
+  error          Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+  sentAt         DateTime? @map("sent_at")
+  ackedAt        DateTime? @map("acked_at")
+  startedAt      DateTime? @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+  expiresAt      DateTime @map("expires_at")
+  cancelledAt    DateTime? @map("cancelled_at")
+  cancelledBy    String?  @map("cancelled_by")
+
+  sensor Sensor               @relation(fields: [sensorId], references: [sensorId], onDelete: Restrict)
+  events SensorCommandEvent[]
+
+  @@unique([sensorId, idempotencyKey])
+  @@index([sensorId, status, createdAt(sort: Desc)])
+  @@index([status, expiresAt])
+  @@map("sensor_commands")
+}
+
+model SensorCommandEvent {
+  id        String   @id @default(cuid())
+  commandId String   @map("command_id")
+  status    String
+  actorType String   @map("actor_type")
+  actorId   String?  @map("actor_id")
+  details   Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  command SensorCommand @relation(fields: [commandId], references: [id], onDelete: Cascade)
+
+  @@index([commandId, createdAt])
+  @@map("sensor_command_events")
+}
+
+model SensorControlCredential {
+  id           String    @id @default(cuid())
+  sensorId     String    @unique @map("sensor_id")
+  secretHash   String    @map("secret_hash")
+  secretPrefix String    @map("secret_prefix")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  createdBy    String    @map("created_by")
+  rotatedAt    DateTime? @map("rotated_at")
+  revokedAt    DateTime? @map("revoked_at")
+
+  sensor Sensor @relation(fields: [sensorId], references: [sensorId], onDelete: Cascade)
+
+  @@index([revokedAt])
+  @@map("sensor_control_credentials")
 }
 
 model Client {

@@ -2,6 +2,8 @@ import Fastify from 'fastify';
 import type { FastifyError } from 'fastify';
 import { ZodError } from 'zod';
 import cors from '@fastify/cors';
+import websocket from '@fastify/websocket';
+import { SENSOR_CONTROL_MAX_MESSAGE_BYTES } from './contracts/sensor-control/protocol.js';
 import { checkRateLimit } from './lib/ingest-rate-limiter.js';
 import prismaPlugin from './plugins/prisma.js';
 import redisPlugin from './plugins/redis.js';
@@ -32,6 +34,8 @@ import { suricataRoutes } from './modules/suricata/suricata.controller.js';
 import { monitoringRoutes } from './modules/monitoring/monitoring.controller.js';
 import { alertRoutes } from './modules/alerts/alerts.controller.js';
 import { deceptionRoutes } from './modules/deception/deception.controller.js';
+import { sensorControlRoutes } from './modules/sensor-control/sensor-control.controller.js';
+import sensorControlWsPlugin from './modules/sensor-control/sensor-control-ws.plugin.js';
 
 export async function buildApp() {
   // cloudflared runs on the same host and connects from loopback, forwarding the
@@ -72,6 +76,7 @@ export async function buildApp() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
   });
+  await app.register(websocket, { options: { maxPayload: SENSOR_CONTROL_MAX_MESSAGE_BYTES } });
   await app.register(prismaPlugin);
   await app.register(redisPlugin);
   await app.register(kafkaConsumerPlugin);
@@ -100,6 +105,8 @@ export async function buildApp() {
   await app.register(clientObservabilityRoutes);
   await app.register(apiDefenseRoutes);
   await app.register(sensorRoutes);
+  await app.register(sensorControlRoutes);
+  await app.register(sensorControlWsPlugin);
   await app.register(attacksTodayRoutes);
   await app.register(sensorProvisionRoutes);
   await app.register(malwareRoutes);
