@@ -780,6 +780,20 @@ no *repetir*. Rate acotado, solo acumula filas de version; no es un bug pero si
 una debilidad. Cerrar con un tope de reintentos o un check "no hacer rollback a
 un hash que el mismo acaba de fallar". Diferido.
 
+**Verificado en produccion (2026-07-14):** desplegado en el VPS single-host real
+via `up-single-host.sh`. Primer intento de `config.apply` fallo con
+`UNSUPPORTED_ACTION` porque `cowrie-beacon` seguia con el `heartbeat.py` viejo
+pese a un `docker restart` previo — Compose no recrea un contenedor cuyo
+bind-mount cambio en el host si la config del servicio (imagen/volumes/command)
+no cambio, asi que un `docker restart` manual es indispensable despues de tocar
+`heartbeat.py`/`control_agent.py`, y conviene confirmarlo con
+`docker exec cowrie-beacon grep -c "<algo nuevo>" /heartbeat.py` en vez de
+asumir que el restart alcanzo. Con el agente correcto cargado, el ciclo
+completo corrio real: `Save & Apply` desde el dialogo -> comando
+`queued->sent(33ms)->acked(32ms)->running(28ms)` -> agente escribe config real
+-> heartbeat siguiente confirma -> `succeeded` (~19s despues) con
+`result.confirmedVia:"heartbeat"`.
+
 ### Rebanada 6 - Fallback y recuperacion
 
 Objetivo: que la entrega no dependa de una conexion WebSocket perfecta.
