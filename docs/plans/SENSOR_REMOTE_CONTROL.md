@@ -698,6 +698,79 @@ Objetivo: aplicar una configuracion versionada con confirmacion real y rollback.
 Criterio de salida: Cowrie aplica una configuracion, confirma el hash y puede volver
 a la version anterior sin acceso SSH manual.
 
+**Progreso (2026-07-14):** Rebanada 5 completa y verificada de punta a punta,
+incluyendo el rollback automatico disparandose organicamente en el servidor real.
+
+Decisiones confirmadas con el usuario antes de implementar:
+
+- El polling HTTP existente (10s, sin ACK) queda funcionando en paralelo como
+  fallback — no se toca, es lo que Rebanada 6 formalizara despues. Ambos
+  caminos son idempotentes (mismo `config_hash`), sin riesgo de restart doble
+  peligroso.
+- El agente NO auto-reporta `succeeded` para `config.apply`: manda
+  `ack -> running` y se detiene (solo manda `failed` si la escritura falla).
+  El servidor confirma `succeeded` unicamente cuando el SIGUIENTE heartbeat
+  reporta el `configHash` esperado — si Cowrie no vuelve sano, el comando
+  expira por TTL en vez de mentir.
+- Auto-rollback a las 2 fallas consecutivas (`failed` o `expired`) de
+  `config.apply`, siempre que exista una version previa con status
+  `applied` y no haya ya otro apply en curso (evita tormentas de rollback).
+
+Implementacion:
+
+- `sensor_config_versions` (nueva tabla, migracion
+  `20260714120000_add_sensor_config_versions`): historial append-only detras
+  de `sensor_configs` (que sigue siendo la fila unica que lee el poller
+  viejo). Validado sin drift contra un Postgres limpio antes de aplicarla a
+  cualquier DB con datos reales.
+- `sensor-config.repository.ts` + `sensor-config.service.ts` (modulo
+  `sensors`, nuevos archivos): `saveAndQueueApply` (PUT config guarda version
+  + encola `config.apply`), `confirmApplied` (heartbeat confirma), y
+  `checkAutoRollback` (cuenta fallas consecutivas, revierte a la ultima
+  version `applied`). Dependen de `SensorControlService` en una sola
+  direccion — el modulo de control no sabe nada de que es un "config".
+- `protocol.ts`: `sensorControlActionSchema` paso de `literal('status.get')`
+  a `enum(['status.get', 'config.apply'])`; el payload del comando se
+  aflojo a un record generico (solo se construye server-side, nunca se
+  parsea de input no confiable). El payload de `config.apply` en el wire es
+  solo `{configHash}` — el agente re-descarga la config completa por el
+  mismo endpoint HTTP que ya usaba el poller, protocol.ts nunca conoce la
+  forma de ningun config de protocolo.
+- Cerrado un gap real que la ampliacion del enum hubiera introducido:
+  `POST /sensors/:id/commands` ahora fija `action: z.literal('status.get')`
+  en vez del enum general — antes de este fix, ese endpoint operador habria
+  aceptado `action:'config.apply'` en el body y creado silenciosamente un
+  `status.get` de todas formas (el handler nunca miraba el campo `action`).
+- `control_agent.py`: los handlers ahora reciben `report_running()` y su
+  contrato de retorno se amplio — dict (succeeded), `None` (no mandar
+  command.result, otra cosa confirma el exito), o excepcion (failed).
+- `heartbeat.py`: nuevo handler `config.apply` (report_running -> fetch
+  config -> escribir con `_atomic_write` (temp+rename) -> return None);
+  heartbeat ahora reporta `configHash` cuando existe uno local.
+- `X-Requested-By` nuevo header del proxy dashboard -> ingest-api en PUT
+  config, para poblar `created_by`/`requested_by` (esa ruta usa
+  `INGEST_SHARED_SECRET`, no el `ControlActor` con headers de rol —
+  necesitaba un canal separado para saber quien pidio el cambio).
+
+Verificado end-to-end contra ingest-api + Postgres + agente Python reales
+(no simulador): PUT config -> version `pending` -> comando `config.apply`
+`queued->sent->acked->running` -> agente escribe `cowrie.cfg`/`userdb.txt`
+atomicamente -> heartbeat siguiente confirma -> comando `succeeded` y
+version `applied`. Rollback probado forzando 2 fallas consecutivas: el
+propio sweep de TTL del servidor (30s, mismo proceso que las conexiones WS)
+disparo el auto-rollback de forma organica sin intervencion manual, entrego
+el comando de vuelta al agente conectado, y confirmo `applied` por
+heartbeat — cerrando el loop de seguridad completo en el proceso real, no
+en un mock.
+
+Pendiente: sin UI para "Apply now" explicito ni boton "Rollback" manual en
+el dashboard (el dialogo ya llama "Save & Apply" y ahora SI aplica por WS
+confirmado, pero no muestra el estado del comando en vivo ni el historial de
+versiones) — queda para el resto de Rebanada 7. `protocol` en
+`sensor_config_versions` esta hardcodeado a `'ssh'` en el controller porque
+hoy solo Cowrie tiene config.apply; generalizar cuando Port/SMB lo sumen
+(Rebanada 8).
+
 ### Rebanada 6 - Fallback y recuperacion
 
 Objetivo: que la entrega no dependa de una conexion WebSocket perfecta.

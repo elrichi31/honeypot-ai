@@ -9,6 +9,7 @@ export function buildCommandMessage(command: {
   id: string
   sensorId: string
   action: string
+  payload: unknown
   expiresAt: Date
 }): SensorControlCommand {
   return {
@@ -19,7 +20,7 @@ export function buildCommandMessage(command: {
     commandId: command.id,
     sensorId: command.sensorId,
     action: command.action as SensorControlAction,
-    payload: {},
+    payload: (command.payload ?? {}) as Record<string, unknown>,
     expiresAt: command.expiresAt.toISOString(),
   }
 }

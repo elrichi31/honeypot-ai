@@ -4,6 +4,9 @@ import { ensureIngestToken } from '../../lib/ingest-auth.js'
 import { clearSensorOfflineAlert } from '../../lib/threat-alerts.js'
 import { normalizeIp } from '../../lib/sensor-utils.js'
 import { SensorService } from './sensors.service.js'
+import { SensorConfigService } from './sensor-config.service.js'
+import { SensorControlService } from '../sensor-control/sensor-control.service.js'
+import { sensorConnectionRegistry } from '../sensor-control/sensor-connection-registry.js'
 import { eventBus, type SensorHeartbeatEvent } from '../../lib/event-bus.js'
 
 const cowrieConfigSchema = z.object({
@@ -36,6 +39,10 @@ const heartbeatSchema = z.object({
   host:         z.string().default(''),
   layer:        z.enum(['external', 'internal']).default('external'),
   realProtocol: z.string().optional(),
+  // Reported by cowrie-beacon's control_agent.py alongside every heartbeat —
+  // see sensor-config.service.ts confirmApplied() for why the heartbeat,
+  // not the agent's own command.result, is what finalizes config.apply.
+  configHash:   z.string().optional(),
 })
 
 const assignClientSchema = z.object({
@@ -45,6 +52,8 @@ const assignClientSchema = z.object({
 
 export async function sensorRoutes(fastify: FastifyInstance) {
   const svc = new SensorService(fastify.prisma, fastify.prismaRead)
+  const controlSvc = new SensorControlService(fastify.prisma, sensorConnectionRegistry)
+  const configSvc = new SensorConfigService(fastify.prisma, controlSvc)
 
   fastify.post('/sensors/heartbeat', async (request, reply) => {
     if (!ensureIngestToken(request, reply)) return reply
@@ -65,6 +74,10 @@ export async function sensorRoutes(fastify: FastifyInstance) {
     })
 
     void clearSensorOfflineAlert(fastify.prisma, d.sensorId)
+    if (d.configHash) {
+      configSvc.confirmApplied(d.sensorId, d.configHash)
+        .catch(err => fastify.log.error({ err, sensorId: d.sensorId }, 'config.apply heartbeat confirmation failed'))
+    }
 
     const hb: SensorHeartbeatEvent = { type: 'sensor-heartbeat', sensorId: d.sensorId, timestamp: now.toISOString() }
     eventBus.emit('sensor-heartbeat', hb)
@@ -102,7 +115,7 @@ export async function sensorRoutes(fastify: FastifyInstance) {
     const params = z.object({ sensorId: z.string().min(1) }).safeParse(request.params)
     if (!params.success) return reply.status(400).send({ error: 'Invalid sensorId' })
 
-    return reply.send(await svc.getConfig(params.data.sensorId, DEFAULT_COWRIE_CONFIG))
+    return reply.send(await configSvc.getConfig(params.data.sensorId, DEFAULT_COWRIE_CONFIG))
   })
 
   fastify.put('/sensors/:sensorId/config', async (request, reply) => {
@@ -110,10 +123,17 @@ export async function sensorRoutes(fastify: FastifyInstance) {
 
     const params = z.object({ sensorId: z.string().min(1) }).safeParse(request.params)
     const body = cowrieConfigSchema.safeParse(request.body)
+    const actorId = z.string().trim().min(1).max(128).default('unknown').parse(request.headers['x-requested-by'])
     if (!params.success || !body.success) {
       return reply.status(400).send({ error: 'Invalid config', details: body.error?.flatten() })
     }
 
-    return reply.send(await svc.putConfig(params.data.sensorId, JSON.stringify(body.data)))
+    return reply.send(await configSvc.saveAndQueueApply({
+      sensorId: params.data.sensorId,
+      protocol: 'ssh',
+      configStr: JSON.stringify(body.data),
+      actorId,
+      actorIp: normalizeIp(request.ip ?? ''),
+    }))
   })
 }

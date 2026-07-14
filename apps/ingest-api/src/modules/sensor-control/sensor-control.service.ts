@@ -32,9 +32,11 @@ export class SensorControlService {
   // Resolve commands whose TTL elapsed while stuck in a non-terminal state
   // (e.g. the sensor disconnected mid-flight). The REST paths sweep lazily on
   // each call, but without operator traffic a stuck command would never reach
-  // a terminal state — a periodic caller drives this independently.
-  async sweepExpired(): Promise<void> {
-    await this.repo.expireQueued(new Date())
+  // a terminal state — a periodic caller drives this independently. Returns
+  // what expired so the caller can react (a config.apply that never got
+  // confirmed by a heartbeat counts toward sensor-config's auto-rollback).
+  async sweepExpired(): Promise<Array<{ id: string; sensorId: string; action: string }>> {
+    return this.repo.expireQueued(new Date())
   }
 
   async queueStatusGet(args: { sensorId: string; idempotencyKey: string; actor: ControlActor }) {
@@ -52,6 +54,7 @@ export class SensorControlService {
       id: `cmd_${randomUUID()}`,
       sensorId: args.sensorId,
       action: 'status.get',
+      payload: {},
       requestedBy: args.actor.id,
       requestedIp: args.actor.ip,
       idempotencyKey: args.idempotencyKey,
@@ -59,6 +62,89 @@ export class SensorControlService {
     })
     await this.attemptDelivery(args.sensorId)
     return { ok: true as const, value: { command, replayed: false } }
+  }
+
+  // Queued from the sensors module's config save flow (PUT /sensors/:id/config)
+  // and from its auto-rollback path — both are already authorized by that
+  // module's own auth chain (INGEST_SHARED_SECRET, or 'system' for rollback),
+  // so this skips the ControlActor role/scope check the operator-facing
+  // queue*/cancel/list routes use. 90s TTL (vs status.get's 60s): a config
+  // apply needs to survive a full cowrie restart + reconnect + up to one
+  // heartbeat interval (30s) before the confirming heartbeat can even arrive.
+  async queueConfigApply(args: {
+    sensorId: string; configHash: string; requestedBy: string; requestedIp: string; idempotencyKey: string
+  }) {
+    await this.repo.expireQueued(new Date())
+    const scope = await this.repo.findSensorScope(args.sensorId)
+    if (!scope) return { ok: false as const, error: 'Sensor not found', status: 404 }
+
+    const existing = await this.repo.findByIdempotencyKey(args.sensorId, args.idempotencyKey)
+    if (existing) {
+      await this.attemptDelivery(args.sensorId)
+      return { ok: true as const, value: { command: existing, replayed: true } }
+    }
+
+    const command = await this.repo.createQueued({
+      id: `cmd_${randomUUID()}`,
+      sensorId: args.sensorId,
+      action: 'config.apply',
+      payload: { configHash: args.configHash },
+      requestedBy: args.requestedBy,
+      requestedIp: args.requestedIp,
+      idempotencyKey: args.idempotencyKey,
+      expiresAt: new Date(Date.now() + 90_000),
+    })
+    await this.attemptDelivery(args.sensorId)
+    return { ok: true as const, value: { command, replayed: false } }
+  }
+
+  // Driven by the sensor heartbeat (HTTP), not the WS connection: config.apply
+  // never gets a command.result from the agent on success (see
+  // control_agent.py) — only the NEXT heartbeat reporting the matching
+  // configHash proves cowrie actually came back up with it, which is the
+  // whole point of this slice (an agent self-reporting "succeeded" right
+  // after writing files can't know if the restart that follows is healthy).
+  // Returns the confirmed command so the caller (sensor-config.service.ts)
+  // can mark its config version row 'applied'.
+  async confirmConfigApplied(sensorId: string, configHash: string) {
+    const running = await this.repo.findRunningConfigApply(sensorId)
+    if (!running) return null
+    const payload = running.payload as { configHash?: string }
+    if (payload.configHash !== configHash) return null
+
+    const result = await this.repo.markResult({
+      commandId: running.id,
+      sensorId,
+      now: new Date(),
+      outcome: { status: 'succeeded', result: { configHash, confirmedVia: 'heartbeat' } },
+    })
+    if (result.kind !== 'ok') return null
+
+    eventBus.emit('command.result', {
+      type: 'command.result',
+      commandId: running.id,
+      sensorId,
+      status: 'succeeded',
+      timestamp: new Date().toISOString(),
+    })
+    return { commandId: running.id }
+  }
+
+  // Leading-N consecutive config.apply failures (failed or expired), newest
+  // first. Used by sensor-config.service.ts to decide whether to auto-roll
+  // back instead of leaving a sensor stuck on a bad config indefinitely.
+  async consecutiveConfigApplyFailures(sensorId: string, limit: number): Promise<number> {
+    const recent = await this.repo.recentConfigApplyStatuses(sensorId, limit)
+    let count = 0
+    for (const status of recent) {
+      if (status === 'failed' || status === 'expired') count++
+      else break
+    }
+    return count
+  }
+
+  hasPendingConfigApply(sensorId: string): Promise<boolean> {
+    return this.repo.hasPendingConfigApply(sensorId)
   }
 
   // Called both right after a command is queued (sensor may already be

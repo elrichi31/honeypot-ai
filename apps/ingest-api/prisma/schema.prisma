@@ -156,6 +156,7 @@ model Sensor {
   application       Application?              @relation(fields: [applicationId], references: [id])
   commands          SensorCommand[]
   controlCredential SensorControlCredential?
+  configVersions    SensorConfigVersion[]
 
   @@index([clientId])
   @@index([ownerType])
@@ -469,6 +470,29 @@ model SensorConfig {
   updatedAt  DateTime @default(now()) @map("updated_at")
 
   @@map("sensor_configs")
+}
+
+// Append-only history behind SensorConfig (which stays the single-row
+// "current desired config" the existing HTTP poller reads). Gives config.apply
+// (Rebanada 5) something to roll back to: the most recent row with
+// status='applied' is the last version confirmed via heartbeat configHash.
+model SensorConfigVersion {
+  id         String    @id @default(cuid())
+  sensorId   String    @map("sensor_id")
+  protocol   String
+  config     Json
+  configHash String    @map("config_hash")
+  status     String
+  createdBy  String    @map("created_by")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  appliedAt  DateTime? @map("applied_at")
+  error      String?
+
+  sensor Sensor @relation(fields: [sensorId], references: [sensorId], onDelete: Cascade)
+
+  @@index([sensorId, createdAt(sort: Desc)])
+  @@index([sensorId, status, createdAt(sort: Desc)])
+  @@map("sensor_config_versions")
 }
 
 model WebHit {

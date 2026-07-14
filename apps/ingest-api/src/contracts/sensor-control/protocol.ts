@@ -17,11 +17,18 @@ const messageBaseSchema = z.object({
   sentAt: timestampSchema,
 })
 
-export const sensorControlActionSchema = z.literal('status.get')
+export const sensorControlActionSchema = z.enum(['status.get', 'config.apply'])
 export type SensorControlAction = z.infer<typeof sensorControlActionSchema>
 
 export const sensorControlCapabilitySchema = sensorControlActionSchema
 export type SensorControlCapability = z.infer<typeof sensorControlCapabilitySchema>
+
+// config.apply carries only the hash on the wire — the agent re-fetches the
+// full config from the same GET /sensors/:id/config the HTTP poller already
+// uses, so this schema never needs to know any protocol's config shape.
+export const sensorControlConfigApplyPayloadSchema = z.object({
+  configHash: z.string().trim().min(1).max(128),
+}).strict()
 
 export const sensorStatusDetailsSchema = z.object({
   agentVersion: versionSchema,
@@ -66,7 +73,10 @@ export const sensorControlCommandSchema = messageBaseSchema.extend({
   commandId: opaqueIdSchema,
   sensorId: sensorIdSchema,
   action: sensorControlActionSchema,
-  payload: z.object({}).strict(),
+  // Server-constructed only (buildCommandMessage), never parsed from
+  // untrusted input — loose on purpose so each action's payload shape
+  // doesn't need its own branch of a discriminated union here.
+  payload: z.record(z.string(), z.unknown()),
   expiresAt: timestampSchema,
 }).strict()
 export type SensorControlCommand = z.infer<typeof sensorControlCommandSchema>

@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID } from 'crypto'
+import { randomBytes, randomUUID } from 'crypto'
 import type { PrismaClient } from '@prisma/client'
 import { SensorRepository } from './sensors.repository.js'
 import { normalizeSlug } from '../../lib/sensor-utils.js'
@@ -126,17 +126,6 @@ export class SensorService {
     // heartbeat lapses and the row is pruned, so report success either way and
     // let the client refresh to drop the phantom card.
     return { deleted: !!deleted, alreadyGone: !deleted, sensorId }
-  }
-
-  async getConfig(sensorId: string, defaultConfig: unknown): Promise<{ config: unknown; configHash: string }> {
-    const row = await this.repo.getConfig(sensorId)
-    return { config: row?.config ?? defaultConfig, configHash: row?.config_hash ?? '' }
-  }
-
-  async putConfig(sensorId: string, configStr: string): Promise<{ ok: true; configHash: string }> {
-    const hash = createHash('sha256').update(configStr).digest('hex').slice(0, 16)
-    await this.repo.upsertConfig(sensorId, configStr, hash)
-    return { ok: true, configHash: hash }
   }
 
   async createProvisionToken(args: {

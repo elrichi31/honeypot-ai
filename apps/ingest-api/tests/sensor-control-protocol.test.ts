@@ -26,7 +26,7 @@ describe('sensor-control protocol v1', () => {
     expect(parsed.type).toBe('hello')
   })
 
-  it('accepts a status.get command and rejects extra payload fields', () => {
+  it('accepts a status.get command with an empty payload', () => {
     const command = {
       type: 'command',
       protocolVersion: SENSOR_CONTROL_PROTOCOL_VERSION,
@@ -40,7 +40,26 @@ describe('sensor-control protocol v1', () => {
     }
 
     expect(sensorControlCommandSchema.parse(command).action).toBe('status.get')
-    expect(sensorControlCommandSchema.safeParse({ ...command, payload: { shell: 'id' } }).success).toBe(false)
+  })
+
+  // payload is a loose record (not per-action strict) since it's only ever
+  // server-constructed (buildCommandMessage), never parsed from untrusted
+  // input — see protocol.ts. config.apply's payload carries just the hash;
+  // the agent re-fetches the full config over the existing HTTP endpoint.
+  it('accepts a config.apply command carrying a configHash payload', () => {
+    const command = {
+      type: 'command',
+      protocolVersion: SENSOR_CONTROL_PROTOCOL_VERSION,
+      messageId,
+      sentAt,
+      commandId,
+      sensorId: 'cowrie-01-example',
+      action: 'config.apply',
+      payload: { configHash: 'abc123' },
+      expiresAt: '2026-07-11T12:01:00.000Z',
+    }
+
+    expect(sensorControlCommandSchema.parse(command).action).toBe('config.apply')
   })
 
   it('rejects unknown message fields and commands outside the initial capability set', () => {

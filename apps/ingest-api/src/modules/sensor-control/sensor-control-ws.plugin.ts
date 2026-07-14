@@ -14,6 +14,7 @@ import { eventBus } from '../../lib/event-bus.js'
 import { SensorControlCredentialService } from './sensor-control-credential.service.js'
 import { sensorConnectionRegistry, type SensorControlConnection } from './sensor-connection-registry.js'
 import { SensorControlService } from './sensor-control.service.js'
+import { SensorConfigService } from '../sensors/sensor-config.service.js'
 
 const HEARTBEAT_INTERVAL_SECONDS = Number(process.env.SENSOR_CONTROL_HEARTBEAT_INTERVAL_SECONDS ?? '30')
 const DEAD_CONNECTION_GRACE_MULTIPLIER = 2
@@ -29,12 +30,21 @@ export default fp(async (fastify: FastifyInstance) => {
     process.env.SENSOR_CONTROL_CREDENTIAL_PEPPER ?? '',
   )
   const svc = new SensorControlService(fastify.prisma, sensorConnectionRegistry)
+  const configSvc = new SensorConfigService(fastify.prisma, svc)
 
   // Drive TTL expiry independently of operator REST traffic so a command that
   // gets stuck in a non-terminal state after a sensor disconnect still resolves
-  // to 'expired'. unref() keeps this timer from holding the process open.
+  // to 'expired'. unref() keeps this timer from holding the process open. A
+  // config.apply that expired without a confirming heartbeat is a failure
+  // toward the auto-rollback threshold — see sensor-config.service.ts.
   const expirySweep = setInterval(() => {
-    svc.sweepExpired().catch(err => fastify.log.error({ err }, 'sensor-control expiry sweep failed'))
+    svc.sweepExpired()
+      .then(expired => Promise.all(
+        expired
+          .filter(c => c.action === 'config.apply')
+          .map(c => configSvc.checkAutoRollback(c.sensorId)),
+      ))
+      .catch(err => fastify.log.error({ err }, 'sensor-control expiry sweep failed'))
   }, 30_000)
   expirySweep.unref()
 
@@ -139,6 +149,14 @@ export default fp(async (fastify: FastifyInstance) => {
     const handleResult = async (msg: Extract<SensorControlClientMessage, { type: 'command.result' }>) => {
       const result = await svc.handleResult(sensorId, msg)
       if (result.kind !== 'ok') return
+      // config.apply only ever sends command.result on a write failure (see
+      // control_agent.py) — success is confirmed by the next heartbeat
+      // instead. A failure here is one of the two signals (with TTL expiry)
+      // that feeds the auto-rollback threshold.
+      if (result.command.action === 'config.apply' && msg.status === 'failed') {
+        configSvc.checkAutoRollback(sensorId)
+          .catch(err => request.log.error({ err, sensorId }, 'config.apply auto-rollback check failed'))
+      }
       eventBus.emit('command.result', {
         type: 'command.result',
         commandId: msg.commandId,

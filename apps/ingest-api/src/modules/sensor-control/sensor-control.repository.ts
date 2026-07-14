@@ -1,5 +1,6 @@
 import type { PrismaClient, SensorCommand } from '@prisma/client'
 import { canTransitionSensorCommand, type SensorCommandStatus } from './sensor-command-state.js'
+import type { SensorControlAction } from '../../contracts/sensor-control/protocol.js'
 
 export type ControlSensorScope = { clientId: string | null } | null
 
@@ -22,14 +23,17 @@ export class SensorControlRepository {
   // stale). As of Rebanada 3, a command can sit in 'sent'/'acked'/'running'
   // indefinitely if the sensor disconnects mid-flight, so the sweep covers
   // all four non-terminal, pre-terminal statuses — otherwise such a command
-  // would never resolve to a terminal state.
-  async expireQueued(now: Date): Promise<void> {
+  // would never resolve to a terminal state. Returns what actually expired so
+  // callers can react (Rebanada 5: a config.apply that never got confirmed by
+  // a heartbeat needs to count toward the auto-rollback threshold).
+  async expireQueued(now: Date): Promise<Array<{ id: string; sensorId: string; action: string }>> {
     const commands = await this.prisma.sensorCommand.findMany({
       where: { status: { in: ['queued', 'sent', 'acked', 'running'] }, expiresAt: { lte: now } },
-      select: { id: true, status: true },
+      select: { id: true, status: true, sensorId: true, action: true },
     })
-    if (commands.length === 0) return
+    if (commands.length === 0) return []
 
+    const expired: Array<{ id: string; sensorId: string; action: string }> = []
     await this.prisma.$transaction(async tx => {
       for (const command of commands) {
         const updated = await tx.sensorCommand.updateMany({
@@ -45,8 +49,10 @@ export class SensorControlRepository {
             details: { reason: 'ttl_elapsed' },
           },
         })
+        expired.push({ id: command.id, sensorId: command.sensorId, action: command.action })
       }
     })
+    return expired
   }
 
   findByIdempotencyKey(sensorId: string, idempotencyKey: string) {
@@ -56,7 +62,7 @@ export class SensorControlRepository {
   }
 
   createQueued(args: {
-    id: string; sensorId: string; action: 'status.get'; requestedBy: string
+    id: string; sensorId: string; action: SensorControlAction; payload: unknown; requestedBy: string
     requestedIp: string; idempotencyKey: string; expiresAt: Date
   }) {
     return this.prisma.$transaction(async tx => {
@@ -65,7 +71,7 @@ export class SensorControlRepository {
           id: args.id,
           sensorId: args.sensorId,
           action: args.action,
-          payload: {},
+          payload: (args.payload ?? {}) as object,
           status: 'queued',
           requestedBy: args.requestedBy,
           requestedIp: args.requestedIp,
@@ -83,6 +89,35 @@ export class SensorControlRepository {
         },
       })
       return command
+    })
+  }
+
+  // Most recent config.apply outcomes for a sensor, newest first — used to
+  // count consecutive failures for auto-rollback. 'running' is included
+  // deliberately: a command still in flight breaks the consecutive-failure
+  // streak (it hasn't failed yet) without needing a separate branch at the
+  // call site.
+  async recentConfigApplyStatuses(sensorId: string, limit: number): Promise<SensorCommandStatus[]> {
+    const rows = await this.prisma.sensorCommand.findMany({
+      where: { sensorId, action: 'config.apply' },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: { status: true },
+    })
+    return rows.map(r => r.status as SensorCommandStatus)
+  }
+
+  hasPendingConfigApply(sensorId: string): Promise<boolean> {
+    return this.prisma.sensorCommand.findFirst({
+      where: { sensorId, action: 'config.apply', status: { in: ['queued', 'sent', 'acked', 'running'] } },
+      select: { id: true },
+    }).then(row => row !== null)
+  }
+
+  findRunningConfigApply(sensorId: string): Promise<SensorCommand | null> {
+    return this.prisma.sensorCommand.findFirst({
+      where: { sensorId, action: 'config.apply', status: 'running' },
+      orderBy: { createdAt: 'desc' },
     })
   }
 

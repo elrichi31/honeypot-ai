@@ -154,24 +154,6 @@ export class SensorRepository {
     return rows[0] ?? null
   }
 
-  async getConfig(sensorId: string): Promise<{ config: unknown; config_hash: string } | null> {
-    const rows = await this.prisma.$queryRaw<Array<{ config: unknown; config_hash: string }>>`
-      SELECT config, config_hash FROM sensor_configs WHERE sensor_id = ${sensorId}
-    `
-    return rows[0] ?? null
-  }
-
-  async upsertConfig(sensorId: string, configStr: string, hash: string): Promise<void> {
-    await this.prisma.$executeRaw`
-      INSERT INTO sensor_configs (sensor_id, config, config_hash, updated_at)
-      VALUES (${sensorId}, CAST(${configStr} AS jsonb), ${hash}, NOW())
-      ON CONFLICT (sensor_id) DO UPDATE SET
-        config      = EXCLUDED.config,
-        config_hash = EXCLUDED.config_hash,
-        updated_at  = EXCLUDED.updated_at
-    `
-  }
-
   async findClientById(clientId: string): Promise<{ id: string } | null> {
     const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
       SELECT id FROM clients WHERE id = ${clientId} LIMIT 1

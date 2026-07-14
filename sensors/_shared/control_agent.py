@@ -4,9 +4,15 @@ for the copy-don't-import convention this follows).
 
 Connects to ingest-api's /sensors/control/ws, completes the v1 hello
 handshake, answers server pings, and dispatches incoming `command` messages
-to handlers registered via `agent.action("name", fn)`. Reports
-ack -> succeeded/failed for each command. Runs its own reconnect loop with
-backoff+jitter in a daemon thread — call `.start()` once and forget it.
+to handlers registered via `agent.action("name", fn)`. Runs its own
+reconnect loop with backoff+jitter in a daemon thread — call `.start()` once
+and forget it.
+
+Handlers take one arg, `report_running()`, and either return a result dict
+(reported as command.result status=succeeded), return None (no
+command.result is sent at all — the caller confirms success some other way,
+e.g. config.apply's next heartbeat carrying the new configHash), or raise
+(reported as command.result status=failed).
 
 No-ops entirely when SENSOR_CONTROL_SECRET is unset, so a sensor that hasn't
 been issued a control credential yet (or one that doesn't want remote
@@ -60,8 +66,8 @@ class ControlAgent:
         self.stats = {"connects": 0, "commands": 0, "errors": 0}
 
     def action(self, name: str):
-        """Decorator: register a zero-arg handler that returns a result dict
-        (or raises, which is reported as command.result status=failed)."""
+        """Decorator: register a handler — see module docstring for its
+        (report_running) -> dict | None contract."""
         def register(fn):
             self._handlers[name] = fn
             return fn
@@ -137,12 +143,19 @@ class ControlAgent:
             "command.ack", commandId=command_id, sensorId=self._sensor_id, accepted=True,
         )))
         self.stats["commands"] += 1
-        try:
-            result = handler()
+
+        def report_running():
             ws.send(json.dumps(_envelope(
-                "command.result", commandId=command_id, sensorId=self._sensor_id,
-                status="succeeded", result=result,
+                "command.running", commandId=command_id, sensorId=self._sensor_id,
             )))
+
+        try:
+            result = handler(report_running)
+            if result is not None:
+                ws.send(json.dumps(_envelope(
+                    "command.result", commandId=command_id, sensorId=self._sensor_id,
+                    status="succeeded", result=result,
+                )))
         except Exception as exc:
             self.stats["errors"] += 1
             ws.send(json.dumps(_envelope(

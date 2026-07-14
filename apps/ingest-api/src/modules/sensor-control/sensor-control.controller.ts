@@ -1,6 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { z } from 'zod'
-import { sensorControlActionSchema } from '../../contracts/sensor-control/protocol.js'
 import { ensureControlApiToken } from '../../lib/control-auth.js'
 import { SensorControlCredentialService } from './sensor-control-credential.service.js'
 import { sensorConnectionRegistry } from './sensor-connection-registry.js'
@@ -16,8 +15,15 @@ const actorHeadersSchema = z.object({
 
 const sensorParamsSchema = z.object({ sensorId: z.string().trim().min(1).max(128) })
 const commandParamsSchema = sensorParamsSchema.extend({ commandId: z.string().trim().min(1).max(128) })
+// This route only ever creates status.get commands (handler always calls
+// queueStatusGet). config.apply is deliberately NOT createable here — it's
+// queued from PUT /sensors/:id/config -> SensorConfigService.saveAndQueueApply,
+// which also records the config version row a plain command doesn't carry.
+// Pin the literal instead of the general wire-protocol action enum so this
+// endpoint can't silently accept a config.apply request and create the
+// wrong command underneath it.
 const createCommandSchema = z.object({
-  action: sensorControlActionSchema,
+  action: z.literal('status.get'),
   payload: z.object({}).strict(),
 }).strict()
 const listQuerySchema = z.object({ limit: z.coerce.number().int().min(1).max(100).default(20) })

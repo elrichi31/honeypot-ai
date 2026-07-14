@@ -39,6 +39,7 @@ export async function PUT(
     headers: {
       "Content-Type": "application/json",
       "X-Ingest-Token": process.env.INGEST_SHARED_SECRET ?? "",
+      "X-Requested-By": auth_check.userId,
     },
     body: JSON.stringify(body),
   })
