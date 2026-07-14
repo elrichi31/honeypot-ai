@@ -27,11 +27,4 @@ export class SensorControlCredentialRepository {
       select: { secretHash: true, revokedAt: true },
     })
   }
-
-  revoke(sensorId: string) {
-    return this.prisma.sensorControlCredential.updateMany({
-      where: { sensorId },
-      data: { revokedAt: new Date() },
-    })
-  }
 }

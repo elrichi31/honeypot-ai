@@ -163,13 +163,21 @@ export default fp(async (fastify: FastifyInstance) => {
         .catch(err => request.log.error({ err, sensorId }, 'sensor-control message handler failed'))
     }
 
+    // Header auth passed but no 'hello' yet holds an open socket with no
+    // liveness check (pingInterval only starts post-hello). Close it if the
+    // client stays silent. unref() keeps it from holding the process open.
+    const helloDeadline = setTimeout(() => {
+      if (!registered) closeWithReason(4408, 'hello_timeout')
+    }, HEARTBEAT_INTERVAL_SECONDS * 1000)
+    helloDeadline.unref()
+
     socket.on('close', () => cleanup(closeReason))
     socket.on('error', () => cleanup('socket_error'))
 
     socket.on('message', (raw: Buffer) => {
       lastActivityAt = Date.now()
 
-      if (Buffer.byteLength(raw as unknown as Uint8Array) > SENSOR_CONTROL_MAX_MESSAGE_BYTES) {
+      if (raw.length > SENSOR_CONTROL_MAX_MESSAGE_BYTES) {
         closeWithReason(4413, 'message_too_large')
         return
       }
@@ -228,6 +236,7 @@ export default fp(async (fastify: FastifyInstance) => {
         }
         sensorConnectionRegistry.register(connection)
         registered = true
+        clearTimeout(helloDeadline)
 
         send({
           protocolVersion: SENSOR_CONTROL_PROTOCOL_VERSION,

@@ -124,14 +124,6 @@ export class SensorControlRepository {
     })
   }
 
-  async findStatus(commandId: string): Promise<SensorCommandStatus | null> {
-    const command = await this.prisma.sensorCommand.findUnique({
-      where: { id: commandId },
-      select: { status: true },
-    })
-    return command?.status as SensorCommandStatus | undefined ?? null
-  }
-
   findDeliverable(sensorId: string, limit = 5) {
     return this.prisma.sensorCommand.findMany({
       where: { sensorId, status: 'queued', expiresAt: { gt: new Date() } },

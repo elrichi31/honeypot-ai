@@ -644,6 +644,44 @@ Objetivo: convertir el simulador en una base reutilizable por todos los sensores
 Criterio de salida: Cowrie ejecuta `status.get` real usando el agente compartido y
 el comportamiento existente permanece intacto cuando WS no esta disponible.
 
+**Progreso (2026-07-14):** Rebanada 4 completa y verificada de punta a punta.
+
+- `sensors/_shared/control_agent.py` — `ControlAgent` reutilizable: conecta con
+  `websockets.sync.client` (sincrono, mismo estilo de threads que el resto del
+  beacon, sin asyncio), hello v1, ping/pong, backoff exponencial + jitter
+  (reset solo tras un hello aceptado, para no hot-loopear con credenciales
+  malas), dedup de `commandId` en memoria con ventana de 120s, y registro de
+  handlers via decorator `@agent.action("nombre")`. Transporte y handlers
+  separados: el modulo no sabe nada de Cowrie, solo dispara la funcion
+  registrada para cada `action`.
+- `sensors/cowrie/heartbeat.py` registra `status.get` (agentVersion,
+  uptimeSeconds, pid, ports, configHash local) y arranca el agente en su
+  propio thread daemon junto a los threads de heartbeat/config existentes —
+  una caida del WS no toca esos loops. Sin `SENSOR_CONTROL_SECRET` el agente
+  no arranca (opt-in, sin cambiar el comportamiento de sensores no
+  provisionados).
+- Decision de dependencia (con el usuario): `pip install websockets==13.1` en
+  el `command` del contenedor del beacon (`sh -c "pip install ... && python3
+  /heartbeat.py"`), sin Dockerfile nuevo — mantiene el patron actual de
+  imagen stock `python:3.12-alpine` montando scripts, evita escribir un
+  cliente WS a mano en stdlib (framing RFC6455 a mano es demasiado riesgo
+  para el beneficio). Actualizados los 4 compose que corren el beacon:
+  `docker-compose.prod.honeypot.yml`, `docker-compose.prod.single-host.yml`,
+  `deploy/local/sensor-cowrie.yml`, `deploy/local/sensor-ssh-web.yml`
+  (mount de `control_agent.py` + env `SENSOR_CONTROL_SECRET`). Nuevo
+  `SENSOR_CONTROL_SECRET_SSH` documentado en `.env.example` raiz.
+- Verificado end-to-end contra un ingest-api + Postgres locales reales (no
+  solo unit tests): sensor registrado, credencial emitida via
+  `POST /sensors/:id/control-credential`, agente conectado con el `heartbeat.py`
+  real, comando `status.get` encolado via REST y resuelto
+  `queued -> sent -> acked -> succeeded` con el `result` completo validando
+  contra `sensorStatusDetailsSchema` del servidor. Tambien verificado el
+  rechazo limpio (4401) con secreto incorrecto.
+
+Pendiente: agente no integrado en ningun otro sensor todavia (Port/SMB quedan
+para Rebanada 8), y no hay metricas/logs agregados mas alla de los contadores
+en memoria (`ControlAgent.stats`) — nadie los expone ni los scrapea aun.
+
 ### Rebanada 5 - Primera accion con efectos: `config.apply` en Cowrie
 
 Objetivo: aplicar una configuracion versionada con confirmacion real y rollback.
@@ -911,6 +949,12 @@ Objetivo: que sea operable en produccion.
 - Rate limit para endpoints de control.
 - Tests de permisos por rol.
 - Alertas para `config.failed` y sensores desconectados.
+- Revocacion de credencial de control (deshabilitar sin rotar). El read-path ya
+  existe: `verify()` chequea `revokedAt`, la columna y su indice estan en el
+  schema; solo falta el write. Agregar `DELETE /sensors/:id/control-credential`
+  (repo `revoke()` + role check admin + audit) junto con Rebanada 4, cuando un
+  sensor real sostenga la credencial y el corte se pueda testear de punta a
+  punta. Hoy la rotacion (re-issue) ya invalida el secreto viejo.
 
 ## Criterios de listo
 

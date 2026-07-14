@@ -12,8 +12,6 @@ export interface SensorConnectionRegistry {
   register(connection: SensorControlConnection): void
   unregister(sensorId: string, connectionId: string): void
   get(sensorId: string): SensorControlConnection | undefined
-  has(sensorId: string): boolean
-  size(): number
 }
 
 /**
@@ -50,14 +48,6 @@ export class InMemorySensorConnectionRegistry implements SensorConnectionRegistr
 
   get(sensorId: string) {
     return this.connections.get(sensorId)
-  }
-
-  has(sensorId: string) {
-    return this.connections.has(sensorId)
-  }
-
-  size() {
-    return this.connections.size
   }
 }
 

@@ -11,8 +11,11 @@ import threading
 import time
 from urllib.request import Request, urlopen
 
+from control_agent import ControlAgent
+
 INGEST_URL  = os.getenv("INGEST_API_URL",       "http://ingest-api:3000")
 SECRET      = os.getenv("INGEST_SHARED_SECRET",  "")
+CONTROL_SECRET = os.getenv("SENSOR_CONTROL_SECRET", "")
 SENSOR_ID   = os.getenv("SENSOR_ID",             f"sensor-{socket.gethostname()}")
 SENSOR_NAME = os.getenv("SENSOR_NAME",           "SSH Honeypot (Cowrie)")
 CLIENT_SLUG = os.getenv("CLIENT_SLUG",           "")
@@ -29,6 +32,8 @@ SENSOR_LAYER = os.getenv("SENSOR_LAYER",         "external")
 SIGNAL_DIR  = os.getenv("SIGNAL_DIR",            "/signal")
 
 CONFIG_POLL_INTERVAL = 10  # seconds between config checks
+AGENT_VERSION = "cowrie-beacon/1.0"
+START_TIME = time.time()
 
 
 def _detect_ip() -> str:
@@ -191,12 +196,33 @@ def _config_loop() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Control plane (Rebanada 4) — read-only status.get only. A WS outage never
+# blocks heartbeat/config polling above: the agent runs its own thread and
+# reconnect loop, entirely independent of the loops below.
+# ---------------------------------------------------------------------------
+
+control_agent = ControlAgent(
+    ingest_url=INGEST_URL, sensor_id=SENSOR_ID, secret=CONTROL_SECRET, agent_version=AGENT_VERSION,
+)
+
+
+@control_agent.action("status.get")
+def _handle_status_get() -> dict:
+    return {
+        "agentVersion": AGENT_VERSION,
+        "uptimeSeconds": int(time.time() - START_TIME),
+        "pid": os.getpid(),
+        "ports": PORTS,
+        "configHash": _read_current_hash() or None,
+    }
+
 
 if __name__ == "__main__":
     ip = _detect_ip()
     print(f"[beacon] starting  sensor={SENSOR_ID}  protocol={PROTOCOL}  ip={ip or 'unknown'}", flush=True)
 
     threading.Thread(target=_config_loop, daemon=True).start()
+    control_agent.start()
 
     while True:
         send(ip)

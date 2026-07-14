@@ -30,9 +30,11 @@ services:
       SENSOR_HOST: cowrie
       INGEST_API_URL: ${INGEST_API_URL}
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
+      SENSOR_CONTROL_SECRET: ${SENSOR_CONTROL_SECRET_SSH:-}
     volumes:
       - ../../sensors/cowrie/heartbeat.py:/heartbeat.py:ro
-    command: ["python3", "/heartbeat.py"]
+      - ../../sensors/_shared/control_agent.py:/control_agent.py:ro
+    command: ["sh", "-c", "pip install --quiet --no-cache-dir websockets==13.1 && python3 /heartbeat.py"]
 
   vector:
     image: timberio/vector:0.40.0-alpine

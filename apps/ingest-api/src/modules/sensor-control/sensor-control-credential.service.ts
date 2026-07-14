@@ -14,6 +14,10 @@ export class SensorControlCredentialService {
   private pepper: string
 
   constructor(prisma: PrismaClient, pepper: string) {
+    // Fail closed at boot, like CONTROL_API_SECRET in control-auth: an empty
+    // pepper HMACs secrets with an empty key and still "works" end to end, so
+    // a missing env would ship silently instead of being caught here.
+    if (!pepper) throw new Error('SENSOR_CONTROL_CREDENTIAL_PEPPER is required')
     this.repo = new SensorControlCredentialRepository(prisma)
     this.sensors = new SensorControlRepository(prisma)
     this.pepper = pepper
