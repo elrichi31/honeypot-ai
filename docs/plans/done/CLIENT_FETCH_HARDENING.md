@@ -1,5 +1,7 @@
 # CLIENT_FETCH_HARDENING
 
+> **Status: complete (2026-07-11).** Tasks 1-19 and the `useFetchJson` pilot are implemented. Further hook migrations are optional follow-up work, not an open task in this plan.
+
 Plan to fix the unreliable client-side data fetching across the dashboard.
 Symptom that started this: when navigating to a client page (e.g.
 `/clients/cop-pz`), the activity chart and alerts render **empty on first

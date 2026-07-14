@@ -5,6 +5,10 @@ Kept here for reference and as a changelog of what shipped.
 
 ## Index
 
+- [I18N.md](I18N.md) - Dashboard English-first i18n. Audits, literal migration, AI prompt locale, and dictionary reorganization were completed by 2026-06-21; closed 2026-07-11.
+- [SENSOR_REALISM.md](SENSOR_REALISM.md) - Restructuring and realism work for the five Python honeypots. The entire original scope is complete; closed 2026-07-11.
+- [CLIENT_FETCH_HARDENING.md](CLIENT_FETCH_HARDENING.md) - Client-side fetch hardening: tasks 1-19 and the `useFetchJson` pilot are complete. More hook migrations are optional follow-up, not open plan work; closed 2026-07-11.
+
 - [KAFKA_STREAM.md](KAFKA_STREAM.md) — Kafka entre Vector e ingest-api (KRaft, HTTP fallback). Completo 2026-06-23. Tareas 0–12 + auditoría post-impl.
 - [LAYERING_REFACTOR.md](LAYERING_REFACTOR.md) — Route→Service→Repository en ingest-api: dominios alerts, sensors, sessions, web, deception, protocol, suricata, stats, malware, clients. Completo 2026-06-22.
 - [INTERNAL_SENSORS.md](INTERNAL_SENSORS.md) — Honeypots existentes como sensores internos de deception (SENSOR_LAYER=internal), modal rediseñado en dos secciones, real_protocol por nodo, toggle de capa en /sensors. Completo 2026-07-02.
