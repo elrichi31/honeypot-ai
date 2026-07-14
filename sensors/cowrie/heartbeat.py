@@ -176,7 +176,11 @@ def _atomic_write(path: str, content: str) -> None:
     # cowrie.cfg/userdb.txt (os.replace is a single filesystem rename, not a
     # byte-by-byte copy). Same-directory temp file keeps the rename atomic
     # (no cross-filesystem move).
-    tmp_path = f"{path}.tmp{os.getpid()}"
+    # Include thread id: the 10s poller and the config.apply WS handler run in
+    # separate threads of this same process, so pid alone would collide and one
+    # os.replace could hit a temp file the other already moved (spurious apply
+    # failure that counts toward auto-rollback).
+    tmp_path = f"{path}.tmp{os.getpid()}.{threading.get_ident()}"
     with open(tmp_path, "w") as f:
         f.write(content)
     os.replace(tmp_path, path)

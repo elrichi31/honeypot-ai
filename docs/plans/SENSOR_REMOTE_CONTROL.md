@@ -771,6 +771,15 @@ versiones) — queda para el resto de Rebanada 7. `protocol` en
 hoy solo Cowrie tiene config.apply; generalizar cuando Port/SMB lo sumen
 (Rebanada 8).
 
+Conocido (2026-07-14): `checkAutoRollback` cuenta fallas consecutivas sobre
+*todos* los config.apply (incluidos rollbacks previos) y siempre re-encola la
+misma version `findLastApplied`. Si esa ultima version `applied` tampoco puede
+levantar Cowrie (drift de entorno), el rollback entra en un loop de reinicios
+cada ~90s sin rendirse — el guard `hasPendingConfigApply` evita *apilar* pero
+no *repetir*. Rate acotado, solo acumula filas de version; no es un bug pero si
+una debilidad. Cerrar con un tope de reintentos o un check "no hacer rollback a
+un hash que el mismo acaba de fallar". Diferido.
+
 ### Rebanada 6 - Fallback y recuperacion
 
 Objetivo: que la entrega no dependa de una conexion WebSocket perfecta.
