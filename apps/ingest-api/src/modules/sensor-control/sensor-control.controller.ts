@@ -61,6 +61,18 @@ export async function sensorControlRoutes(fastify: FastifyInstance) {
     return reply.status(result.value.replayed ? 200 : 201).send(result.value)
   })
 
+  fastify.get('/sensors/:sensorId/control-status', async (request, reply) => {
+    if (!ensureControlApiToken(request, reply)) return reply
+    const actor = getActor(request)
+    if (!actor) return reply.status(400).send({ error: 'Invalid control actor headers' })
+    const params = sensorParamsSchema.safeParse(request.params)
+    if (!params.success) return reply.status(400).send({ error: 'Invalid sensor id' })
+
+    const result = await svc.getConnectionStatus({ sensorId: params.data.sensorId, actor })
+    if (!result.ok) return reply.status(result.status).send({ error: result.error })
+    return reply.send(result.value)
+  })
+
   fastify.get('/sensors/:sensorId/commands', async (request, reply) => {
     if (!ensureControlApiToken(request, reply)) return reply
     const actor = getActor(request)

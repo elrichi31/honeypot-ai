@@ -1,7 +1,14 @@
 "use client"
 
 import { createContext, useCallback, useContext, useEffect, useRef } from "react"
-import type { AttackStreamEvent, AlertStreamEvent, SensorHeartbeatStreamEvent, LiveStreamHandlers, StreamEvent } from "@/hooks/use-live-stream"
+import type {
+  AttackStreamEvent, AlertStreamEvent, SensorHeartbeatStreamEvent,
+  SensorControlPresenceStreamEvent, CommandLifecycleStreamEvent,
+  LiveStreamHandlers, StreamEvent,
+} from "@/hooks/use-live-stream"
+
+const CONTROL_PRESENCE_TYPES = new Set(["sensor.connected", "sensor.disconnected"])
+const COMMAND_LIFECYCLE_TYPES = new Set(["command.sent", "command.acked", "command.running", "command.result"])
 
 interface LiveStreamContextValue {
   subscribe: (handlers: LiveStreamHandlers) => () => void
@@ -38,6 +45,10 @@ export function LiveStreamProvider({ children }: { children: React.ReactNode }) 
             h.onAlert?.(event as AlertStreamEvent)
           } else if (event.type === "sensor-heartbeat") {
             h.onSensorHeartbeat?.(event as SensorHeartbeatStreamEvent)
+          } else if (CONTROL_PRESENCE_TYPES.has(event.type)) {
+            h.onSensorControlPresence?.(event as SensorControlPresenceStreamEvent)
+          } else if (COMMAND_LIFECYCLE_TYPES.has(event.type)) {
+            h.onCommandLifecycle?.(event as CommandLifecycleStreamEvent)
           } else {
             h.onAttack?.(event as AttackStreamEvent)
           }

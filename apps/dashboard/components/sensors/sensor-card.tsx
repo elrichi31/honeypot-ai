@@ -11,6 +11,7 @@ import { SensorStats } from "./sensor-stats"
 import { SensorPorts } from "./sensor-ports"
 import { SensorActions } from "./sensor-actions"
 import { SensorConfigDialog } from "./sensor-config-dialog"
+import { SensorControlPanel } from "./sensor-control-panel"
 import type { ControlAction, ControlState } from "./sensor-actions"
 import type { Sensor } from "@/lib/api"
 import { useT } from "@/components/locale-provider"
@@ -162,6 +163,7 @@ export function SensorCard({
       {hasContainer && !isRemote && (
         <SensorActions controlState={controlState} controlMsg={controlMsg} onControl={handleControl} />
       )}
+      {isConfigurable && <SensorControlPanel sensorId={sensor.sensorId} />}
       {isConfigurable && (
         <SensorConfigDialog
           sensorId={sensor.sensorId}

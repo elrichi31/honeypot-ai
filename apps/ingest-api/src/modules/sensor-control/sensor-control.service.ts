@@ -129,6 +129,12 @@ export class SensorControlService {
     })
   }
 
+  async getConnectionStatus(args: { sensorId: string; actor: ControlActor }) {
+    const scope = await this.authorize(args.sensorId, args.actor, 'viewer')
+    if (!scope.ok) return scope
+    return { ok: true as const, value: { connected: this.connectionRegistry.has(args.sensorId) } }
+  }
+
   async listCommands(args: { sensorId: string; limit: number; actor: ControlActor }) {
     await this.repo.expireQueued(new Date())
     const scope = await this.authorize(args.sensorId, args.actor, 'viewer')
