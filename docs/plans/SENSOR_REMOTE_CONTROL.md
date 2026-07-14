@@ -925,6 +925,67 @@ capabilities/config hash en el header, boton "Rollback" manual explicito
 hay forma de dispararlo a mano ni de verlo en la UI), y habilitar acciones
 segun ownership ademas de rol.
 
+**Progreso (2026-07-14, cierre):** los cuatro pendientes de arriba,
+implementados.
+
+- **Timeline de comandos:** `SensorControlPanel` ahora pide
+  `GET /commands?limit=8` (antes `limit=1`) y guarda la lista completa en
+  `history`; un toggle colapsable muestra accion+estado de cada uno. Sin
+  cambios de backend — `listCommands` ya soportaba `limit` hasta 100, el
+  dashboard solo pedia el ultimo.
+- **Capabilities + configHash en el header:** `SensorControlConnection`
+  (`sensor-connection-registry.ts`) gano dos campos (`agentVersion`,
+  `capabilities`) poblados en `sensor-control-ws.plugin.ts` desde el `hello`
+  ya validado; `GET /control-status` los devuelve cuando el sensor esta
+  conectado. El panel los pinta como chips. `configHash` se sigue mostrando
+  desde el `result` de `status.get` (ya existia en el tipo, no se pintaba).
+- **Rollback manual:** nuevo par de rutas —
+  `GET /sensors/:id/config/versions` (viewer) y
+  `POST /sensors/:id/config/rollback` (admin) — en `sensors.controller.ts`,
+  detras del mismo `ControlActor`/`CONTROL_API_SECRET` que ya protegia
+  `commands`/`control-status` (no el `INGEST_SHARED_SECRET` mas debil que
+  usa el resto de `/config`). `SensorConfigService.checkAutoRollback`
+  (Rebanada 5) se partio en un helper privado `applyRollback` reutilizado
+  por el path automatico (2 fallas seguidas, actor `system:auto-rollback`)
+  y el nuevo `rollbackToLastApplied` (un click, actor real, sin esperar
+  fallas — rechaza con 409 si ya hay un `config.apply` en vuelo y 404 si no
+  hay ninguna version `applied` a la que volver). `SensorControlService`
+  expone `authorizeActor` (wrapper publico de la validacion de rol+tenant
+  que antes era privada) para que `sensor-config.service.ts` la reuse sin
+  duplicar el chequeo de scope. UI: seccion colapsable "Version history" +
+  boton "Rollback to last applied" en `sensor-config-dialog.tsx`, reusa el
+  mismo tracking de `configHash` pendiente que ya tenia el flujo de
+  Save & Apply (Rebanada 7 anterior) para mostrar el resultado del rollback
+  en vivo.
+- **Ownership en la UI:** nuevo hook `hooks/use-viewer.ts` — un solo
+  `GET /api/me` cacheado a nivel de modulo (evita N requests si hay N
+  sensor cards en la pagina) mas `canActOnSensor(viewer, minRole,
+  sensorClientId)`, que reusa `hasPermission` de `roles-shared.ts` y
+  compara `clientId` (superadmin siempre pasa). El boton "Configure" en
+  `sensor-card.tsx`, el trigger de `status.get` en `SensorControlPanel`, y
+  el boton de rollback en el dialogo ahora se ocultan si el usuario no
+  cumple rol+ownership — antes se mostraban a cualquiera y dependian 100%
+  del 403 del servidor. El enforcement real sigue siendo server-side
+  (`SensorControlService.authorize`/`authorizeActor`); esto es UX, no una
+  nueva capa de seguridad.
+
+Refactor de paso (DRY): `getActor`/`actorHeadersSchema`, duplicados en
+`sensor-control.controller.ts`, se movieron a `lib/control-auth.ts` como
+`getControlActor` — usado ahora tambien por las dos rutas nuevas de config
+en `sensors.controller.ts`.
+
+Verificado: `tsc --noEmit` limpio en ambos apps, 47/47 tests del dashboard
+y 147/147 unitarios de ingest-api (las suites de integracion que tocan
+control plane siguen gateadas por `TEST_DATABASE_URL`, sin Docker en este
+entorno — no se corrieron). No verificado en browser real, mismo limite
+que el resto de la UI de control plane en este repo.
+
+Pendiente real: sin tests nuevos para `rollbackToLastApplied`/`listVersions`
+mas alla de tsc + lectura cuidadosa (el resto del modulo de control se
+verifica con integracion real contra Postgres, gateada; estos dos metodos
+siguen ese mismo patron pero no se agrego un caso nuevo). Rebanada 7 cierra
+aqui — criterio de salida cumplido en su totalidad.
+
 ### Rebanada 8 - Adaptadores y operaciones adicionales
 
 Objetivo: ampliar capacidades sin modificar protocolo, cola ni UI base.

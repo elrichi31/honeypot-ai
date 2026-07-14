@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { ensureIngestToken } from '../../lib/ingest-auth.js'
+import { ensureControlApiToken, getControlActor } from '../../lib/control-auth.js'
 import { clearSensorOfflineAlert } from '../../lib/threat-alerts.js'
 import { normalizeIp } from '../../lib/sensor-utils.js'
 import { SensorService } from './sensors.service.js'
@@ -135,5 +136,30 @@ export async function sensorRoutes(fastify: FastifyInstance) {
       actorId,
       actorIp: normalizeIp(request.ip ?? ''),
     }))
+  })
+
+  fastify.get('/sensors/:sensorId/config/versions', async (request, reply) => {
+    if (!ensureControlApiToken(request, reply)) return reply
+    const actor = getControlActor(request)
+    if (!actor) return reply.status(400).send({ error: 'Invalid control actor headers' })
+    const params = z.object({ sensorId: z.string().min(1) }).safeParse(request.params)
+    const query = z.object({ limit: z.coerce.number().int().min(1).max(50).default(10) }).safeParse(request.query)
+    if (!params.success || !query.success) return reply.status(400).send({ error: 'Invalid request' })
+
+    const result = await configSvc.listVersions(params.data.sensorId, query.data.limit, actor)
+    if (!result.ok) return reply.status(result.status).send({ error: result.error })
+    return reply.send(result.value)
+  })
+
+  fastify.post('/sensors/:sensorId/config/rollback', async (request, reply) => {
+    if (!ensureControlApiToken(request, reply)) return reply
+    const actor = getControlActor(request)
+    if (!actor) return reply.status(400).send({ error: 'Invalid control actor headers' })
+    const params = z.object({ sensorId: z.string().min(1) }).safeParse(request.params)
+    if (!params.success) return reply.status(400).send({ error: 'Invalid sensorId' })
+
+    const result = await configSvc.rollbackToLastApplied(params.data.sensorId, actor)
+    if (!result.ok) return reply.status(result.status).send({ error: result.error })
+    return reply.send(result.value)
   })
 }

@@ -3,7 +3,7 @@
 import { apiFetch, assertOk } from "@/lib/client-fetch"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Save, X, RotateCcw, Plus, Loader2, CheckCircle2, XCircle, Clock } from "lucide-react"
+import { Save, X, RotateCcw, Plus, Loader2, CheckCircle2, XCircle, Clock, History, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label"
 import { useT } from "@/components/locale-provider"
 import type { TranslationKey } from "@/lib/i18n/dictionaries"
 import { useLiveStream } from "@/hooks/use-live-stream"
+import { useViewer, canActOnSensor } from "@/hooks/use-viewer"
 
 export interface CowrieConfig {
   hostname: string
@@ -41,6 +42,21 @@ const DEFAULTS: CowrieConfig = {
   ssh_version: "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6",
   usernames: ["root", "ubuntu", "admin", "oracle", "postgres", "git", "deploy", "centos", "ansible", "ec2-user", "pi", "user"],
   passwords: ["HoneyTrap2026!", "AtlasNode91", "CedarRoot88", "DeltaForge73", "EmberStack64", "FalconMesh52", "GraniteKey47", "HarborPulse39", "IronVector28", "JadeMatrix84"],
+}
+
+type ConfigVersion = {
+  id: string
+  configHash: string
+  status: "pending" | "applied" | "failed" | "rolled_back"
+  createdBy: string
+  appliedAt: string | null
+}
+
+const VERSION_STATUS_COLOR: Record<ConfigVersion["status"], string> = {
+  applied: "text-emerald-400",
+  pending: "text-amber-400",
+  failed: "text-red-400",
+  rolled_back: "text-muted-foreground",
 }
 
 // Mirrors sensor_command_state.ts's non-terminal states for config.apply,
@@ -178,14 +194,18 @@ function TagInput({
 
 export function SensorConfigDialog({
   sensorId,
+  sensorClientId,
   open,
   onClose,
 }: {
   sensorId: string
+  sensorClientId?: string | null
   open: boolean
   onClose: () => void
 }) {
   const t = useT()
+  const viewer = useViewer()
+  const canRollback = canActOnSensor(viewer, "admin", sensorClientId)
   const [cfg, setCfg] = useState<CowrieConfig>(DEFAULTS)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -195,6 +215,20 @@ export function SensorConfigDialog({
   const [applyPendingStatus, setApplyPendingStatus] = useState("queued")
   const [applyError, setApplyError] = useState("")
   const pendingHashRef = useRef<string | null>(null)
+
+  const [versions, setVersions] = useState<ConfigVersion[]>([])
+  const [versionsOpen, setVersionsOpen] = useState(false)
+  const [rollingBack, setRollingBack] = useState(false)
+  const [rollbackError, setRollbackError] = useState("")
+
+  const fetchVersions = useCallback(async () => {
+    try {
+      const res = await apiFetch(`/api/sensors/${encodeURIComponent(sensorId)}/config/versions`, { cache: "no-store" })
+      if (!res.ok) return
+      const data = await res.json() as { versions: ConfigVersion[] }
+      setVersions(data.versions)
+    } catch { /* non-critical, dialog still works without history */ }
+  }, [sensorId])
 
   const checkApplyStatus = useCallback(async () => {
     const hash = pendingHashRef.current
@@ -209,7 +243,7 @@ export function SensorConfigDialog({
       if (!match) return
 
       if (match.status === "succeeded") {
-        setApplyPhase("succeeded"); pendingHashRef.current = null
+        setApplyPhase("succeeded"); pendingHashRef.current = null; fetchVersions()
       } else if (match.status === "failed") {
         setApplyPhase("failed"); setApplyError(match.error?.message ?? ""); pendingHashRef.current = null
       } else if (match.status === "expired" || match.status === "cancelled") {
@@ -218,7 +252,7 @@ export function SensorConfigDialog({
         setApplyPhase("pending"); setApplyPendingStatus(match.status)
       }
     } catch { /* next SSE event or poll tick will retry */ }
-  }, [sensorId])
+  }, [sensorId, fetchVersions])
 
   // SSE gives near-instant updates; the poll is the fallback that also
   // catches TTL expiry, which the server never announces over SSE (see
@@ -243,6 +277,8 @@ export function SensorConfigDialog({
     setError("")
     setApplyPhase("idle")
     pendingHashRef.current = null
+    setRollbackError("")
+    fetchVersions()
     apiFetch(`/api/sensors/${encodeURIComponent(sensorId)}/config`, { cache: "no-store" })
       .then((r) => assertOk(r))
       .then((r) => r.json())
@@ -257,12 +293,31 @@ export function SensorConfigDialog({
         setLoading(false)
       })
     return () => { cancelled = true }
-  }, [open, sensorId])
+  }, [open, sensorId, fetchVersions])
 
   function set<K extends keyof CowrieConfig>(key: K, value: CowrieConfig[K]) {
     setCfg((prev) => ({ ...prev, [key]: value }))
     setApplyPhase("idle")
     pendingHashRef.current = null
+  }
+
+  async function handleRollback() {
+    setRollingBack(true)
+    setRollbackError("")
+    try {
+      const res = await assertOk(await apiFetch(`/api/sensors/${encodeURIComponent(sensorId)}/config/rollback`, {
+        method: "POST",
+      }), t("sensors.config.rollback.error"))
+      const { version } = await res.json() as { version: { configHash: string } }
+      pendingHashRef.current = version.configHash
+      setApplyPhase("pending")
+      setApplyPendingStatus("queued")
+      checkApplyStatus()
+    } catch (err) {
+      setRollbackError(err instanceof Error ? err.message : t("sensors.config.rollback.error"))
+    } finally {
+      setRollingBack(false)
+    }
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -417,6 +472,43 @@ export function SensorConfigDialog({
               </div>
 
               <ApplyStatusNotice phase={applyPhase} pendingStatus={applyPendingStatus} error={applyError} />
+
+              {versions.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setVersionsOpen((o) => !o)}
+                      className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                    >
+                      <History className="h-3 w-3" />
+                      {t("sensors.config.versions.title")}
+                    </button>
+                    {canRollback && (
+                      <button
+                        type="button"
+                        onClick={handleRollback}
+                        disabled={rollingBack || applyPhase === "pending" || !versions.some((v) => v.status === "applied")}
+                        className="flex items-center gap-1 rounded-md border border-border/60 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {rollingBack ? <Loader2 className="h-3 w-3 animate-spin" /> : <Undo2 className="h-3 w-3" />}
+                        {t("sensors.config.versions.rollback")}
+                      </button>
+                    )}
+                  </div>
+                  {rollbackError && <p className="text-[11px] text-red-400">{rollbackError}</p>}
+                  {versionsOpen && (
+                    <ul className="space-y-1 rounded-md border border-border/50 bg-muted/10 p-2">
+                      {versions.map((v) => (
+                        <li key={v.id} className="flex items-center justify-between gap-2 text-[11px] font-mono">
+                          <span className="text-muted-foreground truncate">{v.configHash.slice(0, 12)} · {v.createdBy}</span>
+                          <span className={VERSION_STATUS_COLOR[v.status]}>{v.status}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
 
               {error && (
                 <p className="text-xs text-red-400">{error}</p>

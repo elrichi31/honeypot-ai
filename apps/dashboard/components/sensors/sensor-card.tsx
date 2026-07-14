@@ -16,6 +16,7 @@ import type { ControlAction, ControlState } from "./sensor-actions"
 import type { Sensor } from "@/lib/api"
 import { useT } from "@/components/locale-provider"
 import type { TranslationKey } from "@/lib/i18n/dictionaries"
+import { useViewer, canActOnSensor } from "@/hooks/use-viewer"
 
 const CONTROL_RESET_DELAY = 3000
 const CONTROL_ERROR_DELAY = 4000
@@ -53,6 +54,8 @@ export function SensorCard({
   const [configOpen, setConfigOpen] = useState(false)
 
   const isConfigurable = sensor.protocol === "ssh"
+  const viewer = useViewer()
+  const canConfigure = canActOnSensor(viewer, "analyst", sensor.clientId)
 
   const hasContainer = !!sensor.probeHost
   const isInternal = isPrivateIp(sensor.ip)
@@ -151,7 +154,7 @@ export function SensorCard({
           <p className="text-[10px] font-mono text-muted-foreground">v{sensor.version}</p>
         </div>
       )}
-      {isConfigurable && (
+      {isConfigurable && canConfigure && (
         <button
           onClick={() => setConfigOpen(true)}
           className="flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground w-full justify-center"
@@ -163,10 +166,11 @@ export function SensorCard({
       {hasContainer && !isRemote && (
         <SensorActions controlState={controlState} controlMsg={controlMsg} onControl={handleControl} />
       )}
-      {isConfigurable && <SensorControlPanel sensorId={sensor.sensorId} />}
-      {isConfigurable && (
+      {isConfigurable && <SensorControlPanel sensorId={sensor.sensorId} sensorClientId={sensor.clientId} />}
+      {isConfigurable && canConfigure && (
         <SensorConfigDialog
           sensorId={sensor.sensorId}
+          sensorClientId={sensor.clientId}
           open={configOpen}
           onClose={() => setConfigOpen(false)}
         />

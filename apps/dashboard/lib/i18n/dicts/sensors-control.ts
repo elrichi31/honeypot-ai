@@ -7,6 +7,7 @@ export const en = {
   "sensors.control.checkStatus": "Check status",
   "sensors.control.error": "Command failed",
   "sensors.control.result": "{version} · up {uptime}s",
+  "sensors.control.history": "Recent commands",
 } as const
 
 export const es: Record<keyof typeof en, string> = {
@@ -15,4 +16,5 @@ export const es: Record<keyof typeof en, string> = {
   "sensors.control.checkStatus": "Consultar estado",
   "sensors.control.error": "El comando falló",
   "sensors.control.result": "{version} · activo {uptime}s",
+  "sensors.control.history": "Comandos recientes",
 }

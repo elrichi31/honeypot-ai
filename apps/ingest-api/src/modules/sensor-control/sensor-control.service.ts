@@ -267,7 +267,15 @@ export class SensorControlService {
   async getConnectionStatus(args: { sensorId: string; actor: ControlActor }) {
     const scope = await this.authorize(args.sensorId, args.actor, 'viewer')
     if (!scope.ok) return scope
-    return { ok: true as const, value: { connected: this.connectionRegistry.has(args.sensorId) } }
+    const connection = this.connectionRegistry.get(args.sensorId)
+    return {
+      ok: true as const,
+      value: {
+        connected: !!connection,
+        capabilities: connection?.capabilities ?? [],
+        agentVersion: connection?.agentVersion ?? null,
+      },
+    }
   }
 
   async listCommands(args: { sensorId: string; limit: number; actor: ControlActor }) {
@@ -293,10 +301,21 @@ export class SensorControlService {
     return { ok: true as const, value: { command: result.command } }
   }
 
+  // Public wrapper so other modules (sensor-config.service.ts, for
+  // config-version history and rollback) can reuse the same role+tenant scope
+  // check instead of re-implementing it against SensorControlRepository.
+  authorizeActor(
+    sensorId: string,
+    actor: ControlActor,
+    minimumRole: 'viewer' | 'analyst' | 'admin',
+  ): Promise<ControlResult<undefined>> {
+    return this.authorize(sensorId, actor, minimumRole)
+  }
+
   private async authorize(
     sensorId: string,
     actor: ControlActor,
-    minimumRole: 'viewer' | 'analyst',
+    minimumRole: 'viewer' | 'analyst' | 'admin',
   ): Promise<ControlResult<undefined>> {
     const roleOrder = { viewer: 0, analyst: 1, admin: 2, superadmin: 3 } as const
     if (roleOrder[actor.role] < roleOrder[minimumRole]) {

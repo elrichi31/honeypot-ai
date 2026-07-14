@@ -210,6 +210,8 @@ export default fp(async (fastify: FastifyInstance) => {
           sensorId,
           connectionId,
           connectedAt: new Date(),
+          agentVersion: hello.data.agentVersion,
+          capabilities: hello.data.capabilities,
           send,
           close: closeWithReason,
         }

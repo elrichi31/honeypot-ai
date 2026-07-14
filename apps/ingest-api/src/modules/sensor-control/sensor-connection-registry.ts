@@ -4,6 +4,8 @@ export interface SensorControlConnection {
   sensorId: string
   connectionId: string
   connectedAt: Date
+  agentVersion: string
+  capabilities: string[]
   send(message: SensorControlServerMessage): void
   close(code: number, reason: string): void
 }

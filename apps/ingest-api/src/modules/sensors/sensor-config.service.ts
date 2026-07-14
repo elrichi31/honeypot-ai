@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'crypto'
 import type { PrismaClient } from '@prisma/client'
-import { SensorConfigRepository } from './sensor-config.repository.js'
-import type { SensorControlService } from '../sensor-control/sensor-control.service.js'
+import { SensorConfigRepository, type SensorConfigVersionRow } from './sensor-config.repository.js'
+import type { ControlActor, SensorControlService } from '../sensor-control/sensor-control.service.js'
 
 // Two consecutive config.apply failures (write error or a heartbeat that
 // never confirmed the new hash before TTL) trigger an automatic rollback to
@@ -72,9 +72,39 @@ export class SensorConfigService {
     // Another apply (possibly a previous rollback attempt) is already in
     // flight — don't stack a second one on top of it.
     if (await this.controlService.hasPendingConfigApply(sensorId)) return
+    await this.applyRollback(sensorId, SYSTEM_ACTOR, 'internal')
+  }
 
+  // Operator-triggered equivalent of checkAutoRollback's core action, minus
+  // the 2-failure gate — an admin can jump straight to the last confirmed-good
+  // config instead of waiting for it to fail twice on its own.
+  async rollbackToLastApplied(sensorId: string, actor: ControlActor): Promise<
+    { ok: true; value: { version: SensorConfigVersionRow } } | { ok: false; error: string; status: number }
+  > {
+    const scope = await this.controlService.authorizeActor(sensorId, actor, 'admin')
+    if (!scope.ok) return scope
+    if (await this.controlService.hasPendingConfigApply(sensorId)) {
+      return { ok: false, error: 'A config.apply is already in flight for this sensor', status: 409 }
+    }
+    const version = await this.applyRollback(sensorId, actor.id, actor.ip)
+    if (!version) return { ok: false, error: 'No previously applied config to roll back to', status: 404 }
+    return { ok: true, value: { version } }
+  }
+
+  async listVersions(sensorId: string, limit: number, actor: ControlActor): Promise<
+    { ok: true; value: { versions: SensorConfigVersionRow[] } } | { ok: false; error: string; status: number }
+  > {
+    const scope = await this.controlService.authorizeActor(sensorId, actor, 'viewer')
+    if (!scope.ok) return scope
+    return { ok: true, value: { versions: await this.repo.list(sensorId, limit) } }
+  }
+
+  // Shared by the automatic (checkAutoRollback) and manual (rollbackToLastApplied)
+  // paths: re-apply the last version confirmed 'applied'. Returns null if there
+  // is none (e.g. the very first config ever failed, nothing to fall back to).
+  private async applyRollback(sensorId: string, actorId: string, actorIp: string): Promise<SensorConfigVersionRow | null> {
     const lastGood = await this.repo.findLastApplied(sensorId)
-    if (!lastGood) return // nothing confirmed-good to roll back to (e.g. first config ever failed)
+    if (!lastGood) return null
 
     const configStr = JSON.stringify(lastGood.config)
     await this.repo.upsertCurrent(sensorId, configStr, lastGood.configHash)
@@ -84,14 +114,15 @@ export class SensorConfigService {
       protocol: lastGood.protocol,
       configStr,
       configHash: lastGood.configHash,
-      createdBy: SYSTEM_ACTOR,
+      createdBy: actorId,
     })
     await this.controlService.queueConfigApply({
       sensorId,
       configHash: lastGood.configHash,
-      requestedBy: SYSTEM_ACTOR,
-      requestedIp: 'internal',
+      requestedBy: actorId,
+      requestedIp: actorIp,
       idempotencyKey: `rollback_${version.id}`,
     })
+    return version
   }
 }

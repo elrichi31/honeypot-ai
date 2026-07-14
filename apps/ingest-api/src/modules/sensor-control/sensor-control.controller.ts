@@ -1,17 +1,9 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify'
+import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { ensureControlApiToken } from '../../lib/control-auth.js'
+import { ensureControlApiToken, getControlActor } from '../../lib/control-auth.js'
 import { SensorControlCredentialService } from './sensor-control-credential.service.js'
 import { sensorConnectionRegistry } from './sensor-connection-registry.js'
-import { SensorControlService, type ControlActor } from './sensor-control.service.js'
-
-const actorHeadersSchema = z.object({
-  'x-control-actor-id': z.string().trim().min(1).max(128),
-  'x-control-actor-role': z.enum(['viewer', 'analyst', 'admin', 'superadmin']),
-  'x-control-actor-client-id': z.string().trim().min(1).max(128).optional(),
-  'x-control-actor-superadmin': z.enum(['true', 'false']),
-  'x-control-actor-ip': z.string().trim().min(1).max(128),
-}).passthrough()
+import { SensorControlService } from './sensor-control.service.js'
 
 const sensorParamsSchema = z.object({ sensorId: z.string().trim().min(1).max(128) })
 const commandParamsSchema = sensorParamsSchema.extend({ commandId: z.string().trim().min(1).max(128) })
@@ -28,22 +20,6 @@ const createCommandSchema = z.object({
 }).strict()
 const listQuerySchema = z.object({ limit: z.coerce.number().int().min(1).max(100).default(20) })
 
-function getActor(request: FastifyRequest): ControlActor | null {
-  const parsed = actorHeadersSchema.safeParse(request.headers)
-  if (!parsed.success) return null
-  const headers = parsed.data
-  const isSuperadmin = headers['x-control-actor-superadmin'] === 'true'
-  if (isSuperadmin !== (headers['x-control-actor-role'] === 'superadmin')) return null
-
-  return {
-    id: headers['x-control-actor-id'],
-    role: headers['x-control-actor-role'],
-    clientId: headers['x-control-actor-client-id'] ?? null,
-    isSuperadmin,
-    ip: headers['x-control-actor-ip'],
-  }
-}
-
 export async function sensorControlRoutes(fastify: FastifyInstance) {
   const svc = new SensorControlService(fastify.prisma, sensorConnectionRegistry)
   const credentialSvc = new SensorControlCredentialService(
@@ -53,7 +29,7 @@ export async function sensorControlRoutes(fastify: FastifyInstance) {
 
   fastify.post('/sensors/:sensorId/commands', async (request, reply) => {
     if (!ensureControlApiToken(request, reply)) return reply
-    const actor = getActor(request)
+    const actor = getControlActor(request)
     if (!actor) return reply.status(400).send({ error: 'Invalid control actor headers' })
     const params = sensorParamsSchema.safeParse(request.params)
     const body = createCommandSchema.safeParse(request.body)
@@ -69,7 +45,7 @@ export async function sensorControlRoutes(fastify: FastifyInstance) {
 
   fastify.get('/sensors/:sensorId/control-status', async (request, reply) => {
     if (!ensureControlApiToken(request, reply)) return reply
-    const actor = getActor(request)
+    const actor = getControlActor(request)
     if (!actor) return reply.status(400).send({ error: 'Invalid control actor headers' })
     const params = sensorParamsSchema.safeParse(request.params)
     if (!params.success) return reply.status(400).send({ error: 'Invalid sensor id' })
@@ -81,7 +57,7 @@ export async function sensorControlRoutes(fastify: FastifyInstance) {
 
   fastify.get('/sensors/:sensorId/commands', async (request, reply) => {
     if (!ensureControlApiToken(request, reply)) return reply
-    const actor = getActor(request)
+    const actor = getControlActor(request)
     if (!actor) return reply.status(400).send({ error: 'Invalid control actor headers' })
     const params = sensorParamsSchema.safeParse(request.params)
     const query = listQuerySchema.safeParse(request.query)
@@ -94,7 +70,7 @@ export async function sensorControlRoutes(fastify: FastifyInstance) {
 
   fastify.post('/sensors/:sensorId/commands/:commandId/cancel', async (request, reply) => {
     if (!ensureControlApiToken(request, reply)) return reply
-    const actor = getActor(request)
+    const actor = getControlActor(request)
     if (!actor) return reply.status(400).send({ error: 'Invalid control actor headers' })
     const params = commandParamsSchema.safeParse(request.params)
     if (!params.success) return reply.status(400).send({ error: 'Invalid command parameters' })
@@ -112,7 +88,7 @@ export async function sensorControlRoutes(fastify: FastifyInstance) {
   // it is stored hashed. The caller (dashboard operator) must copy it now.
   fastify.post('/sensors/:sensorId/control-credential', async (request, reply) => {
     if (!ensureControlApiToken(request, reply)) return reply
-    const actor = getActor(request)
+    const actor = getControlActor(request)
     if (!actor) return reply.status(400).send({ error: 'Invalid control actor headers' })
     const params = sensorParamsSchema.safeParse(request.params)
     if (!params.success) return reply.status(400).send({ error: 'Invalid sensor id' })
