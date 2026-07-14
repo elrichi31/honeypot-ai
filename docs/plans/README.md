@@ -7,7 +7,7 @@ Each plan is the source of truth for its feature. Keep it updated as work progre
 
 - [SENSOR_REMOTE_CONTROL.md](SENSOR_REMOTE_CONTROL.md) - WebSocket control plane for sensors: remote config, acknowledged commands, live status, fallback, security, audit trail, and rollout.
 - [MULTI_TENANT_ROADMAP.md](MULTI_TENANT_ROADMAP.md) - Complete multi-tenant rollout: endpoint inventory, scope pattern, implementation order, and verification data.
-- [CLIENT_REPORTS_PDF.md](CLIENT_REPORTS_PDF.md) - Client reporting. On-demand download is implemented; scheduled generation remains.
+- [CLIENT_REPORTS_PDF.md](CLIENT_REPORTS_PDF.md) - Client reporting. On-demand download, custom/preset date ranges, and (Phase 1.6) an on-page HTML report with real SSE progress and print-to-PDF are implemented; scheduled generation remains.
 - [IOCS_PAGE.md](IOCS_PAGE.md) - Global threat-intelligence page. E2E verification, malware `period`, and IP-hash-family correlation remain.
 - [REALTIME_STREAM.md](REALTIME_STREAM.md) - SSE alerts and heartbeat. Mark-read toast action, server-side unread count, and live-map consolidation remain.
 - [PLAN_DECEPTION.md](PLAN_DECEPTION.md) - Deception network. Track C is implemented through `INTERNAL_SENSORS` in `done/`; Tracks A and B remain.

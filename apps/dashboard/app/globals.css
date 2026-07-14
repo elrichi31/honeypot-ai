@@ -167,3 +167,34 @@
     background: oklch(0.36 0 0);
   }
 }
+
+/* Print: isolate the report so window.print() outputs only #report-print-root,
+   keeping its on-screen (dark) look so the PDF matches the page 1:1.
+   ponytail: visibility+absolute pattern; hidden nodes keep their layout box but
+   the report is lifted to the top-left, which prints clean across browsers.
+   print-color-adjust:exact forces the browser to honor the dark backgrounds. */
+@media print {
+  @page {
+    margin: 8mm;
+  }
+  body * {
+    visibility: hidden !important;
+  }
+  #report-print-root,
+  #report-print-root * {
+    visibility: visible !important;
+  }
+  #report-print-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 8mm;
+    background: var(--background);
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  #report-print-root .report-section {
+    break-inside: avoid;
+  }
+}

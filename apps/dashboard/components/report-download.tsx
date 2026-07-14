@@ -1,8 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useLocale } from "@/components/locale-provider"
 import { resolvePresetWindow, type ReportPreset } from "@/lib/reports/shared/format"
+import { ReportView } from "@/components/reports/report-view"
+import type { ClientReportData } from "@/lib/reports/types"
 import type { Client } from "@/lib/api"
 
 interface Props {
@@ -26,69 +28,64 @@ export function ReportDownload({ isSuperadmin, clients, scopedClientId }: Props)
   const [customStart, setCustomStart] = useState("")
   const [customEnd, setCustomEnd] = useState("")
   const [clientId, setClientId] = useState<string>(clients[0]?.id ?? "")
-  const [loading, setLoading] = useState(false)
+  const [progress, setProgress] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [preview, setPreview] = useState<{ url: string; filename: string } | null>(null)
+  const [data, setData] = useState<ClientReportData | null>(null)
+  const esRef = useRef<EventSource | null>(null)
 
   const effectiveClientId = isSuperadmin ? clientId : (scopedClientId ?? "")
+  const loading = progress !== null
 
-  useEffect(() => {
-    return () => {
-      if (preview) URL.revokeObjectURL(preview.url)
-    }
-  }, [preview])
+  useEffect(() => () => esRef.current?.close(), [])
 
-  async function handleGenerate() {
+  function handleGenerate() {
     const window = resolvePresetWindow(preset, { start: customStart, end: customEnd })
     if (!window) {
       setError(t("reports.range.invalid"))
       return
     }
 
-    setLoading(true)
+    esRef.current?.close()
     setError(null)
-    try {
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
-      const params = new URLSearchParams({
-        startDate: window.startDate,
-        endDate: window.endDate,
-        timezone: tz,
-        locale,
-      })
-      if (isSuperadmin && effectiveClientId) params.set("clientId", effectiveClientId)
+    setData(null)
+    setProgress(0)
 
-      const res = await fetch(`/api/reports?${params}`)
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body?.error ?? `HTTP ${res.status}`)
-      }
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+    const params = new URLSearchParams({
+      startDate: window.startDate,
+      endDate: window.endDate,
+      timezone: tz,
+      locale,
+    })
+    if (isSuperadmin && effectiveClientId) params.set("clientId", effectiveClientId)
 
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const cd = res.headers.get("Content-Disposition") ?? ""
-      const filename =
-        cd.match(/filename="([^"]+)"/)?.[1] ??
-        `report-${new Date().toISOString().slice(0, 10)}.pdf`
+    const es = new EventSource(`/api/reports/stream?${params}`)
+    esRef.current = es
+    let settled = false
 
-      setPreview((prev) => {
-        if (prev) URL.revokeObjectURL(prev.url)
-        return { url, filename }
-      })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("reports.download.error"))
-    } finally {
-      setLoading(false)
+    es.addEventListener("progress", (e) => {
+      const { completed, total } = JSON.parse(e.data) as { completed: number; total: number }
+      setProgress(total > 0 ? completed / total : 0)
+    })
+    es.addEventListener("result", (e) => {
+      settled = true
+      setData(JSON.parse(e.data) as ClientReportData)
+      setProgress(null)
+      es.close()
+    })
+    es.addEventListener("failed", (e) => {
+      settled = true
+      setError((JSON.parse((e as MessageEvent).data).error as string) ?? t("reports.download.error"))
+      setProgress(null)
+      es.close()
+    })
+    es.onerror = () => {
+      if (settled) return
+      settled = true
+      setError(t("reports.download.error"))
+      setProgress(null)
+      es.close()
     }
-  }
-
-  function handleDownload() {
-    if (!preview) return
-    const a = document.createElement("a")
-    a.href = preview.url
-    a.download = preview.filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
   }
 
   return (
@@ -160,24 +157,17 @@ export function ReportDownload({ isSuperadmin, clients, scopedClientId }: Props)
       )}
 
       {/* Actions */}
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4 print:hidden">
         <button
           onClick={handleGenerate}
           disabled={loading || (isSuperadmin && !effectiveClientId)}
           className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {loading ? (
-            <>
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
-              {t("reports.generating")}
-            </>
-          ) : (
-            t("reports.preview")
-          )}
+          {t("reports.preview")}
         </button>
-        {preview && (
+        {data && (
           <button
-            onClick={handleDownload}
+            onClick={() => window.print()}
             className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted/40"
           >
             {t("reports.download")}
@@ -186,17 +176,31 @@ export function ReportDownload({ isSuperadmin, clients, scopedClientId }: Props)
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
 
-      {/* Preview */}
-      {preview ? (
-        <iframe
-          title={preview.filename}
-          src={preview.url}
-          className="h-[80vh] w-full rounded-lg border border-border bg-white"
-        />
-      ) : (
-        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
-          {t("reports.preview.empty")}
+      {/* Progress */}
+      {loading && (
+        <div className="flex flex-col gap-2 print:hidden">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>{t("reports.progress")}</span>
+            <span className="tabular-nums">{Math.round((progress ?? 0) * 100)}%</span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-[width] duration-300"
+              style={{ width: `${Math.max(4, (progress ?? 0) * 100)}%` }}
+            />
+          </div>
         </div>
+      )}
+
+      {/* Report */}
+      {data ? (
+        <ReportView data={data} />
+      ) : (
+        !loading && (
+          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground print:hidden">
+            {t("reports.preview.empty")}
+          </div>
+        )
       )}
     </div>
   )

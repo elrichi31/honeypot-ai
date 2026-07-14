@@ -132,31 +132,14 @@ labels de KPIs y leyendas.
 
 ---
 
-## Fase 1.5 — Preview en pantalla + rango de fechas (custom + presets)
+## Fase 1.5 — Rango de fechas (custom + presets)
 
-Estado: **implementada** (2026-07-13). `tsc --noEmit` limpio; test de presets
-(`lib/reports/shared/format.test.ts`, 6 casos) en verde. Falta verificación E2E
-contra la DB local (pasos abajo).
+Estado: **implementada** (2026-07-13, contrato de fechas + presets). El preview
+se rehízo en la Fase 1.6 (ver abajo) tras aclarar el requerimiento.
 
 ### Objetivo
-1. **Ver el reporte antes de exportarlo**, con exactamente la misma data que sale al PDF.
-2. **Elegir el período**: presets (últimos 7 días, últimos 30 días, este mes, mes
-   anterior) **y** rango de fechas custom (desde/hasta).
-
-### Decisión de diseño (la importante): el preview ES el PDF
-
-La plantilla (`lib/reports/template.tsx`) usa `@react-pdf/renderer` — primitivas de
-PDF (`<Document>/<Page>/<Canvas>`), **no** DOM. No se renderiza en el browser como
-HTML. Por lo tanto:
-
-- **El preview se hace embebiendo el propio PDF en un `<iframe>`** (el visor de PDF
-  nativo del browser). Es byte-idéntico al export por construcción.
-- **Rechazado:** construir un render HTML/React paralelo desde `ClientReportData`.
-  Duplicaría toda la plantilla (viola DRY), y preview y PDF divergirían para siempre.
-- **Una sola generación por click.** Flujo: "Generate/Preview" → `fetch` al endpoint
-  → blob PDF → `URL.createObjectURL` → `iframe.src`. El botón "Download" guarda **el
-  mismo blob en memoria** (no re-genera, no segundo request). El PDF es la única
-  fuente de verdad; preview y descarga comparten el mismo Buffer.
+- **Elegir el período**: presets (últimos 7 días, últimos 30 días, este mes, mes
+  anterior) **y** rango de fechas custom (desde/hasta).
 
 ### Contrato del endpoint: de `range` enum a ventana explícita
 
@@ -199,46 +182,73 @@ Se re-ventanan solo KPIs, geo, credenciales y perfiles de sensor (las SQL-based)
 que dejarlo explícito en el copy/UI o asumirlo; ampliar esos endpoints a `startDate/endDate`
 es trabajo aparte (candidato a fase futura, no bloquea esto).
 
-### UI (`components/report-download.tsx` + `app/reports/page.tsx`)
+### Selector de período (UI)
 
-Selector de período nuevo, reemplaza el toggle week/month:
+Reemplaza el toggle week/month:
 - Botones de preset: **Last 7 days / Last 30 days / This month / Last month / Custom**.
-  Cada preset resuelve `{startDate, endDate}` en el cliente (mismo patrón que
-  `campaigns/page.tsx`, ampliado con "this/last month" y custom).
-- Custom → dos `<input type="date">` nativos (desde/hasta). **Feature nativa del
-  browser, sin librería de date-picker.** Validación cliente: `start ≤ end`.
-- Layout: [ selector de período ] · [ selector de cliente (superadmin) ] ·
-  [ botón **Generate preview** ] → al resolver, `<iframe>` con el PDF a ancho completo +
-  botón **Download PDF** (guarda el blob ya generado) arriba del iframe.
-- Estados: loading (spinner mientras genera), error (mensaje existente), vacío
-  (sin preview aún → placeholder).
-- El `<iframe>` puede ir alto (~80vh) dentro del `PageShell`.
+  Cada preset resuelve `{startDate, endDate}` en el cliente (`resolvePresetWindow`,
+  testeado). Custom → dos `<input type="date">` nativos, sin librería de date-picker.
 
-### i18n (`lib/i18n/dicts/reports.ts`, en + es)
+---
 
-Keys nuevas: `reports.range.last7`, `reports.range.last30`, `reports.range.thisMonth`,
-`reports.range.lastMonth`, `reports.range.custom`, `reports.range.from`,
-`reports.range.to`, `reports.preview` ("Generate preview"), `reports.download` ("Download PDF"),
-`reports.preview.empty` ("Choose a period and generate a preview"),
-`reports.range.invalid` ("Start date must be before end date"). Reusar
-`reports.generating`. Las viejas `reports.range.week/month` quedan sin uso → borrar.
+## Fase 1.6 — Reporte HTML on-page + progreso real + PDF por print
 
-### Verificación
-1. `cd apps/dashboard && npx tsc --noEmit` limpio.
-2. Test `tsx` de la resolución de presets → `{startDate,endDate}` (this month / last month
-   en bordes de mes; span → granularidad de timeline). Assert-based, un archivo.
-3. Contra DB local `honeypot_full`: generar preview de un cliente, confirmar que el
-   iframe muestra el PDF; "Download" baja **el mismo** PDF (mismos números).
-4. Custom range acotado (p.ej. 3 días con datos) → KPIs/geo/creds cuadran con ese rango;
-   confirmar que overview/mitre/bot NO cambian con el rango (límite conocido, esperado).
-5. Isolation sin regresión: superadmin con dos clientes → números distintos; scoped user
-   pidiendo otro `clientId` → sus datos o 403, nunca cruzados.
+Estado: **implementada** (2026-07-13). `tsc --noEmit` limpio; unit test en verde.
+Falta verificación E2E contra la DB local.
+
+### Pivote de diseño (reemplaza el "preview = PDF en iframe" de la 1.5)
+
+El requerimiento aclarado: ver el reporte **pintado como componentes HTML en la propia
+página**, que el PDF **se vea igual**, y una **barra de progreso real** durante la
+generación. Decisión:
+
+- **El HTML es la fuente única de verdad.** El reporte se renderiza como componentes
+  (`components/reports/report-view.tsx`) desde `ClientReportData`, y **el PDF sale de ese
+  mismo HTML** vía `window.print()` + CSS de impresión (`@media print` en `globals.css`).
+  Native platform feature: **sin Chromium en el server, sin librería nueva, sin deps.**
+  Por construcción página == PDF (la 1.5 tenía dos capas; el iframe-PDF se descartó).
+- **react-pdf queda como legacy/fallback** (`/api/reports` GET sigue existiendo). Se
+  borra `template.tsx` + `sections/*` + `sensors/*` (PDF) + `pdf.ts` cuando el camino
+  HTML esté verificado en prod. <!-- ponytail: deuda de borrado pendiente -->
+- **Progreso real vía SSE.** `collectClientReport` acepta `onProgress(done, total)` que
+  dispara al resolver cada una de las ~9 tareas. Endpoint nuevo
+  `GET /api/reports/stream` (`text/event-stream`) emite `progress` por cada tarea, luego
+  `result` con el `ClientReportData` completo, luego cierra (`failed` en error). El
+  cliente usa **`EventSource` nativo** (evento de app = `failed` para no chocar con el
+  `error` nativo de conexión). La barra refleja `done/total` real.
+- **Resolver compartido** (`lib/reports/resolve-request.ts`): auth + tenant-scope + parse
+  de fechas + `clientId` extraídos de `route.ts`; los usan tanto el endpoint PDF como el
+  de stream (DRY). Isolation intacto.
+
+### CSS de impresión (`globals.css`)
+
+`@media print` aísla `#report-print-root` (patrón visibility+absolute), mantiene la
+paleta dark real y fuerza `print-color-adjust: exact` para que el PDF sea idéntico a la
+pantalla. <!-- ponytail: el usuario puede necesitar activar "Background graphics" en el
+diálogo de impresión según el browser -->
+
+### Alcance del ReportView
+Secciones principales (= primeras páginas del PDF viejo): KPIs+deltas, timeline de
+actividad, fuentes de tráfico, MITRE, credenciales (summary + top pares), funnel de
+reconocimiento + IPs recurrentes, geo, clasificación bot/humano. **Pendiente:** páginas
+de deep-dive por sensor (siguen el mismo patrón; página == PDF se mantiene a cada paso).
 
 ### Archivos
-**Modificados:** `app/api/reports/route.ts` (contrato dates), `lib/reports/collect.ts`,
-`lib/reports/shared/format.ts`, `lib/reports/types.ts`, `components/report-download.tsx`,
-`lib/i18n/dicts/reports.ts`. **Nuevo:** test de presets (`lib/reports/*.test.ts`).
-Sin dependencias nuevas. `app/reports/page.tsx` casi no cambia (solo props si hiciera falta).
+**Nuevos:** `lib/reports/resolve-request.ts`, `app/api/reports/stream/route.ts`,
+`components/reports/report-view.tsx`. **Modificados:** `lib/reports/collect.ts`
+(`onProgress`), `app/api/reports/route.ts` (usa el resolver), `components/report-download.tsx`
+(SSE + progreso + ReportView + print), `lib/i18n/dicts/reports.ts`, `app/globals.css`
+(print CSS). Sin dependencias nuevas.
+
+### Verificación (pendiente E2E)
+1. `tsc --noEmit` limpio ✅ · unit test de presets/granularidad ✅.
+2. Contra DB local `honeypot_full`: generar reporte de un cliente → barra avanza por
+   etapas → el reporte aparece on-page; **Download PDF** (`window.print`) produce un PDF
+   idéntico a lo que se ve.
+3. Custom range acotado → KPIs/geo/creds cuadran; overview/mitre/bot NO cambian (límite
+   conocido).
+4. Isolation: superadmin dos clientes → números distintos; scoped pidiendo otro
+   `clientId` → sus datos o 403.
 
 ---
 

@@ -222,34 +222,42 @@ async function collectReportKpis(
   }
 }
 
+// Number of parallel tasks below; drives the progress ratio. Keep in sync.
+const REPORT_STEPS = 9
+
 export async function collectClientReport(params: {
   sensorIds: string[] | undefined
   startDate: string
   endDate: string
   timezone: string
   meta: Omit<ClientReportMeta, "generatedAt" | "periodLabel">
+  onProgress?: (completed: number, total: number) => void
 }): Promise<ClientReportData> {
-  const { sensorIds, startDate, endDate, timezone, meta } = params
+  const { sensorIds, startDate, endDate, timezone, meta, onProgress } = params
   const generatedAt = new Date()
+
+  let done = 0
+  const track = <U>(p: Promise<U>): Promise<U> =>
+    p.finally(() => onProgress?.(++done, REPORT_STEPS))
 
   const [overview, kpiTrends, timeline, mitre, botRatio, geoRaw, insights, creds, sensorProfiles] =
     await Promise.allSettled([
-      fetchHoneypotOverview(sensorIds),
-      collectReportKpis(sensorIds, startDate, endDate),
-      fetchCrossSensorTimeline({ range: timelineGranularity(startDate, endDate), timezone, sensorIds }),
-      fetchMitreMatrix(sensorIds),
-      fetchBotRatio(sensorIds),
-      collectGeoSummary(sensorIds, startDate, endDate),
-      fetchDashboardInsights(sensorIds),
-      fetchCredentialsAnalytics({
+      track(fetchHoneypotOverview(sensorIds)),
+      track(collectReportKpis(sensorIds, startDate, endDate)),
+      track(fetchCrossSensorTimeline({ range: timelineGranularity(startDate, endDate), timezone, sensorIds })),
+      track(fetchMitreMatrix(sensorIds)),
+      track(fetchBotRatio(sensorIds)),
+      track(collectGeoSummary(sensorIds, startDate, endDate)),
+      track(fetchDashboardInsights(sensorIds)),
+      track(fetchCredentialsAnalytics({
         limit: 10,
         rankingType: "pairs",
         mainTab: "rankings",
         clientSlug: meta.clientSlug,
         startDate,
         endDate,
-      }),
-      collectSensorProfiles(sensorIds, startDate, endDate),
+      })),
+      track(collectSensorProfiles(sensorIds, startDate, endDate)),
     ])
 
   function unwrap<T>(result: PromiseSettledResult<T>, fallback: T): T {
