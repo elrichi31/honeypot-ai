@@ -2,8 +2,8 @@
 
 import { apiFetch, assertOk } from "@/lib/client-fetch"
 
-import { useEffect, useRef, useState } from "react"
-import { Save, X, RotateCcw, Info, Plus } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { Save, X, RotateCcw, Plus, Loader2, CheckCircle2, XCircle, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -16,6 +16,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useT } from "@/components/locale-provider"
+import type { TranslationKey } from "@/lib/i18n/dictionaries"
+import { useLiveStream } from "@/hooks/use-live-stream"
 
 export interface CowrieConfig {
   hostname: string
@@ -39,6 +41,53 @@ const DEFAULTS: CowrieConfig = {
   ssh_version: "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6",
   usernames: ["root", "ubuntu", "admin", "oracle", "postgres", "git", "deploy", "centos", "ansible", "ec2-user", "pi", "user"],
   passwords: ["HoneyTrap2026!", "AtlasNode91", "CedarRoot88", "DeltaForge73", "EmberStack64", "FalconMesh52", "GraniteKey47", "HarborPulse39", "IronVector28", "JadeMatrix84"],
+}
+
+// Mirrors sensor_command_state.ts's non-terminal states for config.apply,
+// bucketed to what's worth telling the operator. "idle" is pre-save/closed.
+type ApplyPhase = "idle" | "pending" | "succeeded" | "failed" | "expired"
+
+const PENDING_LABEL_KEY: Record<string, TranslationKey> = {
+  queued: "sensors.config.apply.queued",
+  sent: "sensors.config.apply.sent",
+  acked: "sensors.config.apply.acked",
+  running: "sensors.config.apply.running",
+}
+
+function ApplyStatusNotice({ phase, pendingStatus, error }: { phase: ApplyPhase; pendingStatus: string; error: string }) {
+  const t = useT()
+  if (phase === "idle") return null
+
+  if (phase === "pending") {
+    return (
+      <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-400">
+        <Loader2 className="h-3.5 w-3.5 mt-0.5 shrink-0 animate-spin" />
+        <span>{t(PENDING_LABEL_KEY[pendingStatus] ?? "sensors.config.apply.queued")}</span>
+      </div>
+    )
+  }
+  if (phase === "succeeded") {
+    return (
+      <div className="flex items-start gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs text-emerald-400">
+        <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+        <span>{t("sensors.config.apply.succeeded")}</span>
+      </div>
+    )
+  }
+  if (phase === "expired") {
+    return (
+      <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-400">
+        <Clock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+        <span>{t("sensors.config.apply.expired")}</span>
+      </div>
+    )
+  }
+  return (
+    <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-400">
+      <XCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+      <span>{t("sensors.config.apply.failed", { error: error || t("sensors.config.saveError") })}</span>
+    </div>
+  )
 }
 
 function Field({
@@ -140,15 +189,60 @@ export function SensorConfigDialog({
   const [cfg, setCfg] = useState<CowrieConfig>(DEFAULTS)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
   const [error, setError] = useState("")
+
+  const [applyPhase, setApplyPhase] = useState<ApplyPhase>("idle")
+  const [applyPendingStatus, setApplyPendingStatus] = useState("queued")
+  const [applyError, setApplyError] = useState("")
+  const pendingHashRef = useRef<string | null>(null)
+
+  const checkApplyStatus = useCallback(async () => {
+    const hash = pendingHashRef.current
+    if (!hash) return
+    try {
+      const res = await apiFetch(`/api/sensors/${encodeURIComponent(sensorId)}/commands?limit=5`, { cache: "no-store" })
+      if (!res.ok) return
+      const data = await res.json() as {
+        commands: Array<{ status: string; action: string; payload: { configHash?: string }; error: { message: string } | null }>
+      }
+      const match = data.commands.find((c) => c.action === "config.apply" && c.payload?.configHash === hash)
+      if (!match) return
+
+      if (match.status === "succeeded") {
+        setApplyPhase("succeeded"); pendingHashRef.current = null
+      } else if (match.status === "failed") {
+        setApplyPhase("failed"); setApplyError(match.error?.message ?? ""); pendingHashRef.current = null
+      } else if (match.status === "expired" || match.status === "cancelled") {
+        setApplyPhase("expired"); pendingHashRef.current = null
+      } else {
+        setApplyPhase("pending"); setApplyPendingStatus(match.status)
+      }
+    } catch { /* next SSE event or poll tick will retry */ }
+  }, [sensorId])
+
+  // SSE gives near-instant updates; the poll is the fallback that also
+  // catches TTL expiry, which the server never announces over SSE (see
+  // sensor-control.repository.ts expireQueued — it just writes the row).
+  useLiveStream({
+    onCommandLifecycle: (event) => {
+      if (event.sensorId !== sensorId || !pendingHashRef.current) return
+      checkApplyStatus()
+    },
+  })
+
+  useEffect(() => {
+    if (applyPhase !== "pending") return
+    const id = setInterval(checkApplyStatus, 5000)
+    return () => clearInterval(id)
+  }, [applyPhase, checkApplyStatus])
 
   useEffect(() => {
     if (!open) return
     let cancelled = false
     setLoading(true)
     setError("")
-    setSaved(false)
+    setApplyPhase("idle")
+    pendingHashRef.current = null
     apiFetch(`/api/sensors/${encodeURIComponent(sensorId)}/config`, { cache: "no-store" })
       .then((r) => assertOk(r))
       .then((r) => r.json())
@@ -167,7 +261,8 @@ export function SensorConfigDialog({
 
   function set<K extends keyof CowrieConfig>(key: K, value: CowrieConfig[K]) {
     setCfg((prev) => ({ ...prev, [key]: value }))
-    setSaved(false)
+    setApplyPhase("idle")
+    pendingHashRef.current = null
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -175,12 +270,16 @@ export function SensorConfigDialog({
     setSaving(true)
     setError("")
     try {
-      await assertOk(await apiFetch(`/api/sensors/${encodeURIComponent(sensorId)}/config`, {
+      const res = await assertOk(await apiFetch(`/api/sensors/${encodeURIComponent(sensorId)}/config`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(cfg),
       }), t("sensors.config.saveError"))
-      setSaved(true)
+      const { configHash } = await res.json() as { configHash: string }
+      pendingHashRef.current = configHash
+      setApplyPhase("pending")
+      setApplyPendingStatus("queued")
+      checkApplyStatus()
     } catch (err) {
       setError(err instanceof Error ? err.message : t("sensors.config.saveError"))
     } finally {
@@ -317,13 +416,7 @@ export function SensorConfigDialog({
                 </Field>
               </div>
 
-              {/* Restart notice */}
-              {saved && (
-                <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-400">
-                  <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                  <span>{t("sensors.config.saved")}</span>
-                </div>
-              )}
+              <ApplyStatusNotice phase={applyPhase} pendingStatus={applyPendingStatus} error={applyError} />
 
               {error && (
                 <p className="text-xs text-red-400">{error}</p>
@@ -336,7 +429,7 @@ export function SensorConfigDialog({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => { setCfg(DEFAULTS); setSaved(false) }}
+              onClick={() => { setCfg(DEFAULTS); setApplyPhase("idle"); pendingHashRef.current = null }}
               disabled={loading || saving}
             >
               <RotateCcw className="h-3.5 w-3.5" />
