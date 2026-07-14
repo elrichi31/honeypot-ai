@@ -1,9 +1,8 @@
 import { randomUUID } from 'crypto'
 import type { PrismaClient } from '@prisma/client'
 import type {
-  SensorControlCommandAck,
-  SensorControlCommandResult,
-  SensorControlCommandRunning,
+  SensorControlClientMessage,
+  SensorControlCommand,
 } from '../../contracts/sensor-control/protocol.js'
 import { eventBus } from '../../lib/event-bus.js'
 import { buildCommandMessage } from './sensor-control-message.builder.js'
@@ -147,36 +146,29 @@ export class SensorControlService {
     return this.repo.hasPendingConfigApply(sensorId)
   }
 
-  // Called both right after a command is queued (sensor may already be
-  // connected) and right after a sensor connects (commands may have been
-  // queued while it was offline).
+  // Marks queued commands 'sent' via the same CAS transition (markSent's
+  // `where: status = 'queued'`) regardless of which transport claims them —
+  // that CAS is the entire "lease" mechanism Rebanada 6 needs to stop WS and
+  // the HTTP fallback poll from both delivering the same command: whichever
+  // caller's markSent lands first wins, the other's updateMany matches zero
+  // rows and moves on. No separate lease table or column required.
   //
-  // markSent() runs and is awaited BEFORE connection.send(): a fast sensor
-  // can ack a command within milliseconds of receiving it, and command.ack
-  // handling validates the transition against the command's CURRENT status
-  // in the database. If send() went out first, a sensor replying instantly
-  // could have its ack race markSent()'s write and get rejected as
-  // "invalid_transition" from 'queued' (this was caught manually with the
-  // real simulator — the WS integration tests didn't catch it because the
-  // test client always waits for the 'command' message before acking,
-  // which incidentally gives markSent's await time to land). Persisting
-  // 'sent' first guarantees any ack that arrives after the message is
-  // physically on the wire sees a DB state that's already caught up.
-  async attemptDelivery(sensorId: string): Promise<void> {
-    const connection = this.connectionRegistry.get(sensorId)
-    if (!connection) return
-
+  // markSent() runs and is awaited BEFORE the message is handed to the
+  // caller to send: a fast sensor can ack a command within milliseconds of
+  // receiving it, and command.ack handling validates the transition against
+  // the command's CURRENT status in the database. If the message went out
+  // first, a sensor replying instantly could have its ack race markSent()'s
+  // write and get rejected as "invalid_transition" from 'queued' (caught
+  // manually with the real simulator). Persisting 'sent' first guarantees
+  // any ack arriving after the message is physically in flight sees a DB
+  // state that's already caught up.
+  async claimDeliverable(sensorId: string): Promise<SensorControlCommand[]> {
     const deliverable = await this.repo.findDeliverable(sensorId)
+    const claimed: SensorControlCommand[] = []
     for (const command of deliverable) {
       const sent = await this.repo.markSent({ commandId: command.id, sensorId, now: new Date() })
       if (!sent) continue
-      // Known, accepted race: the socket could close between registry.get()
-      // above and this send() call. connection.send() silently no-ops if the
-      // socket isn't OPEN. This cannot produce a false "succeeded" — only a
-      // real command.ack can move a command past 'sent' (see
-      // sensor-command-state.ts), and the 60s TTL (via expireQueued)
-      // resolves anything stuck in 'sent' with no ACK.
-      connection.send(buildCommandMessage(command))
+      claimed.push(buildCommandMessage(sent))
       eventBus.emit('command.sent', {
         type: 'command.sent',
         commandId: command.id,
@@ -185,34 +177,91 @@ export class SensorControlService {
         timestamp: new Date().toISOString(),
       })
     }
+    return claimed
   }
 
-  // The next three methods are driven by the authenticated WS connection
-  // (already bound to one sensorId at the transport layer), not by an
-  // operator ControlActor — no role/scope check applies here.
-  async handleAck(sensorId: string, msg: SensorControlCommandAck) {
-    return this.repo.markAcked({
-      commandId: msg.commandId,
-      sensorId,
-      now: new Date(),
-      accepted: msg.accepted,
-      error: msg.accepted ? undefined : msg.error,
-    })
+  // Called both right after a command is queued (sensor may already be
+  // connected) and right after a sensor connects (commands may have been
+  // queued while it was offline). No-ops if the sensor has no live WS
+  // connection — that's not a failure, it just means delivery is left to the
+  // HTTP fallback poll (Rebanada 6) or the next WS reconnect.
+  async attemptDelivery(sensorId: string): Promise<void> {
+    const connection = this.connectionRegistry.get(sensorId)
+    if (!connection) return
+
+    const claimed = await this.claimDeliverable(sensorId)
+    for (const message of claimed) {
+      // Known, accepted race: the socket could close between registry.get()
+      // above and this send() call. connection.send() silently no-ops if the
+      // socket isn't OPEN. This cannot produce a false "succeeded" — only a
+      // real command.ack can move a command past 'sent' (see
+      // sensor-command-state.ts), and the 60s/90s TTL (via expireQueued)
+      // resolves anything stuck in 'sent' with no ACK.
+      connection.send(message)
+    }
   }
 
-  async handleRunning(sensorId: string, msg: SensorControlCommandRunning) {
-    return this.repo.markRunning({ commandId: msg.commandId, sensorId, now: new Date() })
-  }
-
-  async handleResult(sensorId: string, msg: SensorControlCommandResult) {
-    return this.repo.markResult({
-      commandId: msg.commandId,
-      sensorId,
-      now: new Date(),
-      outcome: msg.status === 'succeeded'
-        ? { status: 'succeeded', result: msg.result }
-        : { status: 'failed', error: msg.error },
-    })
+  // Every command.ack/running/result — over WS or the HTTP fallback poll's
+  // report endpoint — routes through here, so both transports share
+  // identical state transitions, SSE emission, and the config.apply
+  // auto-rollback trigger. onConfigApplyFailure is a callback rather than a
+  // direct import so this module still doesn't need to know what a "config"
+  // is (see sensor-config.service.ts, which owns that one-way dependency).
+  async routeClientMessage(
+    sensorId: string,
+    msg: SensorControlClientMessage,
+    onConfigApplyFailure?: (sensorId: string) => void,
+  ): Promise<void> {
+    const nowIso = () => new Date().toISOString()
+    switch (msg.type) {
+      case 'command.ack': {
+        if (msg.sensorId !== sensorId) return
+        const result = await this.repo.markAcked({
+          commandId: msg.commandId,
+          sensorId,
+          now: new Date(),
+          accepted: msg.accepted,
+          error: msg.accepted ? undefined : msg.error,
+        })
+        if (result.kind !== 'ok') return
+        eventBus.emit('command.acked', {
+          type: 'command.acked', commandId: msg.commandId, sensorId, accepted: msg.accepted, timestamp: nowIso(),
+        })
+        return
+      }
+      case 'command.running': {
+        if (msg.sensorId !== sensorId) return
+        const result = await this.repo.markRunning({ commandId: msg.commandId, sensorId, now: new Date() })
+        if (result.kind !== 'ok') return
+        eventBus.emit('command.running', { type: 'command.running', commandId: msg.commandId, sensorId, timestamp: nowIso() })
+        return
+      }
+      case 'command.result': {
+        if (msg.sensorId !== sensorId) return
+        const result = await this.repo.markResult({
+          commandId: msg.commandId,
+          sensorId,
+          now: new Date(),
+          outcome: msg.status === 'succeeded'
+            ? { status: 'succeeded', result: msg.result }
+            : { status: 'failed', error: msg.error },
+        })
+        if (result.kind !== 'ok') return
+        // config.apply only ever sends command.result on a write failure —
+        // success is confirmed by the next heartbeat instead. A failure here
+        // is one of the two signals (with TTL expiry) that feeds the
+        // auto-rollback threshold.
+        if (result.command.action === 'config.apply' && msg.status === 'failed') {
+          onConfigApplyFailure?.(sensorId)
+        }
+        eventBus.emit('command.result', {
+          type: 'command.result', commandId: msg.commandId, sensorId, status: msg.status, timestamp: nowIso(),
+        })
+        return
+      }
+      default:
+        return
+    }
   }
 
   async getConnectionStatus(args: { sensorId: string; actor: ControlActor }) {

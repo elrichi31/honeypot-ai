@@ -7,7 +7,6 @@ import {
   SENSOR_CONTROL_PROTOCOL_VERSION,
   sensorControlClientMessageSchema,
   sensorControlHelloSchema,
-  type SensorControlClientMessage,
   type SensorControlServerMessage,
 } from '../../contracts/sensor-control/protocol.js'
 import { eventBus } from '../../lib/event-bus.js'
@@ -119,51 +118,13 @@ export default fp(async (fastify: FastifyInstance) => {
       }
     }
 
-    // Each handler emits an SSE LiveEvent only when the service confirms the
-    // transition actually applied (kind === 'ok') — a not_found/invalid
-    // duplicate or out-of-order message is silently dropped, per the wire
-    // protocol having no "ack of an ack" message.
-    const handleAck = async (msg: Extract<SensorControlClientMessage, { type: 'command.ack' }>) => {
-      const result = await svc.handleAck(sensorId, msg)
-      if (result.kind !== 'ok') return
-      eventBus.emit('command.acked', {
-        type: 'command.acked',
-        commandId: msg.commandId,
-        sensorId,
-        accepted: msg.accepted,
-        timestamp: nowIso(),
-      })
-    }
-
-    const handleRunning = async (msg: Extract<SensorControlClientMessage, { type: 'command.running' }>) => {
-      const result = await svc.handleRunning(sensorId, msg)
-      if (result.kind !== 'ok') return
-      eventBus.emit('command.running', {
-        type: 'command.running',
-        commandId: msg.commandId,
-        sensorId,
-        timestamp: nowIso(),
-      })
-    }
-
-    const handleResult = async (msg: Extract<SensorControlClientMessage, { type: 'command.result' }>) => {
-      const result = await svc.handleResult(sensorId, msg)
-      if (result.kind !== 'ok') return
-      // config.apply only ever sends command.result on a write failure (see
-      // control_agent.py) — success is confirmed by the next heartbeat
-      // instead. A failure here is one of the two signals (with TTL expiry)
-      // that feeds the auto-rollback threshold.
-      if (result.command.action === 'config.apply' && msg.status === 'failed') {
-        configSvc.checkAutoRollback(sensorId)
-          .catch(err => request.log.error({ err, sensorId }, 'config.apply auto-rollback check failed'))
-      }
-      eventBus.emit('command.result', {
-        type: 'command.result',
-        commandId: msg.commandId,
-        sensorId,
-        status: msg.status,
-        timestamp: nowIso(),
-      })
+    // Ack/running/result all route through the same service method used by
+    // the HTTP fallback poll's report endpoint (Rebanada 6) — one place for
+    // state transitions, SSE emission, and the config.apply auto-rollback
+    // trigger, regardless of which transport the sensor used.
+    const onConfigApplyFailure = (failedSensorId: string) => {
+      configSvc.checkAutoRollback(failedSensorId)
+        .catch(err => request.log.error({ err, sensorId: failedSensorId }, 'config.apply auto-rollback check failed'))
     }
 
     // Control messages for a command are strictly ordered on the wire (ack
@@ -304,22 +265,11 @@ export default fp(async (fastify: FastifyInstance) => {
         case 'pong':
           if (message.data.pingMessageId !== lastPingMessageId) return
           break
-        case 'command.ack': {
-          if (message.data.sensorId !== sensorId) return
-          const ack = message.data
-          enqueue(() => handleAck(ack))
-          break
-        }
-        case 'command.running': {
-          if (message.data.sensorId !== sensorId) return
-          const running = message.data
-          enqueue(() => handleRunning(running))
-          break
-        }
+        case 'command.ack':
+        case 'command.running':
         case 'command.result': {
-          if (message.data.sensorId !== sensorId) return
-          const result = message.data
-          enqueue(() => handleResult(result))
+          const msg = message.data
+          enqueue(() => svc.routeClientMessage(sensorId, msg, onConfigApplyFailure))
           break
         }
         case 'sensor.status':

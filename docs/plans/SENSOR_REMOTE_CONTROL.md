@@ -808,6 +808,57 @@ Objetivo: que la entrega no dependa de una conexion WebSocket perfecta.
 Criterio de salida: cortar WS no pierde ni duplica comandos; el sensor usa HTTP y
 vuelve a WS cuando la conexion se recupera.
 
+**Progreso (2026-07-14):** Rebanada 6 completa y verificada de punta a punta,
+incluyendo el caso real "WS nunca conecta, todo pasa por HTTP".
+
+Implementacion:
+
+- `GET /sensors/control/poll` + `POST /sensors/control/report` (nuevo
+  `sensor-control-poll.controller.ts`): mismas credenciales por sensor que el
+  WS (`X-Sensor-Id`/`X-Sensor-Control-Secret`), mismo envelope de mensajes
+  (`sensorControlClientMessageSchema` reusado tal cual para el body de
+  `/report`).
+- La politica de lease/claim que pedia el plan sale gratis del CAS que ya
+  existía: `markSent` solo transiciona `queued -> sent` si encuentra la fila
+  en `queued`. Se extrajo `claimDeliverable(sensorId)` de `attemptDelivery`
+  (WS) para que el poll HTTP llame al mismo metodo — quien gane la carrera
+  (WS empujando o HTTP reclamando) es quien se queda el comando; no hizo
+  falta tabla ni columna de lease separada.
+- Se extrajo `routeClientMessage(sensorId, msg, onConfigApplyFailure?)` en
+  `SensorControlService`, consolidando lo que antes eran tres closures
+  (`handleAck`/`handleRunning`/`handleResult`) duplicables en el plugin WS.
+  Ahora WS y el poll HTTP comparten transiciones de estado, emision de SSE, y
+  el disparador de auto-rollback de config.apply (Rebanada 5) sin
+  divergencia posible entre los dos transportes.
+- `control_agent.py`: refactor de `_handle_command(ws, msg)` a
+  `_dispatch_command(msg, send_fn)` — el dispatch (dedup, handlers,
+  ack/running/result) es ahora agnostico de transporte. Nuevo thread
+  `_poll_forever`: si `_ws_connected` es `False` (bandera que el thread WS
+  actualiza), hace `GET /sensors/control/poll` cada 15s (con backoff en
+  errores) y reporta con `POST /sensors/control/report`; si el WS esta
+  conectado, el poll solo late a 5s sin trabajo real, evitando trafico
+  redundante. Sin cambios en `heartbeat.py` — `ControlAgent` ya tenia todo lo
+  necesario (ingest_url, sensor_id, secret).
+- "Recuperar pendientes despues de reinicios" queda cubierto por diseno, no
+  por codigo nuevo: los comandos ya son filas persistentes en
+  `sensor_commands`; un reinicio de sensor o de `ingest-api` no pierde nada,
+  y el poll HTTP (o el WS al reconectar) los recoge apenas alguno de los dos
+  vuelve a estar disponible.
+
+Verificado end-to-end contra ingest-api + Postgres + el agente Python real,
+con el WS **deliberadamente roto** (URL a un puerto inexistente) para forzar
+el camino 100% HTTP: `stats: {connects: 0, commands: 1, http_polls: 2}` —
+cero conexiones WS exitosas, un comando `status.get` real encolado por REST
+mientras el WS fallaba, recogido por el poll, y confirmado `succeeded` con
+resultado real, todo por HTTP. Tambien 5 tests de integracion nuevos
+(`sensor-control-poll.integration.test.ts`): auth invalida (401), poll vacio,
+claim exactamente una vez (la garantia CAS), ciclo completo por HTTP, y
+rechazo de tipos de mensaje no soportados. Suite completa: 178/178 verde.
+
+Pendiente: no hay metrica/alerta cuando un sensor pasa mucho tiempo en modo
+fallback (solo el log `[control-http]` del propio agente) — util para
+Rebanada 8 si el patron de caidas de WS se vuelve frecuente en produccion.
+
 ### Rebanada 7 - UI operativa
 
 Objetivo: exponer el modelo ya probado sin crear un segundo sistema de estados.

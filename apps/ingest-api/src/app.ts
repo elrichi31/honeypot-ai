@@ -36,6 +36,7 @@ import { alertRoutes } from './modules/alerts/alerts.controller.js';
 import { deceptionRoutes } from './modules/deception/deception.controller.js';
 import { sensorControlRoutes } from './modules/sensor-control/sensor-control.controller.js';
 import sensorControlWsPlugin from './modules/sensor-control/sensor-control-ws.plugin.js';
+import { sensorControlPollRoutes } from './modules/sensor-control/sensor-control-poll.controller.js';
 
 export async function buildApp() {
   // cloudflared runs on the same host and connects from loopback, forwarding the
@@ -107,6 +108,7 @@ export async function buildApp() {
   await app.register(sensorRoutes);
   await app.register(sensorControlRoutes);
   await app.register(sensorControlWsPlugin);
+  await app.register(sensorControlPollRoutes);
   await app.register(attacksTodayRoutes);
   await app.register(sensorProvisionRoutes);
   await app.register(malwareRoutes);
