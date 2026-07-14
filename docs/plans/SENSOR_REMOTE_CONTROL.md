@@ -934,6 +934,165 @@ Objetivo: ampliar capacidades sin modificar protocolo, cola ni UI base.
 - Exigir schema, permisos, estrategia de rollback y pruebas por cada accion nueva.
 - Calibrar rate limits, alertas y metricas con trafico real antes del rollout total.
 
+### Rebanada 9 - Consola SSH web para probar el sensor Cowrie
+
+Estado: **planificada, sin implementar** (2026-07-14).
+
+Objetivo: que un operador pueda abrir una terminal SSH interactiva contra el
+honeypot Cowrie **desde el dashboard**, sin salir del navegador ni tener un
+cliente SSH local, para probar el shell falso, los banners, el hostname, y las
+credenciales configuradas exactamente como los veria un atacante que entra por
+el puerto expuesto. Es una herramienta de prueba/QA del sensor SSH (el que mas
+se esta iterando), no una accion del control plane.
+
+Decisiones ya tomadas con el usuario (2026-07-14):
+
+- **Ubicacion:** boton nuevo "Console" en la card del sensor SSH, al lado de
+  "Configure" (mismo gate `isConfigurable = protocol === 'ssh'`), que abre un
+  modal con la terminal.
+- **Login:** manual — la terminal conecta y deja al operador escribir
+  usuario/contrasena, igual que un atacante real. Asi se prueban las
+  credenciales configuradas tal como estan expuestas. (Sin auto-login.)
+- **Rol minimo:** `admin`. Es mas restrictivo que "Configure" (analyst)
+  porque tecnicamente es un cliente SSH real corriendo desde el server.
+
+#### Contexto de topologia (lo que condiciona TODO el diseno)
+
+Verificado en `docker-compose.prod.single-host.yml`:
+
+- `cowrie` escucha en `2222` (expuesto como `22:2222` y `2222:2222`) y esta en
+  las redes `edge`, `honeypot_ingest`, `deception_net`.
+- `ingest-api` esta en `honeypot_ingest` (+ `app_api`, `db_private`), asi que
+  **puede dialar `cowrie:2222` directo por la red interna de Docker.**
+- `dashboard` esta solo en `app_api` + `db_private` — **NO** comparte red con
+  cowrie, solo alcanza a `ingest-api`.
+- Un sensor **remoto** (otro VPS, `docker-compose.prod.honeypot.yml`) hace
+  solo conexiones **salientes** al `ingest-api` central; este NO tiene ruta de
+  vuelta al puerto SSH del sensor remoto. Ese es justamente el motivo por el
+  que todo el control plane usa WS saliente.
+
+Consecuencia: hay **dos casos que NO se resuelven igual.**
+
+- **Sensor LOCAL (single-host):** `ingest-api` abre SSH a `cowrie:2222`
+  directo. Simple, funciona ya, no viola la regla de seguridad #1 del plan
+  (no se abre ningun puerto nuevo en el sensor — el puerto ya esta expuesto).
+- **Sensor REMOTO:** irrealizable dialando directo. Requeriria tunelizar el
+  PTY sobre la conexion WS saliente que el agente ya mantiene (el agente abre
+  `ssh 127.0.0.1:2222` en su propio host y bombea los bytes del PTY de vuelta
+  por un canal nuevo del control WS). Mas codigo (framing binario/interactivo
+  que el protocolo JSON actual no tiene) y respeta el principio "solo
+  salientes". **Diferido** — v1 es local-only.
+
+#### Arquitectura propuesta (v1, sensor local)
+
+```
+Browser (xterm.js en un modal)
+   | WebSocket (bytes crudos del PTY)
+   v
+ingest-api  GET /sensors/:id/console/ws   (nuevo, plugin @fastify/websocket)
+   - valida un token corto de un solo uso (ver auth abajo)
+   - resuelve scope rol/tenant del sensor
+   - abre SSH con ssh2 a cowrie:2222 pidiendo un PTY
+   - pipe bidireccional: browser stdin -> ssh channel; ssh stdout -> browser
+   v
+cowrie:2222 (shell falso real)
+```
+
+Componentes a construir:
+
+1. **ingest-api — plugin WS `/sensors/:id/console/ws`.** Usa el `ssh2` (npm,
+   dep nueva) para abrir la conexion y un PTY (`shell({ pty: true })`).
+   Reenvia frames del socket como stdin y el stdout/stderr del canal SSH como
+   frames de vuelta. Cierra el SSH cuando el WS cae y viceversa. Limites:
+   timeout de inactividad, tope de tamano de linea, una sesion activa por
+   operador (evitar que un modal olvidado deje SSH abiertos).
+2. **ingest-api — endpoint REST para mintear un token corto.** El WS de arriba
+   NO se puede autenticar con los headers de actor (un `new WebSocket()` del
+   browser no manda headers custom). Patron: `POST /sensors/:id/console/token`
+   (protegido por `ensureControlApiToken` + `ControlActor` admin, igual que
+   las otras rutas de control) devuelve un token firmado, TTL ~30s, un solo
+   uso, atado a `{sensorId, actorId}`. El browser abre
+   `ws://<ingest>/sensors/:id/console/ws?token=...`.
+3. **dashboard BFF — `POST /api/sensors/:id/console/token`.** `requireRole('admin')`,
+   reenvia a ingest-api con los headers de control, devuelve el token +
+   la URL WS publica del ingest-api (`NEXT_PUBLIC_API_URL`). Audita la
+   apertura (`logAudit`, resource SENSOR, action tipo `CONSOLE_OPEN`).
+4. **dashboard UI — `SensorConsoleDialog`.** Modal con `@xterm/xterm` +
+   `@xterm/addon-fit` (deps nuevas). Al abrir: pide el token al BFF, abre el
+   WS directo a ingest-api (mismo patron que el browser ya usa para llamar a
+   `NEXT_PUBLIC_API_URL`), conecta xterm al WS. Boton "Console" en
+   `sensor-card.tsx` gateado a `isConfigurable && esAdmin` (el rol del lado
+   cliente sale de `useSession()` como en `sidebar-user-card.tsx`; el gate
+   real igual lo hace el server).
+
+Nota de por que el WS va directo a ingest-api y no via el BFF: Next.js App
+Router **no soporta upgrade a WebSocket** en un route handler (el SSE de
+`/api/events/live` funciona porque es una respuesta HTTP larga con
+`reply.raw`, no un upgrade). Por eso el token: el BFF autoriza y mintea, el
+browser abre el WS directo al ingest-api (que ya es publico en `:3000` en
+single-host). Mismo patron mental que ya existe: el navegador llama a
+`NEXT_PUBLIC_API_URL` directo para varias cosas.
+
+#### Dependencias nuevas
+
+- `ssh2` en `ingest-api` (cliente SSH + PTY). Bateria probada, estandar de
+  facto en Node.
+- `@xterm/xterm` + `@xterm/addon-fit` en `dashboard`. La terminal en el
+  browser. Nada de esto reemplaza librerias existentes — es funcionalidad
+  nueva, no habia terminal antes.
+
+#### Seguridad
+
+- Rol `admin` + scope de tenant (un operador solo puede consolear sensores de
+  su cliente — reusar el `authorize()` de `SensorControlService`).
+- Token de un solo uso, TTL corto, atado a sensorId+actorId, para el handshake
+  del WS (el browser no puede mandar headers).
+- Auditar apertura y cierre de cada sesion de consola (quien, que sensor, IP
+  publica, duracion).
+- Timeout de inactividad y cierre forzado; una consola activa por operador.
+- El WS de consola NO comparte el token/credencial del control plane de
+  sensores — es su propio canal, su propio token.
+
+#### Gotcha importante: contaminacion de datos del honeypot
+
+Cuando el operador entra por esta consola, **Cowrie registra la sesion como un
+evento/ataque mas**, con IP de origen = la del contenedor `ingest-api` en la
+red `honeypot_ingest` (interna, no una IP externa real). Esas sesiones de
+prueba van a aparecer en analytics/mapa como si fueran ataques. Hay que
+decidir una de estas antes del rollout:
+
+- Etiquetar la IP interna del `ingest-api` como "operator/test" y excluirla de
+  metricas y del mapa (lo mas limpio).
+- O aceptar la contaminacion y documentarlo (solo si el volumen de pruebas es
+  bajo).
+
+Conectar a la IP publica `:22` en vez de `cowrie:2222` interno NO cambia esto
+(el shell de Cowrie es identico venga de donde venga, y la sesion se loguea
+igual) y ademas depende de hairpin NAT del host — no vale la pena, se usa el
+dial interno.
+
+#### Alcance v1 (lo que se implementa)
+
+- Solo sensor Cowrie **local** (single-host). Sensores remotos: fuera.
+- Login manual.
+- Rol admin + scope tenant + token corto + auditoria.
+- Filtrar/etiquetar las sesiones de prueba fuera de analytics.
+
+#### Diferido a una v2 (no en esta rebanada)
+
+- Consola a sensores **remotos** via tunel PTY sobre el WS saliente del agente
+  (framing binario nuevo en el protocolo de control).
+- Grabacion/replay de la sesion de consola.
+- Consola para otros protocolos (no aplica: solo SSH tiene shell interactivo).
+
+#### Criterio de salida
+
+El operador admin abre el modal "Console" en la card del sensor SSH local,
+escribe una credencial configurada, entra al shell falso de Cowrie, ejecuta
+comandos y ve la salida en tiempo real; al cerrar el modal la sesion SSH se
+cierra del lado del server; la apertura queda auditada; y las sesiones de
+prueba no ensucian las metricas de ataques.
+
 ### Primer bloque de trabajo recomendado
 
 La primera implementacion debe limitarse a Rebanadas 0 y 1. Deja listo todo lo
