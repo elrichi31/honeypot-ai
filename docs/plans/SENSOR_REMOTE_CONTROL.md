@@ -726,6 +726,41 @@ Objetivo: exponer el modelo ya probado sin crear un segundo sistema de estados.
 Criterio de salida: el operador puede consultar estado y aplicar config Cowrie con
 feedback completo, sin refresh manual.
 
+**Progreso (2026-07-14):** adelantada una porcion minima (presencia WS +
+`status.get`), el resto (timeline completo, `config.apply` desde UI) espera a
+Rebanada 5.
+
+- `GET /sensors/:id/control-status` nuevo (ingest-api), respaldado por
+  `SensorConnectionRegistry.has()` (reincorporado — ahora tiene un caller
+  real). Mismo scope de rol/tenant que las demas rutas de control.
+- `SensorControlPanel` (dashboard): badge de presencia WS — distinto del
+  badge Online por heartbeat, ya que un sensor puede heartbeatear por HTTP
+  con el socket de control caido — mas boton para disparar `status.get` y
+  mostrar el resultado inline. Gateado a sensores SSH/Cowrie, igual que el
+  dialogo de config existente.
+- Bug real encontrado y arreglado en `live-stream-provider.tsx`: cualquier
+  evento SSE que no fuera `alert`/`sensor-heartbeat` caia por default en
+  `onAttack`; los eventos nuevos (`sensor.connected/disconnected`,
+  `command.*`) se habrian colado como ataques falsos en el mapa. Ahora tienen
+  su propio routing explicito.
+- Verificado end-to-end en el VPS de produccion real (no solo local): stack
+  completo levantado con `scripts/up-single-host.sh`, credencial de control
+  emitida via REST, `cowrie-beacon` conectado (`pip install websockets` +
+  agente real), badge pasando a "Control · connected" en vivo por SSE sin
+  recargar la pagina, y `status.get` disparado desde el boton mostrando
+  version+uptime reales.
+- Gotcha de deploy encontrado: el `.env` raiz (el que lee docker-compose,
+  distinto de `apps/ingest-api/.env` usado en dev local) no tenia
+  `CONTROL_API_SECRET` ni `SENSOR_CONTROL_CREDENTIAL_PEPPER` documentados —
+  con el fail-closed del pepper (Rebanada 4), su ausencia tumba el
+  `ingest-api` completo al arrancar, no solo el control plane. Documentado en
+  `.env.example` raiz.
+
+Pendiente: timeline de comandos (historial mas alla del ultimo resultado),
+capabilities/config hash en el header, y habilitar acciones segun
+ownership ademas de rol — todo eso tiene mas sentido una vez que exista
+`config.apply` (Rebanada 5) para mostrar.
+
 ### Rebanada 8 - Adaptadores y operaciones adicionales
 
 Objetivo: ampliar capacidades sin modificar protocolo, cola ni UI base.
