@@ -956,141 +956,172 @@ Decisiones ya tomadas con el usuario (2026-07-14):
 - **Rol minimo:** `admin`. Es mas restrictivo que "Configure" (analyst)
   porque tecnicamente es un cliente SSH real corriendo desde el server.
 
+**Requisito explicito del usuario (2026-07-14):** la consola debe funcionar
+**igual en single-host que con sensores remotos** — un solo camino, no un
+modo "local" y otro "remoto". Eso descarta el enfoque de "ingest-api dialer
+directo al puerto SSH" (solo sirve local) y fuerza el diseno unificado de
+abajo.
+
 #### Contexto de topologia (lo que condiciona TODO el diseno)
 
 Verificado en `docker-compose.prod.single-host.yml`:
 
-- `cowrie` escucha en `2222` (expuesto como `22:2222` y `2222:2222`) y esta en
-  las redes `edge`, `honeypot_ingest`, `deception_net`.
-- `ingest-api` esta en `honeypot_ingest` (+ `app_api`, `db_private`), asi que
-  **puede dialar `cowrie:2222` directo por la red interna de Docker.**
-- `dashboard` esta solo en `app_api` + `db_private` — **NO** comparte red con
-  cowrie, solo alcanza a `ingest-api`.
+- `cowrie` escucha en `2222` (expuesto como `22:2222` y `2222:2222`).
+- `ingest-api` comparte la red `honeypot_ingest` con cowrie, asi que en
+  single-host *podria* dialar `cowrie:2222` — pero eso NO sirve para sensores
+  remotos.
+- `dashboard` esta solo en `app_api` + `db_private`: no alcanza a cowrie,
+  solo a `ingest-api`.
 - Un sensor **remoto** (otro VPS, `docker-compose.prod.honeypot.yml`) hace
   solo conexiones **salientes** al `ingest-api` central; este NO tiene ruta de
-  vuelta al puerto SSH del sensor remoto. Ese es justamente el motivo por el
-  que todo el control plane usa WS saliente.
+  vuelta al puerto SSH del sensor remoto. Es la regla de seguridad #1 del
+  plan: los sensores nunca aceptan conexiones entrantes.
 
-Consecuencia: hay **dos casos que NO se resuelven igual.**
+La unica pieza que ya existe y alcanza al sensor **en ambas topologias por
+igual** es la **conexion WS saliente que el agente (`cowrie-beacon`) ya
+mantiene** contra el `ingest-api`. Por eso el tunel del PTY tiene que viajar
+por ahi. El agente es quien abre el SSH — contra su **propio cowrie local**
+(mismo host/red) — y bombea los bytes de la terminal por su WS saliente.
+`ingest-api` nunca dialer hacia ningun sensor; solo hace de puente.
 
-- **Sensor LOCAL (single-host):** `ingest-api` abre SSH a `cowrie:2222`
-  directo. Simple, funciona ya, no viola la regla de seguridad #1 del plan
-  (no se abre ningun puerto nuevo en el sensor — el puerto ya esta expuesto).
-- **Sensor REMOTO:** irrealizable dialando directo. Requeriria tunelizar el
-  PTY sobre la conexion WS saliente que el agente ya mantiene (el agente abre
-  `ssh 127.0.0.1:2222` en su propio host y bombea los bytes del PTY de vuelta
-  por un canal nuevo del control WS). Mas codigo (framing binario/interactivo
-  que el protocolo JSON actual no tiene) y respeta el principio "solo
-  salientes". **Diferido** — v1 es local-only.
-
-#### Arquitectura propuesta (v1, sensor local)
+#### Arquitectura unificada (misma para local y remoto)
 
 ```
 Browser (xterm.js en un modal)
-   | WebSocket (bytes crudos del PTY)
+   | WS operador (bytes crudos del PTY)  ── token corto de un solo uso
    v
-ingest-api  GET /sensors/:id/console/ws   (nuevo, plugin @fastify/websocket)
-   - valida un token corto de un solo uso (ver auth abajo)
-   - resuelve scope rol/tenant del sensor
-   - abre SSH con ssh2 a cowrie:2222 pidiendo un PTY
-   - pipe bidireccional: browser stdin -> ssh channel; ssh stdout -> browser
-   v
-cowrie:2222 (shell falso real)
+ingest-api  ── PUENTE de bytes, registro de sesiones de consola ──
+   ^                                            |
+   | WS agente (bytes crudos del PTY)           | control WS existente:
+   |  ── token corto de un solo uso             |   command `console.open`
+   |                                            v   {sessionId, token, wsUrl}
+cowrie-beacon (ControlAgent)  <─────────────────┘
+   - recibe `console.open` por el control WS que ya tiene abierto
+   - abre WS saliente dedicado al ingest-api (con el token)
+   - abre SSH a su cowrie LOCAL (cowrie:2222 / 127.0.0.1:2222) con PTY (paramiko)
+   - pipe bidireccional: WS <-> canal SSH
 ```
 
-Componentes a construir:
+Flujo completo:
 
-1. **ingest-api — plugin WS `/sensors/:id/console/ws`.** Usa el `ssh2` (npm,
-   dep nueva) para abrir la conexion y un PTY (`shell({ pty: true })`).
-   Reenvia frames del socket como stdin y el stdout/stderr del canal SSH como
-   frames de vuelta. Cierra el SSH cuando el WS cae y viceversa. Limites:
-   timeout de inactividad, tope de tamano de linea, una sesion activa por
-   operador (evitar que un modal olvidado deje SSH abiertos).
-2. **ingest-api — endpoint REST para mintear un token corto.** El WS de arriba
-   NO se puede autenticar con los headers de actor (un `new WebSocket()` del
-   browser no manda headers custom). Patron: `POST /sensors/:id/console/token`
-   (protegido por `ensureControlApiToken` + `ControlActor` admin, igual que
-   las otras rutas de control) devuelve un token firmado, TTL ~30s, un solo
-   uso, atado a `{sensorId, actorId}`. El browser abre
-   `ws://<ingest>/sensors/:id/console/ws?token=...`.
-3. **dashboard BFF — `POST /api/sensors/:id/console/token`.** `requireRole('admin')`,
-   reenvia a ingest-api con los headers de control, devuelve el token +
-   la URL WS publica del ingest-api (`NEXT_PUBLIC_API_URL`). Audita la
-   apertura (`logAudit`, resource SENSOR, action tipo `CONSOLE_OPEN`).
-4. **dashboard UI — `SensorConsoleDialog`.** Modal con `@xterm/xterm` +
-   `@xterm/addon-fit` (deps nuevas). Al abrir: pide el token al BFF, abre el
-   WS directo a ingest-api (mismo patron que el browser ya usa para llamar a
-   `NEXT_PUBLIC_API_URL`), conecta xterm al WS. Boton "Console" en
-   `sensor-card.tsx` gateado a `isConfigurable && esAdmin` (el rol del lado
-   cliente sale de `useSession()` como en `sidebar-user-card.tsx`; el gate
-   real igual lo hace el server).
+1. Browser -> BFF `POST /api/sensors/:id/console` (admin). El BFF pide a
+   `ingest-api` que cree una **sesion de consola**: `ingest-api` genera
+   `{sessionId, operatorToken, agentToken}` (tokens cortos, un solo uso) y
+   encola/entrega un command **`console.open`** al agente por el control WS ya
+   existente, con `sessionId`, `agentToken` y la URL WS a la que debe dialar.
+2. El agente recibe `console.open` (accion nueva, manejada como stream **fuera**
+   de la maquina de estados de comandos normal), abre un **WS saliente
+   dedicado** `/(...)/console/agent?token=agentToken`, y abre SSH a su cowrie
+   local pidiendo un PTY.
+3. El browser abre su propio WS `/(...)/console/operator?token=operatorToken`.
+4. `ingest-api` empareja las dos puntas por `sessionId` en un registro en
+   memoria (mismo patron single-instance que `SensorConnectionRegistry`) y
+   **bombea bytes crudos** operador <-> agente. Los eventos de resize
+   (cols/rows del xterm) viajan operador -> ingest -> agente -> PTY.
+5. Cerrar cualquiera de las dos puntas (o el modal) desmonta todo: WS operador,
+   WS agente y la sesion SSH.
 
-Nota de por que el WS va directo a ingest-api y no via el BFF: Next.js App
-Router **no soporta upgrade a WebSocket** en un route handler (el SSE de
-`/api/events/live` funciona porque es una respuesta HTTP larga con
+Por que un **WS dedicado efimero** y no multiplexar sobre el control WS
+existente: el control WS serializa todo por la cadena `processing` + dedup,
+disenada para comandos discretos (ack/result), no para un stream interactivo
+de alto volumen; meter los bytes del PTY ahi agregaria latencia y podria
+ahogar el procesamiento de comandos. Ademas el protocolo de control es JSON y
+un stream de terminal en base64-sobre-JSON es un desperdicio. El command
+`console.open` sirve solo de **disparador** ("dialer de vuelta a esta URL con
+este token"); el stream va por su propio canal.
+
+#### Componentes a construir
+
+1. **Protocolo de control:** nueva accion `console.open` (payload
+   `{sessionId, token, wsUrl}`). El agente la trata distinto: no reporta
+   ack/running/result por la maquina de estados — abre el WS dedicado.
+2. **`control_agent.py`:** handler de `console.open` que abre el WS saliente
+   dedicado + SSH local con PTY (`paramiko`, dep nueva del agente, via el
+   mismo patron `pip install` del compose). Bombea bytes en un thread propio,
+   independiente del loop de control y del de heartbeat. Cierra limpio si
+   cualquiera de las dos puntas cae.
+3. **ingest-api — plugin WS `console/agent` y `console/operator`** +
+   **registro de sesiones de consola** que empareja ambas puntas por
+   `sessionId` y hace el puente de bytes. Limites: timeout de inactividad,
+   tope de tamano de frame, una sesion activa por operador.
+4. **ingest-api — REST `POST /sensors/:id/console`** (protegido por
+   `ensureControlApiToken` + `ControlActor` admin): crea la sesion, mintea los
+   dos tokens, dispara el `console.open`. Devuelve `operatorToken` + la URL WS
+   publica.
+5. **dashboard BFF — `POST /api/sensors/:id/console`:** `requireRole('admin')`,
+   reenvia con headers de control, audita la apertura (`logAudit`).
+6. **dashboard UI — `SensorConsoleDialog`:** modal con `@xterm/xterm` +
+   `@xterm/addon-fit` (deps nuevas). Pide la sesion al BFF, abre el WS operador
+   directo a `ingest-api`, conecta xterm. Boton "Console" en `sensor-card.tsx`
+   gateado a `isConfigurable && esAdmin` (rol del cliente via `useSession()`;
+   el gate real lo hace el server).
+
+Nota de por que el WS operador va directo a `ingest-api` y no via el BFF:
+Next.js App Router **no soporta upgrade a WebSocket** en un route handler (el
+SSE de `/api/events/live` funciona porque es una respuesta HTTP larga con
 `reply.raw`, no un upgrade). Por eso el token: el BFF autoriza y mintea, el
-browser abre el WS directo al ingest-api (que ya es publico en `:3000` en
-single-host). Mismo patron mental que ya existe: el navegador llama a
-`NEXT_PUBLIC_API_URL` directo para varias cosas.
+browser abre el WS directo al `ingest-api` (publico via `NEXT_PUBLIC_API_URL`).
 
 #### Dependencias nuevas
 
-- `ssh2` en `ingest-api` (cliente SSH + PTY). Bateria probada, estandar de
-  facto en Node.
-- `@xterm/xterm` + `@xterm/addon-fit` en `dashboard`. La terminal en el
-  browser. Nada de esto reemplaza librerias existentes — es funcionalidad
-  nueva, no habia terminal antes.
+- `paramiko` en el **agente** (`cowrie-beacon`): cliente SSH + PTY, para dialar
+  el cowrie local. Se suma al `pip install` que ya hace el compose
+  (`websockets` -> `websockets paramiko`). Reemplaza la idea previa de meter
+  `ssh2` en ingest-api — con el diseno unificado ingest-api NO habla SSH, solo
+  puentea bytes.
+- `@xterm/xterm` + `@xterm/addon-fit` en el **dashboard**. Funcionalidad nueva,
+  no reemplaza nada.
 
 #### Seguridad
 
-- Rol `admin` + scope de tenant (un operador solo puede consolear sensores de
-  su cliente — reusar el `authorize()` de `SensorControlService`).
-- Token de un solo uso, TTL corto, atado a sensorId+actorId, para el handshake
-  del WS (el browser no puede mandar headers).
-- Auditar apertura y cierre de cada sesion de consola (quien, que sensor, IP
-  publica, duracion).
-- Timeout de inactividad y cierre forzado; una consola activa por operador.
-- El WS de consola NO comparte el token/credencial del control plane de
-  sensores — es su propio canal, su propio token.
+- Rol `admin` + scope de tenant (reusar `authorize()` de
+  `SensorControlService`).
+- Dos tokens de un solo uso, TTL corto, atados a `{sessionId, sensorId,
+  actorId}` — uno para la punta operador, otro para la punta agente. El
+  browser no puede mandar headers custom en un `new WebSocket()`, de ahi el
+  token en query.
+- El canal de consola NO reusa la credencial del control plane; el
+  `console.open` viaja por el control WS ya autenticado, pero el WS de bytes
+  usa su propio token efimero.
+- Auditar apertura y cierre (quien, que sensor, duracion).
+- Timeout de inactividad + cierre forzado; una consola activa por operador
+  (evita SSH colgados por modales olvidados).
 
-#### Gotcha importante: contaminacion de datos del honeypot
+#### Gotcha: contaminacion de datos del honeypot
 
-Cuando el operador entra por esta consola, **Cowrie registra la sesion como un
-evento/ataque mas**, con IP de origen = la del contenedor `ingest-api` en la
-red `honeypot_ingest` (interna, no una IP externa real). Esas sesiones de
-prueba van a aparecer en analytics/mapa como si fueran ataques. Hay que
-decidir una de estas antes del rollout:
+El agente abre el SSH contra su cowrie local, asi que **Cowrie registra la
+sesion de prueba como un evento/ataque mas**, con IP de origen interna (el
+propio agente / `127.0.0.1` en el host del sensor), no una IP externa real.
+Esas sesiones van a aparecer en analytics/mapa como ataques. Decidir antes del
+rollout:
 
-- Etiquetar la IP interna del `ingest-api` como "operator/test" y excluirla de
-  metricas y del mapa (lo mas limpio).
-- O aceptar la contaminacion y documentarlo (solo si el volumen de pruebas es
-  bajo).
-
-Conectar a la IP publica `:22` en vez de `cowrie:2222` interno NO cambia esto
-(el shell de Cowrie es identico venga de donde venga, y la sesion se loguea
-igual) y ademas depende de hairpin NAT del host — no vale la pena, se usa el
-dial interno.
+- Etiquetar el origen "operator/test" (p.ej. un usuario/marca conocida en el
+  login, o la IP interna del agente) y excluirlo de metricas y del mapa (lo
+  mas limpio).
+- O aceptar la contaminacion si el volumen de pruebas es bajo, y documentarlo.
 
 #### Alcance v1 (lo que se implementa)
 
-- Solo sensor Cowrie **local** (single-host). Sensores remotos: fuera.
+- Consola a cowrie **local y remoto por el mismo camino** (tunel sobre el WS
+  del agente).
 - Login manual.
-- Rol admin + scope tenant + token corto + auditoria.
+- Rol admin + scope tenant + tokens cortos + auditoria.
 - Filtrar/etiquetar las sesiones de prueba fuera de analytics.
 
 #### Diferido a una v2 (no en esta rebanada)
 
-- Consola a sensores **remotos** via tunel PTY sobre el WS saliente del agente
-  (framing binario nuevo en el protocolo de control).
 - Grabacion/replay de la sesion de consola.
 - Consola para otros protocolos (no aplica: solo SSH tiene shell interactivo).
+- Multi-instancia del registro de sesiones de consola (hoy en memoria,
+  single-instance, mismo limite documentado que `SensorConnectionRegistry`).
 
 #### Criterio de salida
 
-El operador admin abre el modal "Console" en la card del sensor SSH local,
-escribe una credencial configurada, entra al shell falso de Cowrie, ejecuta
-comandos y ve la salida en tiempo real; al cerrar el modal la sesion SSH se
-cierra del lado del server; la apertura queda auditada; y las sesiones de
+El operador admin abre "Console" en la card de un sensor SSH — **da igual si
+es el cowrie local del single-host o uno remoto en otro VPS** — escribe una
+credencial configurada, entra al shell falso de Cowrie, ejecuta comandos y ve
+la salida en tiempo real; al cerrar el modal la sesion SSH y ambos WS se
+cierran del lado del server; la apertura queda auditada; y las sesiones de
 prueba no ensucian las metricas de ataques.
 
 ### Primer bloque de trabajo recomendado
