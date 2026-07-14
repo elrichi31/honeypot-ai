@@ -903,10 +903,27 @@ Rebanada 5.
   `ingest-api` completo al arrancar, no solo el control plane. Documentado en
   `.env.example` raiz.
 
+**Progreso (2026-07-14, cont.):** con `config.apply` ya en Rebanada 5,
+sumado el feedback en vivo en el dialogo de config de Cowrie —
+`sensor-config-dialog.tsx`. El "Save & Apply" ya no muestra un aviso
+estatico ("Cowrie reiniciara en ~15s" a ciegas); ahora trackea el
+`configHash` devuelto por el PUT y consulta `GET /commands` para mostrar el
+estado real del comando `config.apply`: `queued/sent/acked/running`
+(spinner), `succeeded` (verde, confirmado por heartbeat), `failed` (rojo,
+con el mensaje de error real) o `expired` (sensor probablemente
+desconectado). Actualiza por SSE (`useLiveStream`) con un poll de respaldo
+cada 5s — el poll es obligatorio, no cosmetico: la expiracion por TTL nunca
+se anuncia por SSE (`expireQueued` solo escribe la fila), asi que sin el
+poll ese caso quedaria invisible en la UI. Verificado: `tsc --noEmit`
+limpio, 47/47 tests unitarios del dashboard. No verificado en browser —
+mismo limite que el resto de la UI de control (sin acceso a la sesion real
+del usuario).
+
 Pendiente: timeline de comandos (historial mas alla del ultimo resultado),
-capabilities/config hash en el header, y habilitar acciones segun
-ownership ademas de rol — todo eso tiene mas sentido una vez que exista
-`config.apply` (Rebanada 5) para mostrar.
+capabilities/config hash en el header, boton "Rollback" manual explicito
+(hoy el rollback automatico ya existe server-side desde Rebanada 5 pero no
+hay forma de dispararlo a mano ni de verlo en la UI), y habilitar acciones
+segun ownership ademas de rol.
 
 ### Rebanada 8 - Adaptadores y operaciones adicionales
 
