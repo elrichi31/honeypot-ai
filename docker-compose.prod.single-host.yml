@@ -115,6 +115,31 @@ services:
           cpus: "0.3"
           pids: 128
 
+  web-honeypot-beacon:
+    <<: *service-defaults
+    logging: *json-logging
+    image: python:3.12-alpine
+    container_name: web-honeypot-beacon
+    depends_on:
+      ingest-api:
+        condition: service_healthy
+    environment:
+      SENSOR_ID: ${SENSOR_ID_HTTP:-web-01}
+      SENSOR_PORTS: "80 8443"
+      INGEST_API_URL: http://ingest-api:3000
+      SENSOR_CONTROL_SECRET: ${SENSOR_CONTROL_SECRET_HTTP:-}
+    volumes:
+      - ./sensors/web-honeypot/heartbeat.py:/heartbeat.py:ro
+      - ./sensors/_shared/control_agent.py:/control_agent.py:ro
+    command: ["sh", "-c", "pip install --quiet --no-cache-dir websockets==13.1 && python3 /heartbeat.py"]
+    networks:
+      - honeypot_ingest
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          pids: 16
+
   postgres:
     logging: *json-logging
     image: postgres:16-alpine

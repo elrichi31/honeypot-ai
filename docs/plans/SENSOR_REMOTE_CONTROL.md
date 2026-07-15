@@ -990,10 +990,110 @@ aqui — criterio de salida cumplido en su totalidad.
 
 Objetivo: ampliar capacidades sin modificar protocolo, cola ni UI base.
 
-- Integrar Port y SMB mediante handlers del agente comun.
-- Agregar gradualmente `service.restart`, `identity.rotate` y `capture.flush`.
-- Exigir schema, permisos, estrategia de rollback y pruebas por cada accion nueva.
-- Calibrar rate limits, alertas y metricas con trafico real antes del rollout total.
+**Dimensionamiento de sensores (2026-07-14):** de los 10 sensores en
+`sensors/`, solo `cowrie`, `ftp-honeypot`, `mysql-honeypot`,
+`port-honeypot`, `smb-honeypot` y `web-honeypot` corren un proceso Python
+propio (`app.py`/`heartbeat.py`) donde `control_agent.py` engancha con el
+mismo patron ya probado en Cowrie (`agent.action(...)` + escritura atomica).
+`dionaea`, `galah`, `opencanary` y `suricata` son binarios/tools de terceros
+sin ese hook — no entran en esta rebanada, integrarlos requeriria un agente
+desde cero fuera del patron actual y no hay caso de negocio que lo justifique
+hoy.
+
+Orden de implementacion dentro de esta rebanada, por valor de negocio:
+
+1. **`web-honeypot`** (prioridad alta, adelantada respecto al plan original):
+   caso de uso concreto identificado con el usuario — poder cambiar el
+   landing/paneles falsos por cliente segun sus requerimientos, sin releases
+   ni SSH manual. Config: perfil visual, hostname/brand, rutas señuelo,
+   paginas de login, headers/server banner, nivel de logging (ya listados
+   arriba en "Configuraciones por sensor").
+2. **`port-honeypot`** y **`smb-honeypot`**: alcance original del plan,
+   identidad (Docker API/Elasticsearch en Port; share/server/domain/OS en
+   SMB) personalizable por cliente, mismo valor que ya probo Cowrie.
+3. **`ftp-honeypot`** y **`mysql-honeypot`**: mismo patron, prioridad menor
+   salvo pedido explicito de un cliente (banner, version de server,
+   credenciales señuelo).
+
+Por sensor incluido:
+
+- Integrar Port, SMB, FTP, MySQL y Web mediante handlers del agente comun.
+- Agregar gradualmente `service.restart`, `identity.rotate` y `capture.flush`
+  donde aplique (`capture.flush` solo tiene sentido en FTP/SMB, que capturan
+  uploads).
+- Exigir schema, permisos, estrategia de rollback y pruebas por cada accion
+  nueva, siguiendo el mismo ciclo verificado en Cowrie (Rebanada 5).
+- Calibrar rate limits, alertas y metricas con trafico real antes del
+  rollout total.
+
+**Progreso — Rebanada 8a, web-honeypot solo `status.get` (2026-07-14):**
+primer vertical de web-honeypot completo y verificado de punta a punta,
+mismo alcance minimo que uso Cowrie en Rebanada 4 (conectividad + `status.get`
+unicamente, sin `config.apply` ni UI todavia).
+
+- Backend (`apps/ingest-api`): **cero cambios.** La exploracion previa a
+  implementar confirmo que todo el plano de comandos (`protocol.ts`,
+  `sensor-control.service/repository`, `sensor-control-ws.plugin.ts`,
+  `SensorConnectionRegistry`) ya es generico por `sensorId`, sin nada
+  hardcodeado a Cowrie/ssh.
+- Decision de arquitectura — **sidecar, no in-process:** `web-honeypot` corre
+  con gunicorn (4 workers = 4 procesos separados, no threads). Enganchar el
+  agente de control dentro de `app.py` como el heartbeat actual hubiera
+  significado 4 conexiones WS independientes peleando por el mismo
+  `sensorId`, cada una desconectando a la anterior (`SensorConnectionRegistry`,
+  Rebanada 2) — connect/disconnect storm permanente. Se replica el patron
+  `cowrie-beacon`: nuevo sidecar `web-honeypot-beacon` (mismo
+  `python:3.12-alpine` + mount de `control_agent.py` + `pip install
+  websockets==13.1`). Diferencia deliberada con Cowrie: el `heartbeat.py` de
+  Cowrie manda el heartbeat *y* corre el agente (Cowrie no puede
+  heartbeatear solo); `web-honeypot/app.py` ya manda su propio heartbeat, asi
+  que el nuevo `sensors/web-honeypot/heartbeat.py` es **solo control-plane**
+  (sin `POST /sensors/heartbeat`, para no duplicar heartbeats).
+- `sensors/web-honeypot/heartbeat.py` (nuevo): registra `status.get` via
+  `ControlAgent` (`sensors/_shared/control_agent.py`, sin cambios, mismo
+  "copy don't import"), reportando `agentVersion`/`uptimeSeconds`/`pid` del
+  beacon (no del proceso gunicorn real, mismo criterio que ya usa Cowrie con
+  `os.getpid()`) + `ports` desde `SENSOR_PORTS`.
+- Compose: `web-honeypot-beacon` agregado en los 4 archivos que ya tenian
+  `cowrie-beacon` — `docker-compose.prod.honeypot.yml`,
+  `docker-compose.prod.single-host.yml`, `deploy/local/sensor-web.yml`,
+  `deploy/local/sensor-ssh-web.yml`. Nuevo `SENSOR_CONTROL_SECRET_HTTP`
+  documentado en `.env.example` (mismo patron que `SENSOR_CONTROL_SECRET_SSH`).
+- **Bug real encontrado y corregido durante la verificacion:**
+  `sensorStatusDetailsSchema` (`protocol.ts`) declara `configHash` como
+  `.nullable()`, no `.optional()` — es una clave requerida en el
+  `command.result`, solo puede valer `string | null`, nunca faltar. El primer
+  handler de `status.get` no incluia la clave (no aplicaba, sin
+  `config.apply` en esta rebanada) y el `command.result` se rechazaba
+  silenciosamente en el servidor: el comando quedaba encallado en `acked`
+  para siempre, sin pasar a `succeeded` ni a `failed`. Fix: siempre incluir
+  `"configHash": None` en el dict de retorno, igual que ya hace
+  `sensors/cowrie/heartbeat.py:237`.
+- Verificado end-to-end contra un ingest-api + Postgres reales (harness
+  Docker aislado, sin tocar el stack de dev normal): sensor seedeado por
+  heartbeat, credencial de control emitida via
+  `POST /sensors/:id/control-credential`, `web-honeypot-beacon` conectado
+  (`hello` aceptado), presencia confirmada por SSE
+  (`sensor.disconnected` -> `sensor.connected` con
+  `capabilities:["status.get"]` al reiniciar el beacon), `status.get`
+  encolado por REST y resuelto `queued(0ms) -> sent -> acked -> succeeded`
+  con `result` real (`pid`, `ports`, `agentVersion`, `uptimeSeconds`,
+  `configHash:null`). Rechazo con secreto invalido confirmado (401 en
+  `/sensors/control/ws` y `/sensors/control/poll`).
+- Gap preexistente encontrado (no de esta rebanada): `deploy/local/core.yml`
+  no define `CONTROL_API_SECRET` ni `SENSOR_CONTROL_CREDENTIAL_PEPPER` —
+  cualquiera que use ese compose para levantar control plane localmente
+  necesita exportarlas a mano. No se toco el archivo (fuera de alcance de
+  esta rebanada); queda para cuando alguien retome el flujo de control plane
+  sobre `deploy/local` en vez del compose raiz.
+
+Pendiente para la siguiente entrega de web-honeypot: `config.apply` (schema
+de config real — perfil visual, hostname/brand, rutas señuelo, banner —
+mecanismo de aplicacion en caliente ya que gunicorn no tiene un patron de
+restart-por-señal como Cowrie), generalizar `PUT /sensors/:id/config` en
+`sensors.controller.ts` (hoy hardcodea `cowrieConfigSchema` + literal
+`protocol: 'ssh'`), y UI (`isConfigurable` en `sensor-card.tsx:56` sigue
+gateado solo a `protocol === "ssh"`).
 
 ### Rebanada 9 - Consola SSH web para probar el sensor Cowrie
 
