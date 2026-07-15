@@ -1,5 +1,74 @@
 # SENSOR_REMOTE_CONTROL - WebSocket control plane para sensores
 
+## Estado actual (2026-07-15)
+
+Resumen rapido de "hasta donde llegamos" — el detalle completo de cada
+entrega esta en las secciones de Rebanadas mas abajo, esto es solo el mapa.
+
+**Listo y verificado de punta a punta:**
+
+- Rebanadas 0-7: el plano de control en si (cola de comandos, WebSocket
+  sensor <-> ingest-api, agente Python compartido `control_agent.py`,
+  fallback HTTP si el WS cae, UI con presencia/timeline/rollback). Piloteado
+  con Cowrie.
+- **Cowrie (ssh):** `status.get` + `config.apply` completo, con rollback
+  automatico y manual, UI completa.
+- **web-honeypot (http):** `status.get` + `config.apply` MVP (banner del
+  servidor + nivel de logging, aplicado en caliente sin reiniciar).
+- **port-honeypot, smb-honeypot:** `status.get` unicamente (sin
+  `config.apply` — ver "pendiente" abajo, por que).
+- **Instalador remoto de clientes** (`/api/sensor/install`, el boton de
+  instalar sensor en la ficha del cliente): ssh, http, port y smb ya
+  provisionan el agente de control correctamente. Cowrie ahi tenia un bug
+  preexistente (crash por falta de `control_agent.py`) que se arreglo de
+  paso; SMB tenia otro bug preexistente y mas grande (le faltaba todo el
+  paquete `honeypot/`, crasheaba al arrancar) que tambien se arreglo.
+
+**Sensores sin ningun trabajo de control plane todavia:**
+
+- `ftp-honeypot`, `mysql-honeypot` — mismo patron simple que port/smb (un
+  solo proceso Python, sin gunicorn), prioridad baja salvo pedido de cliente.
+- `dionaea`, `galah`, `opencanary`, `suricata` — descartados desde el
+  dimensionamiento original (herramientas de terceros, no encajan en el
+  patron de agente Python).
+
+**Pendiente dentro de lo ya empezado:**
+
+- `config.apply` para port-honeypot/smb-honeypot: a diferencia de
+  web-honeypot, casi todos los campos de identidad (puertos activos,
+  share/servidor SMB, dialecto) se fijan al bindear el socket o construir el
+  `SimpleSMBServer` de Impacket — cambiarlos exige reiniciar el contenedor,
+  no hay "apply en caliente" posible. Falta decidir si vale la pena
+  (`config.apply` + `service.restart` combinados) o limitarlo a los pocos
+  campos cosmeticos que si se pueden cambiar sin reiniciar.
+- Personalizacion real de marca/contenido en web-honeypot (el pedido de
+  negocio original: "cambiar la pagina segun el cliente"): la marca
+  "TechCorp" esta hardcodeada en ~13 archivos y atada al sistema de canary
+  tokens — es un rediseno grande, todavia sin empezar.
+- `int-ssh`/`int-http`/`int-smb`/`internal-canary` (deploys de deception
+  interna): topologia separada con sus propios bugs preexistentes
+  (referencian imagenes `{{registry}}/cowrie-beacon:latest` y
+  `{{registry}}/smb-honeypot:latest` que `publish-sensor-images.yml` nunca
+  publica) — deliberadamente sin tocar, nadie lo pidio todavia.
+- **Rebanada 9 — consola SSH web para Cowrie:** diseño completo ya cerrado
+  en el plan (arquitectura del tunel sobre el WS del agente, tokens
+  efimeros, seguridad), **cero codigo implementado**.
+
+**Deuda tecnica menor, anotada en su momento, sin resolver:**
+
+- `DELETE /sensors/:id/control-credential` (revocacion de credencial) sin
+  implementar — el read-path ya existe.
+- `checkAutoRollback` (Cowrie) puede loopear reintentos cada ~90s si la
+  ultima config "buena" tambien falla — sin tope de reintentos.
+- `deploy/local/core.yml` no define `CONTROL_API_SECRET` ni
+  `SENSOR_CONTROL_CREDENTIAL_PEPPER` — hay que exportarlas a mano para
+  probar el plano de control localmente con ese compose.
+- Acciones `service.restart`, `identity.rotate`, `capture.flush`:
+  declaradas en el catalogo del contrato pero deshabilitadas, ningun sensor
+  las implementa todavia.
+- Sin metricas/alertas cuando un sensor pasa mucho tiempo en modo fallback
+  HTTP (solo el log del propio agente).
+
 ## Contexto
 
 Hoy el sistema ya tiene varias piezas cerca de lo que queremos:
@@ -1269,15 +1338,26 @@ mismo alcance minimo que Cowrie (Rebanada 4) y web-honeypot (Rebanada 8a).
   `SMB_TEMPLATE` es distinto — construye con `dockerfile_inline` trayendo
   `app.py` por `ADD <url>` en vez de por mount; se le sumo una segunda linea
   `ADD .../control_agent.py /app/control_agent.py` en el mismo Dockerfile
-  inline, sin necesitar descarga aparte. **Nota:** al revisar
-  `SMB_TEMPLATE` se encontro que ya tenia un problema preexistente y
-  no relacionado — solo hace `ADD` de `app.py`, nunca del paquete
-  `honeypot/` completo que ese mismo `app.py` importa (`from honeypot.config
-  import ...`), asi que el smb-honeypot instalado por el flujo remoto de
-  clientes ya fallaba con `ModuleNotFoundError` antes de este cambio. No se
-  arreglo (mismo criterio que `int-*`: bug preexistente y mas grande que el
-  pedido de esta entrega), queda anotado para cuando alguien retome el
-  instalador remoto de SMB.
+  inline, sin necesitar descarga aparte.
+
+**Progreso — Rebanada 8e, fix del instalador remoto de SMB (2026-07-15):**
+el bug preexistente detectado en 8d (`SMB_TEMPLATE` solo hacia `ADD` de
+`app.py`, nunca del paquete `honeypot/` completo que ese mismo `app.py`
+importa — `smb-honeypot` instalado por el flujo remoto de clientes fallaba
+con `ModuleNotFoundError` antes de siquiera llegar al plano de control) se
+arreglo a pedido del usuario. Se agregaron las 6 lineas `ADD` que faltaban
+(`honeypot/__init__.py`, `config.py`, `capture.py`, `identity.py`,
+`impacket_patches.py`, `ingest.py`) al mismo `dockerfile_inline`.
+Verificado con un build Docker real contra las URLs de GitHub (los archivos
+del paquete ya estaban en `master`, sin necesidad de push previo): la
+imagen compila y el contenedor arranca sin `ModuleNotFoundError` — logs
+reales `SMB honeypot starting...`/`Config file parsed` en vez del crash de
+antes. Limpio despues de la verificacion, sin dejar imagenes ni contenedores
+sueltos. `INT_SMB_TEMPLATE` (deception interna) sigue sin tocar —
+referencia `{{registry}}/smb-honeypot:latest`, una imagen que
+`publish-sensor-images.yml` tampoco publica (mismo problema que
+`cowrie-beacon:latest` en Rebanada 8c), parte del mismo alcance
+deliberadamente fuera de esta entrega.
 - Verificado end-to-end contra un ingest-api + Postgres reales (harness
   Docker aislado, imagenes construidas con los Dockerfiles nuevos, sin tocar
   el stack de dev del usuario): ambos sensores arrancan y sirven normal
