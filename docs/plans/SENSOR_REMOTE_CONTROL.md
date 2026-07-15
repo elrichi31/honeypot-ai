@@ -1229,6 +1229,78 @@ Cambios:
   output real que `cowrie-beacon`/`web-honeypot-beacon` traen sus mounts,
   `SENSOR_CONTROL_SECRET`, `web_signal`, y que el aviso final aparece.
 
+**Progreso — Rebanada 8d, port-honeypot + smb-honeypot, solo `status.get`
+(2026-07-15):** siguiente sensor de la lista de prioridad de negocio,
+mismo alcance minimo que Cowrie (Rebanada 4) y web-honeypot (Rebanada 8a).
+
+- **Hallazgo — mas simple que Cowrie y que web-honeypot:** ninguno de los
+  dos corre gunicorn ni tiene multiples workers — `port-honeypot` es un
+  solo proceso asyncio, `smb-honeypot` un solo proceso sincrono con Impacket
+  bloqueante en el thread principal. No hace falta sidecar (`*-beacon`) ni
+  un `heartbeat.py` nuevo: `control_agent.py` se importa directo dentro del
+  `app.py` que ya existe, mismo archivo compartido de siempre montado por
+  volumen (`/app/control_agent.py`, ya que el `WORKDIR` de ambos es `/app`).
+- `sensors/port-honeypot/app.py`: `status.get` reporta `ports=_active_ports`
+  (la lista que ya se va llenando a medida que cada
+  `asyncio.start_server` bindea). `control_agent.start()` se llama en
+  `main()` despues del loop de bind, antes del `asyncio.gather(...)`.
+- `sensors/smb-honeypot/app.py`: mismo patron, `status.get` reporta
+  `ports=[PORT]`; `control_agent.start()` junto a donde ya arranca
+  `_heartbeat_loop`.
+- **Dependencia horneada en la imagen, no instalada en runtime:** a
+  diferencia de los sidecars beacon (`python:3.12-alpine` generico +
+  `pip install` en el `command`, aceptable ahi por ser contenedores
+  descartables), estos dos ya tienen Dockerfile propio. Se agrego
+  `RUN pip install --no-cache-dir websockets==13.1` a
+  `sensors/port-honeypot/Dockerfile` (no tenia ningun `RUN pip install`
+  antes) y se sumo `websockets==13.1` a la linea de `pip install` que
+  `sensors/smb-honeypot/Dockerfile` ya tenia para `impacket` — se instala
+  una sola vez al construir la imagen, sin latencia de red en cada arranque
+  del proceso principal.
+- Compose: mount de `- ./sensors/_shared/control_agent.py:/app/control_agent.py:ro`
+  + `SENSOR_CONTROL_SECRET: ${SENSOR_CONTROL_SECRET_PORT:-}` /
+  `${SENSOR_CONTROL_SECRET_SMB:-}` en `docker-compose.prod.honeypot.yml`,
+  `docker-compose.prod.single-host.yml` y `deploy/local/sensor-port.yml`
+  (smb no tiene archivo de dev local — no se creo uno nuevo, mismo criterio
+  que `int-*`). Nuevas `SENSOR_CONTROL_SECRET_PORT`/`_SMB` en `.env.example`.
+- Instalador remoto de clientes (`sensor-compose-blocks.ts`): `PORT_TEMPLATE`
+  (imagen prebuilt) gano el mismo mount en runtime que Cowrie/web +
+  `controlAgentDownloadLines()` extendido para incluir `"port"`.
+  `SMB_TEMPLATE` es distinto — construye con `dockerfile_inline` trayendo
+  `app.py` por `ADD <url>` en vez de por mount; se le sumo una segunda linea
+  `ADD .../control_agent.py /app/control_agent.py` en el mismo Dockerfile
+  inline, sin necesitar descarga aparte. **Nota:** al revisar
+  `SMB_TEMPLATE` se encontro que ya tenia un problema preexistente y
+  no relacionado — solo hace `ADD` de `app.py`, nunca del paquete
+  `honeypot/` completo que ese mismo `app.py` importa (`from honeypot.config
+  import ...`), asi que el smb-honeypot instalado por el flujo remoto de
+  clientes ya fallaba con `ModuleNotFoundError` antes de este cambio. No se
+  arreglo (mismo criterio que `int-*`: bug preexistente y mas grande que el
+  pedido de esta entrega), queda anotado para cuando alguien retome el
+  instalador remoto de SMB.
+- Verificado end-to-end contra un ingest-api + Postgres reales (harness
+  Docker aislado, imagenes construidas con los Dockerfiles nuevos, sin tocar
+  el stack de dev del usuario): ambos sensores arrancan y sirven normal
+  (puertos 6379/9200 responden como siempre — incluyendo el panel falso de
+  Elasticsearch real vía `curl`; el puerto 445 de SMB acepta conexion TCP),
+  se conectan al plano de control (`[control] connected as ...` en logs),
+  credencial emitida por sensor via REST, `status.get` encolado y resuelto
+  `queued->sent->acked->succeeded` con `result` real (`ports`, `pid`,
+  `agentVersion`, `uptimeSeconds`) para ambos. `tsc --noEmit` limpio,
+  47/47 tests dashboard. Compose+script remoto generado con `port`+`smb`
+  reales, validado con `docker compose config --quiet` (exit 0) y
+  `bash -n` (sintaxis valida).
+
+Pendiente: `config.apply` para ambos sensores queda deliberadamente fuera de
+esta entrega — a diferencia de web-honeypot, la mayoria de los campos de
+identidad (puertos activos, share/servidor SMB, dialecto) se fijan una sola
+vez al bindear el socket o construir el `SimpleSMBServer` de Impacket;
+cambiarlos requeriria reiniciar el contenedor, no hay equivalente al "apply
+en caliente sin restart" de web-honeypot. Decidir si vale la pena antes de
+implementarlo (`config.apply` + `service.restart` combinados, o limitarlo a
+los pocos campos realmente cosmeticos: titulo/org del panel HTTP en Port,
+contenido de los archivos señuelo en SMB).
+
 ### Rebanada 9 - Consola SSH web para probar el sensor Cowrie
 
 Estado: **planificada, sin implementar** (2026-07-14).

@@ -245,6 +245,7 @@ const PORT_TEMPLATE = `  port-honeypot:
       SENSOR_ID: port-{{deployId}}
       SENSOR_NAME: "Port Honeypot"
       SENSOR_IP: ""
+      SENSOR_CONTROL_SECRET: ""
     ports:
       - "1433:1433"
       - "2375:2375"
@@ -256,6 +257,8 @@ const PORT_TEMPLATE = `  port-honeypot:
       - "9090:9090"
       - "9200:9200"
       - "27017:27017"
+    volumes:
+      - ./control_agent.py:/app/control_agent.py:ro
     networks:
       - edge
     pids_limit: 256`
@@ -528,10 +531,11 @@ const SMB_TEMPLATE = `  smb-honeypot:
       dockerfile_inline: |
         FROM python:3.12-alpine
         RUN apk add --no-cache gcc musl-dev libffi-dev openssl-dev && \\
-            pip install --no-cache-dir impacket==0.12.0 && \\
+            pip install --no-cache-dir impacket==0.12.0 websockets==13.1 && \\
             apk del gcc musl-dev libffi-dev
         WORKDIR /app
         ADD {{rawBase}}/sensors/smb-honeypot/app.py /app/app.py
+        ADD {{rawBase}}/sensors/_shared/control_agent.py /app/control_agent.py
         CMD ["python", "-u", "app.py"]
     container_name: smb-honeypot
     cap_add:
@@ -549,6 +553,7 @@ const SMB_TEMPLATE = `  smb-honeypot:
       SMB_SERVER_DOMAIN: "\${SMB_SERVER_DOMAIN:-CORP}"
       SMB_SHARE_PATH: /share
       SMB_CAPTURE_DIR: /captures
+      SENSOR_CONTROL_SECRET: ""
     ports:
       - "445:445"
     volumes:

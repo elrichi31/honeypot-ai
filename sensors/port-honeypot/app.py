@@ -4,8 +4,10 @@
 import asyncio
 import logging
 import os
+import time
 
-from honeypot.config import PORTS, SERVICES
+from control_agent import ControlAgent
+from honeypot.config import INGEST_API_URL, PORTS, SENSOR_ID, SERVICES
 from honeypot.dispatch import make_handler
 from honeypot.ingest import detect_ip, send_heartbeat
 
@@ -16,6 +18,25 @@ os.makedirs(os.path.dirname(os.getenv("EVENT_LOG_PATH", "/var/log/port-honeypot/
 
 SENSOR_IP = detect_ip()
 _active_ports: list[int] = []
+
+AGENT_VERSION = "port-honeypot/1.0"
+_START_TIME = time.time()
+
+control_agent = ControlAgent(
+    ingest_url=INGEST_API_URL, sensor_id=SENSOR_ID,
+    secret=os.getenv("SENSOR_CONTROL_SECRET", ""), agent_version=AGENT_VERSION,
+)
+
+
+@control_agent.action("status.get")
+def _handle_status_get(report_running) -> dict:
+    return {
+        "agentVersion": AGENT_VERSION,
+        "uptimeSeconds": int(time.time() - _START_TIME),
+        "pid": os.getpid(),
+        "ports": _active_ports,
+        "configHash": None,
+    }
 
 
 async def heartbeat():
@@ -41,8 +62,8 @@ async def main():
         log.error("no ports bound — exiting")
         return
 
-    from honeypot.config import SENSOR_ID
     log.info("%d ports active  sensor=%s", len(servers), SENSOR_ID)
+    control_agent.start()
     await asyncio.gather(*[s.serve_forever() for s in servers], heartbeat())
 
 

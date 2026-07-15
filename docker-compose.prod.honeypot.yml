@@ -239,8 +239,10 @@ services:
       CLIENT_NAME: ${CLIENT_NAME:-}
       SENSOR_IP: ${HONEYPOT_IP:-}
       EVENT_LOG_PATH: /var/log/port-honeypot/events.json
+      SENSOR_CONTROL_SECRET: ${SENSOR_CONTROL_SECRET_PORT:-}
     volumes:
       - port_events:/var/log/port-honeypot
+      - ./sensors/_shared/control_agent.py:/app/control_agent.py:ro
     ports:
       - "1433:1433"
       - "2375:2375"
@@ -281,12 +283,14 @@ services:
       SMB_SHARE_PATH: /share
       SMB_CAPTURE_DIR: /captures
       EVENT_LOG_PATH: /var/log/smb-honeypot/events.json
+      SENSOR_CONTROL_SECRET: ${SENSOR_CONTROL_SECRET_SMB:-}
     ports:
       - "445:445"
     volumes:
       - smb_share:/share
       - smb_captures:/captures
       - smb_events:/var/log/smb-honeypot
+      - ./sensors/_shared/control_agent.py:/app/control_agent.py:ro
     networks:
       - edge
     # NET_BIND_SERVICE to bind port 445 (<1024) as non-root

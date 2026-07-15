@@ -9,8 +9,9 @@ import traceback
 
 from impacket.smbserver import SimpleSMBServer
 
+from control_agent import ControlAgent
 from honeypot.config import (
-    PORT, SENSOR_ID, SHARE_NAME, SHARE_PATH, SHARE_COMMENT,
+    INGEST_API_URL, PORT, SENSOR_ID, SHARE_NAME, SHARE_PATH, SHARE_COMMENT,
     SERVER_NAME, SERVER_OS, SERVER_DOMAIN, CAPTURE_DIR, EVENT_LOG_PATH,
 )
 from honeypot.identity import seed_decoy_files
@@ -23,6 +24,25 @@ log = logging.getLogger("smb-honeypot")
 os.makedirs(os.path.dirname(EVENT_LOG_PATH), exist_ok=True)
 
 SENSOR_IP = detect_ip()
+
+AGENT_VERSION = "smb-honeypot/1.0"
+_START_TIME = time.time()
+
+control_agent = ControlAgent(
+    ingest_url=INGEST_API_URL, sensor_id=SENSOR_ID,
+    secret=os.getenv("SENSOR_CONTROL_SECRET", ""), agent_version=AGENT_VERSION,
+)
+
+
+@control_agent.action("status.get")
+def _handle_status_get(report_running) -> dict:
+    return {
+        "agentVersion": AGENT_VERSION,
+        "uptimeSeconds": int(time.time() - _START_TIME),
+        "pid": os.getpid(),
+        "ports": [PORT],
+        "configHash": None,
+    }
 
 # Generated once per process start — random per the Tarea 2.2 fix.
 _SERVER_GUID = os.urandom(16)
@@ -93,6 +113,7 @@ def main():
              SHARE_NAME, SHARE_PATH, PORT, SENSOR_ID)
 
     threading.Thread(target=_heartbeat_loop, daemon=True).start()
+    control_agent.start()
 
     try:
         server = SimpleSMBServer(listenAddress="0.0.0.0", listenPort=PORT)

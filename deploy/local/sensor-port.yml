@@ -13,9 +13,12 @@ services:
       CLIENT_SLUG: ${CLIENT_SLUG:-}
       CLIENT_NAME: ${CLIENT_NAME:-}
       SENSOR_IP: ${HONEYPOT_IP:-}
+      SENSOR_CONTROL_SECRET: ${SENSOR_CONTROL_SECRET_PORT:-}
     ports:
       - "6379:6379"
       - "8888:8888"
       - "9090:9090"
       - "9200:9200"
       - "27017:27017"
+    volumes:
+      - ../../sensors/_shared/control_agent.py:/app/control_agent.py:ro

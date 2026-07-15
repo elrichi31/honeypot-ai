@@ -76,21 +76,25 @@ function httpDownloadLines(services: ServiceKey[]) {
 }
 
 // Shared control-plane agent (status.get / config.apply) — same file used by
-// every beacon's heartbeat.py, "copy don't import" convention. Only needed
-// when a beacon (ssh/http) is actually going to run.
+// every beacon/sensor process, "copy don't import" convention. Only needed
+// when a sensor with an in-process or sidecar agent is going to run.
+// (smb-honeypot's own template ADDs this file at build time instead, since
+// its remote-install path already fetches app.py the same way.)
 function controlAgentDownloadLines(services: ServiceKey[]) {
-  if (!services.includes("ssh") && !services.includes("http")) return []
+  if (!services.includes("ssh") && !services.includes("http") && !services.includes("port")) return []
   return [`curl -fsSL "$RAW/sensors/_shared/control_agent.py" -o control_agent.py`]
 }
 
-// The beacon(s) come up without a control-plane credential (it can't exist
-// before the sensor's first heartbeat registers it in the DB) — status.get
-// and config.apply stay disabled until an admin issues one from the
-// dashboard and updates the beacon's SENSOR_CONTROL_SECRET.
+// The beacon(s)/sensor(s) come up without a control-plane credential (it
+// can't exist before the sensor's first heartbeat registers it in the DB) —
+// status.get and config.apply stay disabled until an admin issues one from
+// the dashboard and updates the relevant service's SENSOR_CONTROL_SECRET.
 function controlPlaneNote(services: ServiceKey[]): string {
   const beacons = [
     services.includes("ssh") ? "cowrie-beacon" : null,
     services.includes("http") ? "web-honeypot-beacon" : null,
+    services.includes("port") ? "port-honeypot" : null,
+    services.includes("smb") ? "smb-honeypot" : null,
   ].filter((s): s is string => s !== null)
   if (beacons.length === 0) return ""
   return `
