@@ -35,6 +35,10 @@ export class SensorService {
     return this.repo.resolveClientId(slugOrId)
   }
 
+  getProtocol(sensorId: string): Promise<string | null> {
+    return this.repo.getSensorProtocol(sensorId)
+  }
+
   upsertHeartbeat(args: {
     sensorId: string; clientId: string | null; name: string; protocol: string
     ip: string; version: string; ports: number[]; probePorts: number[]

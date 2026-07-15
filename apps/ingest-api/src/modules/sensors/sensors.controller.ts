@@ -27,6 +27,22 @@ const cowrieConfigSchema = z.object({
 
 const DEFAULT_COWRIE_CONFIG = cowrieConfigSchema.parse({})
 
+const webHoneypotConfigSchema = z.object({
+  server_header:     z.string().min(1).max(128).default('Apache/2.4.57 (Ubuntu)'),
+  powered_by_header: z.string().min(1).max(128).default('PHP/8.1.2-1ubuntu2.14'),
+  log_level:         z.enum(['DEBUG', 'INFO', 'WARNING', 'ERROR']).default('INFO'),
+})
+
+const DEFAULT_WEB_CONFIG = webHoneypotConfigSchema.parse({})
+
+// Schema + default config keyed by sensor protocol — GET/PUT /config dispatch
+// through this instead of hardcoding a single protocol's shape. Add an entry
+// here when a new protocol gets config.apply support.
+const CONFIG_SCHEMAS: Record<string, { schema: z.ZodTypeAny; default: unknown }> = {
+  ssh:  { schema: cowrieConfigSchema, default: DEFAULT_COWRIE_CONFIG },
+  http: { schema: webHoneypotConfigSchema, default: DEFAULT_WEB_CONFIG },
+}
+
 const heartbeatSchema = z.object({
   sensorId:     z.string().min(1),
   name:         z.string().min(1),
@@ -116,22 +132,31 @@ export async function sensorRoutes(fastify: FastifyInstance) {
     const params = z.object({ sensorId: z.string().min(1) }).safeParse(request.params)
     if (!params.success) return reply.status(400).send({ error: 'Invalid sensorId' })
 
-    return reply.send(await configSvc.getConfig(params.data.sensorId, DEFAULT_COWRIE_CONFIG))
+    const protocol = await svc.getProtocol(params.data.sensorId)
+    const entry = CONFIG_SCHEMAS[protocol ?? 'ssh'] ?? CONFIG_SCHEMAS.ssh
+    return reply.send(await configSvc.getConfig(params.data.sensorId, entry.default))
   })
 
   fastify.put('/sensors/:sensorId/config', async (request, reply) => {
     if (!ensureIngestToken(request, reply)) return reply
 
     const params = z.object({ sensorId: z.string().min(1) }).safeParse(request.params)
-    const body = cowrieConfigSchema.safeParse(request.body)
     const actorId = z.string().trim().min(1).max(128).default('unknown').parse(request.headers['x-requested-by'])
-    if (!params.success || !body.success) {
-      return reply.status(400).send({ error: 'Invalid config', details: body.error?.flatten() })
+    if (!params.success) return reply.status(400).send({ error: 'Invalid sensorId' })
+
+    const protocol = await svc.getProtocol(params.data.sensorId)
+    if (!protocol) return reply.status(404).send({ error: 'Sensor not found' })
+    const entry = CONFIG_SCHEMAS[protocol]
+    if (!entry) return reply.status(400).send({ error: `No configurable schema for protocol ${protocol}` })
+
+    const body = entry.schema.safeParse(request.body)
+    if (!body.success) {
+      return reply.status(400).send({ error: 'Invalid config', details: body.error.flatten() })
     }
 
     return reply.send(await configSvc.saveAndQueueApply({
       sensorId: params.data.sensorId,
-      protocol: 'ssh',
+      protocol,
       configStr: JSON.stringify(body.data),
       actorId,
       actorIp: normalizeIp(request.ip ?? ''),

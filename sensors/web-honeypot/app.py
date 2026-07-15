@@ -20,6 +20,7 @@ import uuid
 from datetime import datetime, timezone
 from email.utils import formatdate
 
+import gunicorn.http.wsgi as _wsgi
 import requests
 from flask import Flask, g, request, Response, session
 from classifier import classify
@@ -39,6 +40,7 @@ CLIENT_SLUG = os.environ.get("CLIENT_SLUG", "")
 CLIENT_NAME = os.environ.get("CLIENT_NAME", "")
 SENSOR_HOST = os.environ.get("SENSOR_HOST", socket.gethostname())
 SENSOR_LAYER = os.environ.get("SENSOR_LAYER", "external")
+SIGNAL_DIR = os.environ.get("SIGNAL_DIR", "/signal")
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
@@ -72,6 +74,62 @@ _STATIC_HEADERS = {
     "Connection": "Keep-Alive",
     "Keep-Alive": "timeout=5, max=100",
 }
+
+
+# ---------------------------------------------------------------------------
+# Remote config (control plane, config.apply) — web-honeypot-beacon writes
+# web-config.json + a hash file to the shared SIGNAL_DIR volume; each gunicorn
+# worker (its own process) watches for a hash change and applies it in
+# memory. No restart needed, unlike Cowrie's signal-volume-and-restart.
+# ---------------------------------------------------------------------------
+
+_last_applied_config_hash = ""
+
+
+def _read_local_config_hash() -> str:
+    try:
+        with open(os.path.join(SIGNAL_DIR, "web.hash")) as f:
+            return f.read().strip()
+    except Exception:
+        return ""
+
+
+def _apply_web_config(config: dict) -> None:
+    server = config.get("server_header")
+    powered_by = config.get("powered_by_header")
+    log_level = config.get("log_level")
+    if server:
+        # gunicorn's wsgi.Response.default_headers() always emits its own
+        # "Server:" line from this module global (read fresh per request,
+        # see gunicorn.conf.py's _patch_server_token docstring) — setting
+        # _STATIC_HEADERS["Server"] alone has no effect on the wire, gunicorn
+        # overrides it regardless of what Flask's response.headers carries.
+        _wsgi.SERVER = server
+        _wsgi.SERVER_SOFTWARE = server
+        _STATIC_HEADERS["Server"] = server
+    if powered_by:
+        _STATIC_HEADERS["X-Powered-By"] = powered_by
+    if log_level and logging.getLevelName(log.getEffectiveLevel()) != log_level:
+        log.setLevel(getattr(logging, log_level, logging.INFO))
+
+
+def _config_watch_loop():
+    global _last_applied_config_hash
+    while True:
+        h = _read_local_config_hash()
+        if h and h != _last_applied_config_hash:
+            try:
+                with open(os.path.join(SIGNAL_DIR, "web-config.json")) as f:
+                    config = json.load(f)
+                _apply_web_config(config)
+                _last_applied_config_hash = h
+                log.info("applied web config (hash=%s)", h)
+            except Exception as exc:
+                log.warning("config apply read error: %s", exc)
+        time.sleep(5)
+
+
+threading.Thread(target=_config_watch_loop, daemon=True).start()
 
 
 def get_real_ip() -> str:
@@ -203,6 +261,12 @@ def _send_heartbeat():
         if SENSOR_LAYER == "internal":
             payload["layer"] = "internal"
             payload["realProtocol"] = "http"
+        # Reported to confirm config.apply commands — the server only marks
+        # one 'succeeded' once a heartbeat echoes back the hash it applied.
+        # Omitted (not null) when there's no local config yet.
+        local_hash = _read_local_config_hash()
+        if local_hash:
+            payload["configHash"] = local_hash
         requests.post(
             f"{INGEST_URL}/sensors/heartbeat",
             json=payload,

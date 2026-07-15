@@ -92,6 +92,7 @@ services:
       - /tmp
     volumes:
       - web_events:/var/log/web-honeypot
+      - web_signal:/signal:ro
     pids_limit: 128
 
   web-honeypot-beacon:
@@ -104,9 +105,11 @@ services:
       SENSOR_PORTS: "80 8443"
       INGEST_API_URL: ${INGEST_API_URL}
       SENSOR_CONTROL_SECRET: ${SENSOR_CONTROL_SECRET_HTTP:-}
+      SIGNAL_DIR: /signal
     volumes:
       - ./sensors/web-honeypot/heartbeat.py:/heartbeat.py:ro
       - ./sensors/_shared/control_agent.py:/control_agent.py:ro
+      - web_signal:/signal
     command: ["sh", "-c", "pip install --quiet --no-cache-dir websockets==13.1 && python3 /heartbeat.py"]
     networks:
       - edge
@@ -299,6 +302,7 @@ volumes:
   smb_share:
   smb_captures:
   web_events:
+  web_signal:
   ftp_events:
   mysql_events:
   port_events:

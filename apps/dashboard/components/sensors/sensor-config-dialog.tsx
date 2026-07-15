@@ -44,6 +44,24 @@ const DEFAULTS: CowrieConfig = {
   passwords: ["HoneyTrap2026!", "AtlasNode91", "CedarRoot88", "DeltaForge73", "EmberStack64", "FalconMesh52", "GraniteKey47", "HarborPulse39", "IronVector28", "JadeMatrix84"],
 }
 
+export interface WebHoneypotConfig {
+  server_header: string
+  powered_by_header: string
+  log_level: "DEBUG" | "INFO" | "WARNING" | "ERROR"
+}
+
+const WEB_DEFAULTS: WebHoneypotConfig = {
+  server_header: "Apache/2.4.57 (Ubuntu)",
+  powered_by_header: "PHP/8.1.2-1ubuntu2.14",
+  log_level: "INFO",
+}
+
+type SensorConfig = CowrieConfig | WebHoneypotConfig
+
+function defaultsFor(protocol: string): SensorConfig {
+  return protocol === "http" ? WEB_DEFAULTS : DEFAULTS
+}
+
 type ConfigVersion = {
   id: string
   configHash: string
@@ -192,21 +210,197 @@ function TagInput({
   )
 }
 
+function CowrieConfigFields({
+  cfg,
+  set,
+  t,
+}: {
+  cfg: CowrieConfig
+  set: (key: keyof CowrieConfig, value: CowrieConfig[keyof CowrieConfig]) => void
+  t: ReturnType<typeof useT>
+}) {
+  return (
+    <>
+      {/* Identity */}
+      <div className="space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.identity")}</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={t("sensors.config.field.hostname")} hint={t("sensors.config.field.hostname.hint")}>
+            <Input
+              value={cfg.hostname}
+              onChange={(e) => set("hostname", e.target.value)}
+              placeholder="web-prod-01"
+              className="font-mono text-sm"
+            />
+          </Field>
+          <Field label={t("sensors.config.field.hardwarePlatform")} hint={t("sensors.config.field.hardwarePlatform.hint")}>
+            <Input
+              value={cfg.hardware_platform}
+              onChange={(e) => set("hardware_platform", e.target.value)}
+              placeholder="x86_64"
+              className="font-mono text-sm"
+            />
+          </Field>
+        </div>
+      </div>
+
+      {/* SSH Banner */}
+      <div className="space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.sshBanner")}</p>
+        <Field label={t("sensors.config.field.sshVersion")} hint={t("sensors.config.field.sshVersion.hint")}>
+          <Input
+            value={cfg.ssh_version}
+            onChange={(e) => set("ssh_version", e.target.value)}
+            placeholder="SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6"
+            className="font-mono text-sm"
+          />
+        </Field>
+      </div>
+
+      {/* Kernel */}
+      <div className="space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.kernel")}</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={t("sensors.config.field.kernelVersion")} hint={t("sensors.config.field.kernelVersion.hint")}>
+            <Input
+              value={cfg.kernel_version}
+              onChange={(e) => set("kernel_version", e.target.value)}
+              placeholder="5.15.0-91-generic"
+              className="font-mono text-sm"
+            />
+          </Field>
+          <Field label={t("sensors.config.field.kernelBuild")} hint={t("sensors.config.field.kernelBuild.hint")}>
+            <Input
+              value={cfg.kernel_build_string}
+              onChange={(e) => set("kernel_build_string", e.target.value)}
+              placeholder="#101-Ubuntu SMP Tue Nov 14 13:30:08 UTC 2023"
+              className="font-mono text-sm"
+            />
+          </Field>
+        </div>
+      </div>
+
+      {/* Timeouts */}
+      <div className="space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.timeouts")}</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={t("sensors.config.field.interactiveTimeout")} hint={t("sensors.config.field.interactiveTimeout.hint")}>
+            <Input
+              type="number"
+              min={30}
+              max={3600}
+              value={cfg.interactive_timeout}
+              onChange={(e) => set("interactive_timeout", Number(e.target.value))}
+              className="font-mono text-sm"
+            />
+          </Field>
+          <Field label={t("sensors.config.field.authTimeout")} hint={t("sensors.config.field.authTimeout.hint")}>
+            <Input
+              type="number"
+              min={10}
+              max={600}
+              value={cfg.authentication_timeout}
+              onChange={(e) => set("authentication_timeout", Number(e.target.value))}
+              className="font-mono text-sm"
+            />
+          </Field>
+        </div>
+      </div>
+
+      {/* Credentials */}
+      <div className="space-y-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.credentials")}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            {t("sensors.config.credentials.total", { total: String(cfg.usernames.length * cfg.passwords.length) })}
+          </p>
+        </div>
+        <Field label={t("sensors.config.field.usernames")} hint={t("sensors.config.field.usernames.hint")}>
+          <TagInput
+            values={cfg.usernames}
+            onChange={(v) => set("usernames", v)}
+            placeholder="e.g. root"
+            validate={(v) => /\s/.test(v) ? t("sensors.config.tagInput.noSpaces") : null}
+            addLabel={t("sensors.config.tagInput.add")}
+          />
+        </Field>
+        <Field label={t("sensors.config.field.passwords")} hint={t("sensors.config.field.passwords.hint")}>
+          <TagInput
+            values={cfg.passwords}
+            onChange={(v) => set("passwords", v)}
+            placeholder="e.g. MyBaitPass99!"
+            validate={(v) => v.length < 8 ? t("sensors.config.tagInput.minLength") : null}
+            addLabel={t("sensors.config.tagInput.add")}
+          />
+        </Field>
+      </div>
+    </>
+  )
+}
+
+function WebHoneypotConfigFields({
+  cfg,
+  set,
+  t,
+}: {
+  cfg: WebHoneypotConfig
+  set: (key: keyof WebHoneypotConfig, value: WebHoneypotConfig[keyof WebHoneypotConfig]) => void
+  t: ReturnType<typeof useT>
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.serverBanner")}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={t("sensors.config.field.serverHeader")} hint={t("sensors.config.field.serverHeader.hint")}>
+          <Input
+            value={cfg.server_header}
+            onChange={(e) => set("server_header", e.target.value)}
+            placeholder="Apache/2.4.57 (Ubuntu)"
+            className="font-mono text-sm"
+          />
+        </Field>
+        <Field label={t("sensors.config.field.poweredByHeader")} hint={t("sensors.config.field.poweredByHeader.hint")}>
+          <Input
+            value={cfg.powered_by_header}
+            onChange={(e) => set("powered_by_header", e.target.value)}
+            placeholder="PHP/8.1.2-1ubuntu2.14"
+            className="font-mono text-sm"
+          />
+        </Field>
+      </div>
+      <Field label={t("sensors.config.field.logLevel")} hint={t("sensors.config.field.logLevel.hint")}>
+        <select
+          value={cfg.log_level}
+          onChange={(e) => set("log_level", e.target.value as WebHoneypotConfig["log_level"])}
+          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          <option value="DEBUG">DEBUG</option>
+          <option value="INFO">INFO</option>
+          <option value="WARNING">WARNING</option>
+          <option value="ERROR">ERROR</option>
+        </select>
+      </Field>
+    </div>
+  )
+}
+
 export function SensorConfigDialog({
   sensorId,
   sensorClientId,
+  protocol,
   open,
   onClose,
 }: {
   sensorId: string
   sensorClientId?: string | null
+  protocol: string
   open: boolean
   onClose: () => void
 }) {
   const t = useT()
   const viewer = useViewer()
   const canRollback = canActOnSensor(viewer, "admin", sensorClientId)
-  const [cfg, setCfg] = useState<CowrieConfig>(DEFAULTS)
+  const [cfg, setCfg] = useState<SensorConfig>(defaultsFor(protocol))
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
@@ -279,12 +473,13 @@ export function SensorConfigDialog({
     pendingHashRef.current = null
     setRollbackError("")
     fetchVersions()
+    const defaults = defaultsFor(protocol)
     apiFetch(`/api/sensors/${encodeURIComponent(sensorId)}/config`, { cache: "no-store" })
       .then((r) => assertOk(r))
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return
-        if (data?.config) setCfg({ ...DEFAULTS, ...data.config })
+        if (data?.config) setCfg({ ...defaults, ...data.config })
         setLoading(false)
       })
       .catch(() => {
@@ -293,9 +488,13 @@ export function SensorConfigDialog({
         setLoading(false)
       })
     return () => { cancelled = true }
-  }, [open, sensorId, fetchVersions])
+  }, [open, sensorId, protocol, fetchVersions])
 
-  function set<K extends keyof CowrieConfig>(key: K, value: CowrieConfig[K]) {
+  // Loosely typed on purpose: cfg is a union of two unrelated shapes
+  // (CowrieConfig | WebHoneypotConfig) with no shared keys, and each
+  // protocol's field group below passes its own precisely-typed key/value —
+  // a function accepting (string, unknown) is safely assignable there.
+  function set(key: string, value: unknown) {
     setCfg((prev) => ({ ...prev, [key]: value }))
     setApplyPhase("idle")
     pendingHashRef.current = null
@@ -347,9 +546,9 @@ export function SensorConfigDialog({
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSave} className="space-y-5">
           <DialogHeader>
-            <DialogTitle>{t("sensors.config.title")}</DialogTitle>
+            <DialogTitle>{t(protocol === "http" ? "sensors.config.title.web" : "sensors.config.title")}</DialogTitle>
             <DialogDescription>
-              {t("sensors.config.description")}
+              {t(protocol === "http" ? "sensors.config.description.web" : "sensors.config.description")}
             </DialogDescription>
           </DialogHeader>
 
@@ -357,119 +556,11 @@ export function SensorConfigDialog({
             <div className="py-8 text-center text-sm text-muted-foreground">{t("sensors.config.loading")}</div>
           ) : (
             <>
-              {/* Identity */}
-              <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.identity")}</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label={t("sensors.config.field.hostname")} hint={t("sensors.config.field.hostname.hint")}>
-                    <Input
-                      value={cfg.hostname}
-                      onChange={(e) => set("hostname", e.target.value)}
-                      placeholder="web-prod-01"
-                      className="font-mono text-sm"
-                    />
-                  </Field>
-                  <Field label={t("sensors.config.field.hardwarePlatform")} hint={t("sensors.config.field.hardwarePlatform.hint")}>
-                    <Input
-                      value={cfg.hardware_platform}
-                      onChange={(e) => set("hardware_platform", e.target.value)}
-                      placeholder="x86_64"
-                      className="font-mono text-sm"
-                    />
-                  </Field>
-                </div>
-              </div>
-
-              {/* SSH Banner */}
-              <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.sshBanner")}</p>
-                <Field label={t("sensors.config.field.sshVersion")} hint={t("sensors.config.field.sshVersion.hint")}>
-                  <Input
-                    value={cfg.ssh_version}
-                    onChange={(e) => set("ssh_version", e.target.value)}
-                    placeholder="SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6"
-                    className="font-mono text-sm"
-                  />
-                </Field>
-              </div>
-
-              {/* Kernel */}
-              <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.kernel")}</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label={t("sensors.config.field.kernelVersion")} hint={t("sensors.config.field.kernelVersion.hint")}>
-                    <Input
-                      value={cfg.kernel_version}
-                      onChange={(e) => set("kernel_version", e.target.value)}
-                      placeholder="5.15.0-91-generic"
-                      className="font-mono text-sm"
-                    />
-                  </Field>
-                  <Field label={t("sensors.config.field.kernelBuild")} hint={t("sensors.config.field.kernelBuild.hint")}>
-                    <Input
-                      value={cfg.kernel_build_string}
-                      onChange={(e) => set("kernel_build_string", e.target.value)}
-                      placeholder="#101-Ubuntu SMP Tue Nov 14 13:30:08 UTC 2023"
-                      className="font-mono text-sm"
-                    />
-                  </Field>
-                </div>
-              </div>
-
-              {/* Timeouts */}
-              <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.timeouts")}</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label={t("sensors.config.field.interactiveTimeout")} hint={t("sensors.config.field.interactiveTimeout.hint")}>
-                    <Input
-                      type="number"
-                      min={30}
-                      max={3600}
-                      value={cfg.interactive_timeout}
-                      onChange={(e) => set("interactive_timeout", Number(e.target.value))}
-                      className="font-mono text-sm"
-                    />
-                  </Field>
-                  <Field label={t("sensors.config.field.authTimeout")} hint={t("sensors.config.field.authTimeout.hint")}>
-                    <Input
-                      type="number"
-                      min={10}
-                      max={600}
-                      value={cfg.authentication_timeout}
-                      onChange={(e) => set("authentication_timeout", Number(e.target.value))}
-                      className="font-mono text-sm"
-                    />
-                  </Field>
-                </div>
-              </div>
-
-              {/* Credentials */}
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.credentials")}</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    {t("sensors.config.credentials.total", { total: String(cfg.usernames.length * cfg.passwords.length) })}
-                  </p>
-                </div>
-                <Field label={t("sensors.config.field.usernames")} hint={t("sensors.config.field.usernames.hint")}>
-                  <TagInput
-                    values={cfg.usernames}
-                    onChange={(v) => set("usernames", v)}
-                    placeholder="e.g. root"
-                    validate={(v) => /\s/.test(v) ? t("sensors.config.tagInput.noSpaces") : null}
-                    addLabel={t("sensors.config.tagInput.add")}
-                  />
-                </Field>
-                <Field label={t("sensors.config.field.passwords")} hint={t("sensors.config.field.passwords.hint")}>
-                  <TagInput
-                    values={cfg.passwords}
-                    onChange={(v) => set("passwords", v)}
-                    placeholder="e.g. MyBaitPass99!"
-                    validate={(v) => v.length < 8 ? t("sensors.config.tagInput.minLength") : null}
-                    addLabel={t("sensors.config.tagInput.add")}
-                  />
-                </Field>
-              </div>
+              {protocol === "http" ? (
+                <WebHoneypotConfigFields cfg={cfg as WebHoneypotConfig} set={set} t={t} />
+              ) : (
+                <CowrieConfigFields cfg={cfg as CowrieConfig} set={set} t={t} />
+              )}
 
               <ApplyStatusNotice phase={applyPhase} pendingStatus={applyPendingStatus} error={applyError} />
 
@@ -521,7 +612,7 @@ export function SensorConfigDialog({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => { setCfg(DEFAULTS); setApplyPhase("idle"); pendingHashRef.current = null }}
+              onClick={() => { setCfg(defaultsFor(protocol)); setApplyPhase("idle"); pendingHashRef.current = null }}
               disabled={loading || saving}
             >
               <RotateCcw className="h-3.5 w-3.5" />

@@ -1087,13 +1087,82 @@ unicamente, sin `config.apply` ni UI todavia).
   esta rebanada); queda para cuando alguien retome el flujo de control plane
   sobre `deploy/local` en vez del compose raiz.
 
-Pendiente para la siguiente entrega de web-honeypot: `config.apply` (schema
-de config real — perfil visual, hostname/brand, rutas señuelo, banner —
-mecanismo de aplicacion en caliente ya que gunicorn no tiene un patron de
-restart-por-señal como Cowrie), generalizar `PUT /sensors/:id/config` en
-`sensors.controller.ts` (hoy hardcodea `cowrieConfigSchema` + literal
-`protocol: 'ssh'`), y UI (`isConfigurable` en `sensor-card.tsx:56` sigue
-gateado solo a `protocol === "ssh"`).
+**Progreso — Rebanada 8b, web-honeypot `config.apply` MVP (2026-07-15):**
+`config.apply` real para web-honeypot, con dos campos aislados y de bajo
+riesgo (banner del servidor, nivel de logging) en vez de la personalizacion
+de marca/contenido completa que pedia el objetivo de negocio original — la
+marca "TechCorp" esta hardcodeada en ~13 archivos (templates, payloads,
+varios `honeypot/catalog/*.py`) y atada al sistema de canary tokens
+(`_CANARY_DB_USER = "techcorp_app"`); reescribir eso es un rediseno aparte,
+decidido con el usuario. Este MVP prueba el pipeline completo de punta a
+punta con riesgo minimo.
+
+- **Backend generalizado por protocolo** (`sensors.controller.ts`): nuevo
+  `webHoneypotConfigSchema` (`server_header`, `powered_by_header`,
+  `log_level`) + registro `CONFIG_SCHEMAS: Record<protocol, {schema,
+  default}>` reemplazando el hardcode de `cowrieConfigSchema` + literal
+  `protocol: 'ssh'` en `GET`/`PUT /sensors/:sensorId/config`. Nuevo
+  `SensorRepository.getSensorProtocol()` (mismo patron `$queryRaw` que
+  `getSensorClientId`) + passthrough en `SensorService.getProtocol()` para
+  elegir el schema correcto. `sensor-config.service.ts`/`.repository.ts` y
+  todo el plano de comandos (`queueConfigApply`) no cambiaron — ya eran
+  genericos por protocolo.
+- **Decision de arquitectura — apply en caliente, sin restart:**
+  `web-honeypot` corre 4 workers gunicorn = 4 procesos separados, no threads;
+  no hay memoria compartida para mutar en un solo lugar. Se agrego un volumen
+  `web_signal` (mismo patron que `cowrie_signal`) compartido entre
+  `web-honeypot-beacon` (escribe `web-config.json` + hash) y `web-honeypot`
+  (solo lee). Cada uno de los 4 procesos de `web-honeypot` corre su propio
+  thread `_config_watch_loop` (mismo patron "harmless duplicado" que ya usa
+  el heartbeat) que revisa el hash cada 5s y aplica el config en memoria —
+  sin restart, a diferencia de Cowrie.
+- **`heartbeat.py` (beacon):** agregado `_fetch_config`/`_atomic_write`/
+  `_read_current_hash`/`_write_current_hash` (mismo patron que
+  `cowrie/heartbeat.py`, sin el loop de poll directo de 10s — el fallback
+  HTTP generico de Rebanada 6 ya cubre esa necesidad) y el handler
+  `config.apply` (`ack -> running`, sin `command.result` en el happy path,
+  igual que Cowrie: la confirmacion la hace el siguiente heartbeat de
+  `app.py` con el hash coincidente).
+- **Bug real encontrado y corregido durante la verificacion:** mutar
+  `_STATIC_HEADERS["Server"]` en `app.py` no tenia ningun efecto en el header
+  HTTP real — `gunicorn.http.wsgi.Response.default_headers()` siempre emite
+  su propia linea `Server:` leyendo el global `gunicorn.http.wsgi.SERVER`
+  (el mismo que `gunicorn.conf.py` ya parchea una vez al arrancar cada
+  worker), ignorando lo que Flask haya puesto en `response.headers`. `X-Powered-By`
+  si funcionaba (gunicorn no lo toca), lo que hizo el bug facil de pasar por
+  alto probando un solo campo. Fix: `_apply_web_config` ahora tambien muta
+  `gunicorn.http.wsgi.SERVER`/`SERVER_SOFTWARE` directamente — se lee fresco
+  por request (`self.version = SERVER` dentro de `Response.__init__`), asi
+  que el cambio se refleja en el siguiente request sin reiniciar el proceso.
+- Verificado end-to-end contra un ingest-api + Postgres + `web-honeypot` +
+  `web-honeypot-beacon` reales (harness Docker aislado, mismo patron que
+  Rebanada 8a): `PUT /sensors/:id/config` con `server_header`/
+  `powered_by_header` nuevos -> `config.apply`
+  `queued->sent->acked->running->succeeded` (`confirmedVia:"heartbeat"`) ->
+  **`curl` directo a `web-honeypot` confirmando el header `Server` Y
+  `X-Powered-By` reales cambiados sin reiniciar el contenedor** (probado dos
+  veces con valores distintos, `nginx/1.24.0`+`Express/4.18` y luego
+  `Microsoft-IIS/10.0`+`ASP.NET`). `log_level` usa el mismo `_apply_web_config`
+  que los headers ya verificados, mismo mecanismo de mutacion en caliente.
+- Dashboard: `sensor-card.tsx`'s `isConfigurable` paso de
+  `protocol === "ssh"` a `CONFIGURABLE_PROTOCOLS.has(sensor.protocol)`
+  (`ssh`, `http`). `sensor-config-dialog.tsx` gano un prop `protocol`, tipo
+  `SensorConfig = CowrieConfig | WebHoneypotConfig`, y los campos de Cowrie
+  se agruparon en `CowrieConfigFields` + nuevo `WebHoneypotConfigFields` —
+  el resto del dialogo (apply-status, version history, rollback,
+  `handleSave`) sigue operando sobre `cfg` como blob generico, sin cambios.
+  Extraer a archivos separados queda diferido hasta que entre un 3er
+  protocolo (Port/SMB). Nuevas keys en `lib/i18n/dicts/sensors-config.ts`
+  (en + es).
+- Verificado: `tsc --noEmit` limpio en ambos apps, 47/47 tests dashboard,
+  147/147 unitarios ingest-api (integracion sigue gateada por
+  `TEST_DATABASE_URL`, no corrida en este entorno).
+
+Pendiente: personalizacion de marca/contenido real (fuera de alcance,
+rediseno aparte); tests dedicados para la nueva ruta `GET/PUT /config`
+generalizada (hoy se verifica con `tsc` + el harness end-to-end manual,
+mismo patron que el resto de rutas de config); UI en el dashboard no probada
+en browser real (mismo limite que el resto del control plane en este repo).
 
 ### Rebanada 9 - Consola SSH web para probar el sensor Cowrie
 

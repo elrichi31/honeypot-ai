@@ -22,6 +22,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    volumes:
+      - web_signal:/signal:ro
 
   web-honeypot-beacon:
     image: python:3.12-alpine
@@ -34,7 +36,12 @@ services:
       SENSOR_PORTS: "8080 8443"
       INGEST_API_URL: ${INGEST_API_URL}
       SENSOR_CONTROL_SECRET: ${SENSOR_CONTROL_SECRET_HTTP:-}
+      SIGNAL_DIR: /signal
     volumes:
       - ../../sensors/web-honeypot/heartbeat.py:/heartbeat.py:ro
       - ../../sensors/_shared/control_agent.py:/control_agent.py:ro
+      - web_signal:/signal
     command: ["sh", "-c", "pip install --quiet --no-cache-dir websockets==13.1 && python3 /heartbeat.py"]
+
+volumes:
+  web_signal:

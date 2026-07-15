@@ -18,6 +18,11 @@ import { useT } from "@/components/locale-provider"
 import type { TranslationKey } from "@/lib/i18n/dictionaries"
 import { useViewer, canActOnSensor } from "@/hooks/use-viewer"
 
+// Protocols with a config.apply schema registered in ingest-api's
+// CONFIG_SCHEMAS (sensors.controller.ts) — gates both the Configure button
+// and the control panel (status.get/presence).
+const CONFIGURABLE_PROTOCOLS = new Set(["ssh", "http"])
+
 const CONTROL_RESET_DELAY = 3000
 const CONTROL_ERROR_DELAY = 4000
 const DOCKER_CONFIRM_DELAY = 2000
@@ -53,7 +58,7 @@ export function SensorCard({
   const [dockerStatus, setDockerStatus] = useState<string | null>(null)
   const [configOpen, setConfigOpen] = useState(false)
 
-  const isConfigurable = sensor.protocol === "ssh"
+  const isConfigurable = CONFIGURABLE_PROTOCOLS.has(sensor.protocol)
   const viewer = useViewer()
   const canConfigure = canActOnSensor(viewer, "analyst", sensor.clientId)
 
@@ -171,6 +176,7 @@ export function SensorCard({
         <SensorConfigDialog
           sensorId={sensor.sensorId}
           sensorClientId={sensor.clientId}
+          protocol={sensor.protocol}
           open={configOpen}
           onClose={() => setConfigOpen(false)}
         />

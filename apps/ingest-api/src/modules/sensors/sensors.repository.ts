@@ -133,6 +133,13 @@ export class SensorRepository {
     return rows[0] ?? null
   }
 
+  async getSensorProtocol(sensorId: string): Promise<string | null> {
+    const rows = await this.prisma.$queryRaw<Array<{ protocol: string }>>`
+      SELECT protocol FROM sensors WHERE sensor_id = ${sensorId}
+    `
+    return rows[0]?.protocol ?? null
+  }
+
   async assignClient(sensorId: string, clientId: string | null): Promise<{ sensor_id: string } | null> {
     const ownerType = clientId ? 'client' : 'application'
     const appId = clientId ? null : (process.env.APPLICATION_ID ?? 'default-application')
