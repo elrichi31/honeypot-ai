@@ -31,6 +31,7 @@ function configDownloadLines(services: ServiceKey[]) {
     ...cowrieDownloadLines(services),
     ...httpDownloadLines(services),
     ...controlAgentDownloadLines(services),
+    ...persistedConfigDownloadLines(services),
     `curl -fsSL "$RAW/vector/suricata.toml"            -o suricata.toml`,
     ...deceptionDownloadLines(services),
   ].join("\n")
@@ -85,6 +86,16 @@ const CONTROL_AGENT_SERVICES: ServiceKey[] = ["ssh", "http", "port", "ftp", "mys
 function controlAgentDownloadLines(services: ServiceKey[]) {
   if (!services.some(s => CONTROL_AGENT_SERVICES.includes(s))) return []
   return [`curl -fsSL "$RAW/sensors/_shared/control_agent.py" -o control_agent.py`]
+}
+
+// config.apply's restart-based apply (port/ftp/mysql only — smb ADDs it at
+// build time same as control_agent.py; ssh/http have their own apply
+// mechanisms and never read this file).
+const PERSISTED_CONFIG_SERVICES: ServiceKey[] = ["port", "ftp", "mysql"]
+
+function persistedConfigDownloadLines(services: ServiceKey[]) {
+  if (!services.some(s => PERSISTED_CONFIG_SERVICES.includes(s))) return []
+  return [`curl -fsSL "$RAW/sensors/_shared/persisted_config.py" -o persisted_config.py`]
 }
 
 // The beacon(s)/sensor(s) come up without a control-plane credential (it

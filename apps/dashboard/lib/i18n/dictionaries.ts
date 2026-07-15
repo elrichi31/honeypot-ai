@@ -30,6 +30,7 @@ import * as clientsCore from "./dicts/clients-core"
 import * as clientsDetail from "./dicts/clients-detail"
 import * as sensorsCore from "./dicts/sensors-core"
 import * as sensorsConfig from "./dicts/sensors-config"
+import * as sensorsConfigRestart from "./dicts/sensors-config-restart"
 import * as sensorsControl from "./dicts/sensors-control"
 import * as infra from "./dicts/infra"
 import * as sessions from "./dicts/sessions"
@@ -67,6 +68,7 @@ const en = {
   ...clientsDetail.en,
   ...sensorsCore.en,
   ...sensorsConfig.en,
+  ...sensorsConfigRestart.en,
   ...sensorsControl.en,
   ...infra.en,
   ...sessions.en,
@@ -98,6 +100,7 @@ const es: Record<TranslationKey, string> = {
   ...clientsDetail.es,
   ...sensorsCore.es,
   ...sensorsConfig.es,
+  ...sensorsConfigRestart.es,
   ...sensorsControl.es,
   ...infra.es,
   ...sessions.es,

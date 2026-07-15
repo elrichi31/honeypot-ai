@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from urllib.request import Request, urlopen
 
 from .config import (
-    INGEST_API_URL, INGEST_SHARED_SECRET, SENSOR_ID,
+    CONFIG_HASH, INGEST_API_URL, INGEST_SHARED_SECRET, SENSOR_ID,
     SENSOR_NAME, CLIENT_SLUG, CLIENT_NAME, VERSION, SENSOR_HOST,
     EVENT_LOG_PATH, SERVICES,
 )
@@ -82,7 +82,7 @@ def send(
 
 
 def send_heartbeat(sensor_ip: str, active_ports: list[int]):
-    _post("/sensors/heartbeat", {
+    payload = {
         "sensorId": SENSOR_ID,
         "name": SENSOR_NAME,
         "clientSlug": CLIENT_SLUG,
@@ -93,4 +93,7 @@ def send_heartbeat(sensor_ip: str, active_ports: list[int]):
         "ports": active_ports,
         "probePorts": active_ports,
         "host": SENSOR_HOST,
-    })
+    }
+    if CONFIG_HASH:
+        payload["configHash"] = CONFIG_HASH
+    _post("/sensors/heartbeat", payload)

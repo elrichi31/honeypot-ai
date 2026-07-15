@@ -56,10 +56,80 @@ const WEB_DEFAULTS: WebHoneypotConfig = {
   log_level: "INFO",
 }
 
-type SensorConfig = CowrieConfig | WebHoneypotConfig
+export interface PortConfig {
+  panel_title: string
+  panel_org: string
+}
+
+const PORT_DEFAULTS: PortConfig = {
+  panel_title: "Operations Dashboard",
+  panel_org: "Corp Internal Dashboard",
+}
+
+export interface SmbConfig {
+  share_name: string
+  share_comment: string
+  server_name: string
+  server_os: string
+  server_domain: string
+}
+
+const SMB_DEFAULTS: SmbConfig = {
+  share_name: "ADMIN$",
+  share_comment: "Corp Remote Admin",
+  server_name: "FS-TECHCORP-01",
+  server_os: "Windows Server 2022 Standard",
+  server_domain: "TECHCORP",
+}
+
+export interface FtpConfig {
+  banner: string
+}
+
+const FTP_DEFAULTS: FtpConfig = {
+  banner: "220 (vsFTPd 3.0.5)",
+}
+
+export interface MysqlConfig {
+  server_version: string
+}
+
+const MYSQL_DEFAULTS: MysqlConfig = {
+  server_version: "5.7.44-log",
+}
+
+type SensorConfig = CowrieConfig | WebHoneypotConfig | PortConfig | SmbConfig | FtpConfig | MysqlConfig
+
+const DEFAULTS_BY_PROTOCOL: Record<string, SensorConfig> = {
+  http: WEB_DEFAULTS,
+  "port-scan": PORT_DEFAULTS,
+  smb: SMB_DEFAULTS,
+  ftp: FTP_DEFAULTS,
+  mysql: MYSQL_DEFAULTS,
+}
+
+// port-scan/smb/ftp/mysql apply by restarting the sensor process
+// (config.apply + os._exit, Docker's restart policy relaunches it) rather
+// than web-honeypot's in-memory hot-apply — hence the distinct description
+// copy per protocol below.
+const TITLE_KEY_BY_PROTOCOL: Record<string, TranslationKey> = {
+  http: "sensors.config.title.web",
+  "port-scan": "sensors.config.title.port",
+  smb: "sensors.config.title.smb",
+  ftp: "sensors.config.title.ftp",
+  mysql: "sensors.config.title.mysql",
+}
+
+const DESCRIPTION_KEY_BY_PROTOCOL: Record<string, TranslationKey> = {
+  http: "sensors.config.description.web",
+  "port-scan": "sensors.config.description.restart",
+  smb: "sensors.config.description.restart",
+  ftp: "sensors.config.description.restart",
+  mysql: "sensors.config.description.restart",
+}
 
 function defaultsFor(protocol: string): SensorConfig {
-  return protocol === "http" ? WEB_DEFAULTS : DEFAULTS
+  return DEFAULTS_BY_PROTOCOL[protocol] ?? DEFAULTS
 }
 
 type ConfigVersion = {
@@ -384,6 +454,121 @@ function WebHoneypotConfigFields({
   )
 }
 
+function PortConfigFields({
+  cfg,
+  set,
+  t,
+}: {
+  cfg: PortConfig
+  set: (key: keyof PortConfig, value: PortConfig[keyof PortConfig]) => void
+  t: ReturnType<typeof useT>
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.httpPanel")}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={t("sensors.config.field.panelTitle")} hint={t("sensors.config.field.panelTitle.hint")}>
+          <Input
+            value={cfg.panel_title}
+            onChange={(e) => set("panel_title", e.target.value)}
+            placeholder="Operations Dashboard"
+            className="font-mono text-sm"
+          />
+        </Field>
+        <Field label={t("sensors.config.field.panelOrg")} hint={t("sensors.config.field.panelOrg.hint")}>
+          <Input
+            value={cfg.panel_org}
+            onChange={(e) => set("panel_org", e.target.value)}
+            placeholder="Corp Internal Dashboard"
+            className="font-mono text-sm"
+          />
+        </Field>
+      </div>
+    </div>
+  )
+}
+
+function SmbConfigFields({
+  cfg,
+  set,
+  t,
+}: {
+  cfg: SmbConfig
+  set: (key: keyof SmbConfig, value: SmbConfig[keyof SmbConfig]) => void
+  t: ReturnType<typeof useT>
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.smbIdentity")}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={t("sensors.config.field.shareName")} hint={t("sensors.config.field.shareName.hint")}>
+          <Input value={cfg.share_name} onChange={(e) => set("share_name", e.target.value)} placeholder="ADMIN$" className="font-mono text-sm" />
+        </Field>
+        <Field label={t("sensors.config.field.shareComment")} hint={t("sensors.config.field.shareComment.hint")}>
+          <Input value={cfg.share_comment} onChange={(e) => set("share_comment", e.target.value)} placeholder="Corp Remote Admin" className="font-mono text-sm" />
+        </Field>
+        <Field label={t("sensors.config.field.serverName")} hint={t("sensors.config.field.serverName.hint")}>
+          <Input value={cfg.server_name} onChange={(e) => set("server_name", e.target.value)} placeholder="FS-TECHCORP-01" className="font-mono text-sm" />
+        </Field>
+        <Field label={t("sensors.config.field.serverOs")} hint={t("sensors.config.field.serverOs.hint")}>
+          <Input value={cfg.server_os} onChange={(e) => set("server_os", e.target.value)} placeholder="Windows Server 2022 Standard" className="font-mono text-sm" />
+        </Field>
+        <Field label={t("sensors.config.field.serverDomain")} hint={t("sensors.config.field.serverDomain.hint")}>
+          <Input value={cfg.server_domain} onChange={(e) => set("server_domain", e.target.value)} placeholder="TECHCORP" className="font-mono text-sm" />
+        </Field>
+      </div>
+    </div>
+  )
+}
+
+function FtpConfigFields({
+  cfg,
+  set,
+  t,
+}: {
+  cfg: FtpConfig
+  set: (key: keyof FtpConfig, value: FtpConfig[keyof FtpConfig]) => void
+  t: ReturnType<typeof useT>
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.ftpBanner")}</p>
+      <Field label={t("sensors.config.field.ftpBanner")} hint={t("sensors.config.field.ftpBanner.hint")}>
+        <Input
+          value={cfg.banner}
+          onChange={(e) => set("banner", e.target.value)}
+          placeholder="220 (vsFTPd 3.0.5)"
+          className="font-mono text-sm"
+        />
+      </Field>
+    </div>
+  )
+}
+
+function MysqlConfigFields({
+  cfg,
+  set,
+  t,
+}: {
+  cfg: MysqlConfig
+  set: (key: keyof MysqlConfig, value: MysqlConfig[keyof MysqlConfig]) => void
+  t: ReturnType<typeof useT>
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("sensors.config.section.mysqlVersion")}</p>
+      <Field label={t("sensors.config.field.serverVersion")} hint={t("sensors.config.field.serverVersion.hint")}>
+        <Input
+          value={cfg.server_version}
+          onChange={(e) => set("server_version", e.target.value)}
+          placeholder="5.7.44-log"
+          className="font-mono text-sm"
+        />
+      </Field>
+    </div>
+  )
+}
+
 export function SensorConfigDialog({
   sensorId,
   sensorClientId,
@@ -546,9 +731,9 @@ export function SensorConfigDialog({
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSave} className="space-y-5">
           <DialogHeader>
-            <DialogTitle>{t(protocol === "http" ? "sensors.config.title.web" : "sensors.config.title")}</DialogTitle>
+            <DialogTitle>{t(TITLE_KEY_BY_PROTOCOL[protocol] ?? "sensors.config.title")}</DialogTitle>
             <DialogDescription>
-              {t(protocol === "http" ? "sensors.config.description.web" : "sensors.config.description")}
+              {t(DESCRIPTION_KEY_BY_PROTOCOL[protocol] ?? "sensors.config.description")}
             </DialogDescription>
           </DialogHeader>
 
@@ -558,6 +743,14 @@ export function SensorConfigDialog({
             <>
               {protocol === "http" ? (
                 <WebHoneypotConfigFields cfg={cfg as WebHoneypotConfig} set={set} t={t} />
+              ) : protocol === "port-scan" ? (
+                <PortConfigFields cfg={cfg as PortConfig} set={set} t={t} />
+              ) : protocol === "smb" ? (
+                <SmbConfigFields cfg={cfg as SmbConfig} set={set} t={t} />
+              ) : protocol === "ftp" ? (
+                <FtpConfigFields cfg={cfg as FtpConfig} set={set} t={t} />
+              ) : protocol === "mysql" ? (
+                <MysqlConfigFields cfg={cfg as MysqlConfig} set={set} t={t} />
               ) : (
                 <CowrieConfigFields cfg={cfg as CowrieConfig} set={set} t={t} />
               )}

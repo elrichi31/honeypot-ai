@@ -116,7 +116,10 @@ function buildVolumeLines(services: ServiceKey[]) {
   if (services.includes("ssh")) volumes.push("  cowrie_var:")
   if (services.includes("http")) volumes.push("  web_signal:")
   volumes.push("  vector_data:", "  suricata_logs:")
-  if (services.includes("smb")) volumes.push("  smb_share:", "  smb_captures:")
+  if (services.includes("smb")) volumes.push("  smb_share:", "  smb_captures:", "  smb_config:")
+  if (services.includes("port")) volumes.push("  port_config:")
+  if (services.includes("ftp")) volumes.push("  ftp_config:")
+  if (services.includes("mysql")) volumes.push("  mysql_config:")
   if (services.includes("deception")) volumes.push("  opencanary_logs:", "  opencanary_shipper_state:")
   return volumes.join("\n")
 }

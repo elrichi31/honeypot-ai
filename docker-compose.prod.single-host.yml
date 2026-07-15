@@ -627,6 +627,8 @@ services:
     volumes:
       - mysql_events:/var/log/mysql-honeypot
       - ./sensors/_shared/control_agent.py:/app/control_agent.py:ro
+      - ./sensors/_shared/persisted_config.py:/app/persisted_config.py:ro
+      - mysql_config:/config
     networks:
       - edge
       - honeypot_ingest
@@ -669,6 +671,8 @@ services:
     volumes:
       - port_events:/var/log/port-honeypot
       - ./sensors/_shared/control_agent.py:/app/control_agent.py:ro
+      - ./sensors/_shared/persisted_config.py:/app/persisted_config.py:ro
+      - port_config:/config
     networks:
       - edge
       - honeypot_ingest
@@ -716,6 +720,8 @@ services:
       - smb_captures:/captures
       - smb_events:/var/log/smb-honeypot
       - ./sensors/_shared/control_agent.py:/app/control_agent.py:ro
+      - ./sensors/_shared/persisted_config.py:/app/persisted_config.py:ro
+      - smb_config:/config
     networks:
       - edge
       - honeypot_ingest
@@ -759,6 +765,8 @@ services:
       - ftp_captures:/captures
       - ftp_events:/var/log/ftp-honeypot
       - ./sensors/_shared/control_agent.py:/app/control_agent.py:ro
+      - ./sensors/_shared/persisted_config.py:/app/persisted_config.py:ro
+      - ftp_config:/config
     networks:
       - edge
       - honeypot_ingest
@@ -877,6 +885,10 @@ volumes:
   smb_captures:
   ftp_captures:
   geoip_data:
+  ftp_config:
+  mysql_config:
+  port_config:
+  smb_config:
 
 networks:
   edge:

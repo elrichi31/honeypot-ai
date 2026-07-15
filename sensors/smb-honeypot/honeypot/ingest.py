@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from urllib.request import Request, urlopen
 
 from .config import (
-    INGEST_API_URL, INGEST_SHARED_SECRET, SENSOR_ID, SENSOR_NAME,
+    CONFIG_HASH, INGEST_API_URL, INGEST_SHARED_SECRET, SENSOR_ID, SENSOR_NAME,
     CLIENT_SLUG, CLIENT_NAME, VERSION, SENSOR_HOST, SENSOR_LAYER,
     DST_PORT, EVENT_LOG_PATH,
 )
@@ -96,4 +96,6 @@ def send_heartbeat(sensor_ip: str) -> tuple[bool, int | None, str | None]:
     if SENSOR_LAYER == "internal":
         payload["layer"] = "internal"
         payload["realProtocol"] = "smb"
+    if CONFIG_HASH:
+        payload["configHash"] = CONFIG_HASH
     return _post("/sensors/heartbeat", payload)

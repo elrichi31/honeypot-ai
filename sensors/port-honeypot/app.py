@@ -2,12 +2,15 @@
 """Port Honeypot — listens on commonly scanned ports and logs all connection attempts."""
 
 import asyncio
+import json
 import logging
 import os
 import time
+from urllib.request import Request, urlopen
 
 from control_agent import ControlAgent
-from honeypot.config import INGEST_API_URL, PORTS, SENSOR_ID, SERVICES
+from persisted_config import write_override
+from honeypot.config import CONFIG_HASH, INGEST_API_URL, PORTS, SENSOR_ID, SERVICES
 from honeypot.dispatch import make_handler
 from honeypot.ingest import detect_ip, send_heartbeat
 
@@ -35,8 +38,36 @@ def _handle_status_get(report_running) -> dict:
         "uptimeSeconds": int(time.time() - _START_TIME),
         "pid": os.getpid(),
         "ports": _active_ports,
-        "configHash": None,
+        "configHash": CONFIG_HASH,
     }
+
+
+def _fetch_config():
+    """Return (config_dict, config_hash) or None on error. No auth header —
+    GET /sensors/:id/config doesn't require ensureIngestToken."""
+    try:
+        url = f"{INGEST_API_URL}/sensors/{SENSOR_ID}/config"
+        with urlopen(Request(url), timeout=8) as resp:
+            data = json.loads(resp.read())
+        return data.get("config", {}), data.get("configHash", "")
+    except Exception as exc:
+        log.warning("config fetch error: %s", exc)
+        return None
+
+
+@control_agent.action("config.apply")
+def _handle_config_apply(report_running):
+    # No command.result on the happy path — restarting exits this process;
+    # the fresh one's next heartbeat echoing the new configHash is what
+    # confirms success (sensor-config.service.ts confirmApplied()).
+    report_running()
+    result = _fetch_config()
+    if result is None:
+        raise RuntimeError("could not fetch pending config from ingest-api")
+    config, remote_hash = result
+    write_override("/config/override.json", config, remote_hash)
+    log.info("config written (hash=%s), restarting to apply", remote_hash)
+    os._exit(1)
 
 
 async def heartbeat():

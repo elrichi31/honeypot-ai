@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """SMB Honeypot — full SMB server via Impacket."""
 
+import json
 import logging
 import os
 import threading
 import time
 import traceback
+from urllib.request import Request, urlopen
 
 from impacket.smbserver import SimpleSMBServer
 
 from control_agent import ControlAgent
+from persisted_config import write_override
 from honeypot.config import (
-    INGEST_API_URL, PORT, SENSOR_ID, SHARE_NAME, SHARE_PATH, SHARE_COMMENT,
+    CONFIG_HASH, INGEST_API_URL, PORT, SENSOR_ID, SHARE_NAME, SHARE_PATH, SHARE_COMMENT,
     SERVER_NAME, SERVER_OS, SERVER_DOMAIN, CAPTURE_DIR, EVENT_LOG_PATH,
 )
 from honeypot.identity import seed_decoy_files
@@ -41,8 +44,36 @@ def _handle_status_get(report_running) -> dict:
         "uptimeSeconds": int(time.time() - _START_TIME),
         "pid": os.getpid(),
         "ports": [PORT],
-        "configHash": None,
+        "configHash": CONFIG_HASH,
     }
+
+
+def _fetch_config():
+    """Return (config_dict, config_hash) or None on error. No auth header —
+    GET /sensors/:id/config doesn't require ensureIngestToken."""
+    try:
+        url = f"{INGEST_API_URL}/sensors/{SENSOR_ID}/config"
+        with urlopen(Request(url), timeout=8) as resp:
+            data = json.loads(resp.read())
+        return data.get("config", {}), data.get("configHash", "")
+    except Exception as exc:
+        log.warning("config fetch error: %s", exc)
+        return None
+
+
+@control_agent.action("config.apply")
+def _handle_config_apply(report_running):
+    # No command.result on the happy path — restarting exits this process;
+    # the fresh one's next heartbeat echoing the new configHash is what
+    # confirms success (sensor-config.service.ts confirmApplied()).
+    report_running()
+    result = _fetch_config()
+    if result is None:
+        raise RuntimeError("could not fetch pending config from ingest-api")
+    config, remote_hash = result
+    write_override("/config/override.json", config, remote_hash)
+    log.info("config written (hash=%s), restarting to apply", remote_hash)
+    os._exit(1)
 
 # Generated once per process start — random per the Tarea 2.2 fix.
 _SERVER_GUID = os.urandom(16)

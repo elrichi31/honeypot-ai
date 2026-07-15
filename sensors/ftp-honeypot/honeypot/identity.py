@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timezone, timedelta
 
-FTP_BANNER = os.getenv("FTP_BANNER", "220 (vsFTPd 3.0.5)\r\n")
+from .config import BANNER as FTP_BANNER
 
 
 def _rel_mtime(days_ago: int, hour: int = 8, minute: int = 30) -> str:

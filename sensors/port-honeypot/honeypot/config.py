@@ -1,6 +1,8 @@
 import os
 import socket
 
+from persisted_config import load_override
+
 INGEST_API_URL = os.getenv("INGEST_API_URL", "http://ingest-api:3000")
 INGEST_SHARED_SECRET = os.getenv("INGEST_SHARED_SECRET", "")
 SENSOR_ID = os.getenv("SENSOR_ID", f"port-{socket.gethostname()}")
@@ -9,6 +11,17 @@ CLIENT_SLUG = os.getenv("CLIENT_SLUG", "")
 CLIENT_NAME = os.getenv("CLIENT_NAME", "")
 VERSION = "1.1.0"
 SENSOR_HOST = os.getenv("SENSOR_HOST", socket.gethostname())
+
+# config.apply — restart-based (see app.py's config.apply handler). Applied
+# via /config/override.json, written by the control agent, read fresh on
+# every process start.
+_OVERRIDE_PATH = "/config/override.json"
+_override_doc = load_override(_OVERRIDE_PATH)
+_override = _override_doc.get("config", {})
+CONFIG_HASH = _override_doc.get("configHash")
+
+PANEL_TITLE = _override.get("panel_title", os.getenv("PORT_PANEL_TITLE", "Operations Dashboard"))
+PANEL_ORG = _override.get("panel_org", os.getenv("PORT_PANEL_ORG", "Corp Internal Dashboard"))
 
 EVENT_LOG_PATH = os.getenv("EVENT_LOG_PATH", "/var/log/port-honeypot/events.json")
 

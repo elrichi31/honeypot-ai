@@ -6,6 +6,8 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
+from .config import PANEL_TITLE, PANEL_ORG
+
 # Generated once per process start for stable Docker IDs/GUIDs
 _DOCKER_ID = uuid.uuid4().hex[:24].upper() + uuid.uuid4().hex[:8].upper()
 _DOCKER_SERVER_GUID = uuid.uuid4().hex
@@ -168,8 +170,8 @@ def es_response(path: str) -> bytes:
 
 
 def web_panel_response(port: int, path: str) -> bytes:
-    panel_title = os.getenv("PORT_PANEL_TITLE", "Operations Dashboard")
-    panel_org = os.getenv("PORT_PANEL_ORG", "Corp Internal Dashboard")
+    panel_title = PANEL_TITLE
+    panel_org = PANEL_ORG
     if port == 9090:
         server = "Cockpit/295"
         body = (

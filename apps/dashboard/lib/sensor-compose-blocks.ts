@@ -215,6 +215,8 @@ const FTP_TEMPLATE = `  ftp-honeypot:
       - "21:21"
     volumes:
       - ./control_agent.py:/app/control_agent.py:ro
+      - ./persisted_config.py:/app/persisted_config.py:ro
+      - ftp_config:/config
     networks:
       - edge
     pids_limit: 128`
@@ -236,6 +238,8 @@ const MYSQL_TEMPLATE = `  mysql-honeypot:
       - "3306:3306"
     volumes:
       - ./control_agent.py:/app/control_agent.py:ro
+      - ./persisted_config.py:/app/persisted_config.py:ro
+      - mysql_config:/config
     networks:
       - edge
     pids_limit: 128`
@@ -265,6 +269,8 @@ const PORT_TEMPLATE = `  port-honeypot:
       - "27017:27017"
     volumes:
       - ./control_agent.py:/app/control_agent.py:ro
+      - ./persisted_config.py:/app/persisted_config.py:ro
+      - port_config:/config
     networks:
       - edge
     pids_limit: 256`
@@ -542,6 +548,7 @@ const SMB_TEMPLATE = `  smb-honeypot:
         WORKDIR /app
         ADD {{rawBase}}/sensors/smb-honeypot/app.py /app/app.py
         ADD {{rawBase}}/sensors/_shared/control_agent.py /app/control_agent.py
+        ADD {{rawBase}}/sensors/_shared/persisted_config.py /app/persisted_config.py
         ADD {{rawBase}}/sensors/smb-honeypot/honeypot/__init__.py         /app/honeypot/__init__.py
         ADD {{rawBase}}/sensors/smb-honeypot/honeypot/config.py           /app/honeypot/config.py
         ADD {{rawBase}}/sensors/smb-honeypot/honeypot/capture.py          /app/honeypot/capture.py
@@ -571,6 +578,7 @@ const SMB_TEMPLATE = `  smb-honeypot:
     volumes:
       - smb_share:/share
       - smb_captures:/captures
+      - smb_config:/config
     networks:
       - edge
     pids_limit: 128`

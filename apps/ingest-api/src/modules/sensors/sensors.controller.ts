@@ -35,12 +35,49 @@ const webHoneypotConfigSchema = z.object({
 
 const DEFAULT_WEB_CONFIG = webHoneypotConfigSchema.parse({})
 
+// port-honeypot, smb-honeypot, ftp-honeypot, mysql-honeypot: applied via a
+// controlled process restart (write + os._exit, Docker's restart policy
+// relaunches with the new config.py values) rather than an in-memory hot
+// apply — most of their identity fields are fixed at socket-bind or
+// protocol-object-construction time. See sensors/_shared/persisted_config.py.
+const portConfigSchema = z.object({
+  panel_title: z.string().min(1).max(80).default('Operations Dashboard'),
+  panel_org:   z.string().min(1).max(80).default('Corp Internal Dashboard'),
+})
+const DEFAULT_PORT_CONFIG = portConfigSchema.parse({})
+
+const smbConfigSchema = z.object({
+  share_name:    z.string().min(1).max(64).default('ADMIN$'),
+  share_comment: z.string().min(1).max(128).default('Corp Remote Admin'),
+  server_name:   z.string().min(1).max(64).default('FS-TECHCORP-01'),
+  server_os:     z.string().min(1).max(64).default('Windows Server 2022 Standard'),
+  server_domain: z.string().min(1).max(64).default('TECHCORP'),
+})
+const DEFAULT_SMB_CONFIG = smbConfigSchema.parse({})
+
+const ftpConfigSchema = z.object({
+  banner: z.string().min(1).max(128).default('220 (vsFTPd 3.0.5)'),
+})
+const DEFAULT_FTP_CONFIG = ftpConfigSchema.parse({})
+
+const mysqlConfigSchema = z.object({
+  server_version: z.string().min(1).max(32).default('5.7.44-log'),
+})
+const DEFAULT_MYSQL_CONFIG = mysqlConfigSchema.parse({})
+
 // Schema + default config keyed by sensor protocol — GET/PUT /config dispatch
 // through this instead of hardcoding a single protocol's shape. Add an entry
-// here when a new protocol gets config.apply support.
+// here when a new protocol gets config.apply support. Keys must match the
+// exact `protocol` string each sensor reports in its heartbeat (see
+// honeypot/ingest.py per sensor) — port-honeypot reports 'port-scan', not
+// 'port'.
 const CONFIG_SCHEMAS: Record<string, { schema: z.ZodTypeAny; default: unknown }> = {
-  ssh:  { schema: cowrieConfigSchema, default: DEFAULT_COWRIE_CONFIG },
-  http: { schema: webHoneypotConfigSchema, default: DEFAULT_WEB_CONFIG },
+  ssh:        { schema: cowrieConfigSchema, default: DEFAULT_COWRIE_CONFIG },
+  http:       { schema: webHoneypotConfigSchema, default: DEFAULT_WEB_CONFIG },
+  'port-scan': { schema: portConfigSchema, default: DEFAULT_PORT_CONFIG },
+  smb:        { schema: smbConfigSchema, default: DEFAULT_SMB_CONFIG },
+  ftp:        { schema: ftpConfigSchema, default: DEFAULT_FTP_CONFIG },
+  mysql:      { schema: mysqlConfigSchema, default: DEFAULT_MYSQL_CONFIG },
 }
 
 const heartbeatSchema = z.object({

@@ -196,6 +196,8 @@ services:
     volumes:
       - ftp_events:/var/log/ftp-honeypot
       - ./sensors/_shared/control_agent.py:/app/control_agent.py:ro
+      - ./sensors/_shared/persisted_config.py:/app/persisted_config.py:ro
+      - ftp_config:/config
     networks:
       - edge
     pids_limit: 128
@@ -223,6 +225,8 @@ services:
     volumes:
       - mysql_events:/var/log/mysql-honeypot
       - ./sensors/_shared/control_agent.py:/app/control_agent.py:ro
+      - ./sensors/_shared/persisted_config.py:/app/persisted_config.py:ro
+      - mysql_config:/config
     networks:
       - edge
     pids_limit: 128
@@ -247,6 +251,8 @@ services:
     volumes:
       - port_events:/var/log/port-honeypot
       - ./sensors/_shared/control_agent.py:/app/control_agent.py:ro
+      - ./sensors/_shared/persisted_config.py:/app/persisted_config.py:ro
+      - port_config:/config
     ports:
       - "1433:1433"
       - "2375:2375"
@@ -295,6 +301,8 @@ services:
       - smb_captures:/captures
       - smb_events:/var/log/smb-honeypot
       - ./sensors/_shared/control_agent.py:/app/control_agent.py:ro
+      - ./sensors/_shared/persisted_config.py:/app/persisted_config.py:ro
+      - smb_config:/config
     networks:
       - edge
     # NET_BIND_SERVICE to bind port 445 (<1024) as non-root
@@ -315,6 +323,10 @@ volumes:
   mysql_events:
   port_events:
   smb_events:
+  ftp_config:
+  mysql_config:
+  port_config:
+  smb_config:
 
 networks:
   edge:

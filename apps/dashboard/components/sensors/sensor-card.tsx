@@ -21,7 +21,7 @@ import { useViewer, canActOnSensor } from "@/hooks/use-viewer"
 // Protocols with a config.apply schema registered in ingest-api's
 // CONFIG_SCHEMAS (sensors.controller.ts) — gates both the Configure button
 // and the control panel (status.get/presence).
-const CONFIGURABLE_PROTOCOLS = new Set(["ssh", "http"])
+const CONFIGURABLE_PROTOCOLS = new Set(["ssh", "http", "port-scan", "smb", "ftp", "mysql"])
 
 const CONTROL_RESET_DELAY = 3000
 const CONTROL_ERROR_DELAY = 4000

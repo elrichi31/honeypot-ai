@@ -3,6 +3,7 @@ import logging
 import os
 import struct
 
+from .config import SERVER_VERSION
 from .ingest import send
 
 log = logging.getLogger("mysql-honeypot")
@@ -12,7 +13,7 @@ _conn_counter = 0
 MYSQL_ACCEPT_AUTH = os.getenv("MYSQL_ACCEPT_AUTH", "").lower() in ("1", "true", "yes")
 
 # Decoy data served in accept mode
-_DECOY_VERSION = b"5.7.44-log"
+_DECOY_VERSION = SERVER_VERSION.encode()
 _DECOY_DATABASES = ["information_schema", "mysql", "performance_schema", "appdb"]
 _DECOY_USER = os.getenv("SENSOR_HOSTNAME", "web-prod-01").split("-")[0] + "_app"
 

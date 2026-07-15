@@ -22,3 +22,8 @@ services:
       - "27017:27017"
     volumes:
       - ../../sensors/_shared/control_agent.py:/app/control_agent.py:ro
+      - ../../sensors/_shared/persisted_config.py:/app/persisted_config.py:ro
+      - port_config:/config
+
+volumes:
+  port_config:

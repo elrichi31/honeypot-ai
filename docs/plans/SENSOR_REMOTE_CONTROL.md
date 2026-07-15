@@ -16,15 +16,19 @@ entrega esta en las secciones de Rebanadas mas abajo, esto es solo el mapa.
 - **web-honeypot (http):** `status.get` + `config.apply` MVP (banner del
   servidor + nivel de logging, aplicado en caliente sin reiniciar).
 - **port-honeypot, smb-honeypot, ftp-honeypot, mysql-honeypot:** `status.get`
-  unicamente (sin `config.apply` — ver "pendiente" abajo, por que). Con esto,
-  **los 6 sensores viables ya hablan con el plano de control.**
+  + `config.apply` MVP, aplicado reiniciando el proceso (`os._exit` + el
+  `restart: unless-stopped` que ya tenian, `config.py` relee el config
+  persistido al arrancar) — Port: titulo/org del panel HTTP; SMB: share
+  name/comment/server name/OS/domain; FTP: banner; MySQL: version del
+  servidor. Con esto, **los 6 sensores viables ya hablan con el plano de
+  control, y los 6 tienen algun nivel de `config.apply`.**
 - **Instalador remoto de clientes** (`/api/sensor/install`, el boton de
   instalar sensor en la ficha del cliente): los 6 (ssh, http, port, smb, ftp,
-  mysql) ya provisionan el agente de control correctamente. Cowrie ahi tenia
-  un bug preexistente (crash por falta de `control_agent.py`) que se
-  arreglo de paso; SMB tenia otro bug preexistente y mas grande (le faltaba
-  todo el paquete `honeypot/`, crasheaba al arrancar) que tambien se
-  arreglo.
+  mysql) ya provisionan el agente de control correctamente, incluido el
+  mecanismo de `config.apply` de cada uno. Cowrie ahi tenia un bug
+  preexistente (crash por falta de `control_agent.py`) que se arreglo de
+  paso; SMB tenia otro bug preexistente y mas grande (le faltaba todo el
+  paquete `honeypot/`, crasheaba al arrancar) que tambien se arreglo.
 
 **Sensores sin ningun trabajo de control plane, y no lo van a tener:**
 
@@ -34,14 +38,12 @@ entrega esta en las secciones de Rebanadas mas abajo, esto es solo el mapa.
 
 **Pendiente dentro de lo ya empezado:**
 
-- `config.apply` para port-honeypot/smb-honeypot/ftp-honeypot/mysql-honeypot:
-  a diferencia de web-honeypot, casi todos los campos de identidad (puertos
-  activos, share/servidor SMB, dialecto, banners) se fijan al bindear el
-  socket o construir el objeto del protocolo (Impacket para SMB) —
-  cambiarlos exige reiniciar el contenedor, no hay "apply en caliente"
-  posible. Falta decidir si vale la pena (`config.apply` + `service.restart`
-  combinados) o limitarlo a los pocos campos cosmeticos que si se pueden
-  cambiar sin reiniciar.
+- Mas campos de `config.apply` para port/smb/ftp/mysql: el MVP cubrio lo que
+  ya era env-driven o casi (titulo/org de panel, banner FTP, identidad SMB,
+  version MySQL). Sigue afuera identidad Docker API/Elasticsearch de Port
+  (hardcodeada en `http_emulation.py`) y cualquier cambio de puertos
+  activos/dialecto — eso siempre va a requerir tocar el compose a mano, el
+  mecanismo de restart no puede rebindear sockets nuevos por si solo.
 - Personalizacion real de marca/contenido en web-honeypot (el pedido de
   negocio original: "cambiar la pagina segun el cliente"): la marca
   "TechCorp" esta hardcodeada en ~13 archivos y atada al sistema de canary
@@ -1419,6 +1421,87 @@ Pendiente el mismo tipo de trabajo que para port/smb: decidir e implementar
 `config.apply` donde tenga sentido real (la mayoria de campos de estos
 sensores tambien requieren restart, no hay "apply en caliente" generalizado
 mas alla de Cowrie y web-honeypot).
+
+**Progreso — Rebanada 8g, `config.apply` para port/smb/ftp/mysql, restart-based
+(2026-07-15):** decisión ya tomada y ejecutada — combinar `config.apply` con
+un reinicio controlado del proceso, en vez de intentar un hot-apply real
+como el de web-honeypot (imposible aca: la mayoria de sus campos se fijan al
+bindear el socket o construir el objeto del protocolo).
+
+- **Mecanismo:** el handler de `config.apply` escribe `{config, configHash}`
+  en `/config/override.json` (volumen nombrado nuevo por sensor —
+  `port_config`, `smb_config`, `ftp_config`, `mysql_config` — sobrevive
+  restart y recreate) y llama `os._exit(1)`. El `restart: unless-stopped`
+  que ya tenian los 4 relanza el proceso; `config.py` relee el archivo al
+  importar, asi que el proceso nuevo arranca con la identidad nueva sin
+  tocar la logica de negocio (Impacket, el catalogo HTTP falso, etc. no
+  saben que hubo un "apply"). La confirmacion es la misma que Cowrie/web: el
+  proceso nuevo reporta `configHash` en su heartbeat normal, y eso marca
+  `succeeded`.
+- **Pieza nueva compartida:** `sensors/_shared/persisted_config.py`
+  (`load_override`/`write_override`), montada en `/app/persisted_config.py`
+  en los 4 sensores — mismo patron "copy don't import" que `control_agent.py`.
+- **Campos del MVP** (todo lo que ya era env-driven o cerca, sin reescribir
+  contenido — mismo criterio que web-honeypot 8b): Port `panel_title`/
+  `panel_org` (ya eran `PORT_PANEL_TITLE`/`PORT_PANEL_ORG` leidas por
+  request en `http_emulation.py`, ahora se leen de `config.py` una sola vez
+  al importar); SMB los 5 campos que ya eran env-driven
+  (`share_name`/`share_comment`/`server_name`/`server_os`/`server_domain`);
+  FTP `banner` (antes `os.getenv("FTP_BANNER", ...)` en `identity.py`, con
+  el detalle de que el override es texto plano y `config.py` le agrega el
+  `\r\n` de protocolo — el operador no deberia tener que escribir framing
+  FTP en un campo de formulario); MySQL `server_version` (unico que no era
+  env-driven — estaba hardcodeado `_DECOY_VERSION = b"5.7.44-log"` en
+  `protocol.py`, se movio a `config.py`).
+- **Backend:** 4 schemas nuevos en `sensors.controller.ts` (`portConfigSchema`,
+  `smbConfigSchema`, `ftpConfigSchema`, `mysqlConfigSchema`) agregados a
+  `CONFIG_SCHEMAS` con las claves de protocolo reales — **ojo**, port-honeypot
+  reporta protocolo `port-scan` en su heartbeat, no `port`; usar la clave
+  equivocada ahi habria sido un bug silencioso (el GET/PUT de config nunca
+  hubiera encontrado el schema correcto). Nada mas cambio en el backend —
+  igual que en 8b, el resto del plano de comandos ya era generico.
+- Dashboard: `CONFIGURABLE_PROTOCOLS` en `sensor-card.tsx` suma
+  `port-scan`/`smb`/`ftp`/`mysql`. `sensor-config-dialog.tsx` gano 4 tipos +
+  defaults + componentes de campos (`PortConfigFields`/`SmbConfigFields`/
+  `FtpConfigFields`/`MysqlConfigFields`), con mapas `TITLE_KEY_BY_PROTOCOL`/
+  `DESCRIPTION_KEY_BY_PROTOCOL` en vez de la cadena de ternarios que hubiera
+  quedado con 6 protocolos — la descripcion para estos 4 dice explicitamente
+  que el sensor se reinicia para aplicar (distinto del texto "sin reinicio"
+  de web-honeypot). Nuevo `lib/i18n/dicts/sensors-config-restart.ts`
+  (en + es) en vez de seguir creciendo `sensors-config.ts` — ya estaba cerca
+  del limite de ~150 lineas del CLAUDE.md.
+- Compose: los 4 sensores ganaron el mount de `persisted_config.py` +
+  volumen `/config` en `docker-compose.prod.honeypot.yml` y
+  `docker-compose.prod.single-host.yml`; `deploy/local/sensor-port.yml`
+  tambien (unico de los 4 con archivo de dev local). Instalador remoto de
+  clientes: mismo mount+volumen en `PORT_TEMPLATE`/`FTP_TEMPLATE`/
+  `MYSQL_TEMPLATE` (imagen prebuilt) y una tercera linea `ADD` en
+  `SMB_TEMPLATE` (que ya trae todo por `ADD` desde Rebanada 8e). Nueva
+  `persistedConfigDownloadLines()` en `sensor-install-script.ts`, separada
+  de `controlAgentDownloadLines()` porque el archivo solo hace falta para
+  port/ftp/mysql (ssh/http tienen sus propios mecanismos de apply, nunca
+  leen `persisted_config.py`).
+- Verificado end-to-end contra un ingest-api + Postgres + los 4 sensores
+  reales (harness Docker aislado, sin tocar el stack del usuario):
+  `PUT /sensors/:id/config` con valores nuevos reales para cada uno →
+  logs confirmando `config written (hash=...), restarting to apply` →
+  el contenedor se reinicia solo (`restart: unless-stopped`, sin
+  intervencion) → `config.apply` resuelve `succeeded` confirmado por
+  heartbeat para los 4 → **efecto real confirmado sobre el protocolo**:
+  banner FTP nuevo (`220 ProFTPD 1.3.5 Server`) por socket, handshake MySQL
+  con version nueva (`8.0.35`) por socket, panel HTTP de Port con titulo/org
+  nuevos (`Finance Ops Portal`/`Acme Finance Group`) por `curl`, y SMB
+  arrancando con el share nuevo (`share=BACKUP$` en el log real de
+  `SimpleSMBServer`). `tsc --noEmit` limpio en ambos apps, 47/47 tests
+  dashboard, 147/147 unitarios ingest-api. Compose+script remoto generado
+  con los 4 protocolos reales, validado con `docker compose config --quiet`
+  y `bash -n`.
+
+Pendiente: identidad Docker API/Elasticsearch de Port (siguen hardcodeadas
+en `http_emulation.py`, no entraron en este MVP); dialecto/puertos de todos
+— cambiarlos sigue exigiendo tocar el compose a mano, `config.apply` no
+puede tocar `PORTS`/bindings; tests dedicados para los 4 schemas nuevos (se
+verifico con `tsc` + el harness end-to-end real, mismo patron que el resto).
 
 ### Rebanada 9 - Consola SSH web para probar el sensor Cowrie
 
