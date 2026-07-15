@@ -1164,6 +1164,71 @@ generalizada (hoy se verifica con `tsc` + el harness end-to-end manual,
 mismo patron que el resto de rutas de config); UI en el dashboard no probada
 en browser real (mismo limite que el resto del control plane en este repo).
 
+**Progreso — Rebanada 8c, plano de control en el instalador remoto de
+clientes (2026-07-15):** hallazgo del usuario al preguntar "cuando instalo
+un sensor en otro lado (no single-host, sino desde la ficha del cliente),
+¿ya tiene los cambios que agregamos?" — la respuesta era **no**. El boton
+"instalar sensor" de un cliente (`/api/sensor/install`,
+`sensor-install-script.ts`) no clona el repo: arma un `docker-compose.yml`
+inline a partir de plantillas completamente separadas
+(`sensor-compose-blocks.ts` + `sensor-compose-builder.ts`), que nunca se
+tocaron desde que existe el plano de control (Rebanada 4+). Esto afectaba a
+**ambos** sensores con beacon, no solo web:
+
+- `cowrie-beacon` en ese instalador ya estaba **roto de antes**: montaba
+  `heartbeat.py` pero nunca descargaba `control_agent.py` (`from
+  control_agent import ControlAgent` fallaba con `ModuleNotFoundError` al
+  arrancar) y el `command` no instalaba `websockets`. Un sensor SSH instalado
+  por ese camino tenia el contenedor `cowrie-beacon` crasheando en loop
+  desde el dia uno — bug preexistente, no introducido por esta sesion, pero
+  en el mismo archivo que habia que tocar para arreglar web-honeypot, asi
+  que se corrigio junto.
+- `web-honeypot` en ese instalador no tenia beacon en absoluto (ni
+  `control_agent.py`, ni volumen de señal, ni `SENSOR_CONTROL_SECRET`).
+
+Cambios:
+
+- `sensor-compose-blocks.ts`: `SSH_TEMPLATE`'s `cowrie-beacon` ahora monta
+  `./control_agent.py:/control_agent.py:ro`, agrega
+  `SENSOR_CONTROL_SECRET: ""` y cambia el `command` a
+  `pip install --quiet websockets==13.1 && python3 /heartbeat.py` (antes
+  `python3 /heartbeat.py` a secas). `HTTP_TEMPLATE` gana un nuevo servicio
+  `web-honeypot-beacon` (mismo patron), y `web-honeypot` gana
+  `volumes: - web_signal:/signal:ro` + `SIGNAL_DIR: /signal` — mismo
+  volumen compartido que ya usan los compose de single-host/remote-honeypot.
+- `sensor-compose-builder.ts`: `buildVolumeLines` declara `web_signal:`
+  cuando `services.includes("http")`.
+- `sensor-install-script.ts`: nuevas `httpDownloadLines()` (descarga
+  `sensors/web-honeypot/heartbeat.py` como `web-heartbeat.py`, nombre
+  distinto para no chocar con el `heartbeat.py` de Cowrie en el mismo
+  directorio de instalacion) y `controlAgentDownloadLines()` (descarga
+  `sensors/_shared/control_agent.py` una sola vez, compartida por ambos
+  beacons si estan presentes).
+- **Limite real, no resuelto por diseno:** el instalador no puede llevar un
+  `SENSOR_CONTROL_SECRET` valido de fabrica — la credencial se emite server
+  side (`POST /sensors/:id/control-credential`) recien despues de que el
+  sensor exista en la base (su primer heartbeat lo crea), asi que no puede
+  conocerse en el momento de generar el script de instalacion. Los beacons
+  arrancan igual (heartbeat/eventos normales no dependen del control plane),
+  intentan conectar con secreto vacio, y el servidor los rechaza limpio
+  (401) hasta que un admin emite la credencial y actualiza el compose a
+  mano. Se agrego un aviso final en el script (`controlPlaneNote()`, nueva
+  seccion en el resumen "Sensor is UP and connected") indicando ese paso
+  pendiente explicitamente en vez de dejarlo silencioso.
+- **Fuera de alcance deliberado:** `int-ssh`/`int-http`/`internal-canary`
+  (deploys de deception interna) no se tocaron — tienen su propio problema
+  preexistente y no relacionado (`INT_SSH_TEMPLATE` referencia
+  `{{registry}}/cowrie-beacon:latest`, una imagen que
+  `.github/workflows/publish-sensor-images.yml` nunca publica; `int-http`
+  no tiene beacon en absoluto). Es una topologia distinta (nodos LAN de
+  deception) que nadie pidio arreglar en esta entrega.
+- Verificado: `tsc --noEmit` limpio, 47/47 tests dashboard. Compose generado
+  end-to-end con `buildCompose(...)`/`buildScript(...)` reales (deployId,
+  ssh+http) validado con `docker compose config --quiet` (exit 0) y el
+  script bash completo con `bash -n` (sintaxis valida) — confirmando en el
+  output real que `cowrie-beacon`/`web-honeypot-beacon` traen sus mounts,
+  `SENSOR_CONTROL_SECRET`, `web_signal`, y que el aviso final aparece.
+
 ### Rebanada 9 - Consola SSH web para probar el sensor Cowrie
 
 Estado: **planificada, sin implementar** (2026-07-14).

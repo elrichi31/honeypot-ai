@@ -17,6 +17,7 @@ export function buildScript(
     .replaceAll("{{rawBase}}", rawBase)
     .replaceAll("{{sshPortStep}}", sshPortStep(services))
     .replaceAll("{{configDownloads}}", configDownloadLines(services))
+    .replaceAll("{{controlPlaneNote}}", controlPlaneNote(services))
     .replaceAll("{{compose}}", compose)
 }
 
@@ -28,6 +29,8 @@ function configDownloadLines(services: ServiceKey[]) {
   if (services.includes("internal-canary")) return internalCanaryDownloadLines()
   return [
     ...cowrieDownloadLines(services),
+    ...httpDownloadLines(services),
+    ...controlAgentDownloadLines(services),
     `curl -fsSL "$RAW/vector/suricata.toml"            -o suricata.toml`,
     ...deceptionDownloadLines(services),
   ].join("\n")
@@ -65,6 +68,36 @@ function cowrieDownloadLines(services: ServiceKey[]) {
     `curl -fsSL "$RAW/sensors/cowrie/userdb.txt"   -o userdb.txt`,
     `curl -fsSL "$RAW/vector/cowrie.toml"          -o cowrie.toml`,
   ]
+}
+
+function httpDownloadLines(services: ServiceKey[]) {
+  if (!services.includes("http")) return []
+  return [`curl -fsSL "$RAW/sensors/web-honeypot/heartbeat.py" -o web-heartbeat.py`]
+}
+
+// Shared control-plane agent (status.get / config.apply) — same file used by
+// every beacon's heartbeat.py, "copy don't import" convention. Only needed
+// when a beacon (ssh/http) is actually going to run.
+function controlAgentDownloadLines(services: ServiceKey[]) {
+  if (!services.includes("ssh") && !services.includes("http")) return []
+  return [`curl -fsSL "$RAW/sensors/_shared/control_agent.py" -o control_agent.py`]
+}
+
+// The beacon(s) come up without a control-plane credential (it can't exist
+// before the sensor's first heartbeat registers it in the DB) — status.get
+// and config.apply stay disabled until an admin issues one from the
+// dashboard and updates the beacon's SENSOR_CONTROL_SECRET.
+function controlPlaneNote(services: ServiceKey[]): string {
+  const beacons = [
+    services.includes("ssh") ? "cowrie-beacon" : null,
+    services.includes("http") ? "web-honeypot-beacon" : null,
+  ].filter((s): s is string => s !== null)
+  if (beacons.length === 0) return ""
+  return `
+  echo " Remote config/control: issue a credential from the dashboard (sensor"
+  echo "   card -> admin action), then set SENSOR_CONTROL_SECRET in"
+  echo "   $DIR/docker-compose.yml for: ${beacons.join(", ")}"
+  echo "   and run: docker compose up -d ${beacons.join(" ")}"`
 }
 
 function sshPortStep(services: ServiceKey[]) {
@@ -590,7 +623,7 @@ if $_INGEST_OK && $_CONTAINERS_OK; then
   echo " Status:      sensor-status"
   echo " Test:        sensor-test [--protocol ssh|http|ftp|mysql|port|smb]"
   echo " Logs:        cd $DIR && docker compose logs -f"
-  echo " Uninstall:   sensor-uninstall"
+  echo " Uninstall:   sensor-uninstall"{{controlPlaneNote}}
   echo "===================================================="
 else
   echo "===================================================="

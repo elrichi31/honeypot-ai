@@ -119,9 +119,11 @@ const SSH_TEMPLATE = `  cowrie:
       SENSOR_PORTS: "22 2222"
       SENSOR_PROBE_PORTS: "2222 2222"
       SENSOR_HOST: cowrie
+      SENSOR_CONTROL_SECRET: ""
     volumes:
       - ./heartbeat.py:/heartbeat.py:ro
-    command: ["python3", "/heartbeat.py"]
+      - ./control_agent.py:/control_agent.py:ro
+    command: ["sh", "-c", "pip install --quiet --no-cache-dir websockets==13.1 && python3 /heartbeat.py"]
     networks:
       - edge
     pids_limit: 16
@@ -163,6 +165,7 @@ const HTTP_TEMPLATE = `  web-honeypot:
       SENSOR_HOST: web-honeypot
       SENSOR_PORTS: "80 8443"
       SENSOR_PROBE_PORTS: "8080 8080"
+      SIGNAL_DIR: /signal
     ports:
       - "80:8080"
       - "8443:8080"
@@ -171,7 +174,29 @@ const HTTP_TEMPLATE = `  web-honeypot:
       - edge
     tmpfs:
       - /tmp
-    pids_limit: 128`
+    volumes:
+      - web_signal:/signal:ro
+    pids_limit: 128
+
+  web-honeypot-beacon:
+    <<: *service-defaults
+    logging: *json-logging
+    image: python:3.12-alpine
+    container_name: web-honeypot-beacon
+    environment:
+      <<: *ingest
+      SENSOR_ID: web-{{deployId}}
+      SENSOR_PORTS: "80 8443"
+      SENSOR_CONTROL_SECRET: ""
+      SIGNAL_DIR: /signal
+    volumes:
+      - ./web-heartbeat.py:/heartbeat.py:ro
+      - ./control_agent.py:/control_agent.py:ro
+      - web_signal:/signal
+    command: ["sh", "-c", "pip install --quiet --no-cache-dir websockets==13.1 && python3 /heartbeat.py"]
+    networks:
+      - edge
+    pids_limit: 16`
 
 const FTP_TEMPLATE = `  ftp-honeypot:
     <<: *service-defaults
