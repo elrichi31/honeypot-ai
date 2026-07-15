@@ -15,32 +15,33 @@ entrega esta en las secciones de Rebanadas mas abajo, esto es solo el mapa.
   automatico y manual, UI completa.
 - **web-honeypot (http):** `status.get` + `config.apply` MVP (banner del
   servidor + nivel de logging, aplicado en caliente sin reiniciar).
-- **port-honeypot, smb-honeypot:** `status.get` unicamente (sin
-  `config.apply` — ver "pendiente" abajo, por que).
+- **port-honeypot, smb-honeypot, ftp-honeypot, mysql-honeypot:** `status.get`
+  unicamente (sin `config.apply` — ver "pendiente" abajo, por que). Con esto,
+  **los 6 sensores viables ya hablan con el plano de control.**
 - **Instalador remoto de clientes** (`/api/sensor/install`, el boton de
-  instalar sensor en la ficha del cliente): ssh, http, port y smb ya
-  provisionan el agente de control correctamente. Cowrie ahi tenia un bug
-  preexistente (crash por falta de `control_agent.py`) que se arreglo de
-  paso; SMB tenia otro bug preexistente y mas grande (le faltaba todo el
-  paquete `honeypot/`, crasheaba al arrancar) que tambien se arreglo.
+  instalar sensor en la ficha del cliente): los 6 (ssh, http, port, smb, ftp,
+  mysql) ya provisionan el agente de control correctamente. Cowrie ahi tenia
+  un bug preexistente (crash por falta de `control_agent.py`) que se
+  arreglo de paso; SMB tenia otro bug preexistente y mas grande (le faltaba
+  todo el paquete `honeypot/`, crasheaba al arrancar) que tambien se
+  arreglo.
 
-**Sensores sin ningun trabajo de control plane todavia:**
+**Sensores sin ningun trabajo de control plane, y no lo van a tener:**
 
-- `ftp-honeypot`, `mysql-honeypot` — mismo patron simple que port/smb (un
-  solo proceso Python, sin gunicorn), prioridad baja salvo pedido de cliente.
 - `dionaea`, `galah`, `opencanary`, `suricata` — descartados desde el
   dimensionamiento original (herramientas de terceros, no encajan en el
   patron de agente Python).
 
 **Pendiente dentro de lo ya empezado:**
 
-- `config.apply` para port-honeypot/smb-honeypot: a diferencia de
-  web-honeypot, casi todos los campos de identidad (puertos activos,
-  share/servidor SMB, dialecto) se fijan al bindear el socket o construir el
-  `SimpleSMBServer` de Impacket — cambiarlos exige reiniciar el contenedor,
-  no hay "apply en caliente" posible. Falta decidir si vale la pena
-  (`config.apply` + `service.restart` combinados) o limitarlo a los pocos
-  campos cosmeticos que si se pueden cambiar sin reiniciar.
+- `config.apply` para port-honeypot/smb-honeypot/ftp-honeypot/mysql-honeypot:
+  a diferencia de web-honeypot, casi todos los campos de identidad (puertos
+  activos, share/servidor SMB, dialecto, banners) se fijan al bindear el
+  socket o construir el objeto del protocolo (Impacket para SMB) —
+  cambiarlos exige reiniciar el contenedor, no hay "apply en caliente"
+  posible. Falta decidir si vale la pena (`config.apply` + `service.restart`
+  combinados) o limitarlo a los pocos campos cosmeticos que si se pueden
+  cambiar sin reiniciar.
 - Personalizacion real de marca/contenido en web-honeypot (el pedido de
   negocio original: "cambiar la pagina segun el cliente"): la marca
   "TechCorp" esta hardcodeada en ~13 archivos y atada al sistema de canary
@@ -1380,6 +1381,44 @@ en caliente sin restart" de web-honeypot. Decidir si vale la pena antes de
 implementarlo (`config.apply` + `service.restart` combinados, o limitarlo a
 los pocos campos realmente cosmeticos: titulo/org del panel HTTP en Port,
 contenido de los archivos señuelo en SMB).
+
+**Progreso — Rebanada 8f, ftp-honeypot + mysql-honeypot, solo `status.get`
+(2026-07-15):** ultimos dos sensores de los seis viables, mismo patron
+exacto que port/smb (Rebanada 8d) — ambos son un solo proceso asyncio, sin
+gunicorn, sin sidecar necesario. `control_agent.py` importado directo en
+cada `app.py`, `websockets==13.1` horneado en cada Dockerfile (ninguno tenia
+`RUN pip install` antes, igual que port-honeypot).
+
+- `sensors/ftp-honeypot/app.py`: `status.get` reporta `ports=[PORT]`;
+  `control_agent.start()` llamado en `main()` justo despues de bindear el
+  server, antes del `asyncio.gather(...)`.
+- `sensors/mysql-honeypot/app.py`: mismo patron.
+- Compose: mount de `control_agent.py` + `SENSOR_CONTROL_SECRET_FTP`/`_MYSQL`
+  en `docker-compose.prod.honeypot.yml` y `docker-compose.prod.single-host.yml`
+  (ninguno de los dos tiene archivo de dev local, igual que smb). Nuevas
+  entradas en `.env.example`.
+- Instalador remoto de clientes: `FTP_TEMPLATE`/`MYSQL_TEMPLATE` (ambos con
+  imagen prebuilt, igual que Port) ganaron el mismo mount en runtime +
+  `SENSOR_CONTROL_SECRET`. `controlAgentDownloadLines()` generalizado a una
+  lista `CONTROL_AGENT_SERVICES` en vez de una cadena de `&&` creciente.
+  `controlPlaneNote()` incluye ahora los 6 servicios posibles.
+- Verificado end-to-end contra un ingest-api + Postgres reales (harness
+  Docker aislado, sin tocar el stack del usuario): ambos sensores arrancan y
+  sirven normal (banner FTP falso `220 (vsFTPd 3.0.5)` real via socket;
+  handshake MySQL 5.7 falso real via socket), se conectan al plano de
+  control, credencial emitida por sensor via REST, `status.get` encolado y
+  resuelto `queued->sent->acked->succeeded` con `result` real para ambos.
+  `tsc --noEmit` limpio, 47/47 tests dashboard. Compose+script remoto
+  generado con `ftp`+`mysql` reales, validado con `docker compose config
+  --quiet` (exit 0) y `bash -n`.
+
+**Con esto, los 6 sensores viables (`ssh`, `http`, `port`, `smb`, `ftp`,
+`mysql`) tienen `status.get` funcionando de punta a punta, tanto en
+single-host/remote-honeypot como en el instalador remoto de clientes.**
+Pendiente el mismo tipo de trabajo que para port/smb: decidir e implementar
+`config.apply` donde tenga sentido real (la mayoria de campos de estos
+sensores tambien requieren restart, no hay "apply en caliente" generalizado
+mas alla de Cowrie y web-honeypot).
 
 ### Rebanada 9 - Consola SSH web para probar el sensor Cowrie
 

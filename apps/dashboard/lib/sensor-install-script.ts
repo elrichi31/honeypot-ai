@@ -80,8 +80,10 @@ function httpDownloadLines(services: ServiceKey[]) {
 // when a sensor with an in-process or sidecar agent is going to run.
 // (smb-honeypot's own template ADDs this file at build time instead, since
 // its remote-install path already fetches app.py the same way.)
+const CONTROL_AGENT_SERVICES: ServiceKey[] = ["ssh", "http", "port", "ftp", "mysql"]
+
 function controlAgentDownloadLines(services: ServiceKey[]) {
-  if (!services.includes("ssh") && !services.includes("http") && !services.includes("port")) return []
+  if (!services.some(s => CONTROL_AGENT_SERVICES.includes(s))) return []
   return [`curl -fsSL "$RAW/sensors/_shared/control_agent.py" -o control_agent.py`]
 }
 
@@ -95,6 +97,8 @@ function controlPlaneNote(services: ServiceKey[]): string {
     services.includes("http") ? "web-honeypot-beacon" : null,
     services.includes("port") ? "port-honeypot" : null,
     services.includes("smb") ? "smb-honeypot" : null,
+    services.includes("ftp") ? "ftp-honeypot" : null,
+    services.includes("mysql") ? "mysql-honeypot" : null,
   ].filter((s): s is string => s !== null)
   if (beacons.length === 0) return ""
   return `

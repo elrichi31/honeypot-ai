@@ -190,10 +190,12 @@ services:
       CLIENT_NAME: ${CLIENT_NAME:-}
       SENSOR_IP: ${HONEYPOT_IP:-}
       EVENT_LOG_PATH: /var/log/ftp-honeypot/events.json
+      SENSOR_CONTROL_SECRET: ${SENSOR_CONTROL_SECRET_FTP:-}
     ports:
       - "21:21"
     volumes:
       - ftp_events:/var/log/ftp-honeypot
+      - ./sensors/_shared/control_agent.py:/app/control_agent.py:ro
     networks:
       - edge
     pids_limit: 128
@@ -215,10 +217,12 @@ services:
       CLIENT_NAME: ${CLIENT_NAME:-}
       SENSOR_IP: ${HONEYPOT_IP:-}
       EVENT_LOG_PATH: /var/log/mysql-honeypot/events.json
+      SENSOR_CONTROL_SECRET: ${SENSOR_CONTROL_SECRET_MYSQL:-}
     ports:
       - "3306:3306"
     volumes:
       - mysql_events:/var/log/mysql-honeypot
+      - ./sensors/_shared/control_agent.py:/app/control_agent.py:ro
     networks:
       - edge
     pids_limit: 128

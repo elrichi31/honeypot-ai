@@ -210,8 +210,11 @@ const FTP_TEMPLATE = `  ftp-honeypot:
       SENSOR_ID: ftp-{{deployId}}
       SENSOR_NAME: "FTP Honeypot"
       SENSOR_IP: ""
+      SENSOR_CONTROL_SECRET: ""
     ports:
       - "21:21"
+    volumes:
+      - ./control_agent.py:/app/control_agent.py:ro
     networks:
       - edge
     pids_limit: 128`
@@ -228,8 +231,11 @@ const MYSQL_TEMPLATE = `  mysql-honeypot:
       SENSOR_ID: mysql-{{deployId}}
       SENSOR_NAME: "MySQL Honeypot"
       SENSOR_IP: ""
+      SENSOR_CONTROL_SECRET: ""
     ports:
       - "3306:3306"
+    volumes:
+      - ./control_agent.py:/app/control_agent.py:ro
     networks:
       - edge
     pids_limit: 128`
