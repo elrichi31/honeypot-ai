@@ -27,9 +27,16 @@ server-side CAS on markSent (whichever transport claims a queued command
 first) is what stops WS and HTTP from ever running the same command twice —
 no separate lease state needed here.
 
-No-ops entirely when SENSOR_CONTROL_SECRET is unset, so a sensor that hasn't
-been issued a control credential yet (or one that doesn't want remote
-control) is unaffected — same opt-in shape as the rest of the beacon.
+No-ops entirely when SENSOR_CONTROL_SECRET is unset, no secret file is
+present, and no ingest_token is available for auto-enrollment — so a sensor
+that hasn't been issued a control credential yet (or one that doesn't want
+remote control) is unaffected — same opt-in shape as the rest of the beacon.
+
+Rebanada 8h (docs/plans/SENSOR_REMOTE_CONTROL.md): if no secret is configured
+via env or persisted file, the agent trades its already-baked-in
+ingest_token for a per-sensor credential via POST /sensors/control/enroll,
+and persists it to secret_file so future restarts reuse it instead of
+re-enrolling. Precedence: env secret > persisted file > enroll > disabled.
 
 Deliberately synchronous (websockets.sync.client for the WS half, urllib for
 the HTTP half), matching the thread-based style already used by
@@ -77,12 +84,13 @@ def _envelope(msg_type: str, **fields) -> dict:
 
 class ControlAgent:
     def __init__(self, *, ingest_url: str, sensor_id: str, secret: str, agent_version: str,
-                 ingest_token: str = ""):
+                 ingest_token: str = "", secret_file: str = ""):
         self._http_url = ingest_url.rstrip("/")
         self._ws_url = ingest_url.replace("http", "ws", 1) + "/sensors/control/ws"
         self._sensor_id = sensor_id
         self._secret = secret
         self._ingest_token = ingest_token
+        self._secret_file = secret_file
         self._agent_version = agent_version
         self._handlers: dict[str, callable] = {}
         self._seen: dict[str, float] = {}
@@ -98,11 +106,72 @@ class ControlAgent:
         return register
 
     def start(self) -> None:
-        if not self._secret:
-            print("[control] SENSOR_CONTROL_SECRET not set, control plane disabled", flush=True)
+        if not self._secret and not self._secret_file and not self._ingest_token:
+            print("[control] no control secret source configured, control plane disabled", flush=True)
             return
         threading.Thread(target=self._run_forever, daemon=True).start()
         threading.Thread(target=self._poll_forever, daemon=True).start()
+
+    # --- Secret resolution (Rebanada 8h) -----------------------------------
+    # Called from _run_forever's retry loop (not start()) so a 404 from
+    # enroll — the sensor's own heartbeat hasn't created its row yet — is
+    # just another connection failure the existing backoff already handles.
+
+    def _ensure_secret(self) -> bool:
+        if self._secret:
+            return True
+        if self._secret_file:
+            persisted = self._read_secret_file()
+            if persisted:
+                self._secret = persisted
+                return True
+        if self._ingest_token:
+            enrolled = self._enroll()
+            if enrolled:
+                self._secret = enrolled
+                if self._secret_file:
+                    self._write_secret_file(enrolled)
+                return True
+        return False
+
+    def _enroll(self) -> str:
+        try:
+            req = Request(
+                f"{self._http_url}/sensors/control/enroll",
+                data=b"{}",
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Ingest-Token": self._ingest_token,
+                    "X-Sensor-Id": self._sensor_id,
+                },
+                method="POST",
+            )
+            with urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read())
+            secret = data.get("secret", "")
+            if secret:
+                print(f"[control] auto-enrolled {self._sensor_id}", flush=True)
+            return secret
+        except Exception as exc:
+            print(f"[control] enroll error: {exc}", flush=True)
+            return ""
+
+    def _read_secret_file(self) -> str:
+        try:
+            with open(self._secret_file) as f:
+                return f.read().strip()
+        except Exception:
+            return ""
+
+    def _write_secret_file(self, secret: str) -> None:
+        try:
+            os.makedirs(os.path.dirname(self._secret_file), exist_ok=True)
+            tmp = f"{self._secret_file}.tmp{os.getpid()}"
+            with open(tmp, "w") as f:
+                f.write(secret)
+            os.replace(tmp, self._secret_file)
+        except Exception as exc:
+            print(f"[control] secret persist error: {exc}", flush=True)
 
     # --- Config fetch -----------------------------------------------------
 
@@ -130,6 +199,8 @@ class ControlAgent:
         attempt = 0
         while True:
             try:
+                if not self._ensure_secret():
+                    raise OSError("control secret unavailable (no env, file, or successful enroll)")
                 if self._connect_once():
                     attempt = 0  # clean auth+session: don't punish the next attempt
             except (WebSocketException, OSError) as exc:

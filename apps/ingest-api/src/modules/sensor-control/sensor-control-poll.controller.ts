@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { sensorControlClientMessageSchema } from '../../contracts/sensor-control/protocol.js'
+import { ensureIngestToken } from '../../lib/ingest-auth.js'
 import { SensorControlCredentialService } from './sensor-control-credential.service.js'
 import { sensorConnectionRegistry } from './sensor-connection-registry.js'
 import { SensorControlService } from './sensor-control.service.js'
@@ -37,6 +38,26 @@ export async function sensorControlPollRoutes(fastify: FastifyInstance) {
   )
   const svc = new SensorControlService(fastify.prisma, sensorConnectionRegistry)
   const configSvc = new SensorConfigService(fastify.prisma, svc)
+
+  // Auto-enrollment (Rebanada 8h): a freshly-installed sensor that has no
+  // per-sensor control credential yet (env unset, no persisted file) trades
+  // the shared INGEST_SHARED_SECRET it's already baked in for one, on its
+  // own first boot. Deliberately authenticated with ensureIngestToken instead
+  // of the WS handshake's verify() path, to keep that critical auth logic
+  // untouched. 404 if the sensor's heartbeat hasn't created its row yet —
+  // the agent retries with its normal WS reconnect backoff, no thread
+  // ordering needed.
+  fastify.post('/sensors/control/enroll', async (request, reply) => {
+    if (!ensureIngestToken(request, reply)) return reply
+    const sensorId = request.headers['x-sensor-id']
+    if (typeof sensorId !== 'string' || !sensorId) {
+      return reply.status(400).send({ error: 'missing_sensor_id' })
+    }
+
+    const result = await credentialSvc.enroll(sensorId)
+    if (!result.ok) return reply.status(result.status).send({ error: result.error })
+    return reply.status(201).send(result.value)
+  })
 
   fastify.get('/sensors/control/poll', async (request, reply) => {
     const sensorId = await authenticate(request, reply, credentialSvc)

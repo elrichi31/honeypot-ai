@@ -58,8 +58,17 @@ entrega esta en las secciones de Rebanadas mas abajo, esto es solo el mapa.
   dimensionamiento original (herramientas de terceros, no encajan en el
   patron de agente Python).
 
-**Pendiente dentro de lo ya empezado:**
+**Rebanada 8h — auto-enrolamiento de credencial de control (2026-07-17):**
+completa y verificada de punta a punta. Elimina el paso manual de emitir la
+credencial por-sensor y pegarla en `.env`: cada agente canjea el
+`INGEST_SHARED_SECRET` ya horneado por una credencial propia en su primer
+arranque, y la persiste en su volumen para no volver a enrolar. Motivada por
+`port-01`/`smb-01` apareciendo "Control · disconnected" en prod por nunca
+haber recibido credencial. Decision de seguridad confirmada con el usuario:
+**(A) rotar** — un segundo enroll siempre emite un secreto nuevo (self-healing
+si el sensor pierde su volumen). Detalle completo mas abajo.
 
+**Pendiente dentro de lo ya empezado:**
 - Mas campos de `config.apply` para port/smb/ftp/mysql: el MVP cubrio lo que
   ya era env-driven o casi (titulo/org de panel, banner FTP, identidad SMB,
   version MySQL). Sigue afuera identidad Docker API/Elasticsearch de Port
@@ -109,6 +118,16 @@ entrega esta en las secciones de Rebanadas mas abajo, esto es solo el mapa.
   `configHash=None` y el `config.apply` nunca confirma. Poco probable porque
   `write_override` es atomico (`tmp` + `os.replace`); bastaria una linea de
   log para no depender de adivinarlo.
+- **`ic-cowrie-beacon` (deception interna) sin volumen de señal persistente**:
+  mismo bug que se encontro y corrigio en `cowrie-beacon` durante la Rebanada
+  8h (sin `SIGNAL_DIR`/volumen, el auto-enroll perderia el secreto en cada
+  recreate) — deliberadamente sin tocar porque toda la topologia
+  `int-ssh`/`int-http`/`int-smb`/`internal-canary` ya esta fuera de alcance
+  (imagenes sin publicar, nadie la pidio).
+- **Rebanada 8h no desplegada a ningun entorno real todavia** — solo
+  verificada localmente (Postgres 16 efimero + agente real). Falta el
+  despliegue real a `port-01`/`smb-01` para confirmar "Control · connected"
+  en prod, que es el caso que motivo la rebanada.
 
 ## Contexto
 
@@ -1549,6 +1568,216 @@ en `http_emulation.py`, no entraron en este MVP); dialecto/puertos de todos
 — cambiarlos sigue exigiendo tocar el compose a mano, `config.apply` no
 puede tocar `PORTS`/bindings; tests dedicados para los 4 schemas nuevos (se
 verifico con `tsc` + el harness end-to-end real, mismo patron que el resto).
+
+### Rebanada 8h - Auto-enrolamiento de credencial de control (sin editar `.env`)
+
+Estado: **completa y verificada de punta a punta (2026-07-17)**.
+
+**Problema.** Hoy cada sensor se conecta al plano de control con una credencial
+por-sensor que un admin tiene que emitir a mano
+(`POST /sensors/:id/control-credential`) y pegar en el `.env` del host como
+`SENSOR_CONTROL_SECRET_<PROTO>`, seguido de un recreate del contenedor
+(el secreto es env var, solo se lee al arrancar). Es el gap ya anotado en 8c/8d.
+En la practica, sensores que nunca pasaron por ese paso manual arrancan con el
+secreto vacio, el servidor los rechaza limpio (401) y el dashboard los muestra
+**"Control · disconnected"** con los `status.get` expirando por TTL — que es
+exactamente lo que se observo en prod con `port-01` y `smb-01` (2026-07-17).
+El honeypot sigue capturando; solo el canal de control queda muerto.
+
+**Objetivo.** Que un sensor recien instalado se **auto-enrole** en su primer
+arranque usando una clave ya "quemada" en el contenedor, sin que nadie edite
+`.env` ni corra `curl`. Cero pasos manuales para el caso feliz.
+
+**Clave de enrolamiento: reusar `INGEST_SHARED_SECRET`.** No se distribuye ni
+se inventa ningun secreto nuevo — `INGEST_SHARED_SECRET` ya esta horneado en
+los 17 contenedores que montan `control_agent.py` (invariante de 2026-07-15), y
+`ControlAgent` **ya lo recibe** como `ingest_token` (lo usa para
+`fetch_config`). Se reusa como **prueba de provisionamiento** ("fui desplegado
+legitimamente"), no como secreto de control permanente: el agente lo canjea una
+sola vez por una credencial por-sensor propia, y de ahi en mas reconecta con
+esa. Esto **no** contradice el prerequisito de seguridad de la Rebanada 2 ("no
+usar `INGEST_SHARED_SECRET` para autenticar el socket de control"): el socket
+sigue autenticando contra la credencial por-sensor hasheada; el shared secret
+solo autoriza el **canje** inicial, y ese mismo secreto ya es hoy la unica
+barrera para falsificar heartbeats/eventos de cualquier sensor — un atacante que
+lo tenga ya puede impersonar la telemetria de cualquier sensor, asi que dejarlo
+enrolar no agrega superficie nueva (ver la subseccion de seguridad para el matiz
+del rotate).
+
+**Por que auto-enroll en runtime y no pre-emitir en el instalador.** `SENSOR_ID`
+es `os.getenv("SENSOR_ID", f"port-{socket.gethostname()}")`: en single-host es
+fijo y conocido al desplegar (`port-01`), pero en el instalador remoto de
+clientes puede caer al hostname del host destino, **desconocido** al momento de
+generar el script. Emitir la credencial recien cuando el agente arranca (y por
+fin conoce su `sensorId` real) cubre los dos casos con un solo mecanismo. Es
+tambien la razon por la que 8c no pudo llevar el secreto de fabrica.
+
+#### Diseno
+
+**1. Endpoint de enrolamiento (`ingest-api`).** Nuevo
+`POST /sensors/control/enroll`, autenticado con `ensureIngestToken`
+(`X-Ingest-Token: INGEST_SHARED_SECRET`), **deliberadamente separado del path
+de auth del WS** para no tocar la logica critica de `verify()`. Body/headers:
+`X-Sensor-Id`. Emite (o devuelve segun la decision de rotate, ver seguridad)
+la credencial por-sensor y responde el secreto crudo **una sola vez**, mismo
+contrato que ya devuelve `credentialSvc.issue()`
+(`{sensorId, secret, secretPrefix}`).
+
+- Nuevo `SensorControlCredentialService.enroll(sensorId)`: como `issue()` pero
+  **sin** `ControlActor`/rol/scope — la autorizacion es el `ensureIngestToken`
+  del controller, no un operador. Mantiene la verificacion de que el sensor
+  **existe** (`findSensorScope`) para no crear filas de credencial colgadas de
+  `sensorId` inventados.
+- **Race de arranque:** el sensor lo crea su primer heartbeat; el agente puede
+  intentar enrolar antes de que la fila exista → 404. El agente reintenta con
+  el mismo backoff que ya usa su loop de reconexion; en segundos el heartbeat
+  crea el sensor y el enroll pasa. No hace falta ordenar threads.
+- `createdBy` para la auditoria del upsert: `"auto-enroll"` (constante), para
+  distinguirlo de una emision manual de operador.
+
+**2. Persistencia del secreto (agente).** `control_agent.py` gana una lectura/
+escritura de un archivo de secreto en un volumen que **cada sensor ya monta**:
+`/config` en port/smb/ftp/mysql (el de `persisted_config.py`), el volumen de
+señal (`cowrie_signal`/`web_signal`) en cowrie/web. Path por env
+`SENSOR_CONTROL_SECRET_FILE` con default sensato; escritura atomica (temp +
+`os.replace`, mismo patron que `persisted_config.write_override`).
+
+**3. Orden de precedencia al arrancar** (`ControlAgent.start()` /
+`_resolve_secret()`):
+
+1. `SENSOR_CONTROL_SECRET` env **no vacio** → usarlo tal cual (backward compat:
+   los deploys de Cowrie/web que hoy tienen el env seteado y una credencial
+   server-side siguen funcionando **sin cambios ni rotacion**).
+2. Archivo persistido existe → usarlo.
+3. Ni env ni archivo, pero hay `INGEST_SHARED_SECRET` (`ingest_token`) →
+   **enrolar** (`POST /enroll`), persistir el secreto devuelto, usarlo.
+4. Nada de lo anterior → control plane deshabilitado (comportamiento actual,
+   opt-out intacto).
+
+Con esto, un `.env` que ya no defina `SENSOR_CONTROL_SECRET_<PROTO>` deja al
+sensor auto-enrolarse; uno que lo defina lo respeta (pin manual/override).
+
+#### Seguridad — decision confirmada con el usuario (2026-07-17): (A) rotar
+
+`enroll` hace `upsert` (igual que `issue()`), emitiendo un secreto nuevo cada
+vez que se llama, sin importar si ya existia una credencial para ese
+`sensorId`. Si un sensor pierde su volumen (recreate que borro el named
+volume), re-arranca sin archivo → re-enrola → sigue andando solo. **Costo
+aceptado:** un tenedor del `INGEST_SHARED_SECRET` puede rotar la credencial de
+un sensor vivo, desconectando al real y tomando su canal de control (podria
+mandarle `config.apply`) — capability acotada (catalogo cerrado, payload
+validado por zod, sin shell, sin persistencia de secretos en claro) y que
+presupone un shared secret ya filtrado, escenario en el que de todos modos
+hay que re-llavear todo.
+
+#### Progreso (2026-07-17): implementado y verificado de punta a punta
+
+- `SensorControlCredentialService.enroll(sensorId)` (nuevo,
+  `sensor-control-credential.service.ts`) — mismo `upsert` que `issue()` pero
+  sin `ControlActor`/rol: la autorizacion es el `ensureIngestToken` del
+  controller, no un operador. Verifica que el sensor **existe**
+  (`findSensorScope`) antes de emitir; `createdBy: 'auto-enroll'` en la
+  auditoria para distinguirlo de una emision manual.
+- `POST /sensors/control/enroll` (nuevo, en `sensor-control-poll.controller.ts`
+  junto al resto de rutas autenticadas por credencial de sensor en vez de
+  `ControlActor`), gateado por `ensureIngestToken` + header `X-Sensor-Id`.
+  404 si el sensor todavia no tiene fila (heartbeat no corrio); 401 con token
+  invalido.
+- `control_agent.py`: `_ensure_secret()` con la precedencia exacta del diseño
+  (env > archivo persistido > enroll > deshabilitado), llamada desde dentro
+  del loop de reconexion de `_run_forever` — no desde `start()` — para que un
+  404 de "sensor todavia no existe" sea solo otro fallo de conexion que el
+  backoff existente reintenta, sin coordinar threads a mano. `_enroll()`,
+  `_read_secret_file()`/`_write_secret_file()` (temp + `os.replace`, mismo
+  patron que `persisted_config.write_override`). Nuevo constructor arg
+  `secret_file`.
+- Los 6 sensores (`heartbeat.py`/`app.py`) pasan `secret_file` con default
+  sensato: `os.path.join(SIGNAL_DIR, "control-secret")` para cowrie/web
+  (reusan su volumen de señal existente), `/config/control-secret` para
+  port/smb/ftp/mysql (reusan su volumen `/config` existente) — override con
+  `SENSOR_CONTROL_SECRET_FILE` si hiciera falta.
+- Composes: `cowrie-beacon` en `docker-compose.prod.honeypot.yml` y en los dos
+  `deploy/local/sensor-*.yml` **no tenia volumen persistente ni `SIGNAL_DIR`**
+  (bug real encontrado durante la implementacion, `docker-compose.prod.single-host.yml`
+  y `web-honeypot-beacon` en todos lados si lo tenian) — sin esto, el secreto
+  auto-enrolado se hubiera perdido en cada recreate del contenedor. Agregado
+  `cowrie_signal:/signal` + `SIGNAL_DIR: /signal` en los tres archivos.
+  `.env.example` colapsado: las 6 `SENSOR_CONTROL_SECRET_<PROTO>` ahora se
+  documentan como override manual opcional, no como paso requerido.
+- Instalador remoto: `controlPlaneNote()` en `sensor-install-script.ts` ahora
+  no imprime nada (ya no hay paso manual pendiente); `sensor-compose-builder.ts`
+  agrega `cowrie_signal:` a los volumenes nombrados cuando `ssh` esta
+  seleccionado, y el bloque `cowrie-beacon` en `sensor-compose-blocks.ts`
+  monta ese volumen con `SIGNAL_DIR: /signal` (mismo bug que en los composes
+  estaticos, corregido en el generador). `internal-canary` deliberadamente sin
+  tocar (fuera de alcance, ver abajo).
+- Verificacion: 4 casos nuevos de integracion contra Postgres real
+  (`sensor-control-ws.integration.test.ts`, gateado por `TEST_DATABASE_URL`,
+  182/182 en verde sin regresiones) — emite para sensor existente, rota en un
+  segundo enroll invalidando la credencial anterior (se verifica que la vieja
+  cierra con 4401 y la nueva conecta), 404 para sensor inexistente, 401 con
+  token invalido. Self-check Python ampliado
+  (`sensors/_shared/test_control_agent.py`) cubriendo las 5 ramas de
+  `_ensure_secret`: env gana y no persiste nada al archivo, archivo persistido
+  gana y no llama a enroll, ni env ni archivo pero con `ingest_token` → enrola
+  y persiste atomicamente, sin ninguna fuente → `False`, enroll fallido (404)
+  → `False` sin persistir nada (retryable). **E2E manual real** (no mock):
+  ingest-api + Postgres 16 efimero levantados en local, un `ControlAgent`
+  Python real sin `SENSOR_CONTROL_SECRET` ni archivo — reproduciendo
+  exactamente el caso `port-01`/`smb-01` de prod — se auto-enrolo, conecto por
+  WS, y resolvio un `status.get` real `queued→sent→acked→succeeded` via REST.
+  Reinicio del mismo agente con un `ingest_token` **incorrecto** confirmo que
+  usa el archivo persistido en vez de re-enrolar (si hubiera intentado
+  enrolar de nuevo, el token malo lo habria tumbado).
+
+#### Multiples sensores del mismo tipo (verificado que ya lo resuelve)
+
+Pregunta levantada al revisar: si hay N sensores del mismo protocolo
+(`smb-01`, `smb-02`, dos Cowrie, etc.), ¿el auto-enroll colisiona? **No** — todo
+se direcciona por `sensorId`, y su unicidad por instancia ya es un invariante del
+sistema entero ([SENSOR_IDENTITY.md](SENSOR_IDENTITY.md), implementado):
+instalador remoto usa `SENSOR_ID: {proto}-{deployId}` (unico por instalacion,
+llevado a UUID puro en el redeem); single-host usa `${SENSOR_ID_SMB:-smb-01}`,
+default por tipo que el operador sobreescribe para una 2a instancia. Como
+`SensorControlCredential` es `@unique` en `sensorId`, cada instancia
+`enroll()`ea independiente y obtiene su propia credencial — cero colision en la
+capa de credencial, nada nuevo que resolver.
+
+**Unico invariante que 8h agrega:** el archivo de secreto (`_secret_file`) es un
+nombre fijo *dentro* del volumen del sensor (`/config/control-secret`,
+`$SIGNAL_DIR/control-secret`), no un path global — asi que debe haber **un
+volumen por sensor**, nunca un bind-mount de host compartido entre dos
+contenedores del mismo tipo, o se pisarian el secreto y pelearian (rotate +
+connect/disconnect storm). Se satisface con los named volumes por-servicio ya
+existentes; es el mismo supuesto "un volumen de config por sensor" que ya usa
+`persisted_config.py` para `override.json`. Modo de falla preexistente (no de
+8h): dos contenedores con el **mismo** `sensorId` ya se pelean hoy en el
+`SensorConnectionRegistry` y fusionan heartbeats via `ON CONFLICT` — es un error
+de config a prevenir, no algo que 8h deba enmascarar.
+
+#### Migracion / rollout
+
+Aditivo y backward-compatible: los sensores con `SENSOR_CONTROL_SECRET_<PROTO>`
+seteado no cambian (precedencia 1). Para `port-01`/`smb-01` (el caso que gatillo
+esto), una vez desplegado: borrar/omitir su `SENSOR_CONTROL_SECRET_<PROTO>` en
+el `.env` y recrear el contenedor → se auto-enrolan. Orden de despliegue: como
+en 8, ingest-api (endpoint nuevo) antes que los sensores actualizados; un sensor
+con el `control_agent.py` viejo simplemente no conoce el enroll y sigue como
+hoy (falla segura). **Sin desplegar todavia** a ningun entorno real — solo
+verificado localmente.
+
+#### Pendiente / fuera de alcance
+
+- No cubre `int-ssh`/`int-http`/`int-smb`/`internal-canary` (deception interna,
+  su propio problema de imagenes sin publicar, mismo criterio que 8c/8e) — su
+  `cowrie-beacon` (`ic-cowrie-beacon`) sigue sin volumen de señal persistente,
+  mismo bug que se corrigio en el resto pero deliberadamente sin tocar aca.
+- Revocacion/rotacion explicita de credencial
+  (`DELETE /sensors/:id/control-credential`) sigue sin implementar — deuda
+  aparte, independiente de esta rebanada.
+- No desplegado a prod/single-host todavia — falta el paso real de
+  `port-01`/`smb-01` recreando sus contenedores para confirmar "Control ·
+  connected" en el dashboard real.
 
 ### Rebanada 9 - Consola SSH web para probar el sensor Cowrie
 

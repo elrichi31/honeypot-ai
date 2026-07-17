@@ -113,7 +113,7 @@ function buildVolumeLines(services: ServiceKey[]) {
     ].join("\n")
   }
   const volumes = ["volumes:"]
-  if (services.includes("ssh")) volumes.push("  cowrie_var:")
+  if (services.includes("ssh")) volumes.push("  cowrie_var:", "  cowrie_signal:")
   if (services.includes("http")) volumes.push("  web_signal:")
   volumes.push("  vector_data:", "  suricata_logs:")
   if (services.includes("smb")) volumes.push("  smb_share:", "  smb_captures:", "  smb_config:")

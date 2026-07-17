@@ -225,6 +225,7 @@ describeIntegration('sensor control websocket against a real Postgres', () => {
   beforeAll(async () => {
     process.env.CONTROL_API_SECRET = process.env.CONTROL_API_SECRET ?? 'test-control-secret'
     process.env.SENSOR_CONTROL_CREDENTIAL_PEPPER = process.env.SENSOR_CONTROL_CREDENTIAL_PEPPER ?? 'test-pepper'
+    process.env.INGEST_SHARED_SECRET = process.env.INGEST_SHARED_SECRET ?? 'test-ingest-secret'
     // Read once at plugin module load below — set before the dynamic import so
     // the whole file runs with a fast heartbeat (contract minimum is 10s).
     process.env.SENSOR_CONTROL_HEARTBEAT_INTERVAL_SECONDS = String(FAST_HEARTBEAT_SECONDS)
@@ -594,5 +595,59 @@ describeIntegration('sensor control websocket against a real Postgres', () => {
     await assertNoMessageOfType(ws, 'command', 1_500)
 
     ws.close()
+  })
+
+  // Rebanada 8h: a freshly-installed sensor trades the already-baked-in
+  // INGEST_SHARED_SECRET for its own control credential on first boot,
+  // without an admin issuing one by hand.
+  describe('auto-enrollment (POST /sensors/control/enroll)', () => {
+    async function enroll(id: string, token = process.env.INGEST_SHARED_SECRET ?? '') {
+      return fetch(`${baseUrl}/sensors/control/enroll`, {
+        method: 'POST',
+        headers: { 'X-Ingest-Token': token, 'X-Sensor-Id': id },
+      })
+    }
+
+    it('emits a working credential for an existing sensor', async () => {
+      const res = await enroll(sensorId)
+      expect(res.status).toBe(201)
+      const body = await res.json()
+      expect(body.sensorId).toBe(sensorId)
+      expect(typeof body.secret).toBe('string')
+
+      const ws = connect(body.secret)
+      await onceOpen(ws)
+      ws.send(JSON.stringify(helloMessage()))
+      const accepted = await onceMessage(ws)
+      expect(accepted.type).toBe('hello.accepted')
+      ws.close()
+    })
+
+    it('rotates on a second enroll, invalidating the previous credential', async () => {
+      const first = await (await enroll(sensorId)).json()
+      const second = await (await enroll(sensorId)).json()
+      expect(second.secret).not.toBe(first.secret)
+
+      const oldWs = connect(first.secret)
+      const closeEvent = await onceClose(oldWs)
+      expect(closeEvent.code).toBe(4401)
+
+      const newWs = connect(second.secret)
+      await onceOpen(newWs)
+      newWs.send(JSON.stringify(helloMessage()))
+      const accepted = await onceMessage(newWs)
+      expect(accepted.type).toBe('hello.accepted')
+      newWs.close()
+    })
+
+    it('404s for a sensorId with no sensor row yet', async () => {
+      const res = await enroll(`sensor-never-created-${randomUUID()}`)
+      expect(res.status).toBe(404)
+    })
+
+    it('401s with an invalid ingest token', async () => {
+      const res = await enroll(sensorId, 'wrong-token')
+      expect(res.status).toBe(401)
+    })
   })
 })

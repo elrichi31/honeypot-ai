@@ -98,25 +98,12 @@ function persistedConfigDownloadLines(services: ServiceKey[]) {
   return [`curl -fsSL "$RAW/sensors/_shared/persisted_config.py" -o persisted_config.py`]
 }
 
-// The beacon(s)/sensor(s) come up without a control-plane credential (it
-// can't exist before the sensor's first heartbeat registers it in the DB) —
-// status.get and config.apply stay disabled until an admin issues one from
-// the dashboard and updates the relevant service's SENSOR_CONTROL_SECRET.
-function controlPlaneNote(services: ServiceKey[]): string {
-  const beacons = [
-    services.includes("ssh") ? "cowrie-beacon" : null,
-    services.includes("http") ? "web-honeypot-beacon" : null,
-    services.includes("port") ? "port-honeypot" : null,
-    services.includes("smb") ? "smb-honeypot" : null,
-    services.includes("ftp") ? "ftp-honeypot" : null,
-    services.includes("mysql") ? "mysql-honeypot" : null,
-  ].filter((s): s is string => s !== null)
-  if (beacons.length === 0) return ""
-  return `
-  echo " Remote config/control: issue a credential from the dashboard (sensor"
-  echo "   card -> admin action), then set SENSOR_CONTROL_SECRET in"
-  echo "   $DIR/docker-compose.yml for: ${beacons.join(", ")}"
-  echo "   and run: docker compose up -d ${beacons.join(" ")}"`
+// Rebanada 8h: the beacon(s)/sensor(s) auto-enroll their own control
+// credential on first boot (trading the shared ingest token for a per-sensor
+// one via POST /sensors/control/enroll, once their heartbeat has registered
+// them) — no manual credential step needed anymore. Nothing to print here.
+function controlPlaneNote(_services: ServiceKey[]): string {
+  return ""
 }
 
 function sshPortStep(services: ServiceKey[]) {

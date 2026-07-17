@@ -120,9 +120,11 @@ const SSH_TEMPLATE = `  cowrie:
       SENSOR_PROBE_PORTS: "2222 2222"
       SENSOR_HOST: cowrie
       SENSOR_CONTROL_SECRET: ""
+      SIGNAL_DIR: /signal
     volumes:
       - ./heartbeat.py:/heartbeat.py:ro
       - ./control_agent.py:/control_agent.py:ro
+      - cowrie_signal:/signal
     command: ["sh", "-c", "pip install --quiet --no-cache-dir websockets==13.1 && python3 /heartbeat.py"]
     networks:
       - edge

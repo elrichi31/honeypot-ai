@@ -26,6 +26,7 @@ control_agent = ControlAgent(
     ingest_url=INGEST_API_URL, sensor_id=SENSOR_ID,
     secret=os.getenv("SENSOR_CONTROL_SECRET", ""), agent_version=AGENT_VERSION,
     ingest_token=INGEST_SHARED_SECRET,
+    secret_file=os.getenv("SENSOR_CONTROL_SECRET_FILE", "/config/control-secret"),
 )
 
 

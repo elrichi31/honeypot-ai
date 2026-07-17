@@ -47,6 +47,29 @@ export class SensorControlCredentialService {
     return { ok: true, value: { sensorId: args.sensorId, secret, secretPrefix: prefix } }
   }
 
+  // Auto-enroll (Rebanada 8h): no ControlActor/role — authorization is the
+  // caller's ensureIngestToken check, not an operator session. Always rotates
+  // (upsert), same as issue(): a sensor that lost its persisted secret file
+  // re-enrolls and self-heals instead of getting stuck. This does hand a
+  // holder of INGEST_SHARED_SECRET the ability to take over an already-live
+  // sensor's control channel — accepted risk, see plan doc, since that same
+  // secret already lets them forge that sensor's telemetry today.
+  async enroll(sensorId: string): Promise<IssueResult> {
+    const scope = await this.sensors.findSensorScope(sensorId)
+    if (!scope) return { ok: false, error: 'Sensor not found', status: 404 }
+
+    const secret = generateControlSecret()
+    const prefix = secretPrefix(secret)
+    await this.repo.upsert({
+      sensorId,
+      secretHash: hashSecret(secret, this.pepper),
+      secretPrefix: prefix,
+      createdBy: 'auto-enroll',
+    })
+
+    return { ok: true, value: { sensorId, secret, secretPrefix: prefix } }
+  }
+
   async verify(sensorId: string, providedSecret: string): Promise<boolean> {
     const credential = await this.repo.findBySensorId(sensorId)
     if (!credential || credential.revokedAt) return false

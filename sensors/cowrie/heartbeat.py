@@ -212,6 +212,7 @@ def _config_loop() -> None:
 control_agent = ControlAgent(
     ingest_url=INGEST_URL, sensor_id=SENSOR_ID, secret=CONTROL_SECRET, agent_version=AGENT_VERSION,
     ingest_token=SECRET,
+    secret_file=os.getenv("SENSOR_CONTROL_SECRET_FILE", os.path.join(SIGNAL_DIR, "control-secret")),
 )
 
 
