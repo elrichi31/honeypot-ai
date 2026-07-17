@@ -119,6 +119,11 @@ class ControlAgent:
 
     def _ensure_secret(self) -> bool:
         if self._secret:
+            # ponytail: a persisted/env secret rotated out-of-band (operator
+            # re-issue, duplicate sensorId) is retried forever, never
+            # re-enrolled — doesn't happen in normal single-instance auto-enroll.
+            # Upgrade path: catch the 401 InvalidStatus in _connect_once, clear a
+            # non-env secret + its file, fall through here to re-enroll.
             return True
         if self._secret_file:
             persisted = self._read_secret_file()
@@ -251,6 +256,11 @@ class ControlAgent:
             if self._ws_connected:
                 time.sleep(POLL_IDLE_SECONDS)
                 attempt = 0
+                continue
+            # _run_forever owns secret resolution/enrollment; polling before it
+            # sets self._secret just 401s with an empty secret. Idle until then.
+            if not self._secret:
+                time.sleep(POLL_IDLE_SECONDS)
                 continue
             try:
                 self._poll_once()
