@@ -30,6 +30,7 @@ import { retentionPlugin } from './plugins/retention.js';
 import { matviewRefreshPlugin } from './plugins/matview-refresh.js';
 import { cacheWarmupPlugin } from './plugins/cache-warmup.js';
 import kafkaConsumerPlugin from './plugins/kafka-consumer.js';
+import lakeProducerPlugin from './plugins/lake-producer.js';
 import { suricataRoutes } from './modules/suricata/suricata.controller.js';
 import { monitoringRoutes } from './modules/monitoring/monitoring.controller.js';
 import { alertRoutes } from './modules/alerts/alerts.controller.js';
@@ -81,6 +82,7 @@ export async function buildApp() {
   await app.register(prismaPlugin);
   await app.register(redisPlugin);
   await app.register(kafkaConsumerPlugin);
+  await app.register(lakeProducerPlugin);
   await app.register(defensePlugin);
 
   const ingestRpmLimit = parseInt(process.env.INGEST_RATE_LIMIT_RPM ?? '300', 10)

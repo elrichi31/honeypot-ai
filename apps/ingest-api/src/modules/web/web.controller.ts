@@ -5,6 +5,7 @@ import { eventBus } from '../../lib/event-bus.js'
 import { lookupGeo } from '../../lib/geo.js'
 import { scheduleThreatAlert, evaluateCanaryAlert } from '../../lib/threat-alerts.js'
 import { forwardClientEventBySensorId } from '../../lib/client-forward.js'
+import { lakeProducer, LAKE_TOPICS } from '../../lib/lake-producer.js'
 import { basePaginationSchema, getPagination } from '../../lib/pagination.js'
 import { webHitSchema, normalizeHeaders, parseWebHitBatch } from '../../lib/web-normalize.js'
 import { WebService, resolveSensorScope } from './web.service.js'
@@ -79,6 +80,7 @@ export async function webRoutes(fastify: FastifyInstance) {
     try {
       const row = await svc.insertWebHit(d, sensorId)
       if (row) {
+        lakeProducer.tee(LAKE_TOPICS.web, d.eventId, d)
         emitAttackEvent(d.srcIp, d.timestamp, sensorId)
         void forwardClientEventBySensorId(fastify.prisma, sensorId, {
           kind: 'web.event',
@@ -116,6 +118,7 @@ export async function webRoutes(fastify: FastifyInstance) {
         const row = await svc.insertWebHit(d, d.sensorId ?? null)
         if (row) {
           inserted++
+          lakeProducer.tee(LAKE_TOPICS.web, d.eventId, d)
           emitAttackEvent(d.srcIp, d.timestamp, d.sensorId ?? null)
           void forwardClientEventBySensorId(fastify.prisma, d.sensorId ?? null, {
             kind: 'web.event',

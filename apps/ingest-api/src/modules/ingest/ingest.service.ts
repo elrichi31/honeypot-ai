@@ -8,6 +8,7 @@ import { sendDiscordAlert } from '../../lib/discord.js';
 import { forwardClientEventBySensorId } from '../../lib/client-forward.js';
 import { isInternalIp } from '../../lib/internal-ip.js';
 import { recordProcessLineLatency } from '../../lib/ingest-metrics.js';
+import { lakeProducer, LAKE_TOPICS } from '../../lib/lake-producer.js';
 
 export class IngestService {
   private prisma: PrismaClient;
@@ -59,6 +60,7 @@ export class IngestService {
     }
 
     if (eventCreated) {
+      lakeProducer.tee(LAKE_TOPICS.cowrie, cowrieEventId, raw)
       void forwardClientEventBySensorId(this.prisma, typeof raw.sensor === 'string' ? raw.sensor : null, {
         kind: 'cowrie.event',
         event: {

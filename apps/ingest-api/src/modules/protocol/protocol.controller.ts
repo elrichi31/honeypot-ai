@@ -5,6 +5,7 @@ import { eventBus } from '../../lib/event-bus.js'
 import { lookupGeo } from '../../lib/geo.js'
 import { scheduleThreatAlert, evaluateDeceptionAlert } from '../../lib/threat-alerts.js'
 import { forwardClientEventBySensorId } from '../../lib/client-forward.js'
+import { lakeProducer, LAKE_TOPICS } from '../../lib/lake-producer.js'
 import { enqueueProtocolHit } from '../../lib/protocol-batch.js'
 import { ProtocolService } from './protocol.service.js'
 import { isInternalIp } from '../../lib/internal-ip.js'
@@ -57,6 +58,7 @@ export async function protocolRoutes(fastify: FastifyInstance) {
       dstPort: d.dstPort,
     })
 
+    lakeProducer.tee(LAKE_TOPICS.protocol, d.eventId, d)
     void forwardClientEventBySensorId(fastify.prisma, sensorId, {
       kind: 'protocol.event',
       event: { eventId: d.eventId, sensorId, protocol: d.protocol, srcIp: d.srcIp, srcPort: d.srcPort ?? null, dstPort: d.dstPort, eventType: d.eventType, username: d.username ?? null, password: d.password ?? null, data: d.data, timestamp: d.timestamp },

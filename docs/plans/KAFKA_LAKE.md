@@ -151,6 +151,41 @@ Criterio de salida: cada evento que entra por el API aparece en Kafka en su topi
 por fuente; un consumidor de prueba puede leerlo; el path de Postgres/dashboard no
 cambió de latencia ni de forma.
 
+**Progreso (2026-07-17): Fase 2 implementada y verificada (incluye e2e real contra Kafka).**
+
+- **`LakeProducer`** (`lib/lake-producer.ts`): singleton con `connect`/`tee`/
+  `disconnect`, un producer kafkajs (`allowAutoTopicCreation:false`). `tee()` es
+  **fire-and-forget** — nunca lanza ni bloquea el hot path; un fallo se loguea y se
+  descarta. `plugins/lake-producer.ts` conecta en `setImmediate` (no bloquea el
+  arranque; `tee` es no-op hasta conectar), gateado por `KAFKA_BROKERS` igual que el
+  ex-consumer. Registrado en `app.ts`.
+- **Chokepoints (5 sitios, junto al `forwardClientEventBySensorId` existente):**
+  cowrie en `IngestService._processLine` (produce `raw`, key = `session:eventid`);
+  web en las 2 ramas de `web.controller` (single + batch, produce `d`, key
+  `d.eventId`); protocol en `processProtocolEvent` (produce `d`, key `d.eventId`);
+  suricata en `SuricataService.persistAlerts` (produce cada alerta persistida, sin
+  key — no hay id estable). Se produce el **evento validado crudo** que cada sitio
+  ya tiene; el topic codifica la fuente. Constantes en `LAKE_TOPICS` para no tipear
+  nombres a mano.
+- **Topics:** `honeypot.web` + `honeypot.protocol` agregados al `kafka-init` de los
+  **3** composes con Kafka (`single-host`, `platform`, `docker-compose.yml` dev).
+  Verificado real: `kafka-init` creó los 4 topics (`Created topic honeypot.web`/
+  `honeypot.protocol` en logs), confirmado con `kafka-topics.sh --list`.
+- **E2E real contra Kafka** (no mock): levanté el Kafka del compose dev, conecté el
+  `LakeProducer` real a `localhost:9094`, `tee`-é un evento cowrie, y un consumer
+  kafkajs lo leyó de vuelta — 1 mensaje, key `s1:cowrie.login.success` y value
+  intacto (`password` incluido). `RESULT: PASS`. Los 5 sitios de wiring son
+  one-liners que llaman al mismo `tee()` ya probado.
+- Verificación: `tsc --noEmit` limpio; 147 tests ingest-api en verde (sin
+  regresión); `docker compose config` exit 0 en los 3 composes; e2e real del
+  producer PASS. **No probado full-stack** (POST al API real → topic): el mecanismo
+  del tee está probado en vivo y los sitios son triviales; la confirmación
+  full-stack natural es el smoke test de deploy.
+
+Ceilings anotados: tee best-effort (un blip de Kafka puede perder 1 evento del
+lake — outbox transaccional si molesta); si `connect()` falla tras el arranque no
+reintenta (queda deshabilitado hasta reiniciar el API — aceptable, Postgres sigue).
+
 ### Fase 3 — Lake (fuera de este plan)
 
 Placeholder. Object storage (S3/R2/B2) + ClickHouse, consumidor del lake, split

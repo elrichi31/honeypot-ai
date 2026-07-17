@@ -4,6 +4,7 @@ import { SuricataRepository, type EveAlert } from './suricata.repository.js'
 import { lookupGeo } from '../../lib/geo.js'
 import { eventBus } from '../../lib/event-bus.js'
 import { withCache } from '../../lib/cache-helper.js'
+import { lakeProducer, LAKE_TOPICS } from '../../lib/lake-producer.js'
 
 const OWN_IPS = new Set(
   (process.env.SURICATA_OWN_IPS ?? '')
@@ -46,6 +47,9 @@ export class SuricataService {
     await this.repo.insertBatch(rows)
 
     for (const { alert, ts } of rows) {
+      // Tee every persisted alert (incl. own-IP ones, which insertBatch stored)
+      // so the lake mirrors Postgres. No stable per-alert id, so no message key.
+      lakeProducer.tee(LAKE_TOPICS.suricata, undefined, alert)
       if (OWN_IPS.has(alert.src_ip)) continue
       const geo = lookupGeo(alert.src_ip)
       if (geo) eventBus.emit('attack', {
