@@ -1,27 +1,37 @@
-# vector/cowrie.toml — Cowrie log shipper
+# vector/cowrie.toml - Cowrie log shipper
 #
-# Tails cowrie.json, parses each JSON line, and publishes each event to Kafka.
-# Persists read offset to disk → survives container restarts without losing events.
-# Buffers to disk when the broker is unreachable → no events dropped on downtime.
+# Tails cowrie.json, parses each JSON line, and POSTs batches to the ingest-api
+# over HTTP. Persists read offset to disk -> survives container restarts without
+# losing events. Buffers to disk when the API is unreachable -> no events dropped
+# on downtime.
+#
+# Why HTTP, not Kafka: the sensor's Vector may run on a different host from Kafka
+# (remote honeypot / client VPS) where kafka:9092 is unreachable, and exposing
+# the broker publicly is a non-starter. The ingest-api is already public
+# (Cloudflare tunnel) and token-authed, so it works from anywhere. Kafka now sits
+# behind the ingest-api as an internal tee. See docs/plans/KAFKA_LAKE.md.
 #
 # Environment variables (required):
-#   COWRIE_LOG_PATH — path to cowrie.json inside the container
-#   KAFKA_BROKERS   — Kafka bootstrap servers (e.g. kafka:9092)
+#   COWRIE_LOG_PATH      - path to cowrie.json inside the container
+#   INGEST_API_URL       - ingest-api base URL
+#   INGEST_SHARED_SECRET - ingest auth token
 #
-# ROLLBACK: to revert to HTTP ingestion, comment out [sinks.cowrie_kafka] and
-# its sub-tables, then uncomment [sinks.cowrie_ingest_api] and all its
-# sub-tables below.
+# ROLLBACK to Kafka: comment out [sinks.cowrie_ingest_api] + sub-tables,
+# uncomment [sinks.cowrie_kafka] below, and point bootstrap_servers back at the
+# KAFKA_BROKERS env var (the placeholder is kept literal so Vector does not fail
+# on an undefined var while the block is commented). Re-add KAFKA_BROKERS to the
+# vector env.
 
 data_dir = "/var/lib/vector"
 
-# ── Source: tail cowrie.json ────────────────────────────────────────────────
+# -- Source: tail cowrie.json ------------------------------------------------
 [sources.cowrie_file]
 type       = "file"
 include    = ["${COWRIE_LOG_PATH}"]
 read_from  = "end"           # skip history on first run; offset persists after that
 fingerprint.strategy = "device_and_inode"   # handles log rotation correctly
 
-# ── Transform: parse each line as JSON ─────────────────────────────────────
+# -- Transform: parse each line as JSON --------------------------------------
 [transforms.parse_cowrie_event]
 type          = "remap"
 inputs        = ["cowrie_file"]
@@ -31,46 +41,41 @@ source        = '''
   .sensor = "${SENSOR_ID}"
 '''
 
-# ── Sink: publish each event to Kafka ─────────────────────────────────────
-# Each event becomes one Kafka message (no array wrapping).
-[sinks.cowrie_kafka]
-type              = "kafka"
-inputs            = ["parse_cowrie_event"]
-bootstrap_servers = "${KAFKA_BROKERS}"
-topic             = "honeypot.cowrie"
-encoding.codec    = "json"
+# -- Sink: POST batches to ingest-api ----------------------------------------
+[sinks.cowrie_ingest_api]
+type    = "http"
+inputs  = ["parse_cowrie_event"]
+uri     = "${INGEST_API_URL}/ingest/cowrie/vector"
+method  = "post"
+encoding.codec = "json"
 
-# Disk buffer — survives broker downtime without dropping events
-[sinks.cowrie_kafka.buffer]
+[sinks.cowrie_ingest_api.batch]
+max_events   = 100
+timeout_secs = 2
+
+[sinks.cowrie_ingest_api.request]
+headers.Content-Type   = "application/json"
+headers.X-Ingest-Token = "${INGEST_SHARED_SECRET}"
+timeout_secs               = 20
+retry_attempts             = 360
+retry_initial_backoff_secs = 1
+retry_max_duration_secs    = 10
+
+# Disk buffer - survives API downtime without dropping events
+[sinks.cowrie_ingest_api.buffer]
 type      = "disk"
 max_size  = 268435488     # Vector 0.40 minimum disk buffer size
 when_full = "block"       # back-pressure instead of dropping
 
-# ── Sink: POST batches to ingest-api (HTTP fallback — disabled) ────────────
-# To roll back: uncomment everything below and comment out
-# [sinks.cowrie_kafka] above.
-# Also re-add INGEST_API_URL and INGEST_SHARED_SECRET to the vector env in compose.
+# -- Sink: publish to Kafka (DISABLED - see ROLLBACK in header) --------------
+# [sinks.cowrie_kafka]
+# type              = "kafka"
+# inputs            = ["parse_cowrie_event"]
+# bootstrap_servers = "KAFKA_BROKERS_PLACEHOLDER"
+# topic             = "honeypot.cowrie"
+# encoding.codec    = "json"
 #
-# [sinks.cowrie_ingest_api]
-# type    = "http"
-# inputs  = ["parse_cowrie_event"]
-# uri     = "INGEST_API_URL_PLACEHOLDER/ingest/cowrie/vector"
-# method  = "post"
-# encoding.codec = "json"
-#
-# [sinks.cowrie_ingest_api.batch]
-# max_events   = 100
-# timeout_secs = 2
-#
-# [sinks.cowrie_ingest_api.request]
-# headers.Content-Type   = "application/json"
-# headers.X-Ingest-Token = "INGEST_SHARED_SECRET_PLACEHOLDER"
-# timeout_secs               = 20
-# retry_attempts             = 360
-# retry_initial_backoff_secs = 1
-# retry_max_duration_secs    = 10
-#
-# [sinks.cowrie_ingest_api.buffer]
+# [sinks.cowrie_kafka.buffer]
 # type      = "disk"
 # max_size  = 268435488
 # when_full = "block"

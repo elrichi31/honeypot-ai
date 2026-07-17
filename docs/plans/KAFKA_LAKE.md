@@ -90,6 +90,45 @@ idéntica en single y multi-host, **antes** de tocar Kafka.
 Criterio de salida: las 7 fuentes ingresan por HTTP → API → Postgres; el
 dashboard funciona idéntico en los dos deploys; Kafka no participa de la ingesta.
 
+**Progreso (2026-07-17): Fase 1 implementada y verificada estáticamente.**
+
+- **4 archivos de Vector** flipeados a sink HTTP (kafka comentado): `vector/conf.d/
+  cowrie.toml` + `suricata.toml` (usados por los prod composes) y `vector/cowrie.toml`
+  + `vector/suricata.toml` (usados por `deploy/local` y bajados por curl desde
+  `master` en el instalador de clientes). Se detectó que había **4** archivos, no 2.
+- **Paridad de comportamiento confirmada** antes de tocar nada: el endpoint
+  `/ingest/cowrie/vector` hace lo mismo que `handleCowrie` (mismo `processLine`,
+  `emitSsh` para el mapa vivo, `scheduleThreatAlert`), y `/ingest/suricata/alert`
+  lo mismo que `handleSuricata` (`persistAlerts`). El reroute no pierde side-effects.
+- **`kafka-consumer.ts`** reducido a stub deshabilitado que solo conserva la
+  decoración `kafkaConsumerStatus` (la usa `/health/kafka`); reporta `'disabled'`
+  (sano por diseño). Los servicios de escritura a Postgres no cambian.
+- **Métrica preservada:** `recordProcessLineLatency` (que alimenta
+  `/health/ingest-metrics`, p50/p99 + events/s) solo se registraba en el handler
+  Kafka. Se movió a `IngestService.processLine` (try/finally, transport-agnostic)
+  para que sobreviva al cambio de transporte — es su lugar DRY correcto.
+- **Bug real encontrado por `vector validate`** (binario real, Docker): Vector
+  expande `${VAR}` **incluso en comentarios** (gotcha ya documentado en
+  `kafka-stream.md`), y el header de ROLLBACK que escribí tenía `${KAFKA_BROKERS}`
+  literal → Vector fallaba con "Missing environment variable" en un host **sin**
+  `KAFKA_BROKERS` (exactamente el VPS de cliente). Corregido: el comentario ya no
+  contiene `${...}`, y el bloque kafka comentado usa `KAFKA_BROKERS_PLACEHOLDER`.
+  Re-validado sin `KAFKA_BROKERS` en el env → `Validated`.
+- **No hizo falta tocar el instalador ni los composes:** todos los env de Vector ya
+  tenían `INGEST_API_URL` + `INGEST_SHARED_SECRET`; el instalador baja los `.toml`
+  desde `master` (los toma nuevos automáticamente). KAFKA_BROKERS se deja en el env
+  de Vector de los prod (vestigial pero útil para rollback); Kafka/kafka-init siguen
+  corriendo ociosos hasta la Fase 2.
+- Verificación: `tsc --noEmit` limpio; 147 tests ingest-api en verde (sin regresión);
+  `vector validate` OK en los 2 configs sin `KAFKA_BROKERS`; `docker compose config
+  --quiet` exit 0 en los 2 prod.
+
+Pendiente de despliegue (no code): al subir, cualquier evento **ya buffereado en el
+sink kafka de Vector** al momento del cutover queda huérfano (Vector 0.40 keyea el
+buffer por sink id) — pérdida acotada de la cola en vuelo, aceptable para honeypot.
+Conviene drenar el consumer de Kafka antes de retirarlo en prod. Instalaciones de
+cliente existentes necesitan re-bajar `cowrie.toml`/`suricata.toml` y recrear Vector.
+
 ### Fase 2 — Tee del API a Kafka + consumidor del lake
 
 Objetivo: reintroducir Kafka como bus interno de fan-out, alimentado por el API.

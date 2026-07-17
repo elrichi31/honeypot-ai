@@ -7,6 +7,7 @@ import type { IngestSummary, CowrieRawEvent } from '../../types/index.js';
 import { sendDiscordAlert } from '../../lib/discord.js';
 import { forwardClientEventBySensorId } from '../../lib/client-forward.js';
 import { isInternalIp } from '../../lib/internal-ip.js';
+import { recordProcessLineLatency } from '../../lib/ingest-metrics.js';
 
 export class IngestService {
   private prisma: PrismaClient;
@@ -19,7 +20,20 @@ export class IngestService {
     this.eventRepo = new EventRepository(prisma);
   }
 
+  // The p50/p99 + events/s diagnostic (PERF_AUDIT M3, /health/ingest-metrics)
+  // used to be timed in the Kafka consumer. Since KAFKA_LAKE Fase 1 the hot path
+  // is HTTP, so the timing lives here — transport-agnostic, one place, survives
+  // any future ingestion path.
   async processLine(raw: CowrieRawEvent): Promise<{ sessionCreated: boolean; eventCreated: boolean }> {
+    const startedAt = performance.now();
+    try {
+      return await this._processLine(raw);
+    } finally {
+      recordProcessLineLatency(performance.now() - startedAt);
+    }
+  }
+
+  private async _processLine(raw: CowrieRawEvent): Promise<{ sessionCreated: boolean; eventCreated: boolean }> {
     if (isInternalIp(raw.src_ip)) return { sessionCreated: false, eventCreated: false };
 
     const sessionData = extractSessionData(raw);

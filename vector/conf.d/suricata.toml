@@ -1,22 +1,30 @@
-# vector/conf.d/suricata.toml â€” Suricata EVE JSON alert shipper
+# vector/conf.d/suricata.toml - Suricata EVE JSON alert shipper
 #
-# Tails /var/log/suricata/eve.json, filters alert events,
-# and publishes each alert to Kafka (topic: honeypot.suricata).
+# Tails /var/log/suricata/eve.json, filters alert events, and POSTs batches to
+# the ingest-api over HTTP (endpoint /ingest/suricata/alert). Buffers to disk
+# when the API is unreachable -> no alerts dropped on downtime.
+#
+# Why HTTP, not Kafka: see docs/plans/KAFKA_LAKE.md - the sensor's Vector may run
+# on a different host from Kafka; the ingest-api is public + token-authed and
+# works from anywhere. Kafka now sits behind the ingest-api as an internal tee.
 #
 # Environment variables (required):
-#   SURICATA_SENSOR_ID â€” sensor identifier (e.g. suricata-01)
-#   KAFKA_BROKERS      â€” Kafka bootstrap servers (e.g. kafka:9092)
+#   SURICATA_SENSOR_ID   - sensor identifier (e.g. suricata-01)
+#   INGEST_API_URL       - ingest-api base URL
+#   INGEST_SHARED_SECRET - ingest auth token
 #
-# ROLLBACK: to revert to HTTP ingestion, comment out [sinks.suricata_kafka] and
-# its sub-tables, then uncomment [sinks.suricata_ingest] and all its sub-tables
-# below.
+# ROLLBACK to Kafka: comment out [sinks.suricata_ingest] + sub-tables, uncomment
+# [sinks.suricata_kafka] below, point bootstrap_servers back at the KAFKA_BROKERS
+# env var, and re-add KAFKA_BROKERS to the vector env.
 
+# -- Source: tail Suricata EVE JSON ------------------------------------------
 [sources.suricata_eve]
 type       = "file"
 include    = ["/tmp/suricata-logs/eve.json"]
 read_from  = "end"
 fingerprint.strategy = "device_and_inode"
 
+# -- Transform: parse JSON and filter to alerts only -------------------------
 [transforms.parse_suricata]
 type          = "remap"
 inputs        = ["suricata_eve"]
@@ -30,38 +38,40 @@ source        = '''
   .sensor_id = "${SURICATA_SENSOR_ID}"
 '''
 
-[sinks.suricata_kafka]
-type              = "kafka"
-inputs            = ["parse_suricata"]
-bootstrap_servers = "${KAFKA_BROKERS}"
-topic             = "honeypot.suricata"
-encoding.codec    = "json"
+# -- Sink: POST batches to ingest-api ----------------------------------------
+[sinks.suricata_ingest]
+type    = "http"
+inputs  = ["parse_suricata"]
+uri     = "${INGEST_API_URL}/ingest/suricata/alert"
+method  = "post"
+encoding.codec = "json"
 
-[sinks.suricata_kafka.buffer]
+[sinks.suricata_ingest.batch]
+max_events   = 50
+timeout_secs = 5
+
+[sinks.suricata_ingest.request]
+headers.Content-Type   = "application/json"
+headers.X-Ingest-Token = "${INGEST_SHARED_SECRET}"
+timeout_secs               = 20
+retry_attempts             = 360
+retry_initial_backoff_secs = 1
+retry_max_duration_secs    = 10
+
+[sinks.suricata_ingest.buffer]
 type      = "disk"
 max_size  = 268435488
 when_full = "block"
 
-# [sinks.suricata_ingest]
-# type    = "http"
-# inputs  = ["parse_suricata"]
-# uri     = "INGEST_API_URL_PLACEHOLDER/ingest/suricata/alert"
-# method  = "post"
-# encoding.codec = "json"
+# -- Sink: publish to Kafka (DISABLED - see ROLLBACK in header) --------------
+# [sinks.suricata_kafka]
+# type              = "kafka"
+# inputs            = ["parse_suricata"]
+# bootstrap_servers = "KAFKA_BROKERS_PLACEHOLDER"
+# topic             = "honeypot.suricata"
+# encoding.codec    = "json"
 #
-# [sinks.suricata_ingest.batch]
-# max_events   = 50
-# timeout_secs = 5
-#
-# [sinks.suricata_ingest.request]
-# headers.Content-Type   = "application/json"
-# headers.X-Ingest-Token = "INGEST_SHARED_SECRET_PLACEHOLDER"
-# timeout_secs               = 20
-# retry_attempts             = 360
-# retry_initial_backoff_secs = 1
-# retry_max_duration_secs    = 10
-#
-# [sinks.suricata_ingest.buffer]
+# [sinks.suricata_kafka.buffer]
 # type      = "disk"
 # max_size  = 268435488
 # when_full = "block"
