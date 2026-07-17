@@ -41,7 +41,7 @@ export default async function IocsPage({
   const activeLevels = levelFilter.length > 0 ? new Set<string>(levelFilter) : MALICIOUS_LEVELS
 
   const [threats, malware, aggregated] = await Promise.all([
-    fetchThreats({ pageSize: 1000, period }).catch(() => []),
+    fetchThreats({ pageSize: 5000, period }).catch(() => []),
     fetchMalwareArtifacts({ pageSize: 200, sortBy: "capturedAt", sortDir: "desc" })
       .then((r) => r.items)
       .catch(() => []),
