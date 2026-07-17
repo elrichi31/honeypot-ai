@@ -18,6 +18,7 @@ export async function GET(
   const { sensorId } = await params
   const res = await fetch(`${internalApiUrl}/sensors/${encodeURIComponent(sensorId)}/config`, {
     cache: "no-store",
+    headers: { "X-Ingest-Token": process.env.INGEST_SHARED_SECRET ?? "" },
   })
   const data = await res.json().catch(() => ({}))
   return NextResponse.json(data, { status: res.status })

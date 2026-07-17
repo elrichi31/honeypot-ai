@@ -7,11 +7,11 @@ import os
 import socket
 import threading
 import time
-from urllib.request import Request, urlopen
 
 from control_agent import ControlAgent
 
 INGEST_URL = os.getenv("INGEST_API_URL", "http://ingest-api:3000")
+INGEST_TOKEN = os.getenv("INGEST_SHARED_SECRET", "")
 CONTROL_SECRET = os.getenv("SENSOR_CONTROL_SECRET", "")
 SENSOR_ID = os.getenv("SENSOR_ID", f"web-{socket.gethostname()}")
 _ports_raw = os.getenv("SENSOR_PORTS", "8080")
@@ -23,7 +23,7 @@ START_TIME = time.time()
 
 control_agent = ControlAgent(
     ingest_url=INGEST_URL, sensor_id=SENSOR_ID, secret=CONTROL_SECRET,
-    agent_version=AGENT_VERSION,
+    agent_version=AGENT_VERSION, ingest_token=INGEST_TOKEN,
 )
 
 
@@ -33,19 +33,6 @@ control_agent = ControlAgent(
 # fallback (control_agent.py's _poll_forever, Rebanada 6), so a second,
 # sensor-specific poller would just be redundant belt-and-suspenders here.
 # ---------------------------------------------------------------------------
-
-def _fetch_config() -> tuple[dict, str] | None:
-    """Return (config_dict, config_hash) or None on error. No auth header —
-    GET /sensors/:id/config doesn't require ensureIngestToken."""
-    try:
-        url = f"{INGEST_URL}/sensors/{SENSOR_ID}/config"
-        with urlopen(Request(url), timeout=8) as resp:
-            data = json.loads(resp.read())
-        return data.get("config", {}), data.get("configHash", "")
-    except Exception as exc:
-        print(f"[web-beacon] config fetch error: {exc}", flush=True)
-        return None
-
 
 def _read_current_hash() -> str:
     try:
@@ -85,7 +72,7 @@ def _handle_config_apply(report_running):
     # this hash back is what confirms success (sensor-config.service.ts
     # confirmApplied()), same contract as Cowrie's config.apply handler.
     report_running()
-    result = _fetch_config()
+    result = control_agent.fetch_config()
     if result is None:
         raise RuntimeError("could not fetch pending config from ingest-api")
     config, remote_hash = result

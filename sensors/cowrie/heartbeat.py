@@ -135,19 +135,6 @@ epoch_timestamp = false
 """
 
 
-def _fetch_config() -> tuple[dict, str] | None:
-    """Return (config_dict, config_hash) or None on error."""
-    try:
-        url = f"{INGEST_URL}/sensors/{SENSOR_ID}/config"
-        req = Request(url, headers={"X-Ingest-Token": SECRET})
-        with urlopen(req, timeout=8) as resp:
-            data = json.loads(resp.read())
-        return data.get("config", {}), data.get("configHash", "")
-    except Exception as exc:
-        print(f"[beacon] config fetch error: {exc}", flush=True)
-        return None
-
-
 def _read_current_hash() -> str:
     path = os.path.join(SIGNAL_DIR, "cowrie.hash")
     try:
@@ -207,7 +194,7 @@ def _config_loop() -> None:
     # Wait a bit on startup so ingest-api is fully ready
     time.sleep(5)
     while True:
-        result = _fetch_config()
+        result = control_agent.fetch_config()
         if result is not None:
             config, remote_hash = result
             local_hash = _read_current_hash()
@@ -224,6 +211,7 @@ def _config_loop() -> None:
 
 control_agent = ControlAgent(
     ingest_url=INGEST_URL, sensor_id=SENSOR_ID, secret=CONTROL_SECRET, agent_version=AGENT_VERSION,
+    ingest_token=SECRET,
 )
 
 
@@ -247,7 +235,7 @@ def _handle_config_apply(report_running):
     # by this handler, which can't know that a restart it just triggered
     # will succeed. See sensor-config.service.ts confirmApplied().
     report_running()
-    result = _fetch_config()
+    result = control_agent.fetch_config()
     if result is None:
         raise RuntimeError("could not fetch pending config from ingest-api")
     config, remote_hash = result

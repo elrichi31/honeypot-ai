@@ -165,7 +165,12 @@ export async function sensorRoutes(fastify: FastifyInstance) {
     return reply.send(await svc.delete(params.data.sensorId))
   })
 
+  // Gated like the PUT below: the config is the sensor's deception identity
+  // (for ssh, the exact usernames/passwords it accepts), so an unauthenticated
+  // read told anyone who could guess a sensorId what was fake.
   fastify.get('/sensors/:sensorId/config', async (request, reply) => {
+    if (!ensureIngestToken(request, reply)) return reply
+
     const params = z.object({ sensorId: z.string().min(1) }).safeParse(request.params)
     if (!params.success) return reply.status(400).send({ error: 'Invalid sensorId' })
 

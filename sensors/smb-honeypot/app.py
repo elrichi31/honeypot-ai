@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
 """SMB Honeypot — full SMB server via Impacket."""
 
-import json
 import logging
 import os
 import threading
 import time
 import traceback
-from urllib.request import Request, urlopen
 
 from impacket.smbserver import SimpleSMBServer
 
 from control_agent import ControlAgent
 from persisted_config import write_override
 from honeypot.config import (
-    CONFIG_HASH, INGEST_API_URL, PORT, SENSOR_ID, SHARE_NAME, SHARE_PATH, SHARE_COMMENT,
-    SERVER_NAME, SERVER_OS, SERVER_DOMAIN, CAPTURE_DIR, EVENT_LOG_PATH,
+    CONFIG_HASH, INGEST_API_URL, INGEST_SHARED_SECRET, PORT, SENSOR_ID, SHARE_NAME, SHARE_PATH,
+    SHARE_COMMENT, SERVER_NAME, SERVER_OS, SERVER_DOMAIN, CAPTURE_DIR, EVENT_LOG_PATH,
 )
 from honeypot.identity import seed_decoy_files
 from honeypot.impacket_patches import patch_impacket_writes, patch_smb2_negotiate
@@ -34,6 +32,7 @@ _START_TIME = time.time()
 control_agent = ControlAgent(
     ingest_url=INGEST_API_URL, sensor_id=SENSOR_ID,
     secret=os.getenv("SENSOR_CONTROL_SECRET", ""), agent_version=AGENT_VERSION,
+    ingest_token=INGEST_SHARED_SECRET,
 )
 
 
@@ -48,26 +47,13 @@ def _handle_status_get(report_running) -> dict:
     }
 
 
-def _fetch_config():
-    """Return (config_dict, config_hash) or None on error. No auth header —
-    GET /sensors/:id/config doesn't require ensureIngestToken."""
-    try:
-        url = f"{INGEST_API_URL}/sensors/{SENSOR_ID}/config"
-        with urlopen(Request(url), timeout=8) as resp:
-            data = json.loads(resp.read())
-        return data.get("config", {}), data.get("configHash", "")
-    except Exception as exc:
-        log.warning("config fetch error: %s", exc)
-        return None
-
-
 @control_agent.action("config.apply")
 def _handle_config_apply(report_running):
     # No command.result on the happy path — restarting exits this process;
     # the fresh one's next heartbeat echoing the new configHash is what
     # confirms success (sensor-config.service.ts confirmApplied()).
     report_running()
-    result = _fetch_config()
+    result = control_agent.fetch_config()
     if result is None:
         raise RuntimeError("could not fetch pending config from ingest-api")
     config, remote_hash = result

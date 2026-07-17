@@ -29,6 +29,28 @@ entrega esta en las secciones de Rebanadas mas abajo, esto es solo el mapa.
   preexistente (crash por falta de `control_agent.py`) que se arreglo de
   paso; SMB tenia otro bug preexistente y mas grande (le faltaba todo el
   paquete `honeypot/`, crasheaba al arrancar) que tambien se arreglo.
+- **`fetch_config` unificado + `GET /config` autenticado (2026-07-15):**
+  `_fetch_config` estaba copiado en los 6 sensores y 5 de las 6 copias habian
+  perdido el header `X-Ingest-Token` que Cowrie (el original) si mandaba. Pasaba
+  desapercibido porque `GET /sensors/:id/config` tampoco lo exigia, o sea que
+  cualquiera que adivinara un `sensorId` podia leer la identidad de engaño del
+  sensor — para `ssh`, la lista exacta de usuarios/passwords que acepta. Ahora
+  hay una sola implementacion, `ControlAgent.fetch_config()`, autenticada
+  siempre; el endpoint exige `ensureIngestToken`; y el proxy GET del dashboard
+  manda el token igual que su PUT. Check ejecutable en
+  `sensors/_shared/test_control_agent.py` (`python test_control_agent.py`),
+  verificado por mutacion: si el header se vuelve a caer, el test falla.
+  Se cerro de paso un hueco de despliegue: `web-honeypot-beacon` no recibia
+  `INGEST_SHARED_SECRET` en ninguno de los 4 composes donde aparece (los 2 de
+  prod y los 2 de `deploy/local`). **Invariante nueva:** todo contenedor que
+  monte `control_agent.py` necesita `INGEST_SHARED_SECRET` — hoy son 17, todos
+  verificados.
+
+  > **Orden de despliegue (aplica solo a la proxima subida):** sensores e
+  > ingest-api van juntos. Un sensor ya desplegado con el `control_agent.py`
+  > viejo recibe 401 en `config.apply` hasta que se le actualice el archivo.
+  > Cowrie no se ve afectado (ya mandaba el header). El modo de falla es
+  > seguro: el honeypot sigue capturando, solo `config.apply` falla.
 
 **Sensores sin ningun trabajo de control plane, y no lo van a tener:**
 
@@ -71,6 +93,22 @@ entrega esta en las secciones de Rebanadas mas abajo, esto es solo el mapa.
   las implementa todavia.
 - Sin metricas/alertas cuando un sensor pasa mucho tiempo en modo fallback
   HTTP (solo el log del propio agente).
+- **Nada corre los tests de Python.** `ci.yml` tiene jobs de ingest-api y
+  dashboard (test + tsc + build), pero ningun job de Python, asi que
+  `sensors/_shared/test_control_agent.py` solo corre si alguien lo lanza a
+  mano. Es el unico test de todo `sensors/`. Mientras siga asi, el check que
+  protege el header de auth no esta enforced en PRs.
+- **`sensor-config-dialog.tsx` va por 827 lineas**, con `PortConfigFields`,
+  `SmbConfigFields`, `FtpConfigFields` y `MysqlConfigFields` casi calcados
+  (todos renderizan `<Input>` de texto por clave). Contra el principio de
+  segmentacion de CLAUDE.md, y cada protocolo nuevo suma otro bloque copiado.
+  No urge; revisado 2026-07-15 y dejado a proposito fuera del cambio de
+  seguridad para no mezclar.
+- **`load_override` traga toda excepcion y devuelve `{}`**: un
+  `override.json` corrupto revierte a defaults en silencio, el sensor reporta
+  `configHash=None` y el `config.apply` nunca confirma. Poco probable porque
+  `write_override` es atomico (`tmp` + `os.replace`); bastaria una linea de
+  log para no depender de adivinarlo.
 
 ## Contexto
 
@@ -287,6 +325,15 @@ Reglas obligatorias:
 7. No se permite comando shell arbitrario.
 8. Comandos tienen TTL corto, por defecto 60s.
 9. Si el sensor no esta conectado por WS, el comando queda `queued` y el sensor puede recogerlo por HTTP fallback.
+10. **El config de un sensor es material sensible: se lee autenticado.**
+    `GET` y `PUT /sensors/:id/config` exigen `X-Ingest-Token`. El config es la
+    identidad de engaño del sensor — para `ssh` incluye la lista exacta de
+    usuarios/passwords que acepta, o sea que leerlo revela que es falso. El
+    `sensorId` no es secreto (es del tipo `ftp-{hostname}`), asi que no sirve
+    como control de acceso. Todo cliente del endpoint manda el token: los
+    sensores via `ControlAgent.fetch_config()`, el dashboard via sus proxies en
+    `app/api/sensors/[sensorId]/config/route.ts` (que ademas exigen sesion con
+    rol). Regla anotada 2026-07-15, tras encontrar el `GET` abierto.
 
 ## UI objetivo
 

@@ -2,15 +2,13 @@
 """MySQL Honeypot — captures auth attempts using the MySQL 5.7 handshake protocol."""
 
 import asyncio
-import json
 import logging
 import os
 import time
-from urllib.request import Request, urlopen
 
 from control_agent import ControlAgent
 from persisted_config import write_override
-from honeypot.config import CONFIG_HASH, INGEST_API_URL, PORT, DST_PORT, SENSOR_ID, EVENT_LOG_PATH
+from honeypot.config import CONFIG_HASH, INGEST_API_URL, INGEST_SHARED_SECRET, PORT, DST_PORT, SENSOR_ID, EVENT_LOG_PATH
 from honeypot.protocol import handle
 from honeypot.ingest import detect_ip, send_heartbeat
 
@@ -27,6 +25,7 @@ _START_TIME = time.time()
 control_agent = ControlAgent(
     ingest_url=INGEST_API_URL, sensor_id=SENSOR_ID,
     secret=os.getenv("SENSOR_CONTROL_SECRET", ""), agent_version=AGENT_VERSION,
+    ingest_token=INGEST_SHARED_SECRET,
 )
 
 
@@ -41,26 +40,13 @@ def _handle_status_get(report_running) -> dict:
     }
 
 
-def _fetch_config():
-    """Return (config_dict, config_hash) or None on error. No auth header —
-    GET /sensors/:id/config doesn't require ensureIngestToken."""
-    try:
-        url = f"{INGEST_API_URL}/sensors/{SENSOR_ID}/config"
-        with urlopen(Request(url), timeout=8) as resp:
-            data = json.loads(resp.read())
-        return data.get("config", {}), data.get("configHash", "")
-    except Exception as exc:
-        log.warning("config fetch error: %s", exc)
-        return None
-
-
 @control_agent.action("config.apply")
 def _handle_config_apply(report_running):
     # No command.result on the happy path — restarting exits this process;
     # the fresh one's next heartbeat echoing the new configHash is what
     # confirms success (sensor-config.service.ts confirmApplied()).
     report_running()
-    result = _fetch_config()
+    result = control_agent.fetch_config()
     if result is None:
         raise RuntimeError("could not fetch pending config from ingest-api")
     config, remote_hash = result

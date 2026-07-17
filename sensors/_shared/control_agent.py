@@ -14,6 +14,10 @@ command.result is sent at all — the caller confirms success some other way,
 e.g. config.apply's next heartbeat carrying the new configHash), or raise
 (reported as command.result status=failed).
 
+config.apply handlers get the pending config via `agent.fetch_config()` —
+one authenticated implementation for every sensor, rather than a copy per
+app.py that can (and did) drift out of sync on the auth header.
+
 Rebanada 6 (docs/plans/SENSOR_REMOTE_CONTROL.md): when the WS connection is
 down, a second daemon thread polls GET /sensors/control/poll and reports
 back via POST /sensors/control/report instead — same handlers, same dedup
@@ -72,11 +76,13 @@ def _envelope(msg_type: str, **fields) -> dict:
 
 
 class ControlAgent:
-    def __init__(self, *, ingest_url: str, sensor_id: str, secret: str, agent_version: str):
+    def __init__(self, *, ingest_url: str, sensor_id: str, secret: str, agent_version: str,
+                 ingest_token: str = ""):
         self._http_url = ingest_url.rstrip("/")
         self._ws_url = ingest_url.replace("http", "ws", 1) + "/sensors/control/ws"
         self._sensor_id = sensor_id
         self._secret = secret
+        self._ingest_token = ingest_token
         self._agent_version = agent_version
         self._handlers: dict[str, callable] = {}
         self._seen: dict[str, float] = {}
@@ -97,6 +103,26 @@ class ControlAgent:
             return
         threading.Thread(target=self._run_forever, daemon=True).start()
         threading.Thread(target=self._poll_forever, daemon=True).start()
+
+    # --- Config fetch -----------------------------------------------------
+
+    def fetch_config(self) -> tuple[dict, str] | None:
+        """Return this sensor's (config, configHash), or None on error.
+
+        Authenticated with the ingest token, not SENSOR_CONTROL_SECRET: the
+        config endpoints predate the control plane and gate on X-Ingest-Token.
+        """
+        try:
+            req = Request(
+                f"{self._http_url}/sensors/{self._sensor_id}/config",
+                headers={"X-Ingest-Token": self._ingest_token},
+            )
+            with urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read())
+            return data.get("config", {}), data.get("configHash", "")
+        except Exception as exc:
+            print(f"[control] config fetch error: {exc}", flush=True)
+            return None
 
     # --- WebSocket transport --------------------------------------------
 

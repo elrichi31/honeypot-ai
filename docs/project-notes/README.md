@@ -24,6 +24,16 @@ before touching the project.
 - **Multi-tenant scoping:** effective tenant is derived server-side from the
   user (never from a query param). See the multi-tenant roadmap in
   `docs/plans/` for the `effectiveScope` / `parseSensorScope` pattern.
+- **Sensor control plane — every container that mounts `control_agent.py`
+  needs `INGEST_SHARED_SECRET`.** The agent reads each sensor's config from
+  `GET /sensors/:id/config`, which is authenticated (the config is the
+  sensor's deception identity — for `ssh` it lists the exact credentials the
+  honeypot accepts). Miss the env var and the sensor still runs and captures,
+  but `config.apply` fails with a 401 — a quiet failure. Applies to the
+  `deploy/local/*.yml` composes, both `docker-compose.prod.*.yml`, and the
+  installer templates in `apps/dashboard/lib/sensor-compose-blocks.ts` (there
+  the `<<: *ingest` anchor already supplies it). Full context in
+  `docs/plans/SENSOR_REMOTE_CONTROL.md`.
 
 ## Conventions
 
