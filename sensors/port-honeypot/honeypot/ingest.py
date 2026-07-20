@@ -13,6 +13,14 @@ from .config import (
 
 log = logging.getLogger("port-honeypot")
 
+# Ports with a dedicated dashboard page (apps/dashboard/app/services/protocol-detail-page.tsx
+# ProtocolKind) route there instead of the generic Port Scan page. Everything
+# else stays "port-scan".
+PROTOCOL_OVERRIDES: dict[int, str] = {
+    1433: "mssql",
+    1883: "mqtt",
+}
+
 
 def detect_ip() -> str:
     ip = os.getenv("SENSOR_IP", "")
@@ -66,7 +74,7 @@ def send(
     payload = {
         "eventId": str(uuid.uuid4()),
         "sensorId": SENSOR_ID,
-        "protocol": "port-scan",
+        "protocol": PROTOCOL_OVERRIDES.get(dst_port, "port-scan"),
         "srcIp": src_ip,
         "srcPort": src_port,
         "dstPort": dst_port,
