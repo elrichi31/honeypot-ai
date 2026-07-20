@@ -4,7 +4,7 @@ import Link from "next/link"
 import { format } from "date-fns"
 import {
   ArrowLeft, Fingerprint, GitBranch, Target, Clock, MousePointerClick,
-  Globe, Shield, AlertTriangle, Network, Zap, Code2, ArrowRight, BarChart2,
+  Globe, Shield, AlertTriangle, Network, Zap, Code2, ArrowRight,
 } from "lucide-react"
 import { TimeAgo } from "@/components/time-ago"
 import { fetchWebSessionDetail } from "@/lib/api"
@@ -17,6 +17,7 @@ import { StatCard } from "@/components/stat-card"
 import { AttackTypeBadge } from "@/components/attack-type-badge"
 import { RequestRow, type RequestGroup } from "@/components/web-request-row"
 import { IpThreatRow } from "@/components/ip-threat-row"
+import { SessionActivityChart } from "@/components/session-activity-chart"
 
 function buildActivityBuckets(timestamps: string[], bucketCount = 24) {
   if (timestamps.length === 0) return []
@@ -162,7 +163,6 @@ export default async function SessionDetailPage({
   const uniqueUAs = [...new Set(hits.map((h) => h.userAgent).filter(Boolean))]
 
   const activityBuckets = buildActivityBuckets(hits.map((h) => h.timestamp))
-  const maxBucket = Math.max(...activityBuckets.map((b) => b.count), 1)
 
   const durationMs = new Date(lastSeen).getTime() - new Date(firstSeen).getTime()
   const durationMinutes = durationMs / 60_000 || 1
@@ -298,35 +298,7 @@ export default async function SessionDetailPage({
           </div>
         </Surface>
 
-        <Surface className="p-4 sm:col-span-2">
-          <div className="flex items-center gap-2 mb-3">
-            <BarChart2 className="h-4 w-4 text-cyan-400" />
-            <h3 className="text-sm font-semibold text-foreground">Activity over session</h3>
-            <span className="ml-auto text-xs text-muted-foreground">{activityBuckets.length} time buckets</span>
-          </div>
-          <div className="flex items-end gap-px" style={{ height: "80px" }}>
-            {activityBuckets.map((b, i) => {
-              const logMax = Math.log1p(maxBucket)
-              const pct = logMax > 0 ? (Math.log1p(b.count) / logMax) : 0
-              const barHeight = b.count > 0 ? Math.max(pct * 80, 5) : 2
-              return (
-                <div key={i} className="group relative flex-1" title={`${b.label} - ${b.count} hits`}>
-                  <div
-                    className="w-full rounded-sm transition-colors"
-                    style={{
-                      height: `${barHeight}px`,
-                      backgroundColor: b.count > 0 ? "rgb(6 182 212 / 0.6)" : "rgb(255 255 255 / 0.08)",
-                    }}
-                  />
-                </div>
-              )
-            })}
-          </div>
-          <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
-            <span suppressHydrationWarning>{format(new Date(firstSeen), "HH:mm")}</span>
-            <span suppressHydrationWarning>{format(new Date(lastSeen), "HH:mm")}</span>
-          </div>
-        </Surface>
+        <SessionActivityChart buckets={activityBuckets} className="p-4 sm:col-span-2" />
       </div>
 
       {isMultiIp && hopTimeline.length > 1 && (
