@@ -1,0 +1,21 @@
+# Local honeypot rules (not from ET Open). Suricata convention reserves sid
+# 1000000+ for local/custom rules so they never collide with ET/community sids.
+#
+# Both rules fire on a burst of SYNs from one source to ANY destination port —
+# not a specific list. Every other sensor here only logs a hit for a port it
+# actually answers on; these two exist for the gap none of them can see: ports
+# nothing is listening on. The SYN still hits the NIC and Suricata (af-packet,
+# same interface it already sniffs for the ET ruleset) sees it whether or not
+# any socket ever accepts the connection.
+#
+# ponytail: tracks SYN *count* per source, not *distinct-port* count — Suricata
+# has no built-in "N distinct ports" tracker (that's Snort's sfPortscan/Zeek's
+# scan.log). A client retrying ONE open port 15x/10s also trips rule 1000001.
+# In practice that's rare enough for a honeypot (nothing legitimate connects
+# here), so this is left as the cheap version. If it false-positives, the fix
+# is dst_port-set tracking via a Suricata Lua rule or an EVE post-processor in
+# Vector, not a Suricata built-in.
+
+alert tcp any any -> any any (msg:"HONEYPOT SCAN possible TCP port scan (SYN burst)"; flags:S,12; threshold:type both, track by_src, count 15, seconds 10; classtype:attempted-recon; sid:1000001; rev:1;)
+
+alert tcp any any -> any any (msg:"HONEYPOT SCAN possible slow/low-rate TCP port scan"; flags:S,12; threshold:type both, track by_src, count 5, seconds 300; classtype:attempted-recon; sid:1000002; rev:1;)

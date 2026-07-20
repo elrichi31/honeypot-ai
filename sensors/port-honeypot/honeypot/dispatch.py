@@ -25,7 +25,7 @@ def make_handler(port: int):
                 await handle_rdp(reader, writer, src_ip, src_port, port, send)
             elif port == 6379:
                 await handle_redis(reader, writer, src_ip, src_port, port, send)
-            elif port in {2375, 8888, 9090, 9200}:
+            elif port in {81, 2375, 8888, 9090, 9200}:
                 await handle_httpish(reader, writer, src_ip, src_port, port, send)
             elif port == 27017:
                 await handle_mongodb(reader, writer, src_ip, src_port, port, send)

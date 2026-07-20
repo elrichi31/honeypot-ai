@@ -74,6 +74,7 @@ af-packet:
 default-rule-path: /var/lib/suricata/rules
 rule-files:
   - suricata.rules
+  - local.rules
 
 logging:
   default-log-level: notice

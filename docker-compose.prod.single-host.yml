@@ -519,90 +519,6 @@ services:
           cpus: "0.5"
           pids: 128
 
-  dionaea:
-    <<: *service-defaults
-    logging: *json-logging
-    image: ghcr.io/telekom-security/dionaea:24.04.1
-    container_name: dionaea
-    cap_add:
-      - NET_BIND_SERVICE
-    depends_on:
-      ingest-api:
-        condition: service_healthy
-    ports:
-      # FTP (21) is served by the dedicated ftp-honeypot, not dionaea.
-      - "42:42"
-      - "8081:81"
-      - "69:69/udp"
-      - "135:135"
-      - "1433:1433"
-      - "1723:1723"
-      - "1883:1883"
-    volumes:
-      - dionaea_var:/opt/dionaea/var/lib/dionaea
-      - ./sensors/dionaea/dionaea.cfg:/opt/dionaea/etc/dionaea/dionaea.cfg:ro
-      - ./sensors/dionaea/log_json.yaml:/opt/dionaea/etc/dionaea/ihandlers/log_json.yaml:ro
-      - ./sensors/dionaea/emu_scripts.yaml:/opt/dionaea/etc/dionaea/ihandlers/emu_scripts.yaml:ro
-      - ./sensors/dionaea/services-enabled/epmap.yaml:/opt/dionaea/etc/dionaea/services-enabled/epmap.yaml:ro
-      - ./sensors/dionaea/services-enabled/http.yaml:/opt/dionaea/etc/dionaea/services-enabled/http.yaml:ro
-      - ./sensors/dionaea/services-enabled/mirror.yaml:/opt/dionaea/etc/dionaea/services-enabled/mirror.yaml:ro
-      - ./sensors/dionaea/services-enabled/mqtt.yaml:/opt/dionaea/etc/dionaea/services-enabled/mqtt.yaml:ro
-      - ./sensors/dionaea/services-enabled/mssql.yaml:/opt/dionaea/etc/dionaea/services-enabled/mssql.yaml:ro
-      - ./sensors/dionaea/services-enabled/pptp.yaml:/opt/dionaea/etc/dionaea/services-enabled/pptp.yaml:ro
-      - ./sensors/dionaea/services-enabled/tftp.yaml:/opt/dionaea/etc/dionaea/services-enabled/tftp.yaml:ro
-      - ./sensors/dionaea/util.py:/opt/dionaea/lib/dionaea/python/dionaea/util.py:ro
-    networks:
-      - edge
-      - honeypot_ingest
-    deploy:
-      resources:
-        limits:
-          cpus: "1.5"
-          pids: 256
-
-  dionaea-shipper:
-    <<: *service-defaults
-    cap_add:
-      - DAC_OVERRIDE
-    logging: *json-logging
-    image: python:3.12-alpine
-    container_name: dionaea-shipper
-    depends_on:
-      dionaea:
-        condition: service_started
-      ingest-api:
-        condition: service_healthy
-    environment:
-      INGEST_API_URL: http://ingest-api:3000
-      INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
-      SENSOR_ID: ${SENSOR_ID_DIONAEA:-dionaea-01}
-      SENSOR_NAME: ${SENSOR_NAME_DIONAEA:-Dionaea Multi-Protocol Honeypot}
-      CLIENT_SLUG: ${CLIENT_SLUG:-}
-      CLIENT_NAME: ${CLIENT_NAME:-}
-      SENSOR_PROTOCOL: dionaea
-      SENSOR_VERSION: ${SENSOR_VERSION_DIONAEA:-dionaea}
-      SENSOR_IP: ${HONEYPOT_IP:-}
-      SENSOR_HOST: dionaea
-      # 3306 -> dedicated mysql-honeypot, 21 -> dedicated ftp-honeypot. Keep both
-      # out of dionaea's port list so those fingerprints never re-attach to dionaea.
-      SENSOR_PORTS: "42 135 1433 1723 1883 8081"
-      SENSOR_PROBE_PORTS: "42 135 1433 1723 1883 81"
-      DIONAEA_LOG_PATH: /opt/dionaea/var/lib/dionaea/dionaea.json
-      DIONAEA_OFFSET_FILE: /state/dionaea.offset
-      READ_FROM_END: "1"
-    volumes:
-      - dionaea_var:/opt/dionaea/var/lib/dionaea
-      - dionaea_shipper_state:/state
-      - ./sensors/dionaea/shipper.py:/shipper.py:ro
-    command: ["python3", "/shipper.py"]
-    networks:
-      - honeypot_ingest
-    deploy:
-      resources:
-        limits:
-          cpus: "0.3"
-          pids: 64
-
   mysql-honeypot:
     <<: *service-defaults
     logging: *json-logging
@@ -647,13 +563,17 @@ services:
     build:
       context: ./sensors/port-honeypot
     container_name: port-honeypot
+    # 42/81/135 are privileged (<1024); cap_drop:ALL in service-defaults blocks
+    # binding them even as root without this.
+    cap_add:
+      - NET_BIND_SERVICE
     depends_on:
       ingest-api:
         condition: service_healthy
     environment:
       INGEST_API_URL: http://ingest-api:3000
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
-      PORTS: "2375 3389 4444 5900 6379 8888 9090 9200 27017"
+      PORTS: "42 81 135 1433 1723 1883 2375 3389 4444 5900 6379 8888 9090 9200 27017"
       SENSOR_ID: ${SENSOR_ID_PORT:-port-01}
       SENSOR_NAME: Port Honeypot
       CLIENT_SLUG: ${CLIENT_SLUG:-}
@@ -662,6 +582,12 @@ services:
       EVENT_LOG_PATH: /var/log/port-honeypot/events.json
       SENSOR_CONTROL_SECRET: ${SENSOR_CONTROL_SECRET_PORT:-}
     ports:
+      - "42:42"
+      - "81:81"
+      - "135:135"
+      - "1433:1433"
+      - "1723:1723"
+      - "1883:1883"
       - "2375:2375"
       - "3389:3389"
       - "4444:4444"
@@ -869,8 +795,10 @@ services:
 volumes:
   cowrie_var:
   cowrie_signal:
+  # dionaea_var: dionaea itself is retired (port-honeypot now covers its ports),
+  # but the volume stays mounted read-only in ingest-api/maintenance so
+  # previously-captured malware binaries stay browsable.
   dionaea_var:
-  dionaea_shipper_state:
   pg_data:
   pg_replica_data:
   dashboard_data:

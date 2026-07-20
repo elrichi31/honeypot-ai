@@ -25,11 +25,16 @@ PANEL_ORG = _override.get("panel_org", os.getenv("PORT_PANEL_ORG", "Corp Interna
 
 EVENT_LOG_PATH = os.getenv("EVENT_LOG_PATH", "/var/log/port-honeypot/events.json")
 
-DEFAULT_PORTS = "1433 2375 3389 4444 5900 6379 8888 9090 9200 27017"
+DEFAULT_PORTS = "42 81 135 1433 1723 1883 2375 3389 4444 5900 6379 8888 9090 9200 27017"
 PORTS = [int(p) for p in os.getenv("PORTS", DEFAULT_PORTS).split() if p.isdigit()]
 
 SERVICES: dict[int, str] = {
+    42:    "mirror",
+    81:    "http",
+    135:   "epmap",
     1433:  "mssql",
+    1723:  "pptp",
+    1883:  "mqtt",
     2375:  "docker-api",
     3389:  "rdp",
     4444:  "metasploit",

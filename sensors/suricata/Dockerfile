@@ -8,6 +8,7 @@ RUN suricata-update update-sources && \
     echo "[suricata] ET Open rules downloaded OK"
 
 COPY suricata.yaml /opt/suricata.yaml
+COPY local.rules /var/lib/suricata/rules/local.rules
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
