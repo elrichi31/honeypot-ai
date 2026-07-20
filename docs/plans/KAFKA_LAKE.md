@@ -123,6 +123,18 @@ dashboard funciona idéntico en los dos deploys; Kafka no participa de la ingest
   `vector validate` OK en los 2 configs sin `KAFKA_BROKERS`; `docker compose config
   --quiet` exit 0 en los 2 prod.
 
+> **⚠️ PASO OBLIGATORIO DEL DEPLOY: recrear Vector.** Vector solo lee su config
+> al arrancar (no hay `--watch-config`), así que un `git pull` que actualiza el
+> `.toml` **NO** cambia nada hasta recrear el proceso, y un `docker restart` puede
+> no recrearlo. Hay que:
+> `docker compose -f docker-compose.prod.single-host.yml up -d --force-recreate vector`.
+> Si se retira el consumer (ingest-api) **antes** de recrear Vector, cowrie/suricata
+> siguen yendo al topic Kafka que ya nadie drena → desaparecen de Postgres sin
+> error visible. Ocurrió en el deploy real (2026-07-17→20): Vector quedó "Up 9 days"
+> con el sink Kafka viejo, cowrie dejó de entrar 3 días hasta el `--force-recreate`.
+> Verificar con `docker logs vector | grep cowrie_ingest_api` (debe existir) y que
+> `MAX(started_at)` de sessions avance.
+
 Pendiente de despliegue (no code): al subir, cualquier evento **ya buffereado en el
 sink kafka de Vector** al momento del cutover queda huérfano (Vector 0.40 keyea el
 buffer por sink id) — pérdida acotada de la cola en vuelo, aceptable para honeypot.
