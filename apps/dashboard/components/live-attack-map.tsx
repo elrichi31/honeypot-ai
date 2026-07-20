@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import type React from "react"
 import { useLiveStream } from "@/hooks/use-live-stream"
 import type { AttackStreamEvent } from "@/hooks/use-live-stream"
+import { useLiveStreamConnected } from "@/components/live-stream-provider"
 import { LiveAttackControls } from "@/components/live-attack-controls"
 import { LiveAttackGlobe } from "@/components/live-attack-globe"
 import { LiveAttackMap2D } from "@/components/live-attack-map-2d"
@@ -41,7 +42,7 @@ export function LiveAttackMap() {
   const [liveArcs, setLiveArcs] = useState<LiveArc[]>([])
   const [recent, setRecent] = useState<Attack[]>([])
   const [stats, setStats] = useState<Record<string, number>>(EMPTY_STATS)
-  const [connected, setConnected] = useState(false)
+  const connected = useLiveStreamConnected()
   const [hoverCountry, setHoverCountry] = useState<HoverCountry | null>(null)
 
   const loadToday = useCallback(async () => {
@@ -50,6 +51,21 @@ export function LiveAttackMap() {
       if (!res.ok) return
       const data = (await res.json()) as { attackedCountries: CountryHit[]; sensors: SensorLocation[] }
       applyTodayData(data, setSensors, setCountryHits, setAttackedCodes, liveMarkersRef)
+    } catch {
+      return
+    }
+  }, [])
+
+  // Heartbeat-triggered refresh: only reconcile sensor markers (a sensor came
+  // online/offline). Must NOT call applyTodayData here — that would overwrite
+  // countryHits/liveMarkersRef with the 10-min-cached server snapshot, wiping
+  // out attacks accumulated live since the last full load.
+  const refreshSensors = useCallback(async () => {
+    try {
+      const res = await fetch("/api/attacks/today", { cache: "no-store" })
+      if (!res.ok) return
+      const data = (await res.json()) as { sensors: SensorLocation[] }
+      setSensors(data.sensors ?? [])
     } catch {
       return
     }
@@ -66,7 +82,7 @@ export function LiveAttackMap() {
   }, [])
 
   useFullscreenListener(setIsFullscreen)
-  useLiveEvents(loadToday, addAttack, setConnected, refreshTimerRef)
+  useLiveEvents(loadToday, refreshSensors, addAttack, refreshTimerRef)
   useDayRollover(todayRef, loadToday, resetLiveState)
   useArcExpiry(setLiveArcs)
   useSensorRefreshCleanup(refreshTimerRef)
@@ -128,22 +144,21 @@ function useFullscreenListener(setIsFullscreen: (value: boolean) => void) {
 
 function useLiveEvents(
   loadToday: () => Promise<void>,
+  refreshSensors: () => Promise<void>,
   addAttack: (event: RawEvent) => void,
-  setConnected: (value: boolean) => void,
   refreshTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>,
 ) {
   useEffect(() => {
     loadToday()
-    setConnected(true)
-  }, [loadToday, setConnected])
+  }, [loadToday])
 
   const scheduleSensorRefresh = useCallback(() => {
     if (refreshTimerRef.current !== null) return
     refreshTimerRef.current = setTimeout(() => {
       refreshTimerRef.current = null
-      void loadToday()
+      void refreshSensors()
     }, 1500)
-  }, [loadToday, refreshTimerRef])
+  }, [refreshSensors, refreshTimerRef])
 
   useLiveStream({
     onAttack: useCallback((event: AttackStreamEvent) => {

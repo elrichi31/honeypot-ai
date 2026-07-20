@@ -73,12 +73,13 @@ export class ThreatService {
   }
 
   async getThreatByIp(ip: string) {
-    const [sshRows, cmdRows, webRows, protocolRows, portscanRows] = await Promise.all([
+    const [sshRows, cmdRows, webRows, protocolRows, portscanRows, protocolCmdRows] = await Promise.all([
       this.repo.querySshRow(ip),
       this.repo.queryCommandsByIp(ip),
       this.repo.queryWebRow(ip),
       this.repo.queryProtocolRowsByIp(ip),
       this.repo.queryPortscanByIp(ip),
+      this.repo.queryProtocolCommandsByIp(ip),
     ])
     const cmds = cmdRows.flatMap((row) => row.command ? [row.command] : [])
     const ps = portscanRows[0]
@@ -91,6 +92,7 @@ export class ThreatService {
       portScanEvents,
       portScanUniquePorts,
       scannedPorts: ps?.scanned_ports ?? [],
+      protocolCmdRows,
     }
   }
 

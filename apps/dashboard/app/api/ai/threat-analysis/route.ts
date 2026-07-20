@@ -109,6 +109,20 @@ export async function POST(req: NextRequest) {
     .map((c) => `  [${c.ts}] (${c.category}) ${c.command}`)
     .join("\n")
 
+  // Same idea for non-SSH honeypots (ftp/mysql/smb/etc via port-honeypot) — raw
+  // input typed against those services, not just aggregate hit counts.
+  const protocolCommandLines = threat.protocolCommands
+    .slice(0, 60)
+    .map((c) => `  [${c.ts}] (${c.protocol}) ${c.command}`)
+    .join("\n")
+
+  const credentialsBlock = threat.protocols && (threat.protocols.usernames.length > 0 || threat.protocols.passwords.length > 0)
+    ? [
+        threat.protocols.usernames.length > 0 ? `- Usuarios probados: ${threat.protocols.usernames.slice(0, 20).join(", ")}` : null,
+        threat.protocols.passwords.length > 0 ? `- Contrasenas probadas: ${threat.protocols.passwords.slice(0, 20).join(", ")}` : null,
+      ].filter(Boolean).join("\n")
+    : "  ninguna"
+
   const vt = enrichment?.virustotal
   const ab = enrichment?.abuseipdb
   const threatIntelBlock = (vt || ab)
@@ -142,7 +156,10 @@ ${alertsBlock}
 
 ## HTTP${threat.web ? `
 - Hits: ${threat.web.hits}
-- Tipos de ataque: ${threat.web.attackTypes.join(", ")}` : ": no aplica"}
+- Tipos de ataque: ${threat.web.attackTypes.join(", ")}
+- Canary tokens disparados: ${threat.web.canaryHits}
+- User agents: ${threat.web.userAgents.slice(0, 10).join(" | ") || "n/a"}
+- Rutas solicitadas (mas recientes primero): ${threat.web.topPaths.slice(0, 8).join(" | ") || "n/a"}` : ": no aplica"}
 
 ## Servicios adicionales${threat.protocols ? `
 - Total eventos: ${threat.protocols.totalHits}
@@ -152,11 +169,17 @@ ${alertsBlock}
 - Credential reuse: ${threat.protocols.credentialReuse ? "SI" : "NO"}
 ${serviceLines}` : ": no aplica"}
 
+## Credenciales probadas (todos los servicios)
+${credentialsBlock}
+
 ## Categorias de comportamiento detectadas
 ${activeCats || "  ninguna"}
 
-## Secuencia de comandos ejecutados (orden cronologico, hasta 60)
+## Secuencia de comandos ejecutados via SSH (orden cronologico, hasta 60)
 ${rawCommandLines || "  ninguno"}
+
+## Comandos/input crudo contra otros servicios (ftp, mysql, smb, etc — hasta 60)
+${protocolCommandLines || "  ninguno"}
 
 ## Factores principales
 ${threat.risk.topFactors.map((factor) => `  - ${factor}`).join("\n") || "  ninguno"}

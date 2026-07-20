@@ -442,6 +442,14 @@ export interface PaginatedThreatsResponse extends PaginatedResponse<ThreatSummar
   summary: ThreatsSummary
 }
 
+export interface ThreatWebSummary {
+  hits: number
+  attackTypes: string[]
+  topPaths: string[]
+  userAgents: string[]
+  canaryHits: number
+}
+
 export interface ThreatSummary {
   ip:           string
   score:        number
@@ -452,7 +460,7 @@ export interface ThreatSummary {
   breakdown:    { ssh: number; web: number; protocols: number; commands: number; crossProto: number }
   commandCategories: Record<string, number>
   ssh: { sessions: number; authAttempts: number; loginSuccess: boolean; commandCount: number } | null
-  web: { hits: number; attackTypes: string[] } | null
+  web: ThreatWebSummary | null
   protocols: {
     names: string[]
     totalHits: number
@@ -478,7 +486,7 @@ export interface ThreatDetail {
   protocolsSeen: string[]
   crossProtocol: boolean
   ssh: { sessions: number; authAttempts: number; loginSuccess: boolean } | null
-  web: { hits: number; attackTypes: string[] } | null
+  web: ThreatWebSummary | null
   protocols: {
     names: string[]
     totalHits: number
@@ -509,5 +517,10 @@ export interface ThreatDetail {
     command:  string
     ts:       string
     category: string
+  }[]
+  protocolCommands: {
+    protocol: string
+    command:  string
+    ts:       string
   }[]
 }

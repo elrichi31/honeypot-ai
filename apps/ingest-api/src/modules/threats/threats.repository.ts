@@ -130,10 +130,13 @@ export class ThreatRepository {
     return this.prismaRead.$queryRaw<WebAggRow[]>`
       SELECT
         src_ip,
-        COUNT(*)                              AS total_hits,
-        ARRAY_AGG(DISTINCT attack_type)       AS attack_types,
-        MIN(timestamp)                        AS first_seen,
-        MAX(timestamp)                        AS last_seen
+        COUNT(*)                                                       AS total_hits,
+        ARRAY_AGG(DISTINCT attack_type)                                AS attack_types,
+        (ARRAY_AGG(path ORDER BY timestamp DESC))[1:8]                 AS top_paths,
+        ARRAY_AGG(DISTINCT user_agent) FILTER (WHERE user_agent <> '') AS user_agents,
+        COUNT(*) FILTER (WHERE canary_triggered)::int                 AS canary_hits,
+        MIN(timestamp)                                                 AS first_seen,
+        MAX(timestamp)                                                 AS last_seen
       FROM web_hits
       WHERE src_ip = ${ip}
       GROUP BY src_ip
@@ -164,6 +167,17 @@ export class ThreatRepository {
     return this.prismaRead.$queryRaw<Array<{ scan_events: bigint; scanned_ports: number[] }>>`
       SELECT COUNT(DISTINCT id) AS scan_events, ARRAY_AGG(DISTINCT port) AS scanned_ports
       FROM (SELECT id, UNNEST(dst_ports) AS port FROM deception_portscans WHERE src_ip = ${ip}) flat
+    `
+  }
+
+  /** Raw commands/inputs typed against non-SSH honeypots (ftp, mysql, smb, etc via port-honeypot). */
+  async queryProtocolCommandsByIp(ip: string): Promise<Array<{ protocol: string; command: string; timestamp: Date }>> {
+    return this.prismaRead.$queryRaw<Array<{ protocol: string; command: string; timestamp: Date }>>`
+      SELECT protocol, data->>'command' AS command, timestamp
+      FROM protocol_hits
+      WHERE src_ip = ${ip} AND data ? 'command' AND data->>'command' <> ''
+      ORDER BY timestamp ASC
+      LIMIT 200
     `
   }
 

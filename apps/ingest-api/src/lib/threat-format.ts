@@ -112,7 +112,10 @@ export function formatThreatResponse(agg: ThreatAggregates, risk: RiskResult) {
       sessions: Number(ssh.sessions), authAttempts: Number(ssh.auth_attempts),
       loginSuccess: ssh.had_success, commandCount: cmds.length,
     } : null,
-    web: web ? { hits: Number(web.total_hits), attackTypes: web.attack_types } : null,
+    web: web ? {
+      hits: Number(web.total_hits), attackTypes: web.attack_types,
+      topPaths: web.top_paths ?? [], userAgents: web.user_agents ?? [], canaryHits: web.canary_hits ?? 0,
+    } : null,
     protocols: protocolSummary,
     score: risk.score, level: risk.level, breakdown: risk.breakdown,
     commandCategories: Object.fromEntries(

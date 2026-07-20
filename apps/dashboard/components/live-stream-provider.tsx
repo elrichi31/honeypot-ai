@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useCallback, useContext, useEffect, useRef } from "react"
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import type {
   AttackStreamEvent, AlertStreamEvent, SensorHeartbeatStreamEvent,
   SensorControlPresenceStreamEvent, CommandLifecycleStreamEvent,
@@ -12,10 +12,12 @@ const COMMAND_LIFECYCLE_TYPES = new Set(["command.sent", "command.acked", "comma
 
 interface LiveStreamContextValue {
   subscribe: (handlers: LiveStreamHandlers) => () => void
+  connected: boolean
 }
 
 const LiveStreamCtx = createContext<LiveStreamContextValue>({
   subscribe: () => () => {},
+  connected: false,
 })
 
 export function LiveStreamProvider({ children }: { children: React.ReactNode }) {
@@ -23,6 +25,7 @@ export function LiveStreamProvider({ children }: { children: React.ReactNode }) 
   const esRef = useRef<EventSource | null>(null)
   const retryCountRef = useRef(0)
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [connected, setConnected] = useState(false)
 
   useEffect(() => {
     function connect() {
@@ -31,6 +34,7 @@ export function LiveStreamProvider({ children }: { children: React.ReactNode }) 
 
       es.onopen = () => {
         retryCountRef.current = 0
+        setConnected(true)
       }
 
       es.onmessage = (msg) => {
@@ -58,6 +62,7 @@ export function LiveStreamProvider({ children }: { children: React.ReactNode }) 
       es.onerror = () => {
         es.close()
         esRef.current = null
+        setConnected(false)
         // Exponential backoff with jitter: min(30s, base*2^attempt) + random(0..1s)
         const base = 1000
         const delay = Math.min(30_000, base * Math.pow(2, retryCountRef.current)) + Math.random() * 1000
@@ -81,7 +86,7 @@ export function LiveStreamProvider({ children }: { children: React.ReactNode }) 
   }, [])
 
   return (
-    <LiveStreamCtx.Provider value={{ subscribe }}>
+    <LiveStreamCtx.Provider value={{ subscribe, connected }}>
       {children}
     </LiveStreamCtx.Provider>
   )
@@ -89,4 +94,9 @@ export function LiveStreamProvider({ children }: { children: React.ReactNode }) 
 
 export function useLiveStreamCtx() {
   return useContext(LiveStreamCtx)
+}
+
+/** Real SSE connection status (backed by the shared EventSource), not a per-consumer guess. */
+export function useLiveStreamConnected(): boolean {
+  return useContext(LiveStreamCtx).connected
 }

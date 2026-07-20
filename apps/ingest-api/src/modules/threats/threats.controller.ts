@@ -94,7 +94,7 @@ export async function threatRoutes(fastify: FastifyInstance) {
   fastify.get('/threats/:ip', async (request, reply) => {
     const { ip } = request.params as { ip: string }
     if (isInternalIp(ip)) return reply.status(404).send({ error: 'Threat not found' })
-    const { threat, cmdRows, cmds, portScanEvents, portScanUniquePorts, scannedPorts } = await svc.getThreatByIp(ip)
+    const { threat, cmdRows, cmds, portScanEvents, portScanUniquePorts, scannedPorts, protocolCmdRows } = await svc.getThreatByIp(ip)
     return reply.send({
       ip,
       protocolsSeen: threat.protocolsSeen,
@@ -118,6 +118,11 @@ export async function threatRoutes(fastify: FastifyInstance) {
         command: row.command,
         ts: row.eventTs,
         category: commandCategory(row.command),
+      })),
+      protocolCommands: protocolCmdRows.map((row) => ({
+        protocol: row.protocol,
+        command: row.command,
+        ts: row.timestamp,
       })),
     })
   })
