@@ -1,4 +1,5 @@
 import { getApiUrl, apiFetch, buildSearchParams } from "./client"
+import { sensorScopeParam } from "./stats"
 import type {
   CredentialsAnalytics, CredentialsMainTab, CredentialsRankingType,
   CredentialsOutcomeFilter, CredentialsFrequencyFilter, CredentialsSortDirection,
@@ -11,7 +12,7 @@ export async function fetchCredentialsAnalytics(params?: {
   search?: string; sortBy?: string; sortDir?: CredentialsSortDirection
   startDate?: string; endDate?: string
   clientSlug?: string; sensorId?: string; protocol?: string
-}): Promise<CredentialsAnalytics> {
+}, sensorIds?: string[]): Promise<CredentialsAnalytics> {
   const sp = buildSearchParams({
     limit: params?.limit, recentLimit: params?.recentLimit,
     page: params?.page, pageSize: params?.pageSize,
@@ -21,7 +22,7 @@ export async function fetchCredentialsAnalytics(params?: {
     startDate: params?.startDate, endDate: params?.endDate,
     clientSlug: params?.clientSlug, sensorId: params?.sensorId, protocol: params?.protocol,
   })
-  return apiFetch(`${getApiUrl()}/stats/credentials?${sp}`, 60, 30000)
+  return apiFetch(`${getApiUrl()}/stats/credentials?${sp}${sensorScopeParam(sensorIds)}`, 60, 30000)
 }
 
 export async function fetchCredentialsAnalyticsClient(params?: Parameters<typeof fetchCredentialsAnalytics>[0]): Promise<CredentialsAnalytics> {

@@ -1,4 +1,5 @@
 import { getApiUrl, apiFetch, buildSearchParams } from "./client"
+import { sensorScopeParam } from "./stats"
 
 export interface C2IndicatorWithSrc {
   value: string
@@ -25,8 +26,8 @@ export interface AggregatedIocsResponse {
 
 export async function fetchAggregatedIocs(params?: {
   period?: "24h" | "7d" | "30d" | "90d"
-}): Promise<AggregatedIocsResponse> {
+}, sensorIds?: string[]): Promise<AggregatedIocsResponse> {
   const sp = buildSearchParams({ period: params?.period })
-  // Global command scan + regex extraction; give it room like /threats.
-  return apiFetch(`${getApiUrl()}/iocs?${sp}`, 60, 30000)
+  // Command scan + regex extraction; give it room like /threats.
+  return apiFetch(`${getApiUrl()}/iocs?${sp}${sensorScopeParam(sensorIds)}`, 60, 30000)
 }

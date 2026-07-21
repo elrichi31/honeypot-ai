@@ -3,6 +3,7 @@ import { PageShell } from "@/components/page-shell"
 import { CommandsView } from "@/components/commands-view"
 import { SectionError } from "@/components/section-error"
 import { fetchEventsPage } from "@/lib/api"
+import { effectiveSensorScope } from "@/lib/tenant-scope"
 import { parsePage } from "@/lib/utils"
 
 const PAGE_SIZE_OPTIONS = new Set(["50", "100", "200"])
@@ -25,6 +26,8 @@ export default async function CommandsPage({
   const pageSize = PAGE_SIZE_OPTIONS.has(params.pageSize ?? "") ? Number(params.pageSize) : 50
   const q = params.q?.trim() || undefined
 
+  const { sensorIds } = await effectiveSensorScope()
+
   let eventsPage
   try {
     eventsPage = await fetchEventsPage({
@@ -32,7 +35,7 @@ export default async function CommandsPage({
       pageSize,
       q,
       type: "command.input",
-    })
+    }, sensorIds)
   } catch {
     return (
       <PageShell>

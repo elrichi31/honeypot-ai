@@ -79,6 +79,15 @@
   `lib/api/web.ts` aceptan `sensorIds?`; las 8 páginas derivan con `effectiveSensorScope`.
   Verificado contra `honeypot_full`: web Saludsa=5537/Cooperativa=0; threat detail de un IP web-only
   visible a Saludsa, 404 a Cooperativa, visible a global.
+- **Credentials, Malware, IoCs, Commands**: ✅ hecho (jul 2026).
+  - `credentials`: `credential_attempts` tiene `sensor_id`; `EventScope` manual unificado con
+    `narrowToTenant`. Client-fetch vía `/api/credentials` (re-deriva scope, strippea `sensorIds` del cliente).
+  - `malware`: `listFromDb` scopea por `sensor_id`; el disk-scan fallback **no** corre para tenant
+    scopeado; download fail-closed (`sampleInScope`) vía `/api/malware/[md5]/download`.
+  - `iocs`: reusa threats+malware ya scopeados + `queryCommandRowsForIocs` scopeado por sesión.
+  - `commands`: `/events` scopeado por `session.sensorId` (ORM; `in: []` = fail-closed).
+  - Verificado contra `honeypot_full`: creds Cooperativa=343468/Test=58606/Saludsa=0/none=0;
+    commands Test=1213/Cooperativa=0; iocs Cooperativa=0/none=0. (malware sin datos en el dump local.)
 
 ### Infra de scoping (reusable, ya construida)
 - Backend: `parseSensorScope(query)` en `apps/ingest-api/src/lib/sensor-scope.ts` →
@@ -123,10 +132,10 @@ mandarlo; (c) en el endpoint backend, `parseSensorScope` + `cond('sensor_id')` +
 | ~~`sessions`~~ | `sessions/` | ✅ hecho (jul 2026). Unificado `ClientSensorFilter` + techo de tenant con `narrowToTenant`. Ver "Vistas YA scopeadas". |
 | ~~`threats` + `threats/[ip]`~~ | `threats/` | ✅ hecho (jul 2026). `narrowToTenant` + `getThreatByIp` fail-closed. Ver "Vistas YA scopeadas". |
 | ~~`web-attacks` (+ `bursts`, `geo`, `paths`, `timeline`, `sessions`, `[ip]`)~~ | `web/` | ✅ hecho (jul 2026). `narrowToTenant` + se scopearon los endpoints antes globales. Ver "Vistas YA scopeadas". |
-| `credentials` | `stats/` (`credentials`) | Usa la vista materializada `credential_attempts` (sin `sensor_id` → ver #4). Scopear desde tablas base o migrar la vista. |
-| `malware` | `malware/` | Artefactos tienen `srcIp`/`sensorId`. |
-| `iocs` | `iocs/` (reusa threats + malware) | Se scopea solo cuando esos dos lo estén. |
-| `commands` | `events/` / `stats` | `events` sin `sensor_id` → scopear vía sesión. |
+| ~~`credentials`~~ | `stats/` (`credentials`) | ✅ hecho (jul 2026). `credential_attempts` **sí** tiene `sensor_id` (la nota de #4 era stale); ya tenía `EventScope` manual → unificado con `narrowToTenant`. El fetch client-side va por el route handler `/api/credentials` que re-deriva el scope y **strippea** cualquier `sensorIds` del cliente. |
+| ~~`malware`~~ | `malware/` | ✅ hecho (jul 2026). `listFromDb` scopea por `sensor_id`; el fallback de disk-scan **no** corre para un tenant scopeado (evita fuga). Download fail-closed (`sampleInScope`), el route handler `/api/malware/[md5]/download` re-deriva el scope. |
+| ~~`iocs`~~ | `iocs/` | ✅ hecho (jul 2026). Reusa threats + malware (ya scopeados) + `fetchAggregatedIocs` scopeado vía sesión (`queryCommandRowsForIocs`). |
+| ~~`commands`~~ | `events/` | ✅ hecho (jul 2026). `events` no tiene `sensor_id` → scope vía relación `session.sensorId` (`in: []` = fail-closed). |
 | ~~`services` + `services/*` (ftp, mysql, mssql, smb, mqtt, ports)~~ | `protocol/` | ✅ hecho (jul 2026). Ver "Vistas YA scopeadas". |
 | `deception` | `deception/` | Verificar relación con sensores del cliente. |
 | `network`, `campaigns` | varios | Reusan telemetría de otras vistas; caen cuando esas caigan. |
@@ -149,9 +158,12 @@ mandarlo; (c) en el endpoint backend, `parseSensorScope` + `cond('sensor_id')` +
 ### 4. Vistas materializadas / rollups sin `sensor_id`
 Tablas que agregan y **no** tienen `sensor_id` → no se pueden filtrar directo:
 `threat_ip_summary`, `daily_summary`, `daily_attacker_stats`, `daily_credential_stats`,
-`daily_command_stats`, `credential_attempts`. Para cada KPI que las use: recalcular desde tablas
+`daily_command_stats`. Para cada KPI que las use: recalcular desde tablas
 base (más lento) **o** añadir `sensor_id`/`client_id` al rollup (migración + recálculo). Decidir
 caso por caso.
+> Nota (jul 2026): `credential_attempts` **sí** tiene `sensor_id` — se removió de esta lista;
+> `/credentials` ya scopea directo. `threat_ip_summary` no lo tiene pero `/threats` lo resuelve
+> con subqueries `EXISTS` sobre las tablas base (ver módulo threats).
 
 ### 5. SIEM / forwarding por tenant (verificar)
 - Las alertas a CrowdStrike ya se enrutan por cliente (`resolveClientCrowdStrike`). Confirmar que
@@ -246,7 +258,8 @@ DENTRO de los sensores del tenant — nunca ampliar).
 2. ✅ ~~Services/protocolos~~ — hecho (jul 2026). Patrón mecánico fijado; reusar tal cual.
 3. ✅ ~~Sessions, Threats, Web-attacks~~ — hecho (jul 2026). Unificación `narrowToTenant` aplicada a
    los tres; detalles fail-closed (`getById`, `getThreatByIp`, `/web-hits/sessions/:fp`).
-4. **Credentials, Malware, IoCs, Commands** — siguen.
+4. ✅ ~~Credentials, Malware, IoCs, Commands~~ — hecho (jul 2026). Detalles fail-closed
+   (malware download, credentials via route handler que strippea `sensorIds` del cliente).
 5. Aislamiento de gestión (/users, /sensors, /clients).
 6. Rollups sin sensor_id (solo los KPIs que falten).
 7. `live` stream (diseño aparte, #7).

@@ -6,6 +6,7 @@ import { IocFilters } from "@/components/ioc-filters"
 import { IocBundleExport } from "@/components/ioc-bundle-export"
 import { StatCard } from "@/components/ui/stat-card"
 import { fetchThreats, fetchMalwareArtifacts, fetchAggregatedIocs } from "@/lib/api"
+import { effectiveSensorScope } from "@/lib/tenant-scope"
 import type { IocEntry } from "@/lib/ioc-export"
 import { getServerT } from "@/lib/i18n/server"
 
@@ -40,12 +41,14 @@ export default async function IocsPage({
   // Which risk levels count as malicious: the user's selection if any, else the default set.
   const activeLevels = levelFilter.length > 0 ? new Set<string>(levelFilter) : MALICIOUS_LEVELS
 
+  const { sensorIds } = await effectiveSensorScope()
+
   const [threats, malware, aggregated] = await Promise.all([
-    fetchThreats({ pageSize: 5000, period }).catch(() => []),
-    fetchMalwareArtifacts({ pageSize: 200, sortBy: "capturedAt", sortDir: "desc" })
+    fetchThreats({ pageSize: 5000, period }, sensorIds).catch(() => []),
+    fetchMalwareArtifacts({ pageSize: 200, sortBy: "capturedAt", sortDir: "desc" }, sensorIds)
       .then((r) => r.items)
       .catch(() => []),
-    fetchAggregatedIocs({ period }).catch(() => ({ c2: [], sshKeys: [] })),
+    fetchAggregatedIocs({ period }, sensorIds).catch(() => ({ c2: [], sshKeys: [] })),
   ])
 
   const ipEntries: IocEntry[] = threats

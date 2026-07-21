@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { IocsService } from './iocs.service.js'
+import { parseSensorScope } from '../../lib/sensor-scope.js'
 
 const PERIOD_DAYS: Record<string, number> = { '24h': 1, '7d': 7, '30d': 30, '90d': 90 }
 
@@ -20,7 +21,8 @@ export async function iocsRoutes(fastify: FastifyInstance) {
       })
     }
     const windowDays = PERIOD_DAYS[parsed.data.period]
-    const iocs = await svc.listAggregatedIocs(fastify.cache, windowDays)
+    const scope = parseSensorScope(request.query as Record<string, unknown>)
+    const iocs = await svc.listAggregatedIocs(fastify.cache, windowDays, scope)
     return reply.send(iocs)
   })
 }

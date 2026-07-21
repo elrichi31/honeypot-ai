@@ -11,6 +11,7 @@ import { withCache } from '../../../lib/cache-helper.js'
 import { mapWithConcurrency } from '../../../lib/concurrency.js'
 import { resolveClientSensors } from '../../../lib/client-helpers.js'
 import { CredentialsRepository } from '../stats.repository.js'
+import { parseSensorScope, narrowToTenant } from '../../../lib/sensor-scope.js'
 
 const DEFAULT_PAGE_SIZE = 50
 const MAX_PAGE_SIZE = 200
@@ -163,16 +164,15 @@ export async function credentialsRoute(fastify: FastifyInstance) {
     const { page, pageSize, offset } = getPagination(p)
     const search = p.search?.trim()
 
-    let scope: EventScope
-    let scopeKey = ''
-    if (p.sensorId) {
-      scope = { sensorIds: [p.sensorId] }
-      scopeKey = `:s=${p.sensorId}`
-    } else if (p.clientSlug) {
-      const cs = await resolveClientSensors(fastify.prismaRead, p.clientSlug)
-      scope = { sensorIds: cs?.sensorIds ?? [] }
-      scopeKey = `:c=${p.clientSlug}`
-    }
+    // Tenant scope (cookie) is the hard ceiling; the manual clientSlug/sensorId
+    // filter can only narrow WITHIN it (narrowToTenant), never widen.
+    const tenant = parseSensorScope(request.query as Record<string, unknown>)
+    let manual: string[] | undefined
+    if (p.sensorId) manual = [p.sensorId]
+    else if (p.clientSlug) manual = (await resolveClientSensors(fastify.prismaRead, p.clientSlug))?.sensorIds ?? []
+    const ids = narrowToTenant(tenant, manual)
+    const scope: EventScope = ids === undefined ? undefined : { sensorIds: ids }
+    const scopeKey = `:t=${tenant.cacheSuffix}${p.sensorId ? `:s=${p.sensorId}` : p.clientSlug ? `:c=${p.clientSlug}` : ''}`
     const recentScopeWhere = eventScopeWhere(scope)
     const activeSortBy = p.sortBy ?? defaultSortBy(p.mainTab)
     const activeSortDir = p.sortDir

@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { toOffsetISOString } from '../../lib/date-utils.js';
 import { basePaginationSchema, getPagination, buildPaginationResponse } from '../../lib/pagination.js';
+import { parseSensorScope } from '../../lib/sensor-scope.js';
 
 const eventListQuerySchema = basePaginationSchema.extend({
   type: z.string().trim().min(1).optional(),
@@ -24,7 +25,12 @@ export async function eventRoutes(fastify: FastifyInstance) {
     const { page, pageSize, offset } = getPagination(parsed.data);
     const search = parsed.data.q?.trim();
 
+    // events have no sensor_id — scope through the owning session's sensor.
+    // Empty sensorIds (fail-closed / __none__) → `in: []` matches nothing.
+    const scope = parseSensorScope(request.query as Record<string, unknown>);
+
     const where = {
+      ...(scope.all ? {} : { session: { sensorId: { in: scope.sensorIds } } }),
       ...(parsed.data.type ? { eventType: parsed.data.type } : {}),
       ...((parsed.data.startDate || parsed.data.endDate)
         ? {

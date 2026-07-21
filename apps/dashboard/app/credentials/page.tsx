@@ -3,6 +3,7 @@ import { PageShell } from "@/components/page-shell"
 import { CredentialsView } from "@/components/credentials-view"
 import { SectionError } from "@/components/section-error"
 import { fetchCredentialsAnalytics, fetchClients, fetchSensors } from "@/lib/api"
+import { effectiveSensorScope } from "@/lib/tenant-scope"
 import { ClientSensorFilter } from "@/components/client-sensor-filter"
 import { getServerT } from "@/lib/i18n/server"
 import { Surface } from "@/components/ui/surface"
@@ -49,6 +50,8 @@ export default async function CredentialsPage({
   const clientSlug = params.clientSlug?.trim() || undefined
   const sensorId = params.sensorId?.trim() || undefined
 
+  const { sensorIds } = await effectiveSensorScope()
+
   let analytics
   let clients: Awaited<ReturnType<typeof fetchClients>> = []
   let sensors: Awaited<ReturnType<typeof fetchSensors>> = []
@@ -68,7 +71,7 @@ export default async function CredentialsPage({
         sortDir,
         clientSlug,
         sensorId,
-      }),
+      }, sensorIds),
       fetchClients().catch(() => []),
       fetchSensors().catch(() => []),
     ])
