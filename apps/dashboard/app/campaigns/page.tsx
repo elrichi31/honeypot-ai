@@ -39,7 +39,7 @@ export default async function CampaignsPage({
   try {
     [sessions, commandsMap] = await Promise.all([
       fetchSessions({ limit: 2000, ...dateParams }, sensorIds),
-      fetchSessionCommands(),
+      fetchSessionCommands(sensorIds),
     ])
   } catch {
     return (

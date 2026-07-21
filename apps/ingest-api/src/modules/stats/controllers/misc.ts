@@ -88,8 +88,9 @@ export async function miscRoutes(fastify: FastifyInstance) {
   fastify.get('/stats/session-commands', async (request) => {
     const { limit = '500' } = request.query as Record<string, string>
     const take = Math.min(Number(limit), 5000)
-    return withCache(fastify.cache, `stats:session-commands:${take}`, 300, async () => {
-      const events = await repo.getSessionCommands(take)
+    const scope = parseSensorScope(request.query as Record<string, unknown>)
+    return withCache(fastify.cache, `stats:session-commands:${take}:${scope.cacheSuffix}`, 300, async () => {
+      const events = await repo.getSessionCommands(take, scope)
       const result: Record<string, string[]> = {}
       for (const e of events) {
         if (!e.command) continue

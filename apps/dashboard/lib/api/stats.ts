@@ -58,8 +58,8 @@ export async function fetchCrossSensorTimeline(params: {
   return apiFetch(`${getApiUrl()}/stats/cross-sensor-timeline?${sp}${sensorScopeParam(sensorIds)}`, 120, 30000)
 }
 
-export async function fetchSessionCommands(): Promise<Record<string, string[]>> {
-  const res = await fetch(`${getApiUrl()}/stats/session-commands?limit=5000`, { cache: "no-store" })
+export async function fetchSessionCommands(sensorIds?: string[]): Promise<Record<string, string[]>> {
+  const res = await fetch(`${getApiUrl()}/stats/session-commands?limit=5000${sensorScopeParam(sensorIds)}`, { cache: "no-store" })
   if (!res.ok) return {}
   return res.json()
 }

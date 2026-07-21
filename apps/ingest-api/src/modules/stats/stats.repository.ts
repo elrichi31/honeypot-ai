@@ -136,9 +136,13 @@ export class MiscRepository {
     `)
   }
 
-  getSessionCommands(take: number) {
+  getSessionCommands(take: number, scope: SensorScope) {
     return this.prismaRead.event.findMany({
-      where: { eventType: 'command.input', command: { not: null } },
+      where: {
+        eventType: 'command.input', command: { not: null },
+        // events have no sensor_id → scope via the owning session (in: [] = fail-closed).
+        ...(scope.all ? {} : { session: { sensorId: { in: scope.sensorIds } } }),
+      },
       select: { sessionId: true, command: true },
       take,
       orderBy: { eventTs: 'asc' },
