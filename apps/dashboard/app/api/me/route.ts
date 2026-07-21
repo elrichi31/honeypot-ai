@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { headers } from "next/headers"
-import type { Role } from "@/lib/roles"
+import { isGlobalRole, type Role } from "@/lib/roles"
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -21,5 +21,6 @@ export async function GET() {
     role,
     clientId: result.rows[0]?.clientId ?? null,
     isSuperadmin: role === "superadmin",
+    isGlobal: isGlobalRole(role),
   })
 }

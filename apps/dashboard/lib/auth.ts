@@ -1,4 +1,4 @@
-import { betterAuth } from "better-auth"
+import { betterAuth, type BetterAuthOptions } from "better-auth"
 import { nextCookies } from "better-auth/next-js"
 import { Pool } from "pg"
 import { getSessionDurationSeconds } from "@/lib/server-config"
@@ -9,11 +9,14 @@ const authAllowedHosts = Array.from(
   new Set([authBaseUrlObject.hostname, "localhost", "127.0.0.1"]),
 )
 
-export const auth = betterAuth({
-  database: new Pool({
-    connectionString: process.env.DATABASE_URL,
-    options: "-c search_path=public",
-  }),
+// One shared connection pool for both auth instances below.
+const authPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  options: "-c search_path=public",
+})
+
+const baseOptions = {
+  database: authPool,
   baseURL: {
     allowedHosts: authAllowedHosts,
     fallback: authBaseUrl,
@@ -39,5 +42,14 @@ export const auth = betterAuth({
       maxAge: 60 * 5,          // cache in a signed cookie for 5 min (skips DB on middleware)
     },
   },
-  plugins: [nextCookies()],
-})
+} satisfies BetterAuthOptions
+
+export const auth = betterAuth({ ...baseOptions, plugins: [nextCookies()] })
+
+// Admin-side user creation must NOT touch the CALLER's session. The `auth`
+// instance above has nextCookies, whose after-hook writes any Set-Cookie from an
+// auth.api call onto the current response — so signUpEmail would overwrite the
+// admin's session cookie with the newly-created user's (silently logging the
+// admin in as the new user). This cookie-less instance shares the same pool and
+// config but skips that side effect, so it's what /api/users POST uses.
+export const authAdmin = betterAuth(baseOptions)

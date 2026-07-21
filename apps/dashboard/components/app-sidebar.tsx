@@ -292,7 +292,7 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
           </div>
         )}
 
-        {/* Tenant scope switcher (superadmin only; renders nothing otherwise) */}
+        {/* Tenant scope switcher (global staff only; renders nothing for cliente) */}
         <TenantSwitcher collapsed={collapsed} />
 
         {/* Nav */}

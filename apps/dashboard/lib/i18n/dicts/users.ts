@@ -11,11 +11,13 @@ export const en = {
   "users.role.admin.label": "Admin",
   "users.role.analyst.label": "Analyst",
   "users.role.viewer.label": "Viewer",
+  "users.role.cliente.label": "Client",
 
   "users.role.superadmin.description": "Global access to all clients (multi-tenant)",
   "users.role.admin.description": "Full access including users and configuration",
   "users.role.analyst.description": "Infrastructure management and data analysis",
   "users.role.viewer.description": "Read-only dashboard access",
+  "users.role.cliente.description": "Read-only access to a single tenant (external client)",
 
   "users.page.title": "Users",
   "users.page.description": "Manage who has access to the dashboard and with what permissions.",
@@ -57,11 +59,13 @@ export const es: Record<keyof typeof en, string> = {
   "users.role.admin.label": "Admin",
   "users.role.analyst.label": "Analista",
   "users.role.viewer.label": "Observador",
+  "users.role.cliente.label": "Cliente",
 
   "users.role.superadmin.description": "Acceso global a todos los clientes (multi-tenant)",
   "users.role.admin.description": "Acceso completo, incluidos usuarios y configuración",
   "users.role.analyst.description": "Gestión de infraestructura y análisis de datos",
   "users.role.viewer.description": "Acceso de solo lectura al dashboard",
+  "users.role.cliente.description": "Acceso de solo lectura a un solo tenant (cliente externo)",
 
   "users.page.title": "Usuarios",
   "users.page.description": "Gestiona quién tiene acceso al dashboard y con qué permisos.",

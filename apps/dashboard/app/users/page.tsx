@@ -20,7 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useSession } from "@/lib/auth-client"
-import { ROLE_LABEL_KEYS, ROLE_COLORS, ROLE_DESCRIPTION_KEYS, hasPermission, type Role } from "@/lib/roles-shared"
+import { ROLE_LABEL_KEYS, ROLE_COLORS, ROLE_DESCRIPTION_KEYS, hasPermission, isGlobalRole, type Role } from "@/lib/roles-shared"
 import { useT } from "@/components/locale-provider"
 
 type User = {
@@ -38,7 +38,8 @@ type Me = { id: string; name: string; email: string; role: Role; isSuperadmin?: 
 type ClientLite = { id: string; name: string }
 
 // Roles assignable from the UI. `superadmin` is only offered to a superadmin.
-const ASSIGNABLE_ROLES: Role[] = ["admin", "analyst", "viewer"]
+// `cliente` is the tenant-scoped role (external customer); the rest are global staff.
+const ASSIGNABLE_ROLES: Role[] = ["admin", "analyst", "viewer", "cliente"]
 
 function RoleBadge({ role }: { role: string }) {
   const t = useT()
@@ -81,8 +82,8 @@ function CreateUserDialog({
       await assertOk(await apiFetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // superadmin is unscoped by definition; everyone else carries a tenant.
-        body: JSON.stringify({ name, email, password, role, clientId: role === "superadmin" ? null : (clientId || null) }),
+        // Only `cliente` is tenant-scoped; every staff role is global (no tenant).
+        body: JSON.stringify({ name, email, password, role, clientId: role === "cliente" ? (clientId || null) : null }),
       }), t("users.create.error"))
       onCreated()
     } catch (err) {
@@ -144,9 +145,8 @@ function CreateUserDialog({
             </div>
           </div>
 
-          {/* Tenant — which client this user is scoped to. Hidden for superadmin
-              (global by definition). */}
-          {role !== "superadmin" && (
+          {/* Tenant — only `cliente` is scoped to a client; staff roles are global. */}
+          {role === "cliente" && (
             <div className="space-y-2">
               <Label htmlFor="user-tenant">{t("users.create.tenant")}</Label>
               <select
@@ -377,20 +377,20 @@ export default function UsersPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      {isAdmin && !isCurrentUser && user.role !== "superadmin" ? (
+                      {isAdmin && !isCurrentUser && user.role === "cliente" ? (
                         <select
                           value={user.clientId ?? ""}
                           disabled={isBusy}
                           onChange={(e) => handleTenantChange(user.id, e.target.value)}
                           className="rounded-lg border border-border bg-card px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
                         >
-                          <option value="">{canSuperadmin ? t("users.tenant.unassigned") : t("users.tenant.select")}</option>
+                          <option value="">{t("users.tenant.select")}</option>
                           {clients.map((c) => (
                             <option key={c.id} value={c.id}>{c.name}</option>
                           ))}
                         </select>
                       ) : (
-                        <span className="text-xs text-muted-foreground">{user.role === "superadmin" ? "Global" : clientName(user.clientId)}</span>
+                        <span className="text-xs text-muted-foreground">{isGlobalRole(user.role as Role) ? "Global" : clientName(user.clientId)}</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground text-xs">

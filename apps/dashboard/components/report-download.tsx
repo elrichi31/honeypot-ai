@@ -8,9 +8,10 @@ import type { ClientReportData } from "@/lib/reports/types"
 import type { Client } from "@/lib/api"
 
 interface Props {
-  isSuperadmin: boolean
+  /** Global staff may pick any tenant for the report; `cliente` is locked to its own. */
+  canPickTenant: boolean
   clients: Client[]
-  /** Pre-selected clientId for scoped users (non-superadmin). */
+  /** Pre-selected clientId for a scoped `cliente`. */
   scopedClientId: string | null
 }
 
@@ -22,7 +23,7 @@ const PRESETS = [
   { key: "custom", label: "reports.range.custom" },
 ] as const satisfies readonly { key: ReportPreset; label: string }[]
 
-export function ReportDownload({ isSuperadmin, clients, scopedClientId }: Props) {
+export function ReportDownload({ canPickTenant, clients, scopedClientId }: Props) {
   const { t, locale } = useLocale()
   const [preset, setPreset] = useState<ReportPreset>("last7")
   const [customStart, setCustomStart] = useState("")
@@ -33,7 +34,7 @@ export function ReportDownload({ isSuperadmin, clients, scopedClientId }: Props)
   const [data, setData] = useState<ClientReportData | null>(null)
   const esRef = useRef<EventSource | null>(null)
 
-  const effectiveClientId = isSuperadmin ? clientId : (scopedClientId ?? "")
+  const effectiveClientId = canPickTenant ? clientId : (scopedClientId ?? "")
   const loading = progress !== null
 
   useEffect(() => () => esRef.current?.close(), [])
@@ -57,7 +58,7 @@ export function ReportDownload({ isSuperadmin, clients, scopedClientId }: Props)
       timezone: tz,
       locale,
     })
-    if (isSuperadmin && effectiveClientId) params.set("clientId", effectiveClientId)
+    if (canPickTenant && effectiveClientId) params.set("clientId", effectiveClientId)
 
     const es = new EventSource(`/api/reports/stream?${params}`)
     esRef.current = es
@@ -136,7 +137,7 @@ export function ReportDownload({ isSuperadmin, clients, scopedClientId }: Props)
       </div>
 
       {/* Client selector (superadmin only) */}
-      {isSuperadmin && (
+      {canPickTenant && (
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium text-foreground">{t("reports.client.label")}</label>
           <select
@@ -160,7 +161,7 @@ export function ReportDownload({ isSuperadmin, clients, scopedClientId }: Props)
       <div className="flex flex-wrap items-center gap-4 print:hidden">
         <button
           onClick={handleGenerate}
-          disabled={loading || (isSuperadmin && !effectiveClientId)}
+          disabled={loading || (canPickTenant && !effectiveClientId)}
           className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t("reports.preview")}

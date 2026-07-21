@@ -2,10 +2,10 @@ import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { headers } from "next/headers"
 import { NextResponse } from "next/server"
-import { hasPermission, type Role } from "@/lib/roles-shared"
+import { hasPermission, isGlobalRole, type Role } from "@/lib/roles-shared"
 
 export type { Role } from "@/lib/roles-shared"
-export { ROLE_ORDER, hasPermission, ROLE_LABEL_KEYS, ROLE_DESCRIPTION_KEYS, ROLE_COLORS, SCOPE_NONE, resolveScopeClientId } from "@/lib/roles-shared"
+export { ROLE_ORDER, ALL_ROLES, hasPermission, isGlobalRole, ROLE_LABEL_KEYS, ROLE_DESCRIPTION_KEYS, ROLE_COLORS, SCOPE_NONE, resolveScopeClientId } from "@/lib/roles-shared"
 
 export type AuthOk = {
   ok: true
@@ -15,6 +15,8 @@ export type AuthOk = {
   role: Role
   clientId: string | null
   isSuperadmin: boolean
+  /** Staff role → sees every tenant. `cliente` → false (scoped). */
+  isGlobal: boolean
 }
 export type AuthFail = { ok: false; response: NextResponse }
 export type AuthResult = AuthOk | AuthFail
@@ -54,6 +56,7 @@ export async function requireRole(minRole: Role): Promise<AuthResult> {
       role,
       clientId,
       isSuperadmin: role === "superadmin",
+      isGlobal: isGlobalRole(role),
     }
   } catch {
     return { ok: false, response: NextResponse.json({ error: "No autorizado" }, { status: 401 }) }

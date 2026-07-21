@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { logAudit } from "@/lib/audit"
-import { requireRole } from "@/lib/roles"
+import { requireRole, ALL_ROLES, isGlobalRole, type Role } from "@/lib/roles"
 
 export async function DELETE(
   req: NextRequest,
@@ -58,7 +58,7 @@ export async function PATCH(
     return NextResponse.json({ error: "name, role or clientId is required" }, { status: 400 })
   }
 
-  if (body?.role && !["superadmin", "admin", "analyst", "viewer"].includes(body.role)) {
+  if (body?.role && !(ALL_ROLES as string[]).includes(body.role)) {
     return NextResponse.json({ error: "Invalid role" }, { status: 400 })
   }
 
@@ -78,8 +78,12 @@ export async function PATCH(
 
   const target = current.rows[0]
   const newName = body.name ?? target.name
-  const newRole = body.role ?? target.role
-  const newClientId = hasClientId ? (body.clientId || null) : target.clientId
+  const newRole = (body.role ?? target.role) as Role
+  // Staff roles are global → force clientId null so a stale tenant can't linger.
+  // Only `cliente` keeps/accepts a tenant.
+  const newClientId = isGlobalRole(newRole)
+    ? null
+    : (hasClientId ? (body.clientId || null) : target.clientId)
 
   const result = await db.query<{ id: string; name: string; email: string; role: string; clientId: string | null }>(
     `UPDATE "user" SET name = $1, role = $2, "clientId" = $3, "updatedAt" = now() WHERE id = $4

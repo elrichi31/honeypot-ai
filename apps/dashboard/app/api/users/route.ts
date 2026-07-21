@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { authAdmin } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { logAudit } from "@/lib/audit"
-import { requireRole } from "@/lib/roles"
+import { requireRole, ALL_ROLES, isGlobalRole, type Role } from "@/lib/roles"
 import { logAndRespond } from "@/lib/api-error"
 
 export async function GET() {
@@ -33,19 +33,25 @@ export async function POST(req: NextRequest) {
   }
 
   const { name, email, password } = body as { name: string; email: string; password: string }
-  const role = (["superadmin", "admin", "analyst", "viewer"].includes(body.role) ? body.role : "analyst") as string
-  const clientId = typeof body.clientId === "string" && body.clientId ? body.clientId : null
+  const role = ((ALL_ROLES as string[]).includes(body.role) ? body.role : "analyst") as Role
+  // Only `cliente` carries a tenant; staff roles are global (clientId stays null).
+  const clientId = isGlobalRole(role) ? null : (typeof body.clientId === "string" && body.clientId ? body.clientId : null)
 
   if (password.length < 8) {
     return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 })
   }
 
   try {
-    const created = await auth.api.signUpEmail({ body: { name, email, password } })
+    // authAdmin (no nextCookies) so this never overwrites the caller's session.
+    const created = await authAdmin.api.signUpEmail({ body: { name, email, password } })
 
     if (!created?.user) {
       return NextResponse.json({ error: "Could not create user" }, { status: 500 })
     }
+
+    // signUpEmail also opens a session for the new user; it was never delivered
+    // to any browser, so drop it — the new user logs in fresh.
+    await db.query(`DELETE FROM "session" WHERE "userId" = $1`, [created.user.id])
 
     // Set the requested role (default analyst) and tenant scope.
     await db.query(`UPDATE "user" SET role = $1, "clientId" = $2 WHERE id = $3`, [role, clientId, created.user.id])

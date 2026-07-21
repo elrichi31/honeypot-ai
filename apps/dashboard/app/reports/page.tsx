@@ -22,7 +22,7 @@ export default async function ReportsPage() {
   const scope = await effectiveSensorScope()
 
   let clients: Client[] = []
-  if (auth.isSuperadmin) {
+  if (auth.isGlobal) {
     try {
       clients = await fetchClients()
     } catch {
@@ -39,7 +39,7 @@ export default async function ReportsPage() {
 
       <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
         <ReportDownload
-          isSuperadmin={auth.isSuperadmin}
+          canPickTenant={auth.isGlobal}
           clients={clients}
           scopedClientId={scope.clientId}
         />

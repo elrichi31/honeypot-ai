@@ -27,9 +27,9 @@ import {
 const GLOBAL = "__global__"
 
 export function TenantSwitcher({ collapsed = false }: { collapsed?: boolean }) {
-  const { isSuperadmin, tenantId, setTenant, clients } = useTenant()
+  const { isGlobal, tenantId, setTenant, clients } = useTenant()
 
-  if (!isSuperadmin) return null
+  if (!isGlobal) return null
 
   const activeName = tenantId ? clients.find((c) => c.id === tenantId)?.name ?? "Tenant" : "Global"
 

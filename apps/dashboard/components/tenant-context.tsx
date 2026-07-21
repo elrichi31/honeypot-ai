@@ -8,7 +8,9 @@ export const TENANT_COOKIE = "tenant_scope"
 export type ClientLite = { id: string; name: string }
 
 type TenantContextValue = {
-  isSuperadmin: boolean
+  // true for any GLOBAL role (staff) — they may switch tenants. `cliente` is
+  // pinned to its own client server-side, so the switcher never renders for it.
+  isGlobal: boolean
   tenantId: string | null           // null = global (all clients)
   setTenant: (id: string | null) => void
   clients: ClientLite[]
@@ -23,17 +25,17 @@ function readCookie(name: string): string | null {
 }
 
 /**
- * Holds the superadmin's active tenant selection. Persisted in a cookie so the
- * server (route handlers / server components) sees the same scope. Non-superadmin
- * users get no selection (they're pinned to their own client server-side), so the
- * switcher never renders for them.
+ * Holds a global (staff) user's active tenant selection. Persisted in a cookie so
+ * the server (route handlers / server components) sees the same scope. A `cliente`
+ * user gets no selection (pinned to its own client server-side), so the switcher
+ * never renders for it.
  *
  * Changing the tenant writes the cookie and calls router.refresh() so Server
  * Components re-render with the new scope.
  */
 export function TenantProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const [isSuperadmin, setIsSuperadmin] = useState(false)
+  const [isGlobal, setIsGlobal] = useState(false)
   const [clients, setClients] = useState<ClientLite[]>([])
   // Start null on BOTH server and client to avoid a hydration mismatch (the
   // server can't read document.cookie). The real value is read in useEffect.
@@ -48,9 +50,9 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false
     fetch("/api/me")
       .then((r) => (r.ok ? r.json() : null))
-      .then(async (me: { isSuperadmin?: boolean } | null) => {
-        if (cancelled || !me?.isSuperadmin) return
-        setIsSuperadmin(true)
+      .then(async (me: { isGlobal?: boolean } | null) => {
+        if (cancelled || !me?.isGlobal) return
+        setIsGlobal(true)
         const res = await fetch("/api/clients")
         const rows: Array<{ id: string; name: string }> = res.ok ? await res.json() : []
         if (!cancelled) setClients(rows.map((c) => ({ id: c.id, name: c.name })))
@@ -72,8 +74,8 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
   }, [router])
 
   const value = useMemo<TenantContextValue>(
-    () => ({ isSuperadmin, tenantId, setTenant, clients }),
-    [isSuperadmin, tenantId, setTenant, clients],
+    () => ({ isGlobal, tenantId, setTenant, clients }),
+    [isGlobal, tenantId, setTenant, clients],
   )
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>
@@ -82,6 +84,6 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
 
 export function useTenant(): TenantContextValue {
   const ctx = useContext(TenantContext)
-  if (!ctx) return { isSuperadmin: false, tenantId: null, setTenant: () => {}, clients: [] }
+  if (!ctx) return { isGlobal: false, tenantId: null, setTenant: () => {}, clients: [] }
   return ctx
 }
