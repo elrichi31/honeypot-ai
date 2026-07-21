@@ -5,7 +5,7 @@ import { useTimezone } from "@/components/timezone-provider"
 import { formatInTimezone } from "@/lib/timezone"
 import {
   ClipboardList, Filter, X,
-  MapPin, Network, ShieldAlert, Globe, Monitor, Code2,
+  MapPin, Network, ShieldAlert, Globe, Monitor, Code2, UserCog,
 } from "lucide-react"
 import { Surface } from "@/components/ui/surface"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
@@ -135,7 +135,8 @@ function parseUserAgent(ua: string): string {
 
 function AuditDetail({ entry }: { entry: AuditEntry }) {
   const [showRaw, setShowRaw] = useState(false)
-  const d = (entry.details ?? {}) as Record<string, unknown>
+  const { _meta, ...d } = (entry.details ?? {}) as Record<string, unknown>
+  const meta = (_meta ?? null) as Record<string, unknown> | null
   const isSession = entry.action === "LOGIN" || entry.action === "LOGOUT"
 
   const countryName = (d.countryName ?? d.country) as string | undefined
@@ -214,6 +215,17 @@ function AuditDetail({ entry }: { entry: AuditEntry }) {
                 }
               />
             ))}
+          </div>
+        </Section>
+      )}
+
+      {meta && Boolean(meta.actorRole || meta.method || meta.path || meta.actorClientId) && (
+        <Section icon={<UserCog className="h-3.5 w-3.5" />} title="Request / Actor">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4">
+            <Field label="Actor role" value={meta.actorRole as string | undefined} />
+            <Field label="Actor tenant" value={(meta.actorClientId as string | null) ?? undefined} />
+            <Field label="Method" value={meta.method as string | undefined} />
+            <Field label="Route" value={meta.path as string | undefined} />
           </div>
         </Section>
       )}

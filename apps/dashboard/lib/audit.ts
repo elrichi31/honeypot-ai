@@ -78,6 +78,43 @@ export async function logAuditDirect({
   }
 }
 
+/**
+ * Actor + request context captured automatically for every audited mutation.
+ * Stored under `details._meta` so the answer to "who, in what role, over which
+ * tenant, via which route" is on every event without each call site passing it.
+ */
+async function buildActorMeta(
+  userId: string,
+  request: Request | undefined,
+): Promise<Record<string, unknown>> {
+  const meta: Record<string, unknown> = {}
+
+  // Role isn't on the session (only `clientId` is a better-auth additionalField),
+  // and cookieCache can leave session values ~5min stale — read both from the DB,
+  // same source of truth as requireRole().
+  try {
+    const { rows } = await db.query<{ role: string; clientId: string | null }>(
+      `SELECT role, "clientId" FROM "user" WHERE id = $1`,
+      [userId],
+    )
+    if (rows[0]) {
+      meta.actorRole = rows[0].role
+      meta.actorClientId = rows[0].clientId
+    }
+  } catch {
+    // best-effort — meta is enrichment, never blocks the audit write
+  }
+
+  if (request) {
+    meta.method = request.method
+    try {
+      meta.path = new URL(request.url).pathname
+    } catch { /* non-URL request — skip path */ }
+  }
+
+  return meta
+}
+
 export async function logAudit({
   action,
   resource,
@@ -103,6 +140,8 @@ export async function logAudit({
     const ip = extractClientIp(reqHeaders as Headers)
     const userAgent = reqHeaders.get("user-agent")
 
+    const _meta = await buildActorMeta(session.user.id, request)
+
     await insertAuditRow(
       session.user.id,
       session.user.email,
@@ -111,7 +150,7 @@ export async function logAudit({
       resource,
       resourceId ?? null,
       resourceName ?? null,
-      details ?? {},
+      { ...(details ?? {}), _meta },
       ip,
       userAgent ?? null,
     )

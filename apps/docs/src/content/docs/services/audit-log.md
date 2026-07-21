@@ -22,10 +22,27 @@ Cada entrada del audit log captura:
 | `resource` | Tipo de recurso afectado (`USER`, `CLIENT`, `SENSOR`, `TOKEN`, etc.) |
 | `resourceId` | ID del recurso afectado |
 | `resourceName` | Nombre legible del recurso (ej: email del usuario, nombre del cliente) |
-| `details` | JSON con contexto adicional de la accion |
+| `details` | JSON con contexto adicional de la accion (incluye `_meta`, ver abajo) |
 | `ipAddress` | IP desde donde se realizo la accion |
 | `userAgent` | Navegador/cliente HTTP del actor |
 | `createdAt` | Timestamp exacto de la accion |
+
+### Contexto del actor y del request (`details._meta`)
+
+Toda accion auditada via `logAudit` agrega automaticamente un objeto `_meta` dentro de
+`details`, sin que cada ruta tenga que pasarlo. Responde "quien, con que rol, sobre que
+tenant, por que ruta":
+
+| Campo | Descripcion |
+|-------|-------------|
+| `actorRole` | Rol del actor al momento de la accion (leido de la DB, no del cookie cache) |
+| `actorClientId` | Tenant/cliente al que pertenece el actor (`null` = global/superadmin) |
+| `method` | Metodo HTTP del request (`POST`, `PATCH`, `DELETE`, ...) |
+| `path` | Ruta del API route que ejecuto la accion |
+
+En la vista `/audit` aparece como la seccion **Request / Actor** al expandir la fila. Los
+eventos `LOGIN`/`LOGOUT` (via `logAuditDirect`) no llevan `_meta` — su metadata valiosa es
+la geolocalizacion/reputacion de la IP.
 
 ---
 
