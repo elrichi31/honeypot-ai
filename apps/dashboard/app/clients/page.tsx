@@ -6,12 +6,14 @@ import { ClientManager } from "@/components/clients/client-manager"
 import { fetchClients, fetchSensors } from "@/lib/api"
 import type { Client, Sensor } from "@/lib/api"
 import { getServerT } from "@/lib/i18n/server"
+import { forbidCliente } from "@/lib/page-guards"
 
 export const metadata: Metadata = {
   title: "Clients — HoneyTrap",
 }
 
 export default async function ClientsPage() {
+  await forbidCliente()
   const t = await getServerT()
   let clients: Client[] = []
   let sensors: Sensor[] = []

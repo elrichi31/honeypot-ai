@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { forbidCliente } from "@/lib/page-guards"
 import { Shield } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { apiFetch, getApiUrl } from "@/lib/api/client"
@@ -19,6 +20,7 @@ async function fetchInitialStats(): Promise<Stats | null> {
 }
 
 export default async function SuricataPage() {
+  await forbidCliente()
   const [t, initialStats] = await Promise.all([getServerT(), fetchInitialStats()])
 
   return (

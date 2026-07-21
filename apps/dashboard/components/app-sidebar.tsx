@@ -127,6 +127,24 @@ const navSections = [
   },
 ] as const
 
+// ── `cliente` sidebar policy ──────────────────────────────────────────────────
+// A cliente sees a curated, sensor-aware subset. Staff (global) are unaffected.
+type ClientModules = { ssh: boolean; web: boolean; network: boolean }
+
+// Sections a cliente never sees.
+const CLIENTE_HIDDEN_SECTIONS = new Set(["infrastructure", "administration"])
+// Intelligence items a cliente never sees (Network IDS + API Defense).
+const CLIENTE_HIDDEN_ITEMS = new Set(["/suricata", "/api-defense"])
+
+// Honeypot sections are shown only when the client has that kind of sensor.
+function clienteSectionVisible(key: string, modules: ClientModules | null): boolean {
+  if (CLIENTE_HIDDEN_SECTIONS.has(key)) return false
+  if (key === "ssh") return !!modules?.ssh
+  if (key === "web") return !!modules?.web
+  if (key === "network") return !!modules?.network
+  return true // inicio + intelligence (intelligence is filtered at item level)
+}
+
 function useHealthCheck() {
   // Deterministic initial value (server === client) to avoid hydration #418;
   // the cached value is loaded in an effect, client-only.
@@ -177,6 +195,8 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
   // sections — a structural mismatch that tears down the tree. We start at
   // "viewer" everywhere and reconcile from localStorage + /api/me in effects.
   const [myRole, setMyRole] = useState<Role>("viewer")
+  // Sensor-derived module flags for a `cliente` (null = staff / not yet loaded).
+  const [myModules, setMyModules] = useState<ClientModules | null>(null)
 
   useEffect(() => {
     const cached = localStorage.getItem("sidebar_role") as Role | null
@@ -191,6 +211,7 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
           setMyRole(data.role as Role)
           localStorage.setItem("sidebar_role", data.role)
         }
+        setMyModules(data?.modules ?? null)
       })
       .catch(() => {})
   }, [])
@@ -224,8 +245,11 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
     setOpenSections((current) => ({ ...current, [key]: true }))
   }
 
-  const visibleSections = navSections.filter(
-    (section) => !("minRole" in section) || hasPermission(myRole, (section as { minRole: Role }).minRole),
+  const isCliente = myRole === "cliente"
+  const visibleSections = navSections.filter((section) =>
+    isCliente
+      ? clienteSectionVisible(section.key, myModules)
+      : !("minRole" in section) || hasPermission(myRole, (section as { minRole: Role }).minRole),
   )
 
   return (
@@ -359,7 +383,11 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
                   /* Indented sub-items with a vertical guide rail on the left so
                      it reads as a nested group (like the reference). */
                   <div className="ml-[18px] mt-0.5 space-y-0.5 border-l border-border/60 pl-2">
-                    {section.items.filter((item) => !("minRole" in item) || hasPermission(myRole, (item as { minRole: Role }).minRole)).map((item) => {
+                    {section.items.filter((item) =>
+                      isCliente
+                        ? !CLIENTE_HIDDEN_ITEMS.has(item.href)
+                        : !("minRole" in item) || hasPermission(myRole, (item as { minRole: Role }).minRole),
+                    ).map((item) => {
                       const isActive =
                         pathname === item.href ||
                         (item.href !== "/" && pathname.startsWith(`${item.href}/`))

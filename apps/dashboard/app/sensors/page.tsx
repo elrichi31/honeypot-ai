@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 
 import type { Metadata } from "next"
 import Link from "next/link"
+import { forbidCliente } from "@/lib/page-guards"
 import { Activity, Server, Wifi, Waypoints } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
@@ -49,6 +50,7 @@ export default async function SensorsPage({
 }: {
   searchParams: Promise<{ layer?: string }>
 }) {
+  await forbidCliente()
   const t = await getServerT()
   const { layer } = await searchParams
   let sensors: Sensor[] = []

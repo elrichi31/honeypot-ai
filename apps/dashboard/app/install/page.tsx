@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { forbidCliente } from "@/lib/page-guards"
 import Link from "next/link"
 import { Server, Terminal, CheckCircle2, AlertTriangle, BookOpen, ExternalLink } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
@@ -36,6 +37,7 @@ export const metadata: Metadata = {
 }
 
 export default async function InstallGuidePage() {
+  await forbidCliente()
   const t = await getServerT()
   return (
     <PageShell>

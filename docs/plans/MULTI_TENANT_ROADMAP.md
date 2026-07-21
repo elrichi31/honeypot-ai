@@ -65,7 +65,8 @@
   id. Front: `fetchSessionsPage/ScanGroupsPage/Session` aceptan `sensorIds?`; `sessions/page.tsx`,
   `sessions/[id]/page.tsx` y `campaigns/page.tsx` lo derivan con `effectiveSensorScope`.
   Helper `narrowToTenant` cubierto por `sensor-scope.test.ts` (reusable para threats/web).
-  Deuda menor: `campaigns` aún deja `fetchSessionCommands` sin scope (cae con el módulo commands, #4).
+  `campaigns` ✅ totalmente scopeado (jul 2026): `fetchSessionCommands` / `/stats/session-commands`
+  también scopea vía `session.sensorId` (`in: []` = fail-closed), con `cacheSuffix` en la key.
 - **Threats** (`/threats`, `/threats/[ip]`): ✅ hecho (jul 2026). `resolveScope` usa `narrowToTenant`
   (techo de tenant + filtro manual `clientSlug`/`sensorId`). `getThreatByIp` ahora es fail-closed:
   scopea las 6 queries del detalle por `sensor_id` y devuelve 404 si el IP no tiene telemetría en los
@@ -148,12 +149,18 @@ mandarlo; (c) en el endpoint backend, `parseSensorScope` + `cond('sensor_id')` +
 - ~~`AttackHeatmap` no scopeado~~ → hecho vía `app/api/stats/heatmap/route.ts`.
   (Patrón a reusar: componente client-fetched → route handler `app/api/*` que re-deriva el scope.)
 
-### 3. Aislamiento de la gestión (no solo telemetría)
-- **`/users`**: hoy un admin de tenant vería TODOS los usuarios de todos los clientes. Debe
-  limitarse a los usuarios de su tenant (y no poder crear superadmins). superadmin ve todos.
-- **`/sensors`** y **`/clients`**: un usuario de tenant no debería ver sensores/clientes de otros.
-- **`/settings`**, **`/storage`**, **`/monitoring`**, **`/audit`**: decidir si son globales
-  (solo superadmin) o por-tenant.
+### 3. Aislamiento de la gestión — ✅ RESUELTO POR DISEÑO (jul 2026, modelo `cliente`)
+El modelo de roles cambió: **staff = global** (superadmin/admin/analyst/viewer ven todos los
+tenants), y el **único rol scopeado es `cliente`** (atado a su `clientId`, solo lectura). Así que
+no existe "admin de tenant" — la gestión es global para staff, y un `cliente` **no puede llegar** a
+ninguna página de gestión/infra:
+- Nav: el sidebar oculta Infrastructure/Administration + Network IDS + API Defense para `cliente`, y
+  muestra SSH/Web/Network solo si tiene ese tipo de sensor (`/api/me` → `modules`, derivado de
+  `sensors.protocol`).
+- URL: guard server-side `forbidCliente()` (`lib/page-guards.ts`) redirige a `/` desde
+  `users/sensors/clients/settings/storage/monitoring/install/audit/sessions-admin/suricata/api-defense/network`.
+- Permisos: `cliente` tiene rank de `viewer` (no pasa `requireRole('analyst'|'admin')`), y la
+  creación de usuarios corre por `authAdmin` (sin `nextCookies`) para no secuestrar la sesión del admin.
 
 ### 4. Vistas materializadas / rollups sin `sensor_id`
 Tablas que agregan y **no** tienen `sensor_id` → no se pueden filtrar directo:

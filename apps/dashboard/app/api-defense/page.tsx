@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { forbidCliente } from "@/lib/page-guards"
 import { ShieldAlert } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { DefenseStats } from "@/components/defense/defense-stats"
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 }
 
 export default async function ApiDefensePage() {
+  await forbidCliente()
   const t = await getServerT()
   return (
     <PageShell>
