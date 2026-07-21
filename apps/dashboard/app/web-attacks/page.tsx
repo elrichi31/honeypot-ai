@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import Link from "next/link"
 import { fetchWebHitsByIpPage, fetchWebHitsStats, fetchClients, fetchSensors } from "@/lib/api"
+import { effectiveSensorScope } from "@/lib/tenant-scope"
 import { PageShell } from "@/components/page-shell"
 import { ErrorState } from "@/components/ui/data-states"
 import { SearchInput } from "@/components/ui/search-input"
@@ -119,10 +120,11 @@ export default async function WebAttacksPage({
   let stats: Awaited<ReturnType<typeof fetchWebHitsStats>>
   let clients: Awaited<ReturnType<typeof fetchClients>> = []
   let sensors: Awaited<ReturnType<typeof fetchSensors>> = []
+  const { sensorIds } = await effectiveSensorScope()
   try {
     ;[attackersPage, stats, clients, sensors] = await Promise.all([
-      fetchWebHitsByIpPage({ page, pageSize, q, attackType, range, clientSlug, sensorId, sortBy, sortDir }),
-      fetchWebHitsStats({ range, clientSlug, sensorId }),
+      fetchWebHitsByIpPage({ page, pageSize, q, attackType, range, clientSlug, sensorId, sortBy, sortDir }, sensorIds),
+      fetchWebHitsStats({ range, clientSlug, sensorId }, sensorIds),
       fetchClients().catch(() => []),
       fetchSensors().catch(() => []),
     ])

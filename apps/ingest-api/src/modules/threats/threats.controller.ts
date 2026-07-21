@@ -12,6 +12,7 @@ import {
   type ThreatListFilters,
 } from './threats.service.js'
 import { isInternalIp } from '../../lib/internal-ip.js'
+import { parseSensorScope } from '../../lib/sensor-scope.js'
 
 function csvEnum<T extends string>(allowed: readonly T[]) {
   const allowedSet = new Set<string>(allowed)
@@ -68,7 +69,8 @@ export async function threatRoutes(fastify: FastifyInstance) {
     if (!parsed.success) return sendInvalidQuery(reply, parsed.error)
     const { page, pageSize, offset } = getPagination(parsed.data)
 
-    const { scope, scopeKey } = await svc.resolveScope(parsed.data.clientSlug, parsed.data.sensorId, fastify.prismaRead)
+    const tenant = parseSensorScope(request.query as Record<string, unknown>)
+    const { scope, scopeKey } = await svc.resolveScope(tenant, parsed.data.clientSlug, parsed.data.sensorId, fastify.prismaRead)
     const levels = effectiveLevels(parsed.data)
 
     const filters: ThreatListFilters = {
@@ -94,7 +96,10 @@ export async function threatRoutes(fastify: FastifyInstance) {
   fastify.get('/threats/:ip', async (request, reply) => {
     const { ip } = request.params as { ip: string }
     if (isInternalIp(ip)) return reply.status(404).send({ error: 'Threat not found' })
-    const { threat, cmdRows, cmds, portScanEvents, portScanUniquePorts, scannedPorts, protocolCmdRows } = await svc.getThreatByIp(ip)
+    const tenant = parseSensorScope(request.query as Record<string, unknown>)
+    const { scope } = await svc.resolveScope(tenant, undefined, undefined, fastify.prismaRead)
+    const { hasData, threat, cmdRows, cmds, portScanEvents, portScanUniquePorts, scannedPorts, protocolCmdRows } = await svc.getThreatByIp(ip, scope)
+    if (scope && !hasData) return reply.status(404).send({ error: 'Threat not found' })
     return reply.send({
       ip,
       protocolsSeen: threat.protocolsSeen,

@@ -24,6 +24,7 @@ import { AiSummary } from "@/components/ai-summary"
 import { ThreatIntelCard } from "@/components/threat-intel-card"
 import { detectBotnetFamily, extractIocs, hasThreatIntel } from "@/lib/botnet-signatures"
 import { fetchSession, fetchThreat } from "@/lib/api"
+import { effectiveSensorScope } from "@/lib/tenant-scope"
 import { RiskBadge } from "@/components/risk-badge"
 import { StatCard } from "@/components/stat-card"
 import { Surface } from "@/components/ui/surface"
@@ -60,17 +61,18 @@ export default async function SessionReplayPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const { sensorIds } = await effectiveSensorScope()
   let session
   let threat = null
 
   try {
-    session = await fetchSession(id)
+    session = await fetchSession(id, sensorIds)
   } catch {
     notFound()
   }
 
   try {
-    threat = await fetchThreat(session.srcIp)
+    threat = await fetchThreat(session.srcIp, sensorIds)
   } catch {
     // threat data may not exist yet for this IP
   }

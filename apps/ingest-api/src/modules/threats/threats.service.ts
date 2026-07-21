@@ -13,6 +13,7 @@ import { computeRiskScore, classifyCommands } from '../../lib/risk-score.js'
 import { resolveClientSensors } from '../../lib/client-helpers.js'
 import { withCache } from '../../lib/cache-helper.js'
 import { isInternalIp } from '../../lib/internal-ip.js'
+import { narrowToTenant, type SensorScope } from '../../lib/sensor-scope.js'
 
 export type { ThreatScope, ThreatItem }
 
@@ -39,18 +40,24 @@ export class ThreatService {
     this.repo = new ThreatRepository(prismaRead)
   }
 
+  // Tenant scope (cookie) is the hard ceiling; the optional clientSlug/sensorId
+  // filter can only narrow WITHIN it (via narrowToTenant), never widen.
   async resolveScope(
+    tenant: SensorScope,
     clientSlug: string | undefined,
     sensorId: string | undefined,
     prismaRead: PrismaClient,
   ): Promise<{ scope: ThreatScope; scopeKey: string }> {
-    if (sensorId) return { scope: { sensorIds: [sensorId] }, scopeKey: `:s=${sensorId}` }
-    if (clientSlug) {
-      const cs = await resolveClientSensors(prismaRead, clientSlug)
-      const sensorIds = cs?.sensorIds ?? []
-      return { scope: { sensorIds }, scopeKey: `:c=${clientSlug}` }
+    let manual: string[] | undefined
+    if (sensorId) manual = [sensorId]
+    else if (clientSlug) manual = (await resolveClientSensors(prismaRead, clientSlug))?.sensorIds ?? []
+
+    const ids = narrowToTenant(tenant, manual)
+    const manualKey = sensorId ? `:s=${sensorId}` : clientSlug ? `:c=${clientSlug}` : ''
+    return {
+      scope: ids === undefined ? undefined : { sensorIds: ids },
+      scopeKey: `:t=${tenant.cacheSuffix}${manualKey}`,
     }
-    return { scope: undefined, scopeKey: '' }
   }
 
   async listThreats(
@@ -72,20 +79,24 @@ export class ThreatService {
     )
   }
 
-  async getThreatByIp(ip: string) {
+  async getThreatByIp(ip: string, scope?: ThreatScope) {
     const [sshRows, cmdRows, webRows, protocolRows, portscanRows, protocolCmdRows] = await Promise.all([
-      this.repo.querySshRow(ip),
-      this.repo.queryCommandsByIp(ip),
-      this.repo.queryWebRow(ip),
-      this.repo.queryProtocolRowsByIp(ip),
-      this.repo.queryPortscanByIp(ip),
-      this.repo.queryProtocolCommandsByIp(ip),
+      this.repo.querySshRow(ip, scope),
+      this.repo.queryCommandsByIp(ip, scope),
+      this.repo.queryWebRow(ip, scope),
+      this.repo.queryProtocolRowsByIp(ip, scope),
+      this.repo.queryPortscanByIp(ip, scope),
+      this.repo.queryProtocolCommandsByIp(ip, scope),
     ])
     const cmds = cmdRows.flatMap((row) => row.command ? [row.command] : [])
     const ps = portscanRows[0]
     const portScanEvents = Number(ps?.scan_events ?? 0)
     const portScanUniquePorts = (ps?.scanned_ports ?? []).length
+    // Fail-closed: within a tenant scope, an IP with no telemetry on the
+    // tenant's own sensors must read as "not found" rather than an empty shell.
+    const hasData = sshRows.length > 0 || webRows.length > 0 || protocolRows.length > 0 || portScanEvents > 0
     return {
+      hasData,
       threat: buildThreat(ip, sshRows[0], webRows[0], cmds, protocolRows, portScanEvents, portScanUniquePorts),
       cmdRows,
       cmds,

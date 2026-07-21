@@ -5,6 +5,7 @@ import { WebAttacksNav } from "@/components/web-attacks-nav"
 import { PageShell } from "@/components/page-shell"
 import { SectionError } from "@/components/section-error"
 import { fetchWebHitsByIp } from "@/lib/api"
+import { effectiveSensorScope } from "@/lib/tenant-scope"
 import { geolocateWebHits } from "@/lib/geo"
 import { WebGeoMap } from "./web-geo-map"
 
@@ -13,9 +14,10 @@ export const metadata: Metadata = {
 }
 
 export default async function WebGeoPage() {
+  const { sensorIds } = await effectiveSensorScope()
   let attackers
   try {
-    attackers = await fetchWebHitsByIp()
+    attackers = await fetchWebHitsByIp(undefined, sensorIds)
   } catch {
     return (
       <PageShell>

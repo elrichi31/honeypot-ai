@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 import { TimeAgo } from "@/components/time-ago"
 import { fetchWebSessionDetail } from "@/lib/api"
+import { effectiveSensorScope } from "@/lib/tenant-scope"
 import { lookupIp } from "@/lib/geo"
 import { enrichIp } from "@/lib/ip-enrichment"
 import { PageShell } from "@/components/page-shell"
@@ -86,9 +87,10 @@ export default async function SessionDetailPage({
   const { fingerprint } = await params
   const fp = decodeURIComponent(fingerprint)
 
+  const { sensorIds } = await effectiveSensorScope()
   let detail: Awaited<ReturnType<typeof fetchWebSessionDetail>> | null = null
   try {
-    detail = await fetchWebSessionDetail(fp)
+    detail = await fetchWebSessionDetail(fp, sensorIds)
   } catch {
     // endpoint returned 404 or network error
   }

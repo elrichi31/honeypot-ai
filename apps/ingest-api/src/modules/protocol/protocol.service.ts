@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client'
 import type { FastifyInstance } from 'fastify'
 import { ProtocolRepository } from './protocol.repository.js'
 import { withCache } from '../../lib/cache-helper.js'
+import type { SensorScope } from '../../lib/sensor-scope.js'
 
 export class ProtocolService {
   private repo: ProtocolRepository
@@ -10,20 +11,20 @@ export class ProtocolService {
     this.repo = new ProtocolRepository(prismaRead)
   }
 
-  async list(protocol: string | null, limit: number, page: number) {
+  async list(protocol: string | null, limit: number, page: number, scope: SensorScope) {
     const offset = (page - 1) * limit
     const [rows, total] = await Promise.all([
-      this.repo.list(protocol, limit, offset),
-      this.repo.count(protocol),
+      this.repo.list(protocol, limit, offset, scope),
+      this.repo.count(protocol, scope),
     ])
     return { data: rows, meta: { page, limit, total } }
   }
 
-  async getInsights(cache: FastifyInstance['cache'], protocol: string) {
-    return withCache(cache, `protocol-insights:${protocol}`, 1800, async () => {
+  async getInsights(cache: FastifyInstance['cache'], protocol: string, scope: SensorScope) {
+    return withCache(cache, `protocol-insights:${protocol}:${scope.cacheSuffix}`, 1800, async () => {
       const isSmb = protocol === 'smb'
       const { totals, topIps, topPorts, topUsernames, topPasswords, topCommands, topServices, topDatabases, topDomains, topShares, topNativeOS, topNtlmHashes, eventBreakdown, topCredentials } =
-        await this.repo.getInsights(protocol, isSmb)
+        await this.repo.getInsights(protocol, isSmb, scope)
 
       const total = totals[0]
       return {
@@ -41,16 +42,16 @@ export class ProtocolService {
     })
   }
 
-  async getStats(cache: FastifyInstance['cache']) {
-    return withCache(cache, 'protocol-hits:stats', 1800, async () => {
-      const rows = await this.repo.getStats()
+  async getStats(cache: FastifyInstance['cache'], scope: SensorScope) {
+    return withCache(cache, `protocol-hits:stats:${scope.cacheSuffix}`, 1800, async () => {
+      const rows = await this.repo.getStats(scope)
       return rows.map(r => ({ protocol: r.protocol, count: Number(r.count), lastSeen: r.last_seen, authAttempts: Number(r.auth_attempts) }))
     })
   }
 
-  async getPortStats(cache: FastifyInstance['cache']) {
-    return withCache(cache, 'protocol-hits:ports-stats', 1800, async () => {
-      const rows = await this.repo.getPortStats()
+  async getPortStats(cache: FastifyInstance['cache'], scope: SensorScope) {
+    return withCache(cache, `protocol-hits:ports-stats:${scope.cacheSuffix}`, 1800, async () => {
+      const rows = await this.repo.getPortStats(scope)
       return rows.map(r => ({ protocol: r.protocol, dstPort: r.dst_port, count: Number(r.count), lastSeen: r.last_seen, authAttempts: Number(r.auth_attempts) }))
     })
   }

@@ -7,6 +7,7 @@ import { lookupIp } from "@/lib/geo"
 import { ClientSensorFilter } from "@/components/client-sensor-filter"
 import { Surface } from "@/components/ui/surface"
 import { parsePage } from "@/lib/utils"
+import { effectiveSensorScope } from "@/lib/tenant-scope"
 
 const PAGE_SIZE_OPTIONS = new Set(["20", "30", "50", "100"])
 
@@ -42,14 +43,16 @@ export default async function SessionsPage({
   const clientSlug = params.clientSlug?.trim() || undefined
   const sensorId = params.sensorId?.trim() || undefined
 
+  const { sensorIds } = await effectiveSensorScope()
+
   let sessionPage: Awaited<ReturnType<typeof fetchSessionsPage>> | null = null
   let clients: Awaited<ReturnType<typeof fetchClients>> = []
   let sensors: Awaited<ReturnType<typeof fetchSensors>> = []
   try {
     ;[sessionPage, clients, sensors] = await Promise.all([
       tab === "scans"
-        ? fetchSessionScanGroupsPage({ page, pageSize, q, clientSlug, sensorId })
-        : fetchSessionsPage({ page, pageSize, q, outcome: "compromised", actor, sortDir, clientSlug, sensorId }),
+        ? fetchSessionScanGroupsPage({ page, pageSize, q, clientSlug, sensorId }, sensorIds)
+        : fetchSessionsPage({ page, pageSize, q, outcome: "compromised", actor, sortDir, clientSlug, sensorId }, sensorIds),
       fetchClients().catch(() => []),
       fetchSensors().catch(() => []),
     ])

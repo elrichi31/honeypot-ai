@@ -9,6 +9,7 @@ import { lakeProducer, LAKE_TOPICS } from '../../lib/lake-producer.js'
 import { enqueueProtocolHit } from '../../lib/protocol-batch.js'
 import { ProtocolService } from './protocol.service.js'
 import { isInternalIp } from '../../lib/internal-ip.js'
+import { parseSensorScope } from '../../lib/sensor-scope.js'
 
 const protocolEventSchema = z.object({
   eventId: z.string().uuid(),
@@ -103,19 +104,23 @@ export async function protocolRoutes(fastify: FastifyInstance) {
 
   fastify.get('/protocol-hits', async (request, reply) => {
     const q = listQuerySchema.parse(request.query)
-    return reply.send(await svc.list(q.protocol ?? null, q.limit, q.page))
+    const scope = parseSensorScope(request.query as Record<string, unknown>)
+    return reply.send(await svc.list(q.protocol ?? null, q.limit, q.page, scope))
   })
 
   fastify.get('/protocol-hits/insights', async (request, reply) => {
     const q = insightsQuerySchema.parse(request.query)
-    return reply.send(await svc.getInsights(fastify.cache, q.protocol))
+    const scope = parseSensorScope(request.query as Record<string, unknown>)
+    return reply.send(await svc.getInsights(fastify.cache, q.protocol, scope))
   })
 
-  fastify.get('/protocol-hits/stats', async (_request, reply) => {
-    return reply.send(await svc.getStats(fastify.cache))
+  fastify.get('/protocol-hits/stats', async (request, reply) => {
+    const scope = parseSensorScope(request.query as Record<string, unknown>)
+    return reply.send(await svc.getStats(fastify.cache, scope))
   })
 
-  fastify.get('/protocol-hits/ports/stats', async (_request, reply) => {
-    return reply.send(await svc.getPortStats(fastify.cache))
+  fastify.get('/protocol-hits/ports/stats', async (request, reply) => {
+    const scope = parseSensorScope(request.query as Record<string, unknown>)
+    return reply.send(await svc.getPortStats(fastify.cache, scope))
   })
 }

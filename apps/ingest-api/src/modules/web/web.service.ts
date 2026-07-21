@@ -8,6 +8,7 @@ import {
   buildSortSql,
   buildBurstSortSql,
   rangeToInterval,
+  sensorCondition,
   type WebHitsByIpRow,
   type WebSessionRow,
   type BurstSortBy,
@@ -17,6 +18,7 @@ import { isWebHitBot } from '../../lib/bot-detector.js'
 import { resolveClientSensors } from '../../lib/client-helpers.js'
 import { withCache } from '../../lib/cache-helper.js'
 import { buildPaginationResponse } from '../../lib/pagination.js'
+import { narrowToTenant, type SensorScope } from '../../lib/sensor-scope.js'
 
 export type { WebHitsByIpRow, WebSessionRow, BurstSortBy }
 export { buildByIpWhereSql, buildWebHitsWhereSql, buildSortSql, buildBurstSortSql, rangeToInterval }
@@ -32,18 +34,18 @@ export class WebService {
     return this.repo.insertWebHit(d, sensorId)
   }
 
-  async listHits(params: { limit: number; offset: number; attackType?: string; srcIp?: string }) {
-    const whereSql = buildWebHitsWhereSql({ attackType: params.attackType, srcIp: params.srcIp })
+  async listHits(params: { limit: number; offset: number; attackType?: string; srcIp?: string; sensorIds?: string[] }) {
+    const whereSql = buildWebHitsWhereSql({ attackType: params.attackType, srcIp: params.srcIp, sensorIds: params.sensorIds })
     const { total, hits } = await this.repo.listHits(whereSql, params.limit, params.offset)
     return { total, hits: hits.map((h) => ({ ...h, isBot: isWebHitBot(h.attackType, h.userAgent) })) }
   }
 
-  getTimeline(cache: FastifyInstance['cache']) {
-    return withCache(cache, 'web-hits:timeline', 300, () => this.repo.getTimeline())
+  getTimeline(cache: FastifyInstance['cache'], sensorIds: string[] | undefined, scopeKey: string) {
+    return withCache(cache, `web-hits:timeline:${scopeKey}`, 300, () => this.repo.getTimeline(sensorIds))
   }
 
-  getPaths(cache: FastifyInstance['cache']) {
-    return withCache(cache, 'web-hits:paths', 600, () => this.repo.getPaths())
+  getPaths(cache: FastifyInstance['cache'], sensorIds: string[] | undefined, scopeKey: string) {
+    return withCache(cache, `web-hits:paths:${scopeKey}`, 600, () => this.repo.getPaths(sensorIds))
   }
 
   async getStats(
@@ -59,14 +61,16 @@ export class WebService {
     )
   }
 
-  getHourly(cache: FastifyInstance['cache'], range: string | undefined) {
+  getHourly(cache: FastifyInstance['cache'], range: string | undefined, sensorIds: string[] | undefined, scopeKey: string) {
     const interval = rangeToInterval(range)
-    const windowSql = interval
-      ? Prisma.sql`WHERE timestamp >= NOW() - ${interval}::interval`
+    const timeCond = interval
+      ? Prisma.sql`timestamp >= NOW() - ${interval}::interval`
       : range === 'all'
-        ? Prisma.sql``
-        : Prisma.sql`WHERE timestamp >= NOW() - INTERVAL '7 days'`
-    return withCache(cache, `web-hits:hourly:${range ?? ''}`, 300, () => this.repo.getHourly(windowSql))
+        ? null
+        : Prisma.sql`timestamp >= NOW() - INTERVAL '7 days'`
+    const clauses = [timeCond, sensorCondition(sensorIds)].filter((c): c is Prisma.Sql => c !== null)
+    const windowSql = clauses.length ? Prisma.sql`WHERE ${Prisma.join(clauses, ' AND ')}` : Prisma.sql``
+    return withCache(cache, `web-hits:hourly:${range ?? ''}:${scopeKey}`, 300, () => this.repo.getHourly(windowSql))
   }
 
   async getByIp(
@@ -182,23 +186,28 @@ export class WebService {
     })
   }
 
-  getSessionHits(fingerprint: string) {
-    return this.repo.querySessionHits(fingerprint, 500)
+  getSessionHits(fingerprint: string, sensorIds?: string[]) {
+    return this.repo.querySessionHits(fingerprint, 500, sensorIds)
   }
 }
 
+// Tenant scope (cookie) is the hard ceiling; the optional clientSlug/sensorId
+// filter can only narrow WITHIN it (narrowToTenant), never widen.
 export async function resolveSensorScope(
   prismaRead: PrismaClient,
+  tenant: SensorScope,
   clientSlug?: string,
   sensorId?: string,
 ): Promise<string[] | undefined> {
-  if (!clientSlug && !sensorId) return undefined
+  let manual: string[] | undefined
   if (clientSlug) {
     const cs = await resolveClientSensors(prismaRead, clientSlug)
-    if (!cs) return []
-    return sensorId ? cs.sensorIds.filter((id) => id === sensorId) : cs.sensorIds
+    const ids = cs?.sensorIds ?? []
+    manual = sensorId ? ids.filter((id) => id === sensorId) : ids
+  } else if (sensorId) {
+    manual = [sensorId]
   }
-  return sensorId ? [sensorId] : undefined
+  return narrowToTenant(tenant, manual)
 }
 
 function mapByIpRow(row: WebHitsByIpRow) {

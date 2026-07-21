@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { Zap, ArrowUp, ArrowDown, ArrowUpDown, SearchX } from "lucide-react"
 import { fetchWebBursts, fetchClients, fetchSensors } from "@/lib/api"
+import { effectiveSensorScope } from "@/lib/tenant-scope"
 import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
 import { ErrorState } from "@/components/ui/data-states"
@@ -87,9 +88,10 @@ export default async function WebBurstsPage({
   let burstsPage: Awaited<ReturnType<typeof fetchWebBursts>>
   let clients: Awaited<ReturnType<typeof fetchClients>> = []
   let sensors: Awaited<ReturnType<typeof fetchSensors>> = []
+  const { sensorIds } = await effectiveSensorScope()
   try {
     ;[burstsPage, clients, sensors] = await Promise.all([
-      fetchWebBursts({ page, pageSize: 50, attackType, range, clientSlug, sensorId, gapMinutes, sortBy, sortDir }),
+      fetchWebBursts({ page, pageSize: 50, attackType, range, clientSlug, sensorId, gapMinutes, sortBy, sortDir }, sensorIds),
       fetchClients().catch(() => []),
       fetchSensors().catch(() => []),
     ])

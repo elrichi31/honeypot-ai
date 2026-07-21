@@ -10,6 +10,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { readConfig } from "@/lib/server-config"
 import { formatInTimezone } from "@/lib/timezone"
 import { parsePage } from "@/lib/utils"
+import { effectiveSensorScope } from "@/lib/tenant-scope"
 
 const PROTOCOL_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   ftp: { bg: "bg-yellow-400/10", text: "text-yellow-400", border: "border-yellow-400/30" },
@@ -45,12 +46,14 @@ export default async function ServicesPage({
   const formatDate = (d: string) =>
     formatInTimezone(d, tz, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
 
+  const { sensorIds } = await effectiveSensorScope()
+
   let stats, portStats, hitsPage
   try {
     [stats, portStats, hitsPage] = await Promise.all([
-      fetchProtocolStats(),
-      fetchTargetPortStats(),
-      fetchProtocolHits({ page, limit: 50, protocol }),
+      fetchProtocolStats(sensorIds),
+      fetchTargetPortStats(sensorIds),
+      fetchProtocolHits({ page, limit: 50, protocol }, sensorIds),
     ])
   } catch {
     return (

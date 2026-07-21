@@ -4,6 +4,7 @@ import { PageShell } from "@/components/page-shell"
 import Link from "next/link"
 import { ArrowLeft, ShieldAlert, Terminal, Globe, Activity, Radar } from "lucide-react"
 import { fetchThreat } from "@/lib/api"
+import { effectiveSensorScope } from "@/lib/tenant-scope"
 import { readConfig } from "@/lib/server-config"
 import { formatInTimezone } from "@/lib/timezone"
 import { LEVEL_STYLES, CMD_COLORS, CMD_LABELS } from "@/lib/attack-types"
@@ -68,9 +69,11 @@ export default async function ThreatDetailPage({
   const srcIp = decodeURIComponent(ip)
   const tz = readConfig().timezone ?? process.env.DASHBOARD_TIMEZONE ?? "UTC"
 
+  const { sensorIds } = await effectiveSensorScope()
+
   let threat
   try {
-    threat = await fetchThreat(srcIp)
+    threat = await fetchThreat(srcIp, sensorIds)
   } catch {
     notFound()
   }

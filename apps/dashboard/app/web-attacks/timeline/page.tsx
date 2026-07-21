@@ -6,6 +6,7 @@ import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
 import { SectionError } from "@/components/section-error"
 import { fetchWebTimeline, fetchWebHitsStats, fetchWebHourly } from "@/lib/api"
+import { effectiveSensorScope } from "@/lib/tenant-scope"
 import { HourlyHeatmap } from "./hourly-heatmap"
 import type { WebHourlyCell } from "@/lib/api"
 import nextDynamic from "next/dynamic"
@@ -23,11 +24,12 @@ export const metadata: Metadata = {
 export default async function WebTimelinePage() {
   let days, attackTypes, stats
   let hourly: WebHourlyCell[] = []
+  const { sensorIds } = await effectiveSensorScope()
   try {
     const [timeline, hitsStats, hourlyData] = await Promise.all([
-      fetchWebTimeline(),
-      fetchWebHitsStats(),
-      fetchWebHourly({ range: "7d" }),
+      fetchWebTimeline(sensorIds),
+      fetchWebHitsStats(undefined, sensorIds),
+      fetchWebHourly({ range: "7d" }, sensorIds),
     ])
     days = timeline.days
     attackTypes = timeline.attackTypes

@@ -110,7 +110,8 @@ export class ThreatRepository {
     `
   }
 
-  async querySshRow(ip: string): Promise<SshAggRow[]> {
+  async querySshRow(ip: string, scope?: ThreatScope): Promise<SshAggRow[]> {
+    const s = sensorScope(scope, Prisma.raw('s.sensor_id'))
     return this.prismaRead.$queryRaw<SshAggRow[]>`
       SELECT
         s.src_ip,
@@ -121,12 +122,13 @@ export class ThreatRepository {
         MAX(COALESCE(s.ended_at, s.started_at))                                     AS last_seen
       FROM sessions s
       LEFT JOIN events e ON e.session_id = s.id
-      WHERE s.src_ip = ${ip}
+      WHERE s.src_ip = ${ip} ${s ? Prisma.sql`AND ${s}` : Prisma.empty}
       GROUP BY s.src_ip
     `
   }
 
-  async queryWebRow(ip: string): Promise<WebAggRow[]> {
+  async queryWebRow(ip: string, scope?: ThreatScope): Promise<WebAggRow[]> {
+    const s = sensorScope(scope, Prisma.raw('sensor_id'))
     return this.prismaRead.$queryRaw<WebAggRow[]>`
       SELECT
         src_ip,
@@ -138,12 +140,13 @@ export class ThreatRepository {
         MIN(timestamp)                                                 AS first_seen,
         MAX(timestamp)                                                 AS last_seen
       FROM web_hits
-      WHERE src_ip = ${ip}
+      WHERE src_ip = ${ip} ${s ? Prisma.sql`AND ${s}` : Prisma.empty}
       GROUP BY src_ip
     `
   }
 
-  async queryProtocolRowsByIp(ip: string): Promise<ProtocolAggRow[]> {
+  async queryProtocolRowsByIp(ip: string, scope?: ThreatScope): Promise<ProtocolAggRow[]> {
+    const s = sensorScope(scope, Prisma.raw('sensor_id'))
     return this.prismaRead.$queryRaw<ProtocolAggRow[]>`
       SELECT
         src_ip,
@@ -158,32 +161,37 @@ export class ThreatRepository {
         MIN(timestamp)                                                                        AS first_seen,
         MAX(timestamp)                                                                        AS last_seen
       FROM protocol_hits
-      WHERE src_ip = ${ip}
+      WHERE src_ip = ${ip} ${s ? Prisma.sql`AND ${s}` : Prisma.empty}
       GROUP BY src_ip, protocol
     `
   }
 
-  async queryPortscanByIp(ip: string): Promise<Array<{ scan_events: bigint; scanned_ports: number[] }>> {
+  async queryPortscanByIp(ip: string, scope?: ThreatScope): Promise<Array<{ scan_events: bigint; scanned_ports: number[] }>> {
+    const s = sensorScope(scope, Prisma.raw('sensor_id'))
     return this.prismaRead.$queryRaw<Array<{ scan_events: bigint; scanned_ports: number[] }>>`
       SELECT COUNT(DISTINCT id) AS scan_events, ARRAY_AGG(DISTINCT port) AS scanned_ports
-      FROM (SELECT id, UNNEST(dst_ports) AS port FROM deception_portscans WHERE src_ip = ${ip}) flat
+      FROM (SELECT id, UNNEST(dst_ports) AS port FROM deception_portscans WHERE src_ip = ${ip} ${s ? Prisma.sql`AND ${s}` : Prisma.empty}) flat
     `
   }
 
   /** Raw commands/inputs typed against non-SSH honeypots (ftp, mysql, smb, etc via port-honeypot). */
-  async queryProtocolCommandsByIp(ip: string): Promise<Array<{ protocol: string; command: string; timestamp: Date }>> {
+  async queryProtocolCommandsByIp(ip: string, scope?: ThreatScope): Promise<Array<{ protocol: string; command: string; timestamp: Date }>> {
+    const s = sensorScope(scope, Prisma.raw('sensor_id'))
     return this.prismaRead.$queryRaw<Array<{ protocol: string; command: string; timestamp: Date }>>`
       SELECT protocol, data->>'command' AS command, timestamp
       FROM protocol_hits
-      WHERE src_ip = ${ip} AND data ? 'command' AND data->>'command' <> ''
+      WHERE src_ip = ${ip} AND data ? 'command' AND data->>'command' <> '' ${s ? Prisma.sql`AND ${s}` : Prisma.empty}
       ORDER BY timestamp ASC
       LIMIT 200
     `
   }
 
-  async queryCommandsByIp(ip: string): Promise<CommandDetailRow[]> {
+  async queryCommandsByIp(ip: string, scope?: ThreatScope): Promise<CommandDetailRow[]> {
     return this.prismaRead.event.findMany({
-      where: { srcIp: ip, eventType: 'command.input', command: { not: null } },
+      where: {
+        srcIp: ip, eventType: 'command.input', command: { not: null },
+        ...(scope ? { session: { sensorId: { in: scope.sensorIds } } } : {}),
+      },
       select: { command: true, eventTs: true },
       orderBy: { eventTs: 'asc' },
     })

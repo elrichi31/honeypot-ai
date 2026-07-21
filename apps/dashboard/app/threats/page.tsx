@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { ShieldAlert } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { fetchThreatsPage, fetchClients, fetchSensors } from "@/lib/api"
+import { effectiveSensorScope } from "@/lib/tenant-scope"
 import { ThreatsTable } from "./threats-table"
 import { SectionError } from "@/components/section-error"
 import { ClientSensorFilter } from "@/components/client-sensor-filter"
@@ -66,13 +67,15 @@ export default async function ThreatsPage({
   const sensorId = params.sensorId?.trim() || undefined
   const period: Period = (VALID_PERIODS as readonly string[]).includes(params.period ?? "") ? (params.period as Period) : "90d"
 
+  const { sensorIds } = await effectiveSensorScope()
+
   let pageData: Awaited<ReturnType<typeof fetchThreatsPage>> | null = null
   let clients: Awaited<ReturnType<typeof fetchClients>> = []
   let sensors: Awaited<ReturnType<typeof fetchSensors>> = []
   let geo: Record<string, { country: string; countryName: string } | null> = {}
   try {
     ;[pageData, clients, sensors] = await Promise.all([
-      fetchThreatsPage({ page, pageSize, q, sortBy, sortDir, levels, commands, crossProtocol, clientSlug, sensorId, period }),
+      fetchThreatsPage({ page, pageSize, q, sortBy, sortDir, levels, commands, crossProtocol, clientSlug, sensorId, period }, sensorIds),
       fetchClients().catch(() => []),
       fetchSensors().catch(() => []),
     ])

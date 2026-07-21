@@ -1,4 +1,5 @@
 import { apiFetch, getApiUrl } from './client'
+import { sensorScopeParam } from './stats'
 
 export interface ProtocolHit {
   id: string
@@ -94,18 +95,18 @@ export interface Client {
   createdAt: string
 }
 
-export async function fetchProtocolStats(): Promise<ProtocolStat[]> {
-  return apiFetch<ProtocolStat[]>(`${getApiUrl()}/protocol-hits/stats`, 300)
+export async function fetchProtocolStats(sensorIds?: string[]): Promise<ProtocolStat[]> {
+  return apiFetch<ProtocolStat[]>(`${getApiUrl()}/protocol-hits/stats?_=1${sensorScopeParam(sensorIds)}`, 300)
 }
 
-export async function fetchTargetPortStats(): Promise<TargetPortStat[]> {
-  return apiFetch<TargetPortStat[]>(`${getApiUrl()}/protocol-hits/ports/stats`, 300)
+export async function fetchTargetPortStats(sensorIds?: string[]): Promise<TargetPortStat[]> {
+  return apiFetch<TargetPortStat[]>(`${getApiUrl()}/protocol-hits/ports/stats?_=1${sensorScopeParam(sensorIds)}`, 300)
 }
 
-export async function fetchProtocolInsights(protocol: string): Promise<ProtocolInsights> {
+export async function fetchProtocolInsights(protocol: string, sensorIds?: string[]): Promise<ProtocolInsights> {
   const url = new URL(`${getApiUrl()}/protocol-hits/insights`)
   url.searchParams.set('protocol', protocol)
-  return apiFetch<ProtocolInsights>(url.toString(), 300)
+  return apiFetch<ProtocolInsights>(`${url.toString()}${sensorScopeParam(sensorIds)}`, 300)
 }
 
 export async function fetchSensors(): Promise<Sensor[]> {
@@ -117,11 +118,12 @@ export async function fetchClients(): Promise<Client[]> {
 }
 
 export async function fetchProtocolHits(
-  params: { page?: number; limit?: number; protocol?: string } = {}
+  params: { page?: number; limit?: number; protocol?: string } = {},
+  sensorIds?: string[]
 ): Promise<ProtocolHitsResponse> {
   const url = new URL(`${getApiUrl()}/protocol-hits`)
   if (params.page) url.searchParams.set('page', String(params.page))
   if (params.limit) url.searchParams.set('limit', String(params.limit))
   if (params.protocol) url.searchParams.set('protocol', params.protocol)
-  return apiFetch<ProtocolHitsResponse>(url.toString(), 30)
+  return apiFetch<ProtocolHitsResponse>(`${url.toString()}${sensorScopeParam(sensorIds)}`, 30)
 }

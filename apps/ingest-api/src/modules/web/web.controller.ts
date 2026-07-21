@@ -10,6 +10,7 @@ import { basePaginationSchema, getPagination } from '../../lib/pagination.js'
 import { webHitSchema, normalizeHeaders, parseWebHitBatch } from '../../lib/web-normalize.js'
 import { WebService, resolveSensorScope } from './web.service.js'
 import { isInternalIp } from '../../lib/internal-ip.js'
+import { parseSensorScope } from '../../lib/sensor-scope.js'
 
 const webHitsQuerySchema = z.object({
   limit: z.coerce.number().min(1).max(500).default(100),
@@ -63,6 +64,15 @@ function emitAttackEvent(srcIp: string, timestamp: string, sensorId: string | nu
 
 export async function webRoutes(fastify: FastifyInstance) {
   const svc = new WebService(fastify.prisma)
+
+  // Tenant ceiling (cookie) + optional manual clientSlug/sensorId narrow. The
+  // tenant scope must be in the cache key too, or one tenant poisons another's.
+  async function resolveScope(request: FastifyRequest, clientSlug?: string, sensorId?: string) {
+    const tenant = parseSensorScope(request.query as Record<string, unknown>)
+    const sensorIds = await resolveSensorScope(fastify.prismaRead, tenant, clientSlug, sensorId)
+    const scopeKey = `t=${tenant.cacheSuffix}:${clientSlug ?? ''}:${sensorId ?? ''}`
+    return { sensorIds, scopeKey }
+  }
 
   async function handleSingleEvent(request: FastifyRequest, reply: FastifyReply) {
     if (!ensureIngestToken(request, reply)) return reply
@@ -143,16 +153,19 @@ export async function webRoutes(fastify: FastifyInstance) {
   fastify.get('/web-hits', async (request, reply) => {
     const parsed = webHitsQuerySchema.safeParse(request.query)
     if (!parsed.success) return reply.status(400).send({ error: 'Invalid query params' })
-    return reply.send(await svc.listHits(parsed.data))
+    const { sensorIds } = await resolveScope(request)
+    return reply.send(await svc.listHits({ ...parsed.data, sensorIds }))
   })
 
-  fastify.get('/web-hits/timeline', (_req, reply) =>
-    svc.getTimeline(fastify.cache).then(reply.send.bind(reply))
-  )
+  fastify.get('/web-hits/timeline', async (request, reply) => {
+    const { sensorIds, scopeKey } = await resolveScope(request)
+    return reply.send(await svc.getTimeline(fastify.cache, sensorIds, scopeKey))
+  })
 
-  fastify.get('/web-hits/paths', (_req, reply) =>
-    svc.getPaths(fastify.cache).then(reply.send.bind(reply))
-  )
+  fastify.get('/web-hits/paths', async (request, reply) => {
+    const { sensorIds, scopeKey } = await resolveScope(request)
+    return reply.send(await svc.getPaths(fastify.cache, sensorIds, scopeKey))
+  })
 
   fastify.get('/web-hits/by-ip', async (request, reply) => {
     const parsed = byIpQuerySchema.safeParse(request.query)
@@ -160,8 +173,7 @@ export async function webRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Invalid query params', details: parsed.error.flatten().fieldErrors })
     }
     const { page, pageSize, offset } = getPagination(parsed.data)
-    const sensorIds = await resolveSensorScope(fastify.prismaRead, parsed.data.clientSlug, parsed.data.sensorId)
-    const scopeKey = `${parsed.data.clientSlug ?? ''}:${parsed.data.sensorId ?? ''}`
+    const { sensorIds, scopeKey } = await resolveScope(request, parsed.data.clientSlug, parsed.data.sensorId)
     return reply.send(await svc.getByIp(fastify.cache, {
       q: parsed.data.q,
       attackType: parsed.data.attackType,
@@ -178,8 +190,7 @@ export async function webRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Invalid query params', details: parsed.error.flatten().fieldErrors })
     }
     const { page, pageSize, offset } = getPagination(parsed.data)
-    const sensorIds = await resolveSensorScope(fastify.prismaRead, parsed.data.clientSlug, parsed.data.sensorId)
-    const scopeKey = `${parsed.data.clientSlug ?? ''}:${parsed.data.sensorId ?? ''}`
+    const { sensorIds, scopeKey } = await resolveScope(request, parsed.data.clientSlug, parsed.data.sensorId)
     return reply.send(await svc.getBursts(fastify.cache, {
       q: parsed.data.q,
       attackType: parsed.data.attackType,
@@ -194,7 +205,10 @@ export async function webRoutes(fastify: FastifyInstance) {
   fastify.get('/web-hits/hourly', async (request, reply) => {
     const parsed = statsQuerySchema.safeParse(request.query)
     const range = parsed.success ? parsed.data.range : undefined
-    return reply.send(await svc.getHourly(fastify.cache, range))
+    const clientSlug = parsed.success ? parsed.data.clientSlug : undefined
+    const sensorId = parsed.success ? parsed.data.sensorId : undefined
+    const { sensorIds, scopeKey } = await resolveScope(request, clientSlug, sensorId)
+    return reply.send(await svc.getHourly(fastify.cache, range, sensorIds, scopeKey))
   })
 
   fastify.get('/web-hits/stats', async (request, reply) => {
@@ -202,8 +216,7 @@ export async function webRoutes(fastify: FastifyInstance) {
     const range = parsed.success ? parsed.data.range : undefined
     const clientSlug = parsed.success ? parsed.data.clientSlug : undefined
     const sensorId = parsed.success ? parsed.data.sensorId : undefined
-    const sensorIds = await resolveSensorScope(fastify.prismaRead, clientSlug, sensorId)
-    const scopeKey = `${clientSlug ?? ''}:${sensorId ?? ''}`
+    const { sensorIds, scopeKey } = await resolveScope(request, clientSlug, sensorId)
     return reply.send(await svc.getStats(fastify.cache, range, sensorIds, scopeKey))
   })
 
@@ -213,8 +226,7 @@ export async function webRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Invalid query params', details: parsed.error.flatten().fieldErrors })
     }
     const { page, pageSize, offset } = getPagination(parsed.data)
-    const sensorIds = await resolveSensorScope(fastify.prismaRead, parsed.data.clientSlug, parsed.data.sensorId)
-    const scopeKey = `${parsed.data.clientSlug ?? ''}:${parsed.data.sensorId ?? ''}`
+    const { sensorIds, scopeKey } = await resolveScope(request, parsed.data.clientSlug, parsed.data.sensorId)
     return reply.send(await svc.getSessions(fastify.cache, {
       range: parsed.data.range,
       onlyChains: parsed.data.onlyChains,
@@ -226,7 +238,8 @@ export async function webRoutes(fastify: FastifyInstance) {
     const { fingerprint } = (request.params as { fingerprint: string })
     if (!fingerprint?.trim()) return reply.status(400).send({ error: 'fingerprint required' })
     const fp = decodeURIComponent(fingerprint)
-    const hits = await svc.getSessionHits(fp)
+    const { sensorIds } = await resolveScope(request)
+    const hits = await svc.getSessionHits(fp, sensorIds)
     if (hits.length === 0) return reply.status(404).send({ error: 'session not found' })
     return reply.send({ fingerprint: fp, hits })
   })

@@ -1,4 +1,5 @@
 import { getApiUrl, apiFetch, buildSearchParams } from "./client"
+import { sensorScopeParam } from "./stats"
 import type { HoneypotEvent, ApiSession, ApiSessionDetail, PaginatedResponse, PaginatedSessionsResponse } from "./types"
 
 export async function fetchEventsPage(params?: {
@@ -23,7 +24,7 @@ export async function fetchSessionsPage(params?: {
   actor?: "all" | "bot" | "human" | "unknown"; startDate?: string; endDate?: string
   sortDir?: 'asc' | 'desc'
   clientSlug?: string; sensorId?: string
-}): Promise<PaginatedSessionsResponse> {
+}, sensorIds?: string[]): Promise<PaginatedSessionsResponse> {
   const sp = buildSearchParams({
     page: params?.page, pageSize: params?.pageSize, limit: params?.limit,
     offset: params?.offset, q: params?.q, outcome: params?.outcome,
@@ -32,27 +33,27 @@ export async function fetchSessionsPage(params?: {
   })
   if (params?.actor && params.actor !== "all") sp.set("actor", params.actor)
   if (params?.sortDir) sp.set("sortDir", params.sortDir)
-  return apiFetch(`${getApiUrl()}/sessions?${sp}`, 30)
+  return apiFetch(`${getApiUrl()}/sessions?${sp}${sensorScopeParam(sensorIds)}`, 30)
 }
 
-export async function fetchSessions(params?: Parameters<typeof fetchSessionsPage>[0]): Promise<ApiSession[]> {
-  return (await fetchSessionsPage(params)).items
+export async function fetchSessions(params?: Parameters<typeof fetchSessionsPage>[0], sensorIds?: string[]): Promise<ApiSession[]> {
+  return (await fetchSessionsPage(params, sensorIds)).items
 }
 
 export async function fetchSessionScanGroupsPage(params?: {
   page?: number; pageSize?: number; limit?: number; offset?: number
   q?: string; startDate?: string; endDate?: string
   clientSlug?: string; sensorId?: string
-}): Promise<PaginatedSessionsResponse> {
+}, sensorIds?: string[]): Promise<PaginatedSessionsResponse> {
   const sp = buildSearchParams({
     page: params?.page, pageSize: params?.pageSize, limit: params?.limit,
     offset: params?.offset, q: params?.q,
     startDate: params?.startDate, endDate: params?.endDate,
     clientSlug: params?.clientSlug, sensorId: params?.sensorId,
   })
-  return apiFetch(`${getApiUrl()}/sessions/scan-groups?${sp}`, 30)
+  return apiFetch(`${getApiUrl()}/sessions/scan-groups?${sp}${sensorScopeParam(sensorIds)}`, 30)
 }
 
-export async function fetchSession(id: string): Promise<ApiSessionDetail> {
-  return apiFetch(`${getApiUrl()}/sessions/${id}`)
+export async function fetchSession(id: string, sensorIds?: string[]): Promise<ApiSessionDetail> {
+  return apiFetch(`${getApiUrl()}/sessions/${id}?_=1${sensorScopeParam(sensorIds)}`)
 }

@@ -88,6 +88,20 @@ export function rangeToInterval(range?: string): string | null {
   }
 }
 
+/** Bare tenant sensor filter on web_hits: `sensor_id IN (...)` / `FALSE` / null (global). */
+export function sensorCondition(sensorIds?: string[]): Prisma.Sql | null {
+  if (!sensorIds) return null
+  return sensorIds.length > 0
+    ? Prisma.sql`sensor_id IN (${Prisma.join(sensorIds)})`
+    : Prisma.sql`FALSE`
+}
+
+/** `AND <cond>` fragment for appending to a query that already has a WHERE. */
+function andSensor(sensorIds?: string[]): Prisma.Sql {
+  const cond = sensorCondition(sensorIds)
+  return cond ? Prisma.sql`AND ${cond}` : Prisma.empty
+}
+
 export function buildByIpWhereSql(
   query?: string,
   attackType?: string,
@@ -106,20 +120,17 @@ export function buildByIpWhereSql(
   if (interval) {
     clauses.push(Prisma.sql`timestamp >= NOW() - ${interval}::interval`)
   }
-  if (sensorIds) {
-    clauses.push(
-      sensorIds.length > 0
-        ? Prisma.sql`sensor_id IN (${Prisma.join(sensorIds)})`
-        : Prisma.sql`FALSE`,
-    )
-  }
+  const sensorCond = sensorCondition(sensorIds)
+  if (sensorCond) clauses.push(sensorCond)
   return Prisma.sql`WHERE ${Prisma.join(clauses, ' AND ')}`
 }
 
-export function buildWebHitsWhereSql(params: { attackType?: string; srcIp?: string }): Prisma.Sql {
+export function buildWebHitsWhereSql(params: { attackType?: string; srcIp?: string; sensorIds?: string[] }): Prisma.Sql {
   const clauses: Prisma.Sql[] = [Prisma.sql`1 = 1`]
   if (params.attackType) clauses.push(Prisma.sql`attack_type = ${params.attackType}`)
   if (params.srcIp) clauses.push(Prisma.sql`src_ip = ${params.srcIp}`)
+  const sensorCond = sensorCondition(params.sensorIds)
+  if (sensorCond) clauses.push(sensorCond)
   return Prisma.sql`WHERE ${Prisma.join(clauses, ' AND ')}`
 }
 
@@ -204,13 +215,13 @@ export class WebRepository {
     return { total: countRows[0]?.total ?? 0, hits }
   }
 
-  async getTimeline(): Promise<{ days: Array<{ day: string } & Record<string, string | number>>; attackTypes: string[] }> {
+  async getTimeline(sensorIds?: string[]): Promise<{ days: Array<{ day: string } & Record<string, string | number>>; attackTypes: string[] }> {
     const rows = await this.prisma.$queryRaw<Array<{ isoDay: string; attack_type: string; count: bigint }>>`
       SELECT
         TO_CHAR(DATE_TRUNC('day', timestamp AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS "isoDay",
         attack_type, COUNT(*) AS count
       FROM web_hits
-      WHERE timestamp >= NOW() - INTERVAL '30 days'
+      WHERE timestamp >= NOW() - INTERVAL '30 days' ${andSensor(sensorIds)}
       GROUP BY 1, 2 ORDER BY 1, 2
     `
 
@@ -235,11 +246,11 @@ export class WebRepository {
     return { days, attackTypes }
   }
 
-  async getPaths(): Promise<{ paths: Array<{ path: string; total: number; byType: Record<string, number> }> }> {
+  async getPaths(sensorIds?: string[]): Promise<{ paths: Array<{ path: string; total: number; byType: Record<string, number> }> }> {
     const rows = await this.prisma.$queryRaw<Array<{ path: string; attack_type: string; count: bigint }>>`
       SELECT path, attack_type, COUNT(*) AS count
       FROM web_hits
-      WHERE timestamp >= NOW() - INTERVAL '30 days'
+      WHERE timestamp >= NOW() - INTERVAL '30 days' ${andSensor(sensorIds)}
       GROUP BY path, attack_type
       ORDER BY COUNT(*) DESC LIMIT 200
     `
@@ -427,7 +438,7 @@ export class WebRepository {
     return rows[0]?.total ?? 0
   }
 
-  async querySessionHits(fingerprint: string, limit: number): Promise<WebHitRow[]> {
+  async querySessionHits(fingerprint: string, limit: number, sensorIds?: string[]): Promise<WebHitRow[]> {
     return this.prisma.$queryRaw<WebHitRow[]>`
       SELECT id, src_ip AS "srcIp", method, path, query,
         user_agent AS "userAgent", attack_type AS "attackType",
@@ -439,7 +450,7 @@ export class WebRepository {
         is_chain_attack AS "isChainAttack", client_fingerprint AS "clientFingerprint",
         canary_token_type AS "canaryTokenType", referer, http_version AS "httpVersion"
       FROM web_hits
-      WHERE COALESCE(client_fingerprint, src_ip) = ${fingerprint}
+      WHERE COALESCE(client_fingerprint, src_ip) = ${fingerprint} ${andSensor(sensorIds)}
       ORDER BY timestamp DESC
       LIMIT ${limit}
     `

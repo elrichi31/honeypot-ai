@@ -51,3 +51,20 @@ export function parseSensorScope(query: Record<string, unknown>): SensorScope {
       Prisma.sql`AND ${Prisma.raw(column)} IN (${Prisma.join(ids)})`,
   }
 }
+
+/**
+ * Combine a tenant ceiling (from the cookie) with an optional manual sensor
+ * narrow (a clientSlug/sensorId filter the user picked). The tenant scope is the
+ * HARD limit: the manual filter can only narrow WITHIN it, never widen it. Used
+ * by pages that keep the manual ClientSensorFilter (sessions, threats, web).
+ *
+ *  - tenant.all (global / superadmin) → manual as-is (undefined = everything)
+ *  - manual undefined                 → whole tenant (tenant.sensorIds; [] = nothing)
+ *  - both present                     → intersection (may be [] = nothing)
+ */
+export function narrowToTenant(tenant: SensorScope, manual: string[] | undefined): string[] | undefined {
+  if (tenant.all) return manual
+  if (manual === undefined) return tenant.sensorIds
+  const ceiling = new Set(tenant.sensorIds)
+  return manual.filter((id) => ceiling.has(id))
+}

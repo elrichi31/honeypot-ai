@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { basePaginationSchema, getPagination } from '../../lib/pagination.js'
 import { SessionService } from './session.service.js'
+import { parseSensorScope } from '../../lib/sensor-scope.js'
 
 const sessionListQuerySchema = basePaginationSchema.extend({
   startDate: z.string().datetime({ offset: true }).optional(),
@@ -30,19 +31,22 @@ export async function sessionRoutes(fastify: FastifyInstance) {
     const params = parseQuery(request, reply)
     if (!params) return
     const { page, pageSize, offset } = getPagination(params)
-    return svc.list(fastify.cache, { ...params, page, pageSize, offset })
+    const scope = parseSensorScope(request.query as Record<string, unknown>)
+    return svc.list(fastify.cache, { ...params, page, pageSize, offset }, scope)
   })
 
   fastify.get('/sessions/scan-groups', async (request, reply) => {
     const params = parseQuery(request, reply)
     if (!params) return
     const { page, pageSize, offset } = getPagination(params)
-    return svc.scanGroups(fastify.cache, { ...params, page, pageSize, offset })
+    const scope = parseSensorScope(request.query as Record<string, unknown>)
+    return svc.scanGroups(fastify.cache, { ...params, page, pageSize, offset }, scope)
   })
 
   fastify.get('/sessions/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
-    const session = await svc.getById(id)
+    const scope = parseSensorScope(request.query as Record<string, unknown>)
+    const session = await svc.getById(id, scope)
     if (!session) return reply.status(404).send({ error: 'Session not found' })
     return session
   })

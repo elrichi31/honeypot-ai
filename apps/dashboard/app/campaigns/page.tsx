@@ -3,6 +3,7 @@ import { PageShell } from "@/components/page-shell"
 import { CampaignsView } from "@/components/campaigns-view"
 import { SectionError } from "@/components/section-error"
 import { fetchSessions, fetchSessionCommands } from "@/lib/api"
+import { effectiveSensorScope } from "@/lib/tenant-scope"
 
 const RANGE_TO_DAYS: Record<string, number> = {
   "7d": 7,
@@ -32,10 +33,12 @@ export default async function CampaignsPage({
   const range = sp.range && RANGE_TO_DAYS[sp.range] !== undefined ? sp.range : "30d"
   const dateParams = rangeToDateParams(range)
 
+  const { sensorIds } = await effectiveSensorScope()
+
   let sessions, commandsMap
   try {
     [sessions, commandsMap] = await Promise.all([
-      fetchSessions({ limit: 2000, ...dateParams }),
+      fetchSessions({ limit: 2000, ...dateParams }, sensorIds),
       fetchSessionCommands(),
     ])
   } catch {

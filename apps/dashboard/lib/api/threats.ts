@@ -1,4 +1,5 @@
 import { getApiUrl, apiFetch, buildSearchParams } from "./client"
+import { sensorScopeParam } from "./stats"
 import type { ThreatSummary, ThreatDetail, PaginatedThreatsResponse, RiskLevel } from "./types"
 
 export async function fetchThreatsPage(params?: {
@@ -9,7 +10,7 @@ export async function fetchThreatsPage(params?: {
   sortDir?: 'asc' | 'desc'
   clientSlug?: string; sensorId?: string
   period?: '24h' | '7d' | '30d' | '90d'
-}): Promise<PaginatedThreatsResponse> {
+}, sensorIds?: string[]): Promise<PaginatedThreatsResponse> {
   const sp = buildSearchParams({
     page: params?.page, pageSize: params?.pageSize,
     limit: params?.limit, offset: params?.offset,
@@ -24,13 +25,13 @@ export async function fetchThreatsPage(params?: {
   if (params?.period) sp.set("period", params.period)
   // Cross-protocol correlation is a heavy aggregate; give it 30s before aborting
   // so a slow query doesn't surface as an empty threats page.
-  return apiFetch(`${getApiUrl()}/threats?${sp}`, 60, 30000)
+  return apiFetch(`${getApiUrl()}/threats?${sp}${sensorScopeParam(sensorIds)}`, 60, 30000)
 }
 
-export async function fetchThreats(params?: Parameters<typeof fetchThreatsPage>[0]): Promise<ThreatSummary[]> {
-  return (await fetchThreatsPage({ pageSize: 1000, ...params })).items
+export async function fetchThreats(params?: Parameters<typeof fetchThreatsPage>[0], sensorIds?: string[]): Promise<ThreatSummary[]> {
+  return (await fetchThreatsPage({ pageSize: 1000, ...params }, sensorIds)).items
 }
 
-export async function fetchThreat(ip: string): Promise<ThreatDetail> {
-  return apiFetch(`${getApiUrl()}/threats/${encodeURIComponent(ip)}`)
+export async function fetchThreat(ip: string, sensorIds?: string[]): Promise<ThreatDetail> {
+  return apiFetch(`${getApiUrl()}/threats/${encodeURIComponent(ip)}?_=1${sensorScopeParam(sensorIds)}`)
 }

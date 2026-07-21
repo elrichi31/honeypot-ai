@@ -8,6 +8,7 @@ import { toOffsetISOString } from '../../lib/date-utils.js'
 import { withCache } from '../../lib/cache-helper.js'
 import { resolveClientSensors } from '../../lib/client-helpers.js'
 import { getPagination, buildPaginationResponse } from '../../lib/pagination.js'
+import { narrowToTenant, type SensorScope } from '../../lib/sensor-scope.js'
 
 type SessionFilterParams = {
   page: number; pageSize: number; offset: number
@@ -81,17 +82,23 @@ async function threatTagsBySessionId(repo: SessionRepository, rows: SessionListR
   return map
 }
 
+// The tenant scope (from the cookie) is the HARD ceiling; the optional
+// clientSlug/sensorId filter can only narrow WITHIN it, never widen. When the
+// caller is global (superadmin, tenant.all) the manual filter stands alone.
 async function resolveSessionScope(
   prismaRead: PrismaClient,
+  tenant: SensorScope,
   clientSlug: string | undefined,
   sensorId: string | undefined,
 ): Promise<{ sensorIds: string[] | undefined; scopeKey: string }> {
-  if (sensorId) return { sensorIds: [sensorId], scopeKey: `:s=${sensorId}` }
-  if (clientSlug) {
-    const cs = await resolveClientSensors(prismaRead, clientSlug)
-    return { sensorIds: cs?.sensorIds ?? [], scopeKey: `:c=${clientSlug}` }
-  }
-  return { sensorIds: undefined, scopeKey: '' }
+  let manual: string[] | undefined
+  if (sensorId) manual = [sensorId]
+  else if (clientSlug) manual = (await resolveClientSensors(prismaRead, clientSlug))?.sensorIds ?? []
+
+  const sensorIds = narrowToTenant(tenant, manual)
+
+  const manualKey = sensorId ? `:s=${sensorId}` : clientSlug ? `:c=${clientSlug}` : ''
+  return { sensorIds, scopeKey: `:t=${tenant.cacheSuffix}${manualKey}` }
 }
 
 export class SessionService {
@@ -101,9 +108,9 @@ export class SessionService {
     this.repo = new SessionRepository(prisma)
   }
 
-  async list(cache: FastifyInstance['cache'], params: SessionFilterParams) {
+  async list(cache: FastifyInstance['cache'], params: SessionFilterParams, tenant: SensorScope) {
     const { page, pageSize, offset } = getPagination(params)
-    const { sensorIds, scopeKey } = await resolveSessionScope(this.prismaRead, params.clientSlug, params.sensorId)
+    const { sensorIds, scopeKey } = await resolveSessionScope(this.prismaRead, tenant, params.clientSlug, params.sensorId)
     const cacheKey = `sessions:list${scopeKey}:${page}:${pageSize}:${params.outcome ?? 'all'}:${params.actor ?? 'all'}:${params.q ?? ''}:${params.sortDir}:${params.startDate ?? ''}:${params.endDate ?? ''}`
 
     return withCache(cache, cacheKey, 30, async () => {
@@ -124,9 +131,9 @@ export class SessionService {
     })
   }
 
-  async scanGroups(cache: FastifyInstance['cache'], params: SessionFilterParams) {
+  async scanGroups(cache: FastifyInstance['cache'], params: SessionFilterParams, tenant: SensorScope) {
     const { page, pageSize, offset } = getPagination(params)
-    const { sensorIds, scopeKey } = await resolveSessionScope(this.prismaRead, params.clientSlug, params.sensorId)
+    const { sensorIds, scopeKey } = await resolveSessionScope(this.prismaRead, tenant, params.clientSlug, params.sensorId)
     const cacheKey = `sessions:scans${scopeKey}:${page}:${pageSize}:${params.q ?? ''}:${params.startDate ?? ''}:${params.endDate ?? ''}`
 
     return withCache(cache, cacheKey, 30, async () => {
@@ -149,9 +156,11 @@ export class SessionService {
     })
   }
 
-  async getById(id: string) {
+  async getById(id: string, tenant: SensorScope) {
     const session = await this.repo.findById(this.prismaRead, id)
     if (!session) return null
+    // Fail-closed: a scoped tenant may only read sessions from its own sensors.
+    if (!tenant.all && !(session.sensorId && tenant.sensorIds.includes(session.sensorId))) return null
 
     const authAttemptCount = session.events.filter(e => e.eventType === 'auth.success' || e.eventType === 'auth.failed').length
     const commandCount = session.events.filter(e => e.eventType === 'command.input').length

@@ -1,8 +1,13 @@
 # Multi-Tenant — Roadmap to 100%
 
-> Estado a jun 2026. Este documento describe **qué ya funciona** del multi-tenant y
+> Estado a **jul 2026**. Este documento describe **qué ya funciona** del multi-tenant y
 > **qué falta** para que sea 100% (cada cliente/tenant ve SOLO sus datos en toda la app).
 > El patrón ya está establecido y probado; lo que queda es replicarlo de forma mecánica.
+>
+> **Nota estructural (jul 2026):** el backend ya NO vive en `src/routes/*.ts`. Está en
+> `apps/ingest-api/src/modules/<domain>/<domain>.{controller,service,repository}.ts`
+> (ver [backend-layering](../project-notes/backend-layering.md)). Los ejemplos de rutas
+> abajo se actualizaron a esa estructura.
 
 ---
 
@@ -35,18 +40,73 @@
 
 ### Vistas YA scopeadas (enforcement real por tenant)
 - **Alertas** (`/alerts`): filtra por `clientId` (las alertas tienen columna `client_id`).
-  Backend `apps/ingest-api/src/routes/alerts.ts`.
-- **Dashboard home** (`/`): filtra por `sensorIds` del tenant. Endpoints scopeados:
-  `honeypot-overview`, `kpi-trends`, `geo`, `cross-sensor-timeline`, `mitre-matrix`, `bot-ratio`,
-  `dashboards` (todos en `apps/ingest-api/src/routes/stats/`).
+  Backend `apps/ingest-api/src/modules/alerts/`. Front vía `effectiveScope`.
+- **Dashboard home** (`/`): filtra por `sensorIds` del tenant. Endpoints scopeados en
+  `apps/ingest-api/src/modules/stats/controllers/`: `dashboard`, `kpi-trends`, `mitre-matrix`,
+  `bot-ratio`, `misc` (geo, cross-sensor-timeline, honeypot-overview).
+- **Novelty** (home): ✅ hecho — `stats/controllers/novelty.ts` usa `parseSensorScope`
+  (era deuda #2). Front: `app/api/stats/novelty/route.ts` re-deriva el scope server-side.
+- **AttackHeatmap** (home): ✅ hecho — `app/api/stats/heatmap/route.ts` usa `effectiveSensorScope`
+  (era deuda #2).
+- **Reports** (`/reports`): ✅ `app/reports/page.tsx` usa `effectiveSensorScope`. Solo on-demand
+  (no hay jobs agendados que hagan egress sin cookie — si se agregan, resolver scope desde el
+  registro del cliente, no de la cookie).
+- **Services / protocolos** (`/services`, `/services/{ftp,mysql,mssql,smb,mqtt,ports}`): ✅ hecho
+  (jul 2026). Backend `modules/protocol/` scopea `list`, `count`, `insights`, `stats`, `ports/stats`
+  con `parseSensorScope` + `scope.cond('sensor_id')` y `cacheSuffix` en cada key. Front:
+  `fetchProtocolStats/TargetPortStats/Insights/Hits` aceptan `sensorIds?`; `app/services/page.tsx`
+  y `protocol-service-page.tsx` los derivan con `effectiveSensorScope`. Todos los consumers son
+  server components (la tabla pagina por searchParams, no hace fetch client-side).
+- **Sessions** (`/sessions`, `/sessions/[id]`, `/sessions/scan-groups`): ✅ hecho (jul 2026).
+  Ya tenía el filtro manual `ClientSensorFilter` (`clientSlug`/`sensorId`) — se **unificó** con el
+  techo de tenant vía el nuevo helper `narrowToTenant(tenant, manual)` en `lib/sensor-scope.ts`
+  (el filtro manual solo puede estrechar DENTRO de los sensores del tenant; nunca amplía). El
+  detail `getById` es fail-closed: un tenant no puede leer una sesión de otro sensor aunque sepa el
+  id. Front: `fetchSessionsPage/ScanGroupsPage/Session` aceptan `sensorIds?`; `sessions/page.tsx`,
+  `sessions/[id]/page.tsx` y `campaigns/page.tsx` lo derivan con `effectiveSensorScope`.
+  Helper `narrowToTenant` cubierto por `sensor-scope.test.ts` (reusable para threats/web).
+  Deuda menor: `campaigns` aún deja `fetchSessionCommands` sin scope (cae con el módulo commands, #4).
+- **Threats** (`/threats`, `/threats/[ip]`): ✅ hecho (jul 2026). `resolveScope` usa `narrowToTenant`
+  (techo de tenant + filtro manual `clientSlug`/`sensorId`). `getThreatByIp` ahora es fail-closed:
+  scopea las 6 queries del detalle por `sensor_id` y devuelve 404 si el IP no tiene telemetría en los
+  sensores del tenant. Front: `fetchThreatsPage/Threats/Threat` aceptan `sensorIds?`; scopeados en
+  `threats/page.tsx`, `threats/[ip]`, y en los `fetchThreat` de `sessions/[id]` y `web-attacks/[ip]`.
+- **Web-attacks** (`/web-attacks` + `bursts`/`geo`/`paths`/`timeline`/`sessions`/`sessions/[fp]`/`[ip]`):
+  ✅ hecho (jul 2026). `resolveSensorScope` unificado con `narrowToTenant`. Se scopearon TAMBIÉN los
+  endpoints que antes eran globales (`/web-hits`, `/timeline`, `/paths`, `/hourly`, `/sessions/:fp`) vía
+  el helper `sensorCondition` en `web.repository.ts`; `scopeKey` incluye `t=${cacheSuffix}` en cada
+  `withCache` (anti cache-poisoning). Detail `/sessions/:fp` fail-closed. Front: los 9 fetchers de
+  `lib/api/web.ts` aceptan `sensorIds?`; las 8 páginas derivan con `effectiveSensorScope`.
+  Verificado contra `honeypot_full`: web Saludsa=5537/Cooperativa=0; threat detail de un IP web-only
+  visible a Saludsa, 404 a Cooperativa, visible a global.
 
 ### Infra de scoping (reusable, ya construida)
 - Backend: `parseSensorScope(query)` en `apps/ingest-api/src/lib/sensor-scope.ts` →
   `{ all, cond('sensor_id'), cacheSuffix }`. `cond()` da `AND sensor_id IN (...)` / `AND false` /
   vacío. **Importante**: añadir `cacheSuffix` a la cache key de cada endpoint.
   Para `events` (sin `sensor_id`): scopear vía `session_id IN (SELECT id FROM sessions WHERE … sensor_id IN …)`.
-- Front: `effectiveSensorScope()` (cacheado por request) → `sensorIds`; `sensorScopeParam()` en
-  `apps/dashboard/lib/api/stats.ts` arma `?sensorIds=a,b` (`__none__` = fail-closed).
+- Front: `effectiveSensorScope()` (cacheado por request, `apps/dashboard/lib/tenant-scope.ts`)
+  → `sensorIds`; `sensorScopeParam()` en `apps/dashboard/lib/api/stats.ts` arma `?sensorIds=a,b`
+  (`__none__` = fail-closed).
+
+> ⚠️ **Existen DOS mecanismos de scope y NO son equivalentes:**
+> - `parseSensorScope` (query `?sensorIds=`, derivado de la cookie por un server component /
+>   route handler) → **límite duro del tenant**. Es el bueno. Lo usan home + reports.
+> - `resolveSensorScope(prisma, clientSlug, sensorId)` (`ClientSensorFilter`) → **filtro manual
+>   opcional** por query params `clientSlug`/`sensorId`. Lo usan threats y web-attacks. **NO es
+>   un boundary de tenant**: si el usuario no aplica el filtro, ve todo. Hay que atarlo al scope
+>   de tenant como techo (el filtro manual solo puede estrechar DENTRO de los sensores del tenant).
+
+### Modelo de confianza (importante)
+El **único punto de enforcement es el dashboard**. Los fetches salen server-side al
+`INTERNAL_API_URL` con `X-Ingest-Token` (secret compartido); el `ingest-api` **confía ciegamente
+en el `sensorIds` que recibe** — no re-valida por usuario. Invariantes que sostienen esto:
+1. **Ningún fetch client-side puede llevar `sensorIds`.** Todo cálculo de scope ocurre en un
+   server component o en un route handler `app/api/*` que re-deriva con `effectiveSensorScope`.
+   Componentes client-fetched (ej. AttackHeatmap) deben pegar a un route handler propio, nunca
+   al ingest-api directo.
+2. **El `ingest-api` nunca debe estar expuesto a internet.** Su única credencial es el secret
+   compartido; si es alcanzable, cualquiera con el token consulta cualquier `sensorIds`.
 
 ---
 
@@ -58,27 +118,26 @@ Estas vistas hoy muestran datos **globales** sin importar el tenant seleccionado
 `effectiveSensorScope()` y pasar `sensorIds` al fetcher; (b) en `lib/api`, aceptar `sensorIds?` y
 mandarlo; (c) en el endpoint backend, `parseSensorScope` + `cond('sensor_id')` + cache key por scope.
 
-| Página (`app/…`) | Endpoint(s) backend (`src/routes/…`) | Notas |
+| Página (`app/…`) | Módulo backend (`modules/<x>/`) | Notas |
 |---|---|---|
-| `sessions` | `sessions.ts` | Hoy usa `ClientSensorFilter` (filtro por query, no por cookie). Migrar a la cookie de tenant. |
-| `threats` + `threats/[ip]` | `threats.ts` | `ClientSensorFilter` presente. La vista por IP también debe respetar scope. |
-| `web-attacks` (+ `bursts`, `geo`, `paths`, `timeline`, `sessions`, `[ip]`) | `web.ts` | `ClientSensorFilter` en varias. |
-| `credentials` | `stats/credentials.ts` | Usa la vista materializada `credential_attempts` (¿tiene sensor_id? verificar — si no, scopear desde tablas base). |
-| `malware` | `malware.ts` | Artefactos tienen `srcIp`/`sensorId`. |
-| `iocs` | reusa `threats` + `malware` | Se scopea solo cuando esos dos lo estén. |
-| `commands` | `events.ts` / `stats` | `events` se scopea vía sesión. |
-| `services` + `services/*` (ftp, mysql, mssql, smb, mqtt, ports) | `protocol.ts` | `protocol_hits` tiene `sensor_id` directo. |
-| `deception` | `deception.ts` | Verificar relación con sensores del cliente. |
-| `network`, `campaigns`, `live` | varios | `live` es websockets/SSE — scopear el stream. |
-| `suricata` | `suricata.ts` | `suricata_alerts` tiene `sensor_id`. |
-| `api-defense` | `api-defense.ts` | `api_defense_events` NO tiene sensor_id — decidir (¿es global?). |
+| ~~`sessions`~~ | `sessions/` | ✅ hecho (jul 2026). Unificado `ClientSensorFilter` + techo de tenant con `narrowToTenant`. Ver "Vistas YA scopeadas". |
+| ~~`threats` + `threats/[ip]`~~ | `threats/` | ✅ hecho (jul 2026). `narrowToTenant` + `getThreatByIp` fail-closed. Ver "Vistas YA scopeadas". |
+| ~~`web-attacks` (+ `bursts`, `geo`, `paths`, `timeline`, `sessions`, `[ip]`)~~ | `web/` | ✅ hecho (jul 2026). `narrowToTenant` + se scopearon los endpoints antes globales. Ver "Vistas YA scopeadas". |
+| `credentials` | `stats/` (`credentials`) | Usa la vista materializada `credential_attempts` (sin `sensor_id` → ver #4). Scopear desde tablas base o migrar la vista. |
+| `malware` | `malware/` | Artefactos tienen `srcIp`/`sensorId`. |
+| `iocs` | `iocs/` (reusa threats + malware) | Se scopea solo cuando esos dos lo estén. |
+| `commands` | `events/` / `stats` | `events` sin `sensor_id` → scopear vía sesión. |
+| ~~`services` + `services/*` (ftp, mysql, mssql, smb, mqtt, ports)~~ | `protocol/` | ✅ hecho (jul 2026). Ver "Vistas YA scopeadas". |
+| `deception` | `deception/` | Verificar relación con sensores del cliente. |
+| `network`, `campaigns` | varios | Reusan telemetría de otras vistas; caen cuando esas caigan. |
+| `live` | `live/` | **Websockets/SSE — caso aparte, ver #7.** El modelo cookie-por-request no aplica a un stream de larga vida. |
+| `suricata` | `suricata/` | `suricata_alerts` tiene `sensor_id`. |
+| `api-defense` | `api-defense/` | `api_defense_events` NO tiene sensor_id — decidir (¿es global?). |
 
-### 2. Deuda pendiente del Dashboard home
-- `/stats/novelty` (`stats/novelty.ts`) **no scopeado** — usa la vista materializada
-  `credential_attempts` (sin `sensor_id`). Opciones: recalcular desde tablas base, o añadir
-  `sensor_id` a la vista (migración).
-- `AttackHeatmap` (componente client-fetched en el home) **no scopeado** — hace su propio fetch
-  desde el cliente; hay que pasarle el scope o que su endpoint lo lea de la cookie.
+### 2. Deuda pendiente del Dashboard home — ✅ CERRADA (jul 2026)
+- ~~`/stats/novelty` no scopeado~~ → hecho, `stats/controllers/novelty.ts` + route handler.
+- ~~`AttackHeatmap` no scopeado~~ → hecho vía `app/api/stats/heatmap/route.ts`.
+  (Patrón a reusar: componente client-fetched → route handler `app/api/*` que re-deriva el scope.)
 
 ### 3. Aislamiento de la gestión (no solo telemetría)
 - **`/users`**: hoy un admin de tenant vería TODOS los usuarios de todos los clientes. Debe
@@ -103,20 +162,63 @@ caso por caso.
   manipulado) **nunca** recibe datos de B. Hoy verificado solo en alertas + overview.
 - Idealmente un `/security-review` enfocado en aislamiento antes de dar acceso a clientes reales.
 
+### 7. `live` stream (websockets/SSE) — caso arquitectónico aparte
+El scope hoy es "por request" (cookie → server component → `sensorIds`). Un stream de larga vida
+no encaja: hay que **resolver el scope una vez al abrir la conexión** (a partir de la sesión
+autenticada, no de un param) y **filtrar cada evento empujado** por `sensor_id ∈ sensores del
+tenant`. Si la conexión no lleva sesión válida o el tenant no tiene sensores → cerrar / no emitir.
+Es el único punto donde el patrón mecánico de las demás páginas no aplica; diseñarlo antes de
+tocar `live`.
+
+---
+
+## 🔎 Mejoras / cosas que el plan no contemplaba (jul 2026)
+
+Detectadas al auditar el código; valen la pena antes de abrir a clientes reales:
+
+- **Cache-key poisoning entre tenants (invariante de seguridad, no solo perf).** Si un endpoint
+  scopeado hace `withCache` sin el scope en la key, el tenant A puebla la cache y el B recibe sus
+  datos. Hoy los endpoints scopeados sí lo hacen (`:${scope.cacheSuffix}` / `scopeKey`), pero **no
+  hay nada que lo garantice para endpoints nuevos**. Acción: (a) auditar TODOS los `withCache` de
+  módulos con telemetría; (b) test que falle si un endpoint scopeado cachea sin scope en la key.
+
+- **No hay red de seguridad contra regresiones.** Un endpoint de telemetría nuevo puede shippear
+  sin `parseSensorScope` y nadie se entera. Opción barata: un test que recorra los módulos de
+  telemetría y falle si un handler que toca `sessions/web_hits/protocol_hits/...` no referencia
+  `parseSensorScope`. (Heurístico, pero corta el 90% de los olvidos.)
+
+- **Unificar los dos mecanismos de scope.** ✅ RESUELTO (jul 2026) en sessions, threats y web-attacks:
+  el helper `narrowToTenant(tenant, manual)` en `lib/sensor-scope.ts` convierte el filtro manual en un
+  *narrow* que solo opera DENTRO del `sensorIds` del tenant (el techo lo pone siempre `parseSensorScope`).
+  Ya no quedan boundaries falsos de `ClientSensorFilter` en las vistas de telemetría scopeadas.
+
+- **Reports agendados / egress futuro.** Hoy reports es on-demand (con cookie). Si se agregan
+  reportes por email/cron, corren **sin request** → deben resolver el scope desde el registro del
+  cliente, nunca de una cookie. Dejar esto escrito para no reintroducir una fuga.
+
+- **`user.clientId` inmutable tras crear datos.** Verificar qué pasa si se reasigna un usuario/
+  sensor de cliente: la telemetría es por `sensor_id`, así que mover un sensor re-scopea solo — 
+  pero conviene un test que lo confirme (sensor movido de A→B deja de verse en A).
+
 ---
 
 ## Patrón a seguir (plantilla para cada página)
 
-**Backend** (`src/routes/<x>.ts`):
+**Backend** — `modules/<x>/<x>.controller.ts` parsea el scope y lo pasa al service; el SQL vive en
+`<x>.repository.ts` (SQL solo en repos, ver CLAUDE.md):
 ```ts
-import { parseSensorScope } from '../lib/sensor-scope.js'
+// <x>.controller.ts
+import { parseSensorScope } from '../../lib/sensor-scope.js'
 fastify.get('/<x>', (request) => {
   const scope = parseSensorScope(request.query as Record<string, unknown>)
-  return withCache(cache, `<x>:${scope.cacheSuffix}`, TTL, async () => {
-    await prisma.$queryRaw`... WHERE ... ${scope.cond('sensor_id')} ...`
-    // para events: ${scope.all ? Prisma.empty : Prisma.sql`AND session_id IN (SELECT id FROM sessions WHERE true ${scope.cond('sensor_id')})`}
-  })
+  return withCache(fastify.cache, `<x>:${scope.cacheSuffix}`, TTL,   // ⚠️ scope SIEMPRE en la key
+    () => svc.get<X>(scope))
 })
+
+// <x>.repository.ts
+await prisma.$queryRaw`... WHERE ... ${scope.cond('sensor_id')} ...`
+// para tablas sin sensor_id (events): ${scope.all ? Prisma.empty
+//   : Prisma.sql`AND session_id IN (SELECT id FROM sessions WHERE true ${scope.cond('sensor_id')})`}
 ```
 
 **Front lib/api** (`lib/api/<x>.ts`):
@@ -140,12 +242,15 @@ DENTRO de los sensores del tenant — nunca ampliar).
 ---
 
 ## Orden sugerido
-1. Sessions, Threats, Web-attacks (las más usadas para investigar).
-2. Services/protocolos, Credentials, Malware, IoCs, Commands.
-3. Deuda del home (novelty, heatmap).
-4. Aislamiento de gestión (/users, /sensors, /clients).
-5. Rollups sin sensor_id (solo los KPIs que falten).
-6. Tests de aislamiento + security review.
+1. ✅ ~~Deuda del home (novelty, heatmap)~~ — hecho.
+2. ✅ ~~Services/protocolos~~ — hecho (jul 2026). Patrón mecánico fijado; reusar tal cual.
+3. ✅ ~~Sessions, Threats, Web-attacks~~ — hecho (jul 2026). Unificación `narrowToTenant` aplicada a
+   los tres; detalles fail-closed (`getById`, `getThreatByIp`, `/web-hits/sessions/:fp`).
+4. **Credentials, Malware, IoCs, Commands** — siguen.
+5. Aislamiento de gestión (/users, /sensors, /clients).
+6. Rollups sin sensor_id (solo los KPIs que falten).
+7. `live` stream (diseño aparte, #7).
+8. Tests de aislamiento + cache-key + security review.
 
 ## Verificación (cada página)
 - Local: superadmin + DB `honeypot_full` (4 clientes con sensores distintos). Seleccionar un

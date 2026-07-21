@@ -4,6 +4,7 @@ import { PageShell } from "@/components/page-shell"
 import Link from "next/link"
 import { ArrowLeft, Globe, Clock, MousePointerClick, Shield, Target, Fingerprint, GitBranch, Link2, SearchX } from "lucide-react"
 import { fetchWebHitsByIpPage, fetchWebHits, fetchThreat } from "@/lib/api"
+import { effectiveSensorScope } from "@/lib/tenant-scope"
 import { lookupIp } from "@/lib/geo"
 import { enrichIp } from "@/lib/ip-enrichment"
 import { RiskBadge } from "@/components/risk-badge"
@@ -37,16 +38,18 @@ export default async function WebAttackerDetailPage({
   const { type } = await searchParams
   const activeType = VALID_ATTACK_TYPES.has(type ?? "") ? type : undefined
 
+  const { sensorIds } = await effectiveSensorScope()
+
   const [attackersPage, { hits }] = await Promise.all([
-    fetchWebHitsByIpPage({ q: srcIp, pageSize: 10 }),
-    fetchWebHits({ srcIp, limit: 500 }),
+    fetchWebHitsByIpPage({ q: srcIp, pageSize: 10 }, sensorIds),
+    fetchWebHits({ srcIp, limit: 500 }, sensorIds),
   ])
 
   const attacker = attackersPage.items.find((a) => a.srcIp === srcIp)
   if (!attacker) notFound()
 
   let threat = null
-  try { threat = await fetchThreat(srcIp) } catch {}
+  try { threat = await fetchThreat(srcIp, sensorIds) } catch {}
 
   let enrichment = null
   try { enrichment = await enrichIp(srcIp) } catch {}

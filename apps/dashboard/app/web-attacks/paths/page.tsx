@@ -6,6 +6,7 @@ import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
 import { SectionError } from "@/components/section-error"
 import { fetchWebPaths } from "@/lib/api"
+import { effectiveSensorScope } from "@/lib/tenant-scope"
 import { AttackTypeBadge } from "@/components/attack-type-badge"
 
 export const metadata: Metadata = {
@@ -13,9 +14,10 @@ export const metadata: Metadata = {
 }
 
 export default async function WebPathsPage() {
+  const { sensorIds } = await effectiveSensorScope()
   let paths
   try {
-    ({ paths } = await fetchWebPaths())
+    ({ paths } = await fetchWebPaths(sensorIds))
   } catch {
     return (
       <PageShell>

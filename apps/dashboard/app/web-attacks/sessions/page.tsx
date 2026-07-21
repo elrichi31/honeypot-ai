@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { Fingerprint, Target, GitBranch, AlertTriangle } from "lucide-react"
 import { fetchWebSessions } from "@/lib/api"
+import { effectiveSensorScope } from "@/lib/tenant-scope"
 import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
 import { ErrorState } from "@/components/ui/data-states"
@@ -35,8 +36,9 @@ export default async function WebSessionsPage({
 
   let sessionsPage: Awaited<ReturnType<typeof fetchWebSessions>>
   let error = false
+  const { sensorIds } = await effectiveSensorScope()
   try {
-    sessionsPage = await fetchWebSessions({ page, pageSize: 50, range, onlyChains })
+    sessionsPage = await fetchWebSessions({ page, pageSize: 50, range, onlyChains }, sensorIds)
   } catch {
     error = true
     sessionsPage = { items: [], pagination: { page: 1, pageSize: 50, total: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false } }
