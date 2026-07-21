@@ -169,8 +169,13 @@ Tablas que agregan y **no** tienen `sensor_id` → no se pueden filtrar directo:
 base (más lento) **o** añadir `sensor_id`/`client_id` al rollup (migración + recálculo). Decidir
 caso por caso.
 > Nota (jul 2026): `credential_attempts` **sí** tiene `sensor_id` — se removió de esta lista;
-> `/credentials` ya scopea directo. `threat_ip_summary` no lo tiene pero `/threats` lo resuelve
-> con subqueries `EXISTS` sobre las tablas base (ver módulo threats).
+> `/credentials` ya scopea directo.
+> `threat_ip_summary` (rollup global sin `sensor_id`) fue el caso más sutil: el `EXISTS` inicial
+> solo decidía **qué IPs** aparecían, pero los números por IP (ssh/web/protocols) seguían siendo
+> globales → un tenant web-only veía correlación SSH de otros tenants. **Resuelto (jul 2026):**
+> `querySummaryRows` es scope-aware — **global** lee la materialized view (correlación cross-sensor
+> intacta); **scoped** re-agrega desde tablas base con `sensor_id IN (…)` + ventana temporal, así
+> cada número refleja solo los sensores del tenant. El detalle (`getThreatByIp`) ya era fail-closed.
 
 ### 5. SIEM / forwarding por tenant (verificar)
 - Las alertas a CrowdStrike ya se enrutan por cliente (`resolveClientCrowdStrike`). Confirmar que
