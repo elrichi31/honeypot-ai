@@ -18,6 +18,7 @@ export const en = {
   "dash.error.attackerIntel": "Could not load attacker intel",
   "dash.error.botRatio": "Could not load bot/human ratio",
   "dash.error.heatmap": "Could not load the attack heatmap",
+  "dash.error.services": "Could not load service activity",
 
   // ── Suspense loading ───────────────────────────────────────────────────────
   "dash.loading.metrics": "Loading metrics…",
@@ -28,6 +29,18 @@ export const en = {
   "dash.loading.novelty": "Loading novelty stats…",
   "dash.loading.attackerIntel": "Loading attacker intel…",
   "dash.loading.botRatio": "Loading bot/human ratio…",
+  "dash.loading.services": "Loading service activity…",
+
+  // ── Service activity (non-SSH honeypot highlights) ─────────────────────────
+  "dash.services.title": "Service activity",
+  "dash.services.subtitle": "Highlights from your other honeypots",
+  "dash.services.facet.credentials": "Top credentials",
+  "dash.services.facet.usernames": "Top usernames",
+  "dash.services.facet.commands": "Top commands",
+  "dash.services.facet.databases": "Databases",
+  "dash.services.facet.shares": "Shares",
+  "dash.services.facet.services": "Services",
+  "dash.services.facet.ports": "Target ports",
 
   // ── MITRE ATT&CK ──────────────────────────────────────────────────────────
   "dash.mitre.title": "MITRE ATT&CK coverage",
@@ -85,6 +98,7 @@ export const es: Record<keyof typeof en, string> = {
   "dash.error.attackerIntel": "No se pudo cargar la inteligencia del atacante",
   "dash.error.botRatio": "No se pudo cargar la relación bot/humano",
   "dash.error.heatmap": "No se pudo cargar el mapa de calor de ataques",
+  "dash.error.services": "No se pudo cargar la actividad de servicios",
 
   "dash.loading.metrics": "Cargando métricas…",
   "dash.loading.activity": "Cargando actividad…",
@@ -94,6 +108,17 @@ export const es: Record<keyof typeof en, string> = {
   "dash.loading.novelty": "Cargando métricas de novedad…",
   "dash.loading.attackerIntel": "Cargando inteligencia del atacante…",
   "dash.loading.botRatio": "Cargando relación bot/humano…",
+  "dash.loading.services": "Cargando actividad de servicios…",
+
+  "dash.services.title": "Actividad de servicios",
+  "dash.services.subtitle": "Lo más relevante de tus otros honeypots",
+  "dash.services.facet.credentials": "Top credenciales",
+  "dash.services.facet.usernames": "Top usuarios",
+  "dash.services.facet.commands": "Top comandos",
+  "dash.services.facet.databases": "Bases de datos",
+  "dash.services.facet.shares": "Recursos compartidos",
+  "dash.services.facet.services": "Servicios",
+  "dash.services.facet.ports": "Puertos objetivo",
 
   "dash.mitre.title": "Cobertura MITRE ATT&CK",
   "dash.mitre.subtitle": "Técnicas observadas mapeadas desde la actividad del honeypot",

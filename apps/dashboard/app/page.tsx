@@ -11,6 +11,7 @@ import { MitreMatrixView } from "@/components/insights/mitre-matrix"
 import { GlobeMap } from "@/components/globe-map"
 import { AttackHeatmap } from "@/components/attack-heatmap"
 import { SensorActivityGrid } from "@/components/sensor-activity-grid"
+import { ServiceHighlights } from "@/components/service-highlights"
 import { SectionError } from "@/components/section-error"
 import { SectionLoading } from "@/components/section-loading"
 import {
@@ -22,6 +23,8 @@ import {
   fetchMitreMatrix,
   fetchNovelty,
   fetchBotRatio,
+  fetchProtocolStats,
+  fetchProtocolInsights,
 } from "@/lib/api"
 import type { KpiTrends } from "@/lib/api"
 import { lookupIp, geolocateIps } from "@/lib/geo"
@@ -276,13 +279,44 @@ async function InsightsSection() {
     console.error("[dashboard] InsightsSection failed:", err)
     return <SectionError title={t("dash.error.sshAnalysis")} />
   }
+  // Every card in this section is SSH-derived (credential campaigns, command
+  // paths, session depth). Clients without an SSH honeypot would just see empty
+  // shells, so hide the whole block — header included — when there's no SSH.
+  if (insights.window.totalSessions === 0) return null
   return (
-    <DashboardInsightsView
-      insights={insights}
-      countrySuccess={buildCountrySuccess(insights.countrySuccessCandidates)}
-      campaignGeo={buildCampaignGeo(insights.credentialCampaigns)}
-    />
+    <div className="mb-6">
+      <div className="mb-4 flex items-center gap-2">
+        <Terminal className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          {t("dash.section.sshAnalysis")}
+        </h2>
+      </div>
+      <DashboardInsightsView
+        insights={insights}
+        countrySuccess={buildCountrySuccess(insights.countrySuccessCandidates)}
+        campaignGeo={buildCampaignGeo(insights.credentialCampaigns)}
+      />
+    </div>
   )
+}
+
+async function ServiceHighlightsSection() {
+  const t = await getServerT()
+  const { sensorIds } = await effectiveSensorScope()
+  let stats
+  try {
+    stats = await fetchProtocolStats(sensorIds)
+  } catch (err) {
+    console.error("[dashboard] ServiceHighlightsSection failed:", err)
+    return <SectionError title={t("dash.error.services")} />
+  }
+  const top = stats.filter((s) => s.count > 0).sort((a, b) => b.count - a.count).slice(0, 6)
+  if (top.length === 0) return null
+
+  const services = await Promise.all(
+    top.map(async (stat) => ({ stat, insights: await fetchProtocolInsights(stat.protocol, sensorIds) })),
+  )
+  return <ServiceHighlights services={services} />
 }
 
 async function NoveltySection() {
@@ -367,18 +401,15 @@ export default async function DashboardPage() {
         </Suspense>
       </div>
 
-      {/* SSH deep analysis */}
-      <div className="mb-6">
-        <div className="mb-4 flex items-center gap-2">
-          <Terminal className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            {t("dash.section.sshAnalysis")}
-          </h2>
-        </div>
-        <Suspense fallback={<SectionLoading label={t("dash.loading.sshAnalysis")} />}>
-          <InsightsSection />
-        </Suspense>
-      </div>
+      {/* Per-sensor highlights for non-SSH honeypots (FTP, MySQL, SMB, …) */}
+      <Suspense fallback={<SectionLoading label={t("dash.loading.services")} />}>
+        <ServiceHighlightsSection />
+      </Suspense>
+
+      {/* SSH deep analysis — header + content self-gate when there's no SSH */}
+      <Suspense fallback={<SectionLoading label={t("dash.loading.sshAnalysis")} />}>
+        <InsightsSection />
+      </Suspense>
 
       {/* Threat Intelligence — novelty, attacker infrastructure, bot/human */}
       <div className="mb-6 grid gap-4 xl:grid-cols-3">
