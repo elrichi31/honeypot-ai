@@ -183,6 +183,7 @@ function typeToGlobeColor(type: string): [number, number, number] {
   if (type === "ftp") return [0.98, 0.85, 0.13]
   if (type === "mysql") return [0.85, 0.32, 1.00]
   if (type === "port-scan") return [0.13, 0.93, 0.45]
+  if (type === "ids") return [0.97, 0.44, 0.44]
   return [0.80, 0.80, 0.80]
 }
 
@@ -194,7 +195,7 @@ function globeColorCss(type: string) {
 function GlobeLegend() {
   return (
     <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-full border border-white/10 bg-[#060b18]/80 px-4 py-1.5 backdrop-blur-sm">
-      {["ssh", "http", "ftp", "mysql", "port-scan"].map((type) => (
+      {["ssh", "http", "ftp", "mysql", "port-scan", "ids"].map((type) => (
         <span key={type} className="flex items-center gap-1 text-[10px] text-slate-300">
           <span className="h-2 w-2 rounded-full" style={{ background: globeColorCss(type) }} />
           {type}

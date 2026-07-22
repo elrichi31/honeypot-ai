@@ -34,7 +34,7 @@ export function LiveAttackControls(props: Props) {
 // Always show these core protocols even at 0, so the map reflects the whole
 // sensor fleet. Any other protocol that actually sends an event (e.g. a new
 // dionaea service) is appended dynamically from the live stats.
-const CORE_CHIPS = ["ssh", "http", "ftp", "mysql", "smb", "port-scan"]
+const CORE_CHIPS = ["ssh", "http", "ftp", "mysql", "smb", "port-scan", "ids"]
 
 function ProtocolChips({ stats }: { stats: Record<string, number> }) {
   const dynamic = Object.keys(stats).filter((t) => !CORE_CHIPS.includes(t))

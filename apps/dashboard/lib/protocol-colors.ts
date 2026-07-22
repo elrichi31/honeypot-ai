@@ -10,6 +10,7 @@ export const PROTOCOL_MARKER_COLOR: Record<string, string> = {
   rpc: "#818cf8",
   tftp: "#a3e635",
   mqtt: "#14b8a6",
+  ids: "#f87171",
 }
 
 export const PROTOCOL_CHIP_CLASS: Record<string, string> = {
@@ -24,6 +25,7 @@ export const PROTOCOL_CHIP_CLASS: Record<string, string> = {
   tftp: "text-lime-400 border-lime-500/40 bg-lime-500/10",
   mqtt: "text-teal-400 border-teal-500/40 bg-teal-500/10",
   dionaea: "text-red-400 border-red-500/40 bg-red-500/10",
+  ids: "text-red-400 border-red-500/40 bg-red-500/10",
 }
 
 export const PROTOCOL_DOT_CLASS: Record<string, string> = {
@@ -38,6 +40,7 @@ export const PROTOCOL_DOT_CLASS: Record<string, string> = {
   rpc: "bg-indigo-400",
   tftp: "bg-lime-400",
   mqtt: "bg-teal-400",
+  ids: "bg-red-400",
 }
 
 export function getProtocolChipClass(protocol: string): string {

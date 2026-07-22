@@ -3,13 +3,14 @@ import type { PrismaClient } from '@prisma/client'
 export type SessionRow = { src_ip: string; count: bigint }
 export type WebRow = { src_ip: string; count: bigint }
 export type ProtocolRow = { src_ip: string; protocol: string; count: bigint }
+export type IdsRow = { src_ip: string; count: bigint }
 export type SensorRow = { sensor_id: string; ip: string; protocol: string }
 
 export class AttacksTodayRepository {
   constructor(private prisma: PrismaClient) {}
 
-  async getAttacksSince(since: Date): Promise<{ sshRows: SessionRow[]; webRows: WebRow[]; protocolRows: ProtocolRow[] }> {
-    const [sshRows, webRows, protocolRows] = await Promise.all([
+  async getAttacksSince(since: Date): Promise<{ sshRows: SessionRow[]; webRows: WebRow[]; protocolRows: ProtocolRow[]; idsRows: IdsRow[] }> {
+    const [sshRows, webRows, protocolRows, idsRows] = await Promise.all([
       this.prisma.$queryRaw<SessionRow[]>`
         SELECT src_ip, COUNT(*)::bigint AS count
         FROM sessions
@@ -28,8 +29,17 @@ export class AttacksTodayRepository {
         WHERE timestamp >= ${since}
         GROUP BY src_ip, protocol
       `,
+      // Suricata IDS hits (SYN scans etc.) — the only view of traffic to ports
+      // no sensor answers on. 'SURICATA ' engine-noise never lands here; it's
+      // filtered out at persist time (see SuricataService.isNoise).
+      this.prisma.$queryRaw<IdsRow[]>`
+        SELECT src_ip, COUNT(*)::bigint AS count
+        FROM suricata_alerts
+        WHERE timestamp >= ${since}
+        GROUP BY src_ip
+      `,
     ])
-    return { sshRows, webRows, protocolRows }
+    return { sshRows, webRows, protocolRows, idsRows }
   }
 
   async getSensorLocations(): Promise<SensorRow[]> {

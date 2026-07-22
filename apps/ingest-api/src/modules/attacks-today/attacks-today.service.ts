@@ -13,7 +13,7 @@ export class AttacksTodayService {
 
   private async getAttackedCountries() {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
-    const { sshRows, webRows, protocolRows } = await this.repo.getAttacksSince(since)
+    const { sshRows, webRows, protocolRows, idsRows } = await this.repo.getAttacksSince(since)
 
     const countryMap = new Map<string, {
       lat: number; lng: number; country: string; count: number; type: string
@@ -23,6 +23,7 @@ export class AttacksTodayService {
       ...sshRows.map(r => ({ src_ip: r.src_ip, type: 'ssh', count: Number(r.count) })),
       ...webRows.map(r => ({ src_ip: r.src_ip, type: 'http', count: Number(r.count) })),
       ...protocolRows.map(r => ({ src_ip: r.src_ip, type: r.protocol, count: Number(r.count) })),
+      ...idsRows.map(r => ({ src_ip: r.src_ip, type: 'ids', count: Number(r.count) })),
     ]
 
     for (const row of allAttacks) {
