@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Loader2, AlertCircle, CheckCircle } from "lucide-react"
 import { signIn, fetchPublicIp } from "@/lib/auth-client"
 import { BrandMark } from "@/components/brand-mark"
+import { LoginGlobe } from "@/components/login-globe"
 import { useBrand } from "@/lib/use-brand"
 
 function LoginForm() {
@@ -74,13 +75,16 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="grid min-h-screen lg:grid-cols-2">
+      <div className="flex items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <BrandMark variant="full" />
+        <div className="mb-8 flex flex-col items-center gap-4 text-center">
+          <div className="scale-150">
+            <BrandMark variant="full" />
+          </div>
           {brand !== "ist-americas" && (
             <div>
-              <h1 className="text-xl font-semibold text-foreground">HoneyTrap</h1>
+              <h1 className="text-2xl font-semibold text-foreground">HoneyTrap</h1>
               <p className="text-sm text-muted-foreground">Sign in to your dashboard</p>
             </div>
           )}
@@ -150,6 +154,20 @@ function LoginForm() {
               )}
             </button>
           </form>
+        </div>
+      </div>
+      </div>
+
+      <div className="relative hidden items-center justify-center overflow-hidden bg-[#060b18] lg:flex">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(80,90,160,0.25),transparent_70%)]" />
+        <div className="relative flex flex-col items-center gap-8 px-10">
+          <LoginGlobe />
+          <div className="max-w-md text-center">
+            <h2 className="text-2xl font-semibold text-white">Threats, mapped in real time</h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Every probe, scan and login attempt against your honeypots — visualized as it happens.
+            </p>
+          </div>
         </div>
       </div>
     </div>
