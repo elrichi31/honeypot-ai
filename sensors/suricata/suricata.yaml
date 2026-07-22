@@ -21,6 +21,12 @@ vars:
     ENIP_CLIENT: "$HOME_NET"
     ENIP_SERVER: "$HOME_NET"
   port-groups:
+    # Ports the honeypots actually answer on. The local scan rules
+    # (sensors/suricata/local.rules) fire on SYN bursts to ports OUTSIDE this
+    # set (real recon of unlistened ports); a burst INTO this set is a flood to
+    # a live service, caught by a separate rule and labelled as such. Keep in
+    # sync with the sensor fleet's exposed ports.
+    HONEYPOT_PORTS: "[21,22,23,25,80,443,445,1433,3306,1883,3389,8080]"
     HTTP_PORTS: "80"
     SHELLCODE_PORTS: "!80"
     ORACLE_PORTS: 1521

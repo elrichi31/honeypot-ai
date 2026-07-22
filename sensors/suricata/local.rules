@@ -1,21 +1,27 @@
 # Local honeypot rules (not from ET Open). Suricata convention reserves sid
 # 1000000+ for local/custom rules so they never collide with ET/community sids.
 #
-# Both rules fire on a burst of SYNs from one source to ANY destination port —
-# not a specific list. Every other sensor here only logs a hit for a port it
-# actually answers on; these two exist for the gap none of them can see: ports
-# nothing is listening on. The SYN still hits the NIC and Suricata (af-packet,
-# same interface it already sniffs for the ET ruleset) sees it whether or not
-# any socket ever accepts the connection.
+# These fire on a burst of SYNs from one source. Every other sensor here only
+# logs a hit for a port it actually answers on; these exist for the gap none of
+# them can see: ports nothing is listening on. The SYN still hits the NIC and
+# Suricata (af-packet, same interface it already sniffs for the ET ruleset) sees
+# it whether or not any socket ever accepts the connection.
 #
-# ponytail: tracks SYN *count* per source, not *distinct-port* count — Suricata
-# has no built-in "N distinct ports" tracker (that's Snort's sfPortscan/Zeek's
-# scan.log). A client retrying ONE open port 15x/10s also trips rule 1000001.
-# In practice that's rare enough for a honeypot (nothing legitimate connects
-# here), so this is left as the cheap version. If it false-positives, the fix
-# is dst_port-set tracking via a Suricata Lua rule or an EVE post-processor in
-# Vector, not a Suricata built-in.
+# Scan vs flood — split by destination port, not distinct-port count. Suricata's
+# threshold collapses each burst into ONE alert with ONE sampled dst_port, and
+# the EVE output carries no per-packet data, so a true "N distinct ports"
+# counter is impossible downstream (it would need a Suricata Lua rule or flow
+# logging). Instead we split by whether the target port is served:
+#   - 1000001/1000002 match SYN bursts to ports OUTSIDE $HONEYPOT_PORTS — traffic
+#     to ports nothing serves, i.e. real recon. A scanner sweeping the host trips
+#     these on the many unlistened ports it touches.
+#   - 1000003 matches SYN bursts INTO $HONEYPOT_PORTS — a live service being
+#     hammered (e.g. a botnet SYN-flooding :80). Same burst, honest label, still
+#     logged and mapped, just not miscalled a "port scan".
+# $HONEYPOT_PORTS is defined in suricata.yaml; keep it in sync with the fleet.
 
-alert tcp any any -> any any (msg:"HONEYPOT SCAN possible TCP port scan (SYN burst)"; flags:S,12; threshold:type both, track by_src, count 15, seconds 10; classtype:attempted-recon; sid:1000001; rev:1;)
+alert tcp any any -> any !$HONEYPOT_PORTS (msg:"HONEYPOT SCAN possible TCP port scan (SYN burst)"; flags:S,12; threshold:type both, track by_src, count 15, seconds 10; classtype:attempted-recon; sid:1000001; rev:2;)
 
-alert tcp any any -> any any (msg:"HONEYPOT SCAN possible slow/low-rate TCP port scan"; flags:S,12; threshold:type both, track by_src, count 5, seconds 300; classtype:attempted-recon; sid:1000002; rev:1;)
+alert tcp any any -> any !$HONEYPOT_PORTS (msg:"HONEYPOT SCAN possible slow/low-rate TCP port scan"; flags:S,12; threshold:type both, track by_src, count 5, seconds 300; classtype:attempted-recon; sid:1000002; rev:2;)
+
+alert tcp any any -> any $HONEYPOT_PORTS (msg:"HONEYPOT FLOOD possible SYN flood to service port"; flags:S,12; threshold:type both, track by_src, count 15, seconds 10; classtype:attempted-dos; sid:1000003; rev:1;)
