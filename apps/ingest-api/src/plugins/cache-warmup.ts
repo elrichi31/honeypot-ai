@@ -33,6 +33,27 @@ async function warmupOne(fastify: FastifyInstance, route: string) {
   }
 }
 
+// The dashboard's Service activity section calls /protocol-hits/stats and then
+// one /protocol-hits/insights per active protocol. We can't list the insights
+// routes statically (the protocol set is data-dependent), so warm stats first,
+// then warm insights for exactly the protocols it returns.
+async function warmupProtocolInsights(fastify: FastifyInstance) {
+  try {
+    const res = await fastify.inject({ method: 'GET', url: '/protocol-hits/stats' })
+    if (res.statusCode >= 400) {
+      fastify.log.warn(`[cache-warmup] /protocol-hits/stats returned ${res.statusCode}`)
+      return
+    }
+    fastify.log.info('[cache-warmup] warmed /protocol-hits/stats')
+    const stats = res.json() as Array<{ protocol: string }>
+    for (const { protocol } of stats) {
+      await warmupOne(fastify, `/protocol-hits/insights?protocol=${encodeURIComponent(protocol)}`)
+    }
+  } catch (err) {
+    fastify.log.error(`[cache-warmup] protocol insights warm-up failed: ${err}`)
+  }
+}
+
 async function warmupAll(fastify: FastifyInstance) {
   // Serial, not parallel: warming 7-8 heavy endpoints at once is exactly the
   // cold-start stampede this is meant to prevent. The compute-level semaphore
@@ -41,6 +62,7 @@ async function warmupAll(fastify: FastifyInstance) {
   for (const route of WARMUP_ROUTES) {
     await warmupOne(fastify, route)
   }
+  await warmupProtocolInsights(fastify)
 }
 
 export const cacheWarmupPlugin = fp(async function (fastify: FastifyInstance) {

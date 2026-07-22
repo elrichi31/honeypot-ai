@@ -95,8 +95,11 @@ export interface Client {
   createdAt: string
 }
 
+// 30s timeout (not the 10s default) matches the heavy dashboard aggregates: a
+// cold /protocol-hits query under global scope can exceed 10s, and aborting
+// early wastes the work AND leaves the 30-min cache cold, so every load retries.
 export async function fetchProtocolStats(sensorIds?: string[]): Promise<ProtocolStat[]> {
-  return apiFetch<ProtocolStat[]>(`${getApiUrl()}/protocol-hits/stats?_=1${sensorScopeParam(sensorIds)}`, 300)
+  return apiFetch<ProtocolStat[]>(`${getApiUrl()}/protocol-hits/stats?_=1${sensorScopeParam(sensorIds)}`, 300, 30000)
 }
 
 export async function fetchTargetPortStats(sensorIds?: string[]): Promise<TargetPortStat[]> {
@@ -106,7 +109,7 @@ export async function fetchTargetPortStats(sensorIds?: string[]): Promise<Target
 export async function fetchProtocolInsights(protocol: string, sensorIds?: string[]): Promise<ProtocolInsights> {
   const url = new URL(`${getApiUrl()}/protocol-hits/insights`)
   url.searchParams.set('protocol', protocol)
-  return apiFetch<ProtocolInsights>(`${url.toString()}${sensorScopeParam(sensorIds)}`, 300)
+  return apiFetch<ProtocolInsights>(`${url.toString()}${sensorScopeParam(sensorIds)}`, 300, 30000)
 }
 
 export async function fetchSensors(): Promise<Sensor[]> {
