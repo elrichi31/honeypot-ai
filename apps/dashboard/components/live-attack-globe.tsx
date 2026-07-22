@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react"
 import type React from "react"
 import createGlobe from "cobe"
 import { latLngTo3D, projectTo2D } from "@/lib/globe-math"
+import { getPortColor } from "@/lib/protocol-colors"
 import type { GlobeArc, LiveMarkerEntry, SensorLocation } from "@/components/live-attack-map-types"
 
 const GLOBE_THETA = 0.28
@@ -118,8 +119,10 @@ function resolveTargetSensor(
   sensorsById: Map<string, SensorLocation>,
   sensors: SensorLocation[],
 ) {
-  if (sensorId) return sensorsById.get(sensorId) ?? null
-  return sensors.length === 1 ? sensors[0] : null
+  // See the 2D map's resolveTargetSensor: IDS events carry an unregistered
+  // sensor id, so fall back to the first sensor (same host) to keep their arcs.
+  if (sensorId) return sensorsById.get(sensorId) ?? sensors[0] ?? null
+  return sensors[0] ?? null
 }
 
 function appendArc(svg: SVGSVGElement, arc: GlobeArc, dstV: [number, number, number], dst: ReturnType<typeof projectTo2D>, phi: number, width: number, now: number) {
@@ -129,7 +132,7 @@ function appendArc(svg: SVGSVGElement, arc: GlobeArc, dstV: [number, number, num
   const mid = projectTo2D(liftedMidpoint(srcV, dstV), phi, GLOBE_THETA)
   const d = arcD(src, mid, dst, width)
   const opacity = Math.max(0, 1 - (now - arc.createdAt) / 6000)
-  const color = globeColorCss(arc.type)
+  const color = getPortColor(arc.dstPort, arc.type)
   svg.appendChild(svgPath(d, color, 5, opacity * 0.2, "blur(3px)"))
   svg.appendChild(svgPath(d, color, 1.4, opacity * 0.9))
 }

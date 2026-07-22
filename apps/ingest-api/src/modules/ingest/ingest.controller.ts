@@ -10,7 +10,7 @@ import { scheduleThreatAlert } from '../../lib/threat-alerts.js';
 function emitSsh(ip: string, sensorId: string | null, timestamp: string) {
   const geo = lookupGeo(ip)
   if (!geo) return
-  eventBus.emit('attack', { type: 'ssh', ip, ...geo, timestamp, sensorId })
+  eventBus.emit('attack', { type: 'ssh', ip, ...geo, timestamp, sensorId, dstPort: 22 })
 }
 
 function shouldEvaluateThreat(raw: CowrieRawEvent) {

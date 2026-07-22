@@ -22,6 +22,7 @@ export interface LiveArc {
   srcLng: number
   srcLat: number
   type: string
+  dstPort?: number
   targetSensorId?: string | null
   expiresAt: number
 }
@@ -31,6 +32,7 @@ export interface GlobeArc {
   srcLat: number
   srcLng: number
   type: string
+  dstPort?: number
   targetSensorId?: string | null
   createdAt: number
 }

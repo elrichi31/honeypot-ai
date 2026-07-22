@@ -228,6 +228,7 @@ function addLiveArc(event: RawEvent, timestamp: number, setLiveArcs: React.Dispa
       srcLng: event.lng,
       srcLat: event.lat,
       type: event.type,
+      dstPort: event.dstPort,
       targetSensorId: event.sensorId ?? null,
       expiresAt: timestamp + 5_000,
     },
@@ -271,6 +272,7 @@ function globeArc(event: RawEvent, timestamp: number): GlobeArc {
     srcLat: event.lat,
     srcLng: event.lng,
     type: event.type,
+    dstPort: event.dstPort,
     targetSensorId: event.sensorId ?? null,
     createdAt: timestamp,
   }

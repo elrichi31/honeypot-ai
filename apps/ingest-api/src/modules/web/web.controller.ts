@@ -59,7 +59,7 @@ const sessionsQuerySchema = basePaginationSchema.extend({
 
 function emitAttackEvent(srcIp: string, timestamp: string, sensorId: string | null) {
   const geo = lookupGeo(srcIp)
-  if (geo) eventBus.emit('attack', { type: 'http', ip: srcIp, ...geo, timestamp, sensorId })
+  if (geo) eventBus.emit('attack', { type: 'http', ip: srcIp, ...geo, timestamp, sensorId, dstPort: 80 })
 }
 
 export async function webRoutes(fastify: FastifyInstance) {

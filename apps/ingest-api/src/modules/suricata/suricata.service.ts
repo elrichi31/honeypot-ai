@@ -58,6 +58,7 @@ export class SuricataService {
         ...geo,
         timestamp: ts.toISOString(),
         sensorId: alert.sensor_id || null,
+        dstPort: alert.dest_port ?? undefined,
       })
     }
 

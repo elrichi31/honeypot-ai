@@ -54,3 +54,23 @@ export function getProtocolDotClass(protocol: string): string {
 export function getProtocolMarkerColor(protocol: string): string {
   return PROTOCOL_MARKER_COLOR[protocol] ?? "#6b7280"
 }
+
+// Colour by destination port. Known service ports reuse their protocol's colour
+// so ssh(22)/http(80)/mysql(3306) stay visually consistent with the rest of the
+// UI; any other port (the arbitrary ports IDS scans hammer) gets a stable
+// hash-derived hue so each port reads as a distinct colour on the map.
+const PORT_MARKER_COLOR: Record<number, string> = {
+  21: "#facc15",   22: "#f43f5e",   23: "#fb7185",   25: "#a3e635",
+  80: "#fb923c",   443: "#f97316",  445: "#f59e0b",  1433: "#ec4899",
+  3306: "#c084fc", 1883: "#14b8a6", 3389: "#38bdf8", 8080: "#fdba74",
+}
+
+function portHashColor(port: number): string {
+  const hue = (port * 47) % 360
+  return `hsl(${hue}, 70%, 62%)`
+}
+
+export function getPortColor(port?: number | null, fallbackType?: string): string {
+  if (port == null) return fallbackType ? getProtocolMarkerColor(fallbackType) : "#6b7280"
+  return PORT_MARKER_COLOR[port] ?? portHashColor(port)
+}

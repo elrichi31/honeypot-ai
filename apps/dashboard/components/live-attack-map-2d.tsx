@@ -2,7 +2,7 @@
 
 import { useMemo } from "react"
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from "react-simple-maps"
-import { getProtocolMarkerColor } from "@/lib/protocol-colors"
+import { getPortColor } from "@/lib/protocol-colors"
 import { NUM_TO_ISO2 } from "@/components/live-attack-country"
 import type { CountryHit, HoverCountry, LiveArc, SensorLocation } from "@/components/live-attack-map-types"
 
@@ -34,7 +34,7 @@ export function LiveAttackMap2D({ visible, sensors, countryHits, liveArcs, setHo
           {liveArcs.map((arc) => {
             const sensor = resolveTargetSensor(arc.targetSensorId, sensorsById, sensors)
             if (!sensor) return null
-            return <LiveArcLine key={arc.id} src={[arc.srcLng, arc.srcLat]} dst={[sensor.lng, sensor.lat]} type={arc.type} />
+            return <LiveArcLine key={arc.id} src={[arc.srcLng, arc.srcLat]} dst={[sensor.lng, sensor.lat]} type={arc.type} dstPort={arc.dstPort} />
           })}
           {sensors.map((sensor) => <SensorMarker key={sensor.sensorId} sensor={sensor} />)}
         </ZoomableGroup>
@@ -48,8 +48,13 @@ function resolveTargetSensor(
   sensorsById: Map<string, SensorLocation>,
   sensors: SensorLocation[],
 ) {
-  if (sensorId) return sensorsById.get(sensorId) ?? null
-  return sensors.length === 1 ? sensors[0] : null
+  // Fall back to the first sensor when the id doesn't resolve: IDS/Suricata
+  // events carry a sensor id (e.g. "suricata-01") that isn't a registered
+  // honeypot in the sensors table, so without this their arcs would be dropped
+  // whenever more than one sensor exists. All sensors sit on the same host, so
+  // any of them approximates the target location.
+  if (sensorId) return sensorsById.get(sensorId) ?? sensors[0] ?? null
+  return sensors[0] ?? null
 }
 
 function MapFilters() {
@@ -117,10 +122,10 @@ function SensorMarker({ sensor }: { sensor: SensorLocation }) {
   )
 }
 
-function LiveArcLine({ src, dst, type }: { src: [number, number]; dst: [number, number]; type: string }) {
+function LiveArcLine({ src, dst, type, dstPort }: { src: [number, number]; dst: [number, number]; type: string; dstPort?: number }) {
   const d = arcPath(src, dst)
   if (!d) return null
-  const color = getProtocolMarkerColor(type)
+  const color = getPortColor(dstPort, type)
   const DUR = "3.2s"
   return (
     <g>

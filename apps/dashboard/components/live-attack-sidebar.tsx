@@ -1,6 +1,6 @@
 "use client"
 
-import { getProtocolDotClass, getProtocolMarkerColor } from "@/lib/protocol-colors"
+import { getPortColor } from "@/lib/protocol-colors"
 import { countryLabel } from "@/components/live-attack-country"
 import type { Attack, HoverCountry } from "@/components/live-attack-map-types"
 
@@ -38,10 +38,10 @@ function RecentRows({ recent }: { recent: Attack[] }) {
 }
 
 function RecentRow({ attack }: { attack: Attack }) {
-  const color = getProtocolMarkerColor(attack.type)
+  const color = getPortColor(attack.dstPort, attack.type)
   return (
     <div className="flex items-center gap-2 px-3 py-1.5">
-      <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${getProtocolDotClass(attack.type)}`} />
+      <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ background: color }} />
       <span className="flex-1 truncate font-mono text-[10px] text-slate-200">{attack.ip}</span>
       <span className="flex-shrink-0 text-[9px] text-slate-500">{attack.country || "??"}</span>
       <span className="flex-shrink-0 rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color, background: `${color}22` }}>
