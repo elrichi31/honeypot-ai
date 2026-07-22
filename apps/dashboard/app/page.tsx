@@ -303,20 +303,33 @@ async function InsightsSection() {
 async function ServiceHighlightsSection() {
   const t = await getServerT()
   const { sensorIds } = await effectiveSensorScope()
-  let stats
   try {
-    stats = await fetchProtocolStats(sensorIds)
+    const stats = await fetchProtocolStats(sensorIds)
+    const top = stats.filter((s) => s.count > 0).sort((a, b) => b.count - a.count).slice(0, 4)
+    if (top.length === 0) return null
+
+    // Per-protocol catch: a single slow/failing /insights endpoint drops that
+    // one card instead of throwing out of the whole section (an uncaught throw
+    // here bubbles to the route error boundary and blanks the entire page).
+    const services = (
+      await Promise.all(
+        top.map(async (stat) => {
+          try {
+            return { stat, insights: await fetchProtocolInsights(stat.protocol, sensorIds) }
+          } catch (err) {
+            console.error(`[dashboard] ServiceHighlights insights failed for ${stat.protocol}:`, err)
+            return null
+          }
+        }),
+      )
+    ).filter((s): s is NonNullable<typeof s> => s !== null)
+
+    if (services.length === 0) return null
+    return <ServiceHighlights services={services} />
   } catch (err) {
     console.error("[dashboard] ServiceHighlightsSection failed:", err)
     return <SectionError title={t("dash.error.services")} />
   }
-  const top = stats.filter((s) => s.count > 0).sort((a, b) => b.count - a.count).slice(0, 6)
-  if (top.length === 0) return null
-
-  const services = await Promise.all(
-    top.map(async (stat) => ({ stat, insights: await fetchProtocolInsights(stat.protocol, sensorIds) })),
-  )
-  return <ServiceHighlights services={services} />
 }
 
 async function NoveltySection() {
