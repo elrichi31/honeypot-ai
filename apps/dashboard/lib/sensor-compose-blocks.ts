@@ -40,8 +40,70 @@ export function portBlock(deployId: string, registry: string) {
   return fill(PORT_TEMPLATE, { deployId, registry })
 }
 
-export function vectorOnlyBlock(deployId: string) {
-  return fill(VECTOR_ONLY_TEMPLATE, { deployId })
+// The single vector shipper for a DMZ sensor. It always ships Suricata IDS, and
+// mounts + loads a config for every selected honeypot that logs to a file
+// (cowrie, and the protocol honeypots via the shared protocol.toml / web-honeypot.toml).
+// Without this wiring the honeypots write events to a file nobody ships.
+export function vectorBlock(services: ServiceKey[], deployId: string): string {
+  const has = (s: ServiceKey) => services.includes(s)
+  const configs = ["/etc/vector/suricata.toml"]
+  const volumes = ["      - suricata_logs:/tmp/suricata-logs:ro"]
+  const env = [`      SURICATA_SENSOR_ID: suricata-${deployId}`]
+  const dependsOn: string[] = []
+
+  if (has("ssh")) {
+    configs.unshift("/etc/vector/cowrie.toml")
+    volumes.push("      - cowrie_var:/cowrie/cowrie-git/var:ro")
+    env.push(
+      "      COWRIE_LOG_PATH: /cowrie/cowrie-git/var/log/cowrie/cowrie.json",
+      `      SENSOR_ID: cowrie-ssh-${deployId}`,
+    )
+    dependsOn.push("cowrie")
+  }
+
+  // Every file-logging protocol honeypot shares one shipper config (protocol.toml);
+  // it only needs the *_LOG_PATH of the ones actually present.
+  const proto: [ServiceKey, string, string][] = [
+    ["port", "port-honeypot", "PORT_LOG_PATH"],
+    ["ftp", "ftp-honeypot", "FTP_LOG_PATH"],
+    ["mysql", "mysql-honeypot", "MYSQL_LOG_PATH"],
+    ["smb", "smb-honeypot", "SMB_LOG_PATH"],
+  ].filter(([s]) => has(s as ServiceKey)) as [ServiceKey, string, string][]
+  if (proto.length) {
+    configs.push("/etc/vector/protocol.toml")
+    for (const [svc, dir, envKey] of proto) {
+      volumes.push(`      - ${svc}_events:/var/log/${dir}:ro`)
+      env.push(`      ${envKey}: /var/log/${dir}/events.json`)
+    }
+  }
+
+  if (has("http")) {
+    configs.push("/etc/vector/web-honeypot.toml")
+    volumes.push("      - web_events:/var/log/web-honeypot:ro")
+    env.push("      WEB_LOG_PATH: /var/log/web-honeypot/events.json")
+  }
+
+  volumes.push("      - vector_data:/var/lib/vector")
+  const configMounts = configs.map(c => `      - ./${c.split("/").pop()}:${c}:ro`)
+  const command = `[${configs.map(c => `"--config", "${c}"`).join(", ")}]`
+  const depends = dependsOn.length
+    ? `    depends_on:\n${dependsOn.map(d => `      - ${d}`).join("\n")}\n`
+    : ""
+
+  return `  vector:
+    <<: *service-defaults
+    logging: *json-logging
+    image: timberio/vector:0.40.0-alpine
+    container_name: vector
+${depends}    volumes:
+${[...configMounts, ...volumes].join("\n")}
+    command: ${command}
+    environment:
+      <<: *ingest
+${env.join("\n")}
+    networks:
+      - edge
+    pids_limit: 128`
 }
 
 export function suricataBlock(registry: string) {
@@ -128,30 +190,7 @@ const SSH_TEMPLATE = `  cowrie:
     command: ["sh", "-c", "pip install --quiet --no-cache-dir websockets==13.1 && python3 /heartbeat.py"]
     networks:
       - edge
-    pids_limit: 16
-
-  vector:
-    <<: *service-defaults
-    logging: *json-logging
-    image: timberio/vector:0.40.0-alpine
-    container_name: vector
-    depends_on:
-      - cowrie
-    volumes:
-      - cowrie_var:/cowrie/cowrie-git/var:ro
-      - suricata_logs:/tmp/suricata-logs:ro
-      - ./cowrie.toml:/etc/vector/cowrie.toml:ro
-      - ./suricata.toml:/etc/vector/suricata.toml:ro
-      - vector_data:/var/lib/vector
-    command: ["--config", "/etc/vector/cowrie.toml", "--config", "/etc/vector/suricata.toml"]
-    environment:
-      <<: *ingest
-      COWRIE_LOG_PATH: /cowrie/cowrie-git/var/log/cowrie/cowrie.json
-      SENSOR_ID: cowrie-ssh-{{deployId}}
-      SURICATA_SENSOR_ID: suricata-{{deployId}}
-    networks:
-      - edge
-    pids_limit: 128`
+    pids_limit: 16`
 
 const HTTP_TEMPLATE = `  web-honeypot:
     <<: *service-defaults
@@ -178,6 +217,7 @@ const HTTP_TEMPLATE = `  web-honeypot:
       - /tmp
     volumes:
       - web_signal:/signal:ro
+      - web_events:/var/log/web-honeypot
     pids_limit: 128
 
   web-honeypot-beacon:
@@ -219,6 +259,7 @@ const FTP_TEMPLATE = `  ftp-honeypot:
       - ./control_agent.py:/app/control_agent.py:ro
       - ./persisted_config.py:/app/persisted_config.py:ro
       - ftp_config:/config
+      - ftp_events:/var/log/ftp-honeypot
     networks:
       - edge
     pids_limit: 128`
@@ -242,6 +283,7 @@ const MYSQL_TEMPLATE = `  mysql-honeypot:
       - ./control_agent.py:/app/control_agent.py:ro
       - ./persisted_config.py:/app/persisted_config.py:ro
       - mysql_config:/config
+      - mysql_events:/var/log/mysql-honeypot
     networks:
       - edge
     pids_limit: 128`
@@ -273,6 +315,7 @@ const PORT_TEMPLATE = `  port-honeypot:
       - ./control_agent.py:/app/control_agent.py:ro
       - ./persisted_config.py:/app/persisted_config.py:ro
       - port_config:/config
+      - port_events:/var/log/port-honeypot
     networks:
       - edge
     pids_limit: 256`
@@ -581,28 +624,7 @@ const SMB_TEMPLATE = `  smb-honeypot:
       - smb_share:/share
       - smb_captures:/captures
       - smb_config:/config
-    networks:
-      - edge
-    pids_limit: 128`
-
-const VECTOR_ONLY_TEMPLATE = `  vector:
-    image: timberio/vector:0.40.0-alpine
-    container_name: vector
-    restart: unless-stopped
-    init: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    logging: *json-logging
-    volumes:
-      - suricata_logs:/tmp/suricata-logs:ro
-      - ./suricata.toml:/etc/vector/suricata.toml:ro
-      - vector_data:/var/lib/vector
-    command: ["--config", "/etc/vector/suricata.toml"]
-    environment:
-      <<: *ingest
-      SURICATA_SENSOR_ID: suricata-{{deployId}}
+      - smb_events:/var/log/smb-honeypot
     networks:
       - edge
     pids_limit: 128`

@@ -14,7 +14,7 @@ import {
   smbBlock,
   sshBlock,
   suricataBlock,
-  vectorOnlyBlock,
+  vectorBlock,
   type ServiceKey,
 } from "@/lib/sensor-compose-blocks"
 
@@ -41,7 +41,7 @@ export function buildCompose(
   const volumeLines = buildVolumeLines(services)
   // Internal canary is a standalone LAN deploy — no Suricata (no internet iface)
   // and no standard edge network.
-  const extraBlocks = isInternalCanary ? [] : [suricataBlock(registry), ...standaloneVectorBlock(services, deployId)]
+  const extraBlocks = isInternalCanary ? [] : [suricataBlock(registry), vectorBlock(services, deployId)]
   return [
     headerBlock(ingestUrl, secret, clientSlug, clientName),
     ...blocks,
@@ -98,10 +98,6 @@ function attachCowrieToDeception(sshBlockText: string, withDeception: boolean): 
   )
 }
 
-function standaloneVectorBlock(services: ServiceKey[], deployId: string) {
-  return services.includes("ssh") ? [] : [vectorOnlyBlock(deployId)]
-}
-
 function buildVolumeLines(services: ServiceKey[]) {
   if (services.includes("internal-canary")) {
     return [
@@ -114,12 +110,12 @@ function buildVolumeLines(services: ServiceKey[]) {
   }
   const volumes = ["volumes:"]
   if (services.includes("ssh")) volumes.push("  cowrie_var:", "  cowrie_signal:")
-  if (services.includes("http")) volumes.push("  web_signal:")
+  if (services.includes("http")) volumes.push("  web_signal:", "  web_events:")
   volumes.push("  vector_data:", "  suricata_logs:")
-  if (services.includes("smb")) volumes.push("  smb_share:", "  smb_captures:", "  smb_config:")
-  if (services.includes("port")) volumes.push("  port_config:")
-  if (services.includes("ftp")) volumes.push("  ftp_config:")
-  if (services.includes("mysql")) volumes.push("  mysql_config:")
+  if (services.includes("smb")) volumes.push("  smb_share:", "  smb_captures:", "  smb_config:", "  smb_events:")
+  if (services.includes("port")) volumes.push("  port_config:", "  port_events:")
+  if (services.includes("ftp")) volumes.push("  ftp_config:", "  ftp_events:")
+  if (services.includes("mysql")) volumes.push("  mysql_config:", "  mysql_events:")
   if (services.includes("deception")) volumes.push("  opencanary_logs:", "  opencanary_shipper_state:")
   return volumes.join("\n")
 }

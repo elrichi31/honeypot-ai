@@ -10,6 +10,7 @@ before touching the project.
 - [CLOUDFLARE_TUNNEL_SETUP.md](CLOUDFLARE_TUNNEL_SETUP.md) — how the Cloudflare tunnel / platform deploy is wired.
 - [backend-layering.md](backend-layering.md) — Controller → Service → Repository convention in ingest-api; every layer lives under `src/modules/<domain>/` (no more separate `routes/` folder, since 2026-07-05); which layer owns SQL, cache, and business logic.
 - [kafka-stream.md](kafka-stream.md) — Kafka topology (Vector → Kafka → ingest-api → Postgres), topics, env vars, how to check LAG, and rollback procedure.
+- [sensor-event-shipping.md](sensor-event-shipping.md) — how honeypot events reach ingest (file+vector, not direct POST); the per-honeypot volume/config/env wiring the installer generator must emit, and the silent-failure gotcha if it doesn't.
 
 ## Key facts (quick reference)
 

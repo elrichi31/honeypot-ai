@@ -8,13 +8,16 @@
 # Add new protocol honeypots by mounting their log into the glob below — no new
 # config needed.
 
+# The *_LOG_PATH vars default to an absent path so vector boots even when only
+# some protocol honeypots are deployed (the generator sets only the ones present;
+# single-host sets all four). A missing file is simply never tailed.
 [sources.protocol_files]
 type       = "file"
 include    = [
-  "${PORT_LOG_PATH}",
-  "${MYSQL_LOG_PATH}",
-  "${FTP_LOG_PATH}",
-  "${SMB_LOG_PATH}",
+  "${PORT_LOG_PATH:-/var/log/_absent/port.json}",
+  "${MYSQL_LOG_PATH:-/var/log/_absent/mysql.json}",
+  "${FTP_LOG_PATH:-/var/log/_absent/ftp.json}",
+  "${SMB_LOG_PATH:-/var/log/_absent/smb.json}",
 ]
 read_from  = "end"
 fingerprint.strategy = "device_and_inode"

@@ -33,6 +33,7 @@ function configDownloadLines(services: ServiceKey[]) {
     ...controlAgentDownloadLines(services),
     ...persistedConfigDownloadLines(services),
     `curl -fsSL "$RAW/vector/suricata.toml"            -o suricata.toml`,
+    ...vectorConfigDownloadLines(services),
     ...deceptionDownloadLines(services),
   ].join("\n")
 }
@@ -74,6 +75,22 @@ function cowrieDownloadLines(services: ServiceKey[]) {
 function httpDownloadLines(services: ServiceKey[]) {
   if (!services.includes("http")) return []
   return [`curl -fsSL "$RAW/sensors/web-honeypot/heartbeat.py" -o web-heartbeat.py`]
+}
+
+// Vector shipper configs for the file-logging honeypots. protocol.toml covers
+// port/ftp/mysql/smb; web-honeypot.toml covers http. Suricata's config is always
+// downloaded separately. Without these the events never leave the host.
+const PROTOCOL_TOML_SERVICES: ServiceKey[] = ["port", "ftp", "mysql", "smb"]
+
+function vectorConfigDownloadLines(services: ServiceKey[]) {
+  const lines: string[] = []
+  if (services.some(s => PROTOCOL_TOML_SERVICES.includes(s))) {
+    lines.push(`curl -fsSL "$RAW/vector/protocol.toml"            -o protocol.toml`)
+  }
+  if (services.includes("http")) {
+    lines.push(`curl -fsSL "$RAW/vector/web-honeypot.toml"        -o web-honeypot.toml`)
+  }
+  return lines
 }
 
 // Shared control-plane agent (status.get / config.apply) — same file used by
