@@ -4,7 +4,9 @@ export const dynamic = "force-dynamic"
 
 const apiBase = () => process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
 
-const CACHE_TTL = 60_000
+// ponytail: docker stats runs every ~5s per viewer window. Fine for a handful of
+// containers; if the host CPU climbs, raise this TTL back up (it decouples poll from docker cost).
+const CACHE_TTL = 4_000
 let statsCache: { data: unknown; status: number; expiresAt: number } | null = null
 
 export async function GET() {

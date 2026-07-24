@@ -84,7 +84,7 @@ export default function ContainerStatsChart() {
     loadLive()
     const id = setInterval(() => {
       if (!document.hidden) loadLive()
-    }, 120_000)
+    }, 5_000)
     return () => clearInterval(id)
   }, [loadLive])
 
@@ -105,7 +105,7 @@ export default function ContainerStatsChart() {
       <Surface className="overflow-hidden">
         <div className="px-4 py-3 border-b border-border">
           <p className="text-sm font-medium text-foreground">Container Resource Usage</p>
-          <p className="text-[11px] text-muted-foreground">Live — refreshes every 2 min</p>
+          <p className="text-[11px] text-muted-foreground">Live — refreshes every 5s</p>
         </div>
         {liveLoading ? (
           <div className="flex items-center justify-center py-10">

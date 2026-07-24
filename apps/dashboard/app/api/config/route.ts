@@ -74,6 +74,10 @@ export async function GET() {
   delete response.hasDiscordWebhookUrl
   response.hasVirusTotalKey = response.hasVirustotalApiKey
   delete response.hasVirustotalApiKey
+  response.hasAbuseipdbKey = response.hasAbuseipdbApiKey
+  delete response.hasAbuseipdbApiKey
+  response.hasIpinfoKey = response.hasIpinfoApiKey
+  delete response.hasIpinfoApiKey
   response.vtQuota = vtQuota
   response.abuseQuota = abuseQuota
 

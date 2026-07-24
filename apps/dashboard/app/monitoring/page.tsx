@@ -83,7 +83,7 @@ export default function MonitoringPage() {
     refresh(controller.signal)
     const id = setInterval(() => {
       if (!document.hidden) refresh()
-    }, 60_000)
+    }, 5_000)
     return () => { controller.abort(); clearInterval(id) }
   }, [refresh])
 

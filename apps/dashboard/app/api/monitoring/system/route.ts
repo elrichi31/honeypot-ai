@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic"
 
 const apiBase = () => process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
 
-const CACHE_TTL = 30_000
+const CACHE_TTL = 4_000
 let systemCache: { data: unknown; status: number; expiresAt: number } | null = null
 
 export async function GET() {
