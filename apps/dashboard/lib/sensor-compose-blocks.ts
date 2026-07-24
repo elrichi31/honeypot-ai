@@ -197,6 +197,14 @@ const HTTP_TEMPLATE = `  web-honeypot:
     logging: *json-logging
     image: {{registry}}/web-honeypot:latest
     container_name: web-honeypot
+    # entrypoint.sh runs as root, chowns the mounted /var/log/web-honeypot
+    # volume, then uses gosu to drop to the app user. cap_drop:ALL from the
+    # defaults removes CAP_CHOWN/SETUID/SETGID, so re-add them or the
+    # container crash-loops on "Operation not permitted".
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
     environment:
       <<: *ingest
       PORT: "8080"
