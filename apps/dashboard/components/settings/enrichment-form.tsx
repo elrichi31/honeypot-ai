@@ -59,6 +59,40 @@ interface VtQuota {
   dailyRemaining: number; monthlyRemaining: number
 }
 
+interface AbuseQuota {
+  today: number; thisMonth: number
+  dailyLimit: number; dailyRemaining: number
+}
+
+function AbuseQuotaWidget({ quota }: { quota: AbuseQuota }) {
+  const dailyPct = Math.min(100, Math.round((quota.today / quota.dailyLimit) * 100))
+  const barColor = (pct: number) =>
+    pct >= 90 ? "bg-destructive" : pct >= 70 ? "bg-warning" : "bg-success"
+
+  return (
+    <div className="rounded-lg border border-border bg-secondary/40 p-3 space-y-3">
+      <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+        <Activity className="h-3.5 w-3.5 text-primary" />
+        AbuseIPDB quota usage
+      </div>
+      <div>
+        <div className="mb-1 flex justify-between text-xs text-muted-foreground">
+          <span>Daily ({quota.dailyLimit} req/day soft cap)</span>
+          <span className={dailyPct >= 90 ? "text-destructive font-semibold" : ""}>
+            {quota.today} / {quota.dailyLimit} ({quota.dailyRemaining} left)
+          </span>
+        </div>
+        <div className="h-1.5 w-full rounded-full bg-border">
+          <div className={`h-full rounded-full transition-all ${barColor(dailyPct)}`} style={{ width: `${dailyPct}%` }} />
+        </div>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        Soft cap: 950/day · Hard limit: 1,000/day (free tier, no monthly cap). This month: {quota.thisMonth.toLocaleString()} req. Updates on page load.
+      </p>
+    </div>
+  )
+}
+
 function VtQuotaWidget({ quota }: { quota: VtQuota }) {
   const dailyPct  = Math.min(100, Math.round((quota.today / quota.dailyLimit) * 100))
   const monthPct  = Math.min(100, Math.round((quota.thisMonth / quota.monthlyLimit) * 100))
@@ -128,6 +162,7 @@ export function EnrichmentForm() {
   const [vtStatus, setVtStatus] = useState<SaveStatus>("loading")
   const [vtError, setVtError] = useState("")
   const [vtQuota, setVtQuota] = useState<VtQuota | null>(null)
+  const [abuseQuota, setAbuseQuota] = useState<AbuseQuota | null>(null)
 
   useEffect(() => {
     apiFetch("/api/config")
@@ -136,6 +171,7 @@ export function EnrichmentForm() {
         setHasAbuseKey(d.hasAbuseipdbKey)
         setAbuseKey(d.hasAbuseipdbKey ? d.abuseipdbApiKey : "")
         setAbuseStatus("idle")
+        if (d.abuseQuota) setAbuseQuota(d.abuseQuota)
 
         setHasIpinfoKey(d.hasIpinfoKey)
         setIpinfoKey(d.hasIpinfoKey ? d.ipinfoApiKey : "")
@@ -226,6 +262,8 @@ export function EnrichmentForm() {
           status={abuseStatus}
           error={abuseError}
         />
+
+        {hasAbuseKey && abuseQuota && <AbuseQuotaWidget quota={abuseQuota} />}
 
         <div className="border-t border-border" />
 

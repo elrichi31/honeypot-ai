@@ -13,6 +13,7 @@ import {
   AppConfig,
 } from "@/lib/server-config"
 import { getVtQuota } from "@/lib/virustotal"
+import { getAbuseQuota } from "@/lib/ip-enrichment"
 import { logAudit } from "@/lib/audit"
 import { requireRole } from "@/lib/roles"
 
@@ -51,6 +52,7 @@ export async function GET() {
   const config = readConfig()
   const vtKey = effectiveSecrets.virustotalApiKey
   const vtQuota = vtKey ? await getVtQuota().catch(() => null) : null
+  const abuseQuota = config.abuseipdbApiKey ? await getAbuseQuota().catch(() => null) : null
 
   const response: Record<string, unknown> = {}
 
@@ -73,6 +75,7 @@ export async function GET() {
   response.hasVirusTotalKey = response.hasVirustotalApiKey
   delete response.hasVirustotalApiKey
   response.vtQuota = vtQuota
+  response.abuseQuota = abuseQuota
 
   return NextResponse.json(response)
 }

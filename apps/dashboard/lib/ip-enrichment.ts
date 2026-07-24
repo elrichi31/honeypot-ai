@@ -66,13 +66,71 @@ function isStale(fetchedAt: Date | null, ttl: number): boolean {
   return Date.now() - fetchedAt.getTime() > ttl
 }
 
+// ---------------------------------------------------------------------------
+// AbuseIPDB quota tracking (PostgreSQL-backed, same pattern as virustotal.ts).
+// Free tier only caps requests per day (1,000/day) — no monthly cap exists.
+// ---------------------------------------------------------------------------
+
+export interface AbuseQuotaUsage {
+  today: number
+  thisMonth: number
+  dailyLimit: number
+  dailyRemaining: number
+}
+
+const ABUSE_DAILY_LIMIT = 950 // soft cap — never touch the hard 1,000/day
+
+async function getToday(): Promise<string> {
+  return new Date().toISOString().slice(0, 10) // "YYYY-MM-DD" UTC
+}
+
+export async function getAbuseQuota(): Promise<AbuseQuotaUsage> {
+  const today = await getToday()
+  const monthStart = today.slice(0, 7) + "-01" // "YYYY-MM-01"
+
+  const { rows } = await db.query<{ day: string; requests: number }>(
+    `SELECT day::text, requests FROM abuseipdb_quota_log
+     WHERE day >= $1
+     ORDER BY day`,
+    [monthStart],
+  )
+
+  const todayRow  = rows.find((r) => r.day === today)
+  const todayUsed = todayRow?.requests ?? 0
+  const monthUsed = rows.reduce((s, r) => s + r.requests, 0)
+
+  return {
+    today:          todayUsed,
+    thisMonth:      monthUsed,
+    dailyLimit:     ABUSE_DAILY_LIMIT,
+    dailyRemaining: Math.max(0, ABUSE_DAILY_LIMIT - todayUsed),
+  }
+}
+
+async function incrementAbuseQuota(): Promise<void> {
+  const today = await getToday()
+  await db.query(
+    `INSERT INTO abuseipdb_quota_log (day, requests)
+     VALUES ($1, 1)
+     ON CONFLICT (day) DO UPDATE SET requests = abuseipdb_quota_log.requests + 1`,
+    [today],
+  )
+}
+
+async function canMakeAbuseRequest(): Promise<boolean> {
+  const q = await getAbuseQuota()
+  return q.dailyRemaining > 0
+}
+
 export async function fetchAbuseIpDb(ip: string, apiKey: string): Promise<AbuseIpData | null> {
+  if (!(await canMakeAbuseRequest())) return null
   try {
     const res = await fetch(
       `https://api.abuseipdb.com/api/v2/check?ipAddress=${encodeURIComponent(ip)}&maxAgeInDays=90&verbose`,
       { headers: { Key: apiKey, Accept: "application/json" }, signal: AbortSignal.timeout(8000) }
     )
     if (!res.ok) return null
+    await incrementAbuseQuota()
     const d = (await res.json()).data
     const reports: AbuseReport[] = (d.reports ?? []).slice(0, 10).map((r: any) => ({
       reportedAt: r.reportedAt ?? "",
