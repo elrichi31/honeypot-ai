@@ -61,18 +61,20 @@ export class SensorService {
     const COLD: Record<number, boolean> = {}
     const COLD_WAIT_MS = 1800
     const portStatuses = await Promise.all(
-      sensors.map(sensor => {
+      sensors.map(async sensor => {
         // The sensor's own heartbeat report wins — it's probed from the honeypot's
         // vantage, so it's accurate for remote sensors the ingest host can't reach.
-        // Only fall back to the server-side TCP probe for sensors that don't report.
+        // Only fall back to the server-side TCP probe for sensors that don't report;
+        // the `reported` flag lets the UI ignore that probe for unreachable remotes.
         const reported = reportedPortStatus(sensor)
-        if (reported) return Promise.resolve(reported)
+        if (reported) return { status: reported, reported: true }
         const probeKey = `sensor:ports:${sensor.sensor_id}:${sensor.probe_host}:${JSON.stringify(sensor.ports)}`
-        return withCache(cache, probeKey, 20, () => probeSensorPorts(sensor), COLD, COLD_WAIT_MS)
+        const status = await withCache(cache, probeKey, 20, () => probeSensorPorts(sensor), COLD, COLD_WAIT_MS)
+        return { status, reported: false }
       }),
     )
     const result = sensors.map((sensor, i) =>
-      formatSensor(sensor, portStatuses[i], sensor.last_seen > twoMinutesAgo)
+      formatSensor(sensor, portStatuses[i].status, sensor.last_seen > twoMinutesAgo, portStatuses[i].reported)
     )
 
     const hasRegisteredSsh = result.some((s) => s.protocol === 'ssh')
@@ -84,7 +86,7 @@ export class SensorService {
           clientCode: '', name: 'SSH Honeypot (Cowrie)', protocol: 'ssh', ip: '-',
           version: '', ports: [], probeHost: '', eventsTotal: Number(ssh.count),
           lastSeen: ssh.last_seen ?? new Date(0), createdAt: new Date(0),
-          online: ssh.last_seen ? ssh.last_seen > twoMinutesAgo : false, degraded: false, portStatus: {},
+          online: ssh.last_seen ? ssh.last_seen > twoMinutesAgo : false, degraded: false, portStatus: {}, portStatusReported: false,
           ownerType: 'application', applicationId: null, applicationName: null, realProtocol: null,
         })
       }

@@ -77,6 +77,10 @@ export interface Sensor {
   online: boolean
   degraded: boolean
   portStatus: Record<number, boolean>
+  // True when portStatus is self-reported by the sensor's heartbeat (trustworthy
+  // for remote sensors); false when it's the server-side probe. Optional so older
+  // API responses without the field don't break.
+  portStatusReported?: boolean
   ownerType: string
   applicationId: string | null
   applicationName: string | null

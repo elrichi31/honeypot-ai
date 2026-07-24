@@ -20,6 +20,10 @@ export type SensorResult = {
   protocol: string; ip: string; version: string; ports: number[]
   probeHost: string; lastSeen: Date; createdAt: Date
   eventsTotal: number; online: boolean; degraded: boolean; portStatus: Record<number, boolean>
+  // True when portStatus came from the sensor's own heartbeat (trustworthy for
+  // remote sensors); false when it's the server-side TCP probe (meaningless for
+  // sensors the ingest host can't reach).
+  portStatusReported: boolean
   ownerType: string; applicationId: string | null; applicationName: string | null
   realProtocol: string | null
 }
@@ -133,7 +137,7 @@ export async function probeSensorPorts(sensor: SensorRow): Promise<Record<number
   return Object.fromEntries(pairs)
 }
 
-export function formatSensor(sensor: SensorRow, portStatus: Record<number, boolean>, online: boolean): SensorResult {
+export function formatSensor(sensor: SensorRow, portStatus: Record<number, boolean>, online: boolean, portStatusReported = false): SensorResult {
   // A sensor is degraded when the heartbeat is active (online) but the TCP probe
   // finds all monitored ports closed — the container is up but the process crashed.
   // Only applies when we actually have probe results (portStatus not empty).
@@ -157,6 +161,7 @@ export function formatSensor(sensor: SensorRow, portStatus: Record<number, boole
     online,
     degraded,
     portStatus,
+    portStatusReported,
     ownerType:       sensor.owner_type ?? 'application',
     applicationId:   sensor.application_id ?? null,
     applicationName: sensor.application_name ?? null,
