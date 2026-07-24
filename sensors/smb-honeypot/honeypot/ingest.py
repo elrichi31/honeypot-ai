@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import socket
 import threading
 import uuid
 from datetime import datetime, timezone
@@ -14,6 +15,14 @@ from .config import (
 
 log = logging.getLogger("smb-honeypot")
 _log_lock = threading.Lock()
+
+
+def _port_open(host: str, port: int, timeout: float = 1.5) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
 
 
 def detect_ip() -> str:
@@ -91,6 +100,7 @@ def send_heartbeat(sensor_ip: str) -> tuple[bool, int | None, str | None]:
         "version":    VERSION,
         "ports":      [DST_PORT],
         "probePorts": [int(os.getenv("PORT", "445"))],
+        "portStatus": {DST_PORT: _port_open("127.0.0.1", int(os.getenv("PORT", "445")))},
         "host":       SENSOR_HOST,
     }
     if SENSOR_LAYER == "internal":

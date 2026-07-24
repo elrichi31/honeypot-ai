@@ -8,6 +8,7 @@ export type SensorRow = {
   client_slug: string | null; client_code: string | null; name: string
   protocol: string; ip: string; version: string; ports: number[]
   probe_ports: number[]; probe_host: string; last_seen: Date
+  port_status: Record<string, boolean> | null
   created_at: Date; event_count: bigint
   owner_type: string; application_id: string | null; application_name: string | null
   real_protocol: string | null
@@ -91,6 +92,24 @@ export async function querySensors(fastify: FastifyInstance): Promise<SensorRow[
     LEFT JOIN proto_counts pc ON pc.sensor_id = s.sensor_id
     ORDER BY s.last_seen DESC
   `
+}
+
+// The sensor self-reports port open/closed in its heartbeat (keyed by display
+// port as a JSON string). When present it's authoritative — probed from the
+// honeypot's own vantage, so it works for remote sensors the ingest host can't
+// reach. Empty means an old sensor that doesn't self-report yet → fall back to
+// the server-side TCP probe.
+export function reportedPortStatus(sensor: SensorRow): Record<number, boolean> | null {
+  const raw = sensor.port_status
+  if (!raw || typeof raw !== 'object') return null
+  const entries = Object.entries(raw)
+  if (entries.length === 0) return null
+  const out: Record<number, boolean> = {}
+  for (const [k, v] of entries) {
+    const n = Number(k)
+    if (Number.isFinite(n)) out[n] = Boolean(v)
+  }
+  return Object.keys(out).length > 0 ? out : null
 }
 
 export async function probeSensorPorts(sensor: SensorRow): Promise<Record<number, boolean>> {

@@ -234,6 +234,14 @@ def catch_all(path: str):
     return response
 
 
+def _port_open(host: str, port: int, timeout: float = 1.5) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
 def _send_heartbeat():
     try:
         headers = {"X-Ingest-Token": INGEST_SHARED_SECRET, "Content-Type": "application/json"}
@@ -246,6 +254,10 @@ def _send_heartbeat():
             int(p) for p in os.environ.get("SENSOR_PROBE_PORTS", str(listen_port)).split()
             if p.strip().isdigit()
         ]
+        port_status = {
+            dp: _port_open("127.0.0.1", probe_ports[i] if i < len(probe_ports) else listen_port)
+            for i, dp in enumerate(display_ports)
+        }
         payload = {
             "sensorId": SENSOR_ID,
             "name": SENSOR_NAME,
@@ -256,6 +268,7 @@ def _send_heartbeat():
             "version": "1.0.0",
             "ports": display_ports,
             "probePorts": probe_ports,
+            "portStatus": port_status,
             "host": SENSOR_HOST,
         }
         if SENSOR_LAYER == "internal":

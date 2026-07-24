@@ -100,6 +100,10 @@ def send_heartbeat(sensor_ip: str, active_ports: list[int]):
         "version": VERSION,
         "ports": active_ports,
         "probePorts": active_ports,
+        # Every port in active_ports bound successfully at startup (app.py only
+        # appends after start_server), so each is open. Self-reported so the
+        # dashboard shows real status even for remote sensors it can't probe.
+        "portStatus": {port: True for port in active_ports},
         "host": SENSOR_HOST,
     }
     if CONFIG_HASH:

@@ -57,6 +57,26 @@ def _post(url: str, payload: dict) -> None:
     urlopen(req, timeout=5)
 
 
+def _port_open(host: str, port: int, timeout: float = 1.5) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def _port_status() -> dict:
+    # The beacon runs in its own container, so it probes the cowrie honeypot over
+    # the docker network (HOST:probePort). Keyed by display port. Catches "beacon
+    # alive but honeypot down", which a plain online check would miss.
+    if not HOST:
+        return {}
+    return {
+        port: _port_open(HOST, PROBE_PORTS[i] if i < len(PROBE_PORTS) else port)
+        for i, port in enumerate(PORTS)
+    }
+
+
 def send(ip: str) -> None:
     payload = {
         "sensorId":   SENSOR_ID,
@@ -68,6 +88,7 @@ def send(ip: str) -> None:
         "version":    VERSION,
         "ports":      PORTS,
         "probePorts": PROBE_PORTS,
+        "portStatus": _port_status(),
         "host":       HOST,
     }
     if SENSOR_LAYER == "internal":

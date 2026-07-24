@@ -90,6 +90,10 @@ const heartbeatSchema = z.object({
   version:      z.string().default(''),
   ports:        z.array(z.number().int().min(1).max(65535)).default([]),
   probePorts:   z.array(z.number().int().min(1).max(65535)).default([]),
+  // Per-port open/closed self-probed by the sensor. Keys are display ports as
+  // strings (JSON object keys); values true=open. Empty for sensors that don't
+  // self-report yet — the server falls back to its own TCP probe.
+  portStatus:   z.record(z.string(), z.boolean()).default({}),
   host:         z.string().default(''),
   layer:        z.enum(['external', 'internal']).default('external'),
   realProtocol: z.string().optional(),
@@ -124,7 +128,7 @@ export async function sensorRoutes(fastify: FastifyInstance) {
     await svc.upsertHeartbeat({
       sensorId: d.sensorId, clientId: client.id, name: d.name, protocol: d.protocol,
       ip: d.ip, version: d.version, ports: d.ports, probePorts, probeHost, now,
-      layer: d.layer, realProtocol: d.realProtocol,
+      portStatus: d.portStatus, layer: d.layer, realProtocol: d.realProtocol,
     })
 
     void clearSensorOfflineAlert(fastify.prisma, d.sensorId)

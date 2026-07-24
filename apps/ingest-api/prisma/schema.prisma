@@ -148,6 +148,7 @@ model Sensor {
   version       String   @default("")
   ports         Json     @default("[]")
   probePorts    Json     @default("[]") @map("probe_ports")
+  portStatus    Json     @default("{}") @map("port_status")
   probeHost     String   @default("") @map("probe_host")
   lastSeen      DateTime @map("last_seen")
   createdAt     DateTime @default(now()) @map("created_at")

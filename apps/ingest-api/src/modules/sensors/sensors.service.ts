@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from 'crypto'
 import type { PrismaClient } from '@prisma/client'
 import { SensorRepository } from './sensors.repository.js'
 import { normalizeSlug } from '../../lib/sensor-utils.js'
-import { probeSensorPorts, formatSensor } from '../../lib/sensor-queries.js'
+import { probeSensorPorts, reportedPortStatus, formatSensor } from '../../lib/sensor-queries.js'
 import { withCache } from '../../lib/cache-helper.js'
 import type { FastifyInstance } from 'fastify'
 import type { SensorResult } from '../../lib/sensor-queries.js'
@@ -42,7 +42,7 @@ export class SensorService {
   upsertHeartbeat(args: {
     sensorId: string; clientId: string | null; name: string; protocol: string
     ip: string; version: string; ports: number[]; probePorts: number[]
-    probeHost: string; now: Date
+    probeHost: string; now: Date; portStatus?: Record<string, boolean>
     layer?: 'external' | 'internal'; realProtocol?: string
   }) {
     return this.repo.upsertHeartbeat(args)
@@ -62,6 +62,11 @@ export class SensorService {
     const COLD_WAIT_MS = 1800
     const portStatuses = await Promise.all(
       sensors.map(sensor => {
+        // The sensor's own heartbeat report wins — it's probed from the honeypot's
+        // vantage, so it's accurate for remote sensors the ingest host can't reach.
+        // Only fall back to the server-side TCP probe for sensors that don't report.
+        const reported = reportedPortStatus(sensor)
+        if (reported) return Promise.resolve(reported)
         const probeKey = `sensor:ports:${sensor.sensor_id}:${sensor.probe_host}:${JSON.stringify(sensor.ports)}`
         return withCache(cache, probeKey, 20, () => probeSensorPorts(sensor), COLD, COLD_WAIT_MS)
       }),

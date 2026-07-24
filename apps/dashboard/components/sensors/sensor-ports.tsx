@@ -52,12 +52,30 @@ function InternalPortBadge({ port }: { port: number }) {
   )
 }
 
-function RemotePortBadge({ port }: { port: number }) {
+// Remote sensors can't be TCP-probed from the ingest host, so status comes from
+// what the sensor self-reports in its heartbeat (portStatus). Green = the sensor
+// says the port is open, red = it says closed. If it doesn't report yet (older
+// sensor, up === undefined), fall back to the heartbeat: online implies up.
+function RemotePortBadge({ port, up, online }: { port: number; up: boolean | undefined; online: boolean }) {
+  const base = "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono font-medium cursor-default"
+  if (up === true || (up === undefined && online)) {
+    return (
+      <span title={`Port ${port} — open (reported by sensor)`} className={`${base} bg-emerald-400/15 text-emerald-400`}>
+        <CheckCircle2 className="h-2.5 w-2.5" />
+        :{port}
+      </span>
+    )
+  }
+  if (up === false) {
+    return (
+      <span title={`Port ${port} — closed (reported by sensor)`} className={`${base} bg-red-400/15 text-red-400`}>
+        <XCircle className="h-2.5 w-2.5" />
+        :{port}
+      </span>
+    )
+  }
   return (
-    <span
-      title={`Port ${port} — remote sensor, not probed from this server`}
-      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono font-medium cursor-default bg-muted/60 text-muted-foreground"
-    >
+    <span title={`Port ${port} — remote sensor offline`} className={`${base} bg-muted/60 text-muted-foreground`}>
       :{port}
     </span>
   )
@@ -68,7 +86,7 @@ export function SensorPorts({ sensor, isInternal, isRemote = false }: { sensor: 
   return (
     <div className="flex flex-wrap gap-1">
       {isRemote
-        ? sensor.ports.map((port) => <RemotePortBadge key={port} port={port} />)
+        ? sensor.ports.map((port) => <RemotePortBadge key={port} port={port} up={sensor.portStatus?.[port]} online={sensor.online} />)
         : isInternal
         ? sensor.ports.map((port) => <InternalPortBadge key={port} port={port} />)
         : sensor.ports.map((port) => <ExternalPortBadge key={port} port={port} sensor={sensor} />)}

@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import os
+import socket
 import uuid
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
@@ -13,6 +14,14 @@ from .config import (
 )
 
 log = logging.getLogger("ftp-honeypot")
+
+
+def _port_open(host: str, port: int, timeout: float = 1.5) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
 
 
 def detect_ip() -> str:
@@ -140,6 +149,7 @@ def send_heartbeat(sensor_ip: str, dst_port: int):
         "version": VERSION,
         "ports": [dst_port],
         "probePorts": [int(os.getenv("PORT", "21"))],
+        "portStatus": {dst_port: _port_open("127.0.0.1", int(os.getenv("PORT", "21")))},
         "host": SENSOR_HOST,
     }
     if SENSOR_LAYER == "internal":
