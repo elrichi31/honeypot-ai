@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { apiFetch } from "@/lib/client-fetch"
 import { hasPermission, type Role } from "@/lib/roles-shared"
 
-export type Viewer = { role: Role; clientId: string | null; isSuperadmin: boolean }
+export type Viewer = { role: Role; clientId: string | null; isSuperadmin: boolean; isGlobal: boolean }
 
 // Module-level cache: many SensorCard instances on the same page would
 // otherwise each fire their own GET /api/me. One request, shared by every
@@ -38,6 +38,6 @@ export function useViewer(): Viewer | null {
 export function canActOnSensor(viewer: Viewer | null, minRole: Role, sensorClientId: string | null | undefined): boolean {
   if (!viewer) return false
   if (!hasPermission(viewer.role, minRole)) return false
-  if (viewer.isSuperadmin) return true
+  if (viewer.isGlobal) return true
   return !!viewer.clientId && viewer.clientId === sensorClientId
 }
