@@ -14,6 +14,11 @@ export type ControlActor = {
   role: 'viewer' | 'analyst' | 'admin' | 'superadmin'
   clientId: string | null
   isSuperadmin: boolean
+  // Mirrors the dashboard's isGlobalRole(): every staff role (viewer/analyst/
+  // admin/superadmin) sees every tenant, not just superadmin — only its
+  // "cliente" role is scoped to one clientId. Without this, a staff user
+  // browsing a client they aren't personally assigned to 403s here.
+  isGlobal: boolean
   ip: string
 }
 
@@ -324,7 +329,7 @@ export class SensorControlService {
 
     const scope = await this.repo.findSensorScope(sensorId)
     if (!scope) return { ok: false, error: 'Sensor not found', status: 404 }
-    if (!actor.isSuperadmin && (!actor.clientId || scope.clientId !== actor.clientId)) {
+    if (!actor.isGlobal && (!actor.clientId || scope.clientId !== actor.clientId)) {
       return { ok: false, error: 'Sensor is outside the actor scope', status: 403 }
     }
     return { ok: true, value: undefined }

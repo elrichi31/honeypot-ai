@@ -13,6 +13,9 @@ const actorHeadersSchema = z.object({
   'x-control-actor-role': z.enum(['viewer', 'analyst', 'admin', 'superadmin']),
   'x-control-actor-client-id': z.string().trim().min(1).max(128).optional(),
   'x-control-actor-superadmin': z.enum(['true', 'false']),
+  // Defaults to the superadmin flag so older BFF callers that predate this
+  // header (or manual/debug requests) keep their prior behavior.
+  'x-control-actor-global': z.enum(['true', 'false']).optional(),
   'x-control-actor-ip': z.string().trim().min(1).max(128),
 }).passthrough()
 
@@ -25,12 +28,16 @@ export function getControlActor(request: FastifyRequest): ControlActor | null {
   const headers = parsed.data
   const isSuperadmin = headers['x-control-actor-superadmin'] === 'true'
   if (isSuperadmin !== (headers['x-control-actor-role'] === 'superadmin')) return null
+  const isGlobal = headers['x-control-actor-global'] === undefined
+    ? isSuperadmin
+    : headers['x-control-actor-global'] === 'true'
 
   return {
     id: headers['x-control-actor-id'],
     role: headers['x-control-actor-role'],
     clientId: headers['x-control-actor-client-id'] ?? null,
     isSuperadmin,
+    isGlobal,
     ip: headers['x-control-actor-ip'],
   }
 }

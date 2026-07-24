@@ -22,6 +22,7 @@ describeIntegration('sensor control against a real Postgres', () => {
     role: 'analyst',
     clientId: clientAId,
     isSuperadmin: false,
+    isGlobal: false,
     ip: '127.0.0.1',
     ...overrides,
   })
@@ -220,7 +221,7 @@ describeIntegration('sensor control against a real Postgres', () => {
     const result = await svc.queueStatusGet({
       sensorId: sensorBId,
       idempotencyKey: randomUUID(),
-      actor: actorA({ role: 'admin', clientId: null, isSuperadmin: true }),
+      actor: actorA({ role: 'admin', clientId: null, isSuperadmin: true, isGlobal: true }),
     })
     expect(result.ok).toBe(true)
   })

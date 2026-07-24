@@ -31,7 +31,7 @@ export class SensorControlCredentialService {
 
     const scope = await this.sensors.findSensorScope(args.sensorId)
     if (!scope) return { ok: false, error: 'Sensor not found', status: 404 }
-    if (!args.actor.isSuperadmin && (!args.actor.clientId || scope.clientId !== args.actor.clientId)) {
+    if (!args.actor.isGlobal && (!args.actor.clientId || scope.clientId !== args.actor.clientId)) {
       return { ok: false, error: 'Sensor is outside the actor scope', status: 403 }
     }
 

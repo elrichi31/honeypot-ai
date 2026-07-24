@@ -23,6 +23,7 @@ export function controlHeaders(auth: AuthOk, request: NextRequest): HeadersInit 
     "X-Control-Actor-Id": auth.userId,
     "X-Control-Actor-Role": controlRole,
     "X-Control-Actor-Superadmin": String(auth.isSuperadmin),
+    "X-Control-Actor-Global": String(auth.isGlobal),
     "X-Control-Actor-Ip": forwardedFor || "unknown",
     ...(auth.clientId ? { "X-Control-Actor-Client-Id": auth.clientId } : {}),
   }
