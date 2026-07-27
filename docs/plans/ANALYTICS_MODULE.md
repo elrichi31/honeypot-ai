@@ -2,7 +2,12 @@
 
 ## Estado (2026-07-27)
 
-**Planificado, sin implementar.** Este plan detalla las Sub-fases 3d/3e de
+**Planificado — UI shell arrancada (2026-07-27).** La sección "Data Analytics"
+del sidebar y `/analytics` (landing con las 2 tarjetas "coming soon" de Fase
+A/B) ya están en `master` — sin datos reales todavía, a propósito: el usuario
+decidió armar primero el punto de entrada de navegación y dejar el wiring a
+ClickHouse (repos, endpoints) para después. El resto de este plan detalla las
+Sub-fases 3d/3e de
 [KAFKA_LAKE.md](KAFKA_LAKE.md) — ese documento se queda con el diseño de alto
 nivel (split hot/cold, gating por `CLICKHOUSE_URL`); este es el plan completo
 de **qué construir, en qué orden, y cómo**, para el módulo de analítica en sí.
