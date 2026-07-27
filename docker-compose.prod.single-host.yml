@@ -327,6 +327,13 @@ services:
     logging: *json-logging
     image: clickhouse/clickhouse-server:24.8-alpine
     container_name: honeypot-clickhouse
+    # cap_drop: ALL (service-defaults) blocks the entrypoint's own chown of
+    # /var/log/clickhouse-server + /var/lib/clickhouse (runs as root, then
+    # drops to the clickhouse user) — same fix already applied to cowrie.
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
     ulimits:
       nofile:
         soft: 262144
