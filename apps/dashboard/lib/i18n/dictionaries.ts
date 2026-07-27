@@ -39,6 +39,7 @@ import * as threatIntel from "./dicts/threat-intel"
 import * as webAttacks from "./dicts/web-attacks"
 import * as reports from "./dicts/reports"
 import * as alerts from "./dicts/alerts"
+import * as analytics from "./dicts/analytics"
 
 export const LOCALES = ["en", "es"] as const
 export type Locale = (typeof LOCALES)[number]
@@ -77,6 +78,7 @@ const en = {
   ...webAttacks.en,
   ...reports.en,
   ...alerts.en,
+  ...analytics.en,
 } as const
 
 export type TranslationKey = keyof typeof en
@@ -109,6 +111,7 @@ const es: Record<TranslationKey, string> = {
   ...webAttacks.es,
   ...reports.es,
   ...alerts.es,
+  ...analytics.es,
 }
 
 export const dictionaries: Record<Locale, Record<TranslationKey, string>> = { en, es }

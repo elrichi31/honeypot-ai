@@ -20,6 +20,7 @@ export const en = {
   "sidebar.section.web": "Web Honeypot",
   "sidebar.section.network": "Network Honeypots",
   "sidebar.section.intelligence": "Intelligence",
+  "sidebar.section.analytics": "Data Analytics",
   "sidebar.section.infrastructure": "Infrastructure",
   "sidebar.section.administration": "Administration",
 
@@ -51,6 +52,7 @@ export const en = {
   "sidebar.item.adminSessions": "Sessions",
   "sidebar.item.auditLog": "Audit Log",
   "sidebar.item.reports": "Reports",
+  "sidebar.item.analyticsTrends": "Trends",
 
   // ── User menu ────────────────────────────────────────────────────────────
   "user.account": "Account",
@@ -78,6 +80,7 @@ export const es: Record<keyof typeof en, string> = {
   "sidebar.section.web": "Honeypot Web",
   "sidebar.section.network": "Honeypots de Red",
   "sidebar.section.intelligence": "Inteligencia",
+  "sidebar.section.analytics": "Analítica de Datos",
   "sidebar.section.infrastructure": "Infraestructura",
   "sidebar.section.administration": "Administración",
 
@@ -109,6 +112,7 @@ export const es: Record<keyof typeof en, string> = {
   "sidebar.item.adminSessions": "Sesiones",
   "sidebar.item.auditLog": "Registro de Auditoría",
   "sidebar.item.reports": "Reportes",
+  "sidebar.item.analyticsTrends": "Tendencias",
 
   // ── User menu ────────────────────────────────────────────────────────────
   "user.account": "Cuenta",

@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ShieldAlert,
   BarChart2,
+  TrendingUp,
   Layers3,
   Radar,
   Network,
@@ -99,6 +100,14 @@ const navSections = [
       { titleKey: "sidebar.item.networkIds", href: "/suricata",    icon: FileCode    },
       { titleKey: "sidebar.item.apiDefense", href: "/api-defense", icon: Radar       },
       { titleKey: "sidebar.item.reports",   href: "/reports",     icon: ClipboardList },
+    ],
+  },
+  {
+    key: "analytics",
+    titleKey: "sidebar.section.analytics",
+    icon: TrendingUp,
+    items: [
+      { titleKey: "sidebar.item.analyticsTrends", href: "/analytics", icon: TrendingUp },
     ],
   },
   {
