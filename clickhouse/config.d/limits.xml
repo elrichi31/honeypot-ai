@@ -1,0 +1,12 @@
+<clickhouse>
+    <!-- KAFKA_LAKE Fase 3a (docs/plans/KAFKA_LAKE.md): caps ClickHouse's own
+         footprint on a host shared with postgres+kafka+ingest-api+dashboard.
+         Start tight, watch `docker stats` / cpu.stat under real load, loosen
+         only if it measurably throttles — don't repeat the 2026-07-20
+         no-quota incident with a new heavy service. -->
+    <max_server_memory_usage>1610612736</max_server_memory_usage> <!-- 1.5 GB -->
+    <background_pool_size>4</background_pool_size>
+    <background_merges_mutations_concurrency_ratio>1</background_merges_mutations_concurrency_ratio>
+    <mark_cache_size>134217728</mark_cache_size> <!-- 128 MB -->
+    <uncompressed_cache_size>0</uncompressed_cache_size>
+</clickhouse>

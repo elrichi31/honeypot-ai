@@ -189,6 +189,41 @@ services:
           cpus: "0.5"
           pids: 256
 
+  # KAFKA_LAKE Fase 3a (docs/plans/KAFKA_LAKE.md): ClickHouse serves dashboard
+  # analytics only for now — R2/Parquet archive is deferred to a later phase.
+  # No Kafka consumer wired yet (Fase 3b); this just gets the DB + schema up.
+  clickhouse:
+    <<: *service-defaults
+    logging: *json-logging
+    image: clickhouse/clickhouse-server:24.8-alpine
+    container_name: honeypot-clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DATABASE:-honeypot_lake}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-honeypot}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse/config.d:/etc/clickhouse-server/config.d:ro
+      - ./clickhouse/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8123/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - honeypot_ingest
+      - db_private
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          pids: 256
+
   kafka-init:
     image: apache/kafka:3.8.0
     container_name: honeypot-kafka-init
@@ -328,6 +363,7 @@ volumes:
   pg_replica_data:
   dashboard_data:
   kafka_data:
+  clickhouse_data:
 
 networks:
   honeypot_ingest:

@@ -1,12 +1,17 @@
 # KAFKA_LAKE — Rework de streaming: ingestión uniforme por API + Kafka como tee interno
 
-## Estado (2026-07-17)
+## Estado (2026-07-27)
 
-**Planificado, sin implementar.** Este plan reordena la topología de ingesta
-para que funcione **idéntica en single-host y multi-host**, y deja Kafka como un
-bus interno detrás del ingest-api del que después cuelga el data lake. Las Fases
-1 y 2 (plomería del bus) están implementadas; la **Fase 3 (lake: ClickHouse + R2
-+ split hot/cold)** está detallada abajo, planificada, sin implementar.
+Las Fases 1 y 2 (plomería del bus) están implementadas. **Fase 3 en curso —
+3a y 3b implementadas en código, sin desplegar; 3c y 3d pendientes.**
+
+**Alcance de Fase 3 recortado (decisión 2026-07-27):** arrancar con **ClickHouse
+solo para servir el dashboard** (sub-fases 3a-3d) — nada de R2. El export a
+Parquet en R2 (archivo durable off-host, "el datalake real") queda **diferido**:
+no es prerequisito de 3a-3d, se retoma como fase aparte más adelante. Motivo: el
+usuario quiere primero validar ClickHouse acelerando las queries frías del
+dashboard antes de sumar la capa de archivo. Las menciones a R2 más abajo
+describen el diseño completo a futuro; ignorarlas para el trabajo actual.
 
 ## Contexto — el problema que resuelve
 
@@ -200,11 +205,13 @@ reintenta (queda deshabilitado hasta reiniciar el API — aceptable, Postgres si
 
 ### Fase 3 — Lake: ClickHouse + R2 y split hot/cold del dashboard
 
-**Estado: planificado, sin implementar (detallado 2026-07-20).** Las Fases 1 y 2
-ya dejan el bus listo: el ingest-api tee-a **cada evento validado crudo** a Kafka
-en 4 topics por fuente (`honeypot.cowrie`, `honeypot.suricata`, `honeypot.web`,
-`honeypot.protocol`), fire-and-forget, sin tocar el path caliente. Falta el
-**consumidor del lake y su destino**. Esta fase lo define entero.
+**Estado: en curso, alcance recortado a 3a-3d (2026-07-27) — ver "Estado" arriba.**
+Las Fases 1 y 2 ya dejan el bus listo: el ingest-api tee-a **cada evento
+validado crudo** a Kafka en 4 topics por fuente (`honeypot.cowrie`,
+`honeypot.suricata`, `honeypot.web`, `honeypot.protocol`), fire-and-forget, sin
+tocar el path caliente. Esta fase define el consumidor del lake completo
+(ClickHouse + R2); **el trabajo actual es solo 3a-3d** (ClickHouse sirviendo el
+dashboard). 3e y todo lo de R2 quedan para después.
 
 #### Decisiones ya tomadas (con el usuario, 2026-07-20)
 
@@ -280,6 +287,54 @@ local se llena** — no montarlo de entrada (YAGNI).
     sin key). Decidir: derivar un id determinístico (hash de campos de la alerta)
     o aceptar duplicados en esa tabla. Documentar la elección.
 
+**Progreso (2026-07-27): Sub-fase 3a implementada, sin desplegar.**
+
+- **Servicio `clickhouse`** agregado a los **dos** composes core
+  (`docker-compose.prod.single-host.yml` y `docker-compose.prod.platform.yml`),
+  imagen `clickhouse/clickhouse-server:24.8-alpine`. Redes `honeypot_ingest` +
+  `db_private` (ambas ya alcanzables por `ingest-api`, que vive en las tres:
+  `honeypot_ingest`, `app_api`, `db_private`). Volumen `clickhouse_data`,
+  `ulimits.nofile` 262144, healthcheck contra `/ping` (puerto 8123). **Sin
+  `ports:` publicado** — igual que Postgres/Redis/Kafka, solo alcanzable desde
+  la red Docker interna; para queries ad-hoc usar `docker exec -it
+  honeypot-clickhouse clickhouse-client`.
+- **Límites de recursos** (lección del incidente 2026-07-20, no repetir):
+  `deploy.resources.limits.cpus: "1.0"` en el compose (sigue el patrón
+  existente: cpus vía cgroup, memoria vía config de la app — como
+  `KAFKA_HEAP_OPTS` o el `--maxmemory` de Redis, no `deploy.resources.limits.memory`
+  que ningún servicio de este compose usa). Memoria real acotada en
+  `clickhouse/config.d/limits.xml`: `max_server_memory_usage` 1.5GB,
+  `background_pool_size` 4, `background_merges_mutations_concurrency_ratio` 1 —
+  arranca más ajustado que los "2 CPU / 4GB" que sugería el texto original,
+  porque el usuario decidió **no resizear la VPS todavía** (sigue en 7.6GB) tras
+  mover los sensores a otro VPS y confirmar ~5GB libres reales. Medir con
+  `docker stats` bajo carga antes de aflojar.
+- **Schema:** `clickhouse/init/001-schema.sql`, montado en
+  `/docker-entrypoint-initdb.d/` (se ejecuta solo en el primer arranque, como
+  Postgres). Las 4 tablas (`cowrie_events`, `web_events`, `protocol_events`,
+  `suricata_alerts`) reflejan el evento crudo validado que cada sitio de `tee()`
+  ya produce (revisado con codegraph: `CowrieRawEvent`, `WebHit`,
+  `protocolEventSchema`, `EveAlert`) — columnas tipadas para lo que se va a
+  filtrar/ordenar (timestamp, src_ip, sensor_id, event_id, credenciales) + una
+  columna `raw String` con el evento completo, sin capa de normalización
+  (YAGNI, como pide el plan). `ReplacingMergeTree`, `PARTITION BY
+  toYYYYMM(timestamp)`, `ORDER BY (timestamp, src_ip, event_id)` en las 4.
+  **Suricata:** `event_id` queda como columna plana (no `MATERIALIZED`, para no
+  depender de que el motor soporte columnas materializadas en la sorting key) —
+  la Sub-fase 3b es quien la calcula (`hex(cityHash64(sensor_id, timestamp,
+  src_ip, dest_ip, signature_id))`) en el `SELECT` de la materialized view antes
+  del insert.
+- **Config nueva:** `CLICKHOUSE_PASSWORD` (obligatoria) + `CLICKHOUSE_USER`/
+  `CLICKHOUSE_DATABASE` (con default) agregadas a `.env.example`.
+- Verificación: `docker compose -f docker-compose.prod.platform.yml config
+  --quiet` y lo mismo para `single-host.yml` — ambos exit 0.
+- **Pendiente de despliegue (no code):** setear `CLICKHOUSE_PASSWORD` en el
+  `.env` real del server y `docker compose -f docker-compose.prod.platform.yml
+  up -d clickhouse` — ver progreso de 3b abajo, el consumer ya está escrito y
+  se despliega en el mismo paso (mismos archivos de init).
+- **Todavía no hay lectura del dashboard** (3d) — el lake se llena solo, nadie
+  lo lee todavía. Cero riesgo para Postgres/Kafka/dashboard si algo sale mal acá.
+
 #### Sub-fase 3b — Consumidor Kafka → ClickHouse
 
 Dos opciones; **preferir la (A) por KISS**:
@@ -298,6 +353,48 @@ Dos opciones; **preferir la (A) por KISS**:
   `kafka-consumer.ts` retirado en Fase 1) que batchea e inserta a ClickHouse por
   HTTP. Más control sobre errores/transformación, pero es otro proceso a operar.
   Elegir esto solo si el engine nativo se queda corto.
+
+**Progreso (2026-07-27): Sub-fase 3b implementada (opción A), sin desplegar —
+va en el mismo `docker compose up -d clickhouse` que 3a.**
+
+- **`clickhouse/init/002-kafka-consumer.sql`**, corre después de `001-schema.sql`
+  (mismo mecanismo `docker-entrypoint-initdb.d`, solo en el primer arranque).
+- **4 tablas `ENGINE = Kafka`** (`kafka_cowrie`, `kafka_web`, `kafka_protocol`,
+  `kafka_suricata`), una por topic, con `kafka_format = 'JSONAsString'` — una
+  sola columna `raw String` en vez de declarar el shape completo del JSON como
+  columnas tipadas del engine. Motivo: los 4 topics llevan el objeto de
+  aplicación tal cual lo valida cada sitio de `tee()` (no un contrato de wire
+  format fijo), y un schema tipado del engine Kafka se rompe con el próximo
+  campo que se agregue ahí. El parseo (`JSONExtract*`) vive una sola vez, en el
+  `SELECT` de cada materialized view.
+- **4 `MATERIALIZED VIEW ... TO <tabla 3a>`** que parsean `raw` y escriben en
+  `cowrie_events`/`web_events`/`protocol_events`/`suricata_alerts`. Los nombres
+  de campo se tomaron del shape real (no adivinados): `CowrieRawEvent` es
+  snake_case (`src_ip`, `session`, `eventid`), `WebHit`/`protocolEventSchema`
+  son camelCase (`srcIp`, `eventId`), `EveAlert` es snake_case con un objeto
+  anidado `alert.{action,signature_id,signature,category,severity}`.
+  - Columnas opcionales usan `JSONExtract(raw, 'campo', 'Nullable(Tipo)')`
+    (devuelve `NULL` real si falta, a diferencia de `JSONExtractString` que
+    devuelve `''`); las obligatorias usan el helper tipado simple.
+  - **Suricata resuelve la decisión de "id determinístico" de 3a:** el
+    `event_id` se calcula en el `SELECT` externo de la MV
+    (`hex(cityHash64(sensor_id, timestamp, src_ip, dest_ip, signature_id))`),
+    a partir de un subquery que ya extrajo esos campos — no se puede referenciar
+    un alias del mismo nivel de `SELECT` en ClickHouse, de ahí el subquery.
+- **`kafka_auto_offset_reset = 'earliest'`:** los 4 consumer groups son nuevos,
+  así que al levantar van a backfillear lo que quede de Fase 2 (produciendo
+  desde 2026-07-17) todavía dentro de la retención de Kafka (días) — historia
+  parcial gratis, no reemplaza el backfill real de Postgres (3c).
+- **`kafka_skip_broken_messages = 100`:** un mensaje malformado no debe frenar
+  el consumo entero (caveat ya anotado arriba).
+- **No requiere cambios de compose ni imagen nueva** — el engine Kafka viene
+  incluido en `clickhouse/clickhouse-server` estándar. "Cero servicio nuevo",
+  tal como decía la opción (A).
+- **Verificación pendiente (post-deploy):** confirmar filas en las 4 tablas
+  MergeTree (`SELECT count() FROM honeypot_lake.cowrie_events`, etc.) y que
+  `SYSTEM FLUSH LOGS`/`system.kafka_consumers` no muestra errores de parseo
+  sostenidos. Esto es lo primero a mirar junto con `docker stats` cuando se
+  despliegue.
 
 #### Sub-fase 3c — Backfill de la historia existente (one-time)
 
