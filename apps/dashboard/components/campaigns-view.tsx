@@ -172,7 +172,7 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
 
 // ─── Behavior cluster card ────────────────────────────────────────────────────
 
-function ClusterCard({ cluster, detailHref }: { cluster: BehaviorCluster; detailHref?: string }) {
+function ClusterCard({ cluster, detailHref, detailLabel = "View full fingerprint campaign →" }: { cluster: BehaviorCluster; detailHref?: string; detailLabel?: string }) {
   const tz = useTimezone()
   const [expanded, setExpanded] = useState(false)
   const simPct = Math.round(cluster.similarity * 100)
@@ -260,7 +260,7 @@ function ClusterCard({ cluster, detailHref }: { cluster: BehaviorCluster; detail
           href={detailHref}
           className="flex items-center justify-center gap-1 border-t border-border py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
         >
-          <Fingerprint className="h-3.5 w-3.5" /> View full fingerprint campaign →
+          <Fingerprint className="h-3.5 w-3.5" /> {detailLabel}
         </Link>
       )}
 
@@ -479,7 +479,12 @@ export function CampaignsView({
 
           <div className="space-y-3">
             {clusters.map((c) => (
-              <ClusterCard key={c.id} cluster={c} />
+              <ClusterCard
+                key={c.id}
+                cluster={c}
+                detailHref={`/campaigns/behavioral/${c.sessions[0].id}?range=${range}`}
+                detailLabel="View full behavioral cluster →"
+              />
             ))}
           </div>
         </div>

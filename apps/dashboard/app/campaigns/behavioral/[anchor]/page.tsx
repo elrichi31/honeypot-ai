@@ -2,34 +2,47 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import {
-  ArrowLeft, Fingerprint, Network, Terminal, Key, ShieldX, Shield,
-  AlertTriangle, Cpu, Bot, User, Clock,
+  ArrowLeft, Layers, Network, Terminal, Key, ShieldX, Shield, Cpu,
+  Bot, User, Clock, Globe, Code2, Hash,
 } from "lucide-react"
 import { TimeAgo } from "@/components/time-ago"
 import { fetchSessions, fetchSessionCommands, type ApiSession } from "@/lib/api"
 import { effectiveSensorScope } from "@/lib/tenant-scope"
 import { lookupIp } from "@/lib/geo"
+import { clusterSessions, type BehaviorCluster } from "@/lib/session-similarity"
+import { buildActivityBuckets } from "@/lib/activity-buckets"
 import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
 import { Flag } from "@/components/ui/flag"
 import { StatCard } from "@/components/stat-card"
 import { SessionActivityChart } from "@/components/session-activity-chart"
-import { buildActivityBuckets } from "@/lib/activity-buckets"
 import { CMD_LABELS, CMD_COLORS } from "@/lib/attack-types"
 import { cn } from "@/lib/utils"
 
-export async function generateMetadata({ params }: { params: Promise<{ hassh: string }> }): Promise<Metadata> {
-  const { hassh } = await params
-  return { title: `SSH Fingerprint ${decodeURIComponent(hassh).slice(0, 8)} — HoneyTrap` }
+const RANGE_TO_DAYS: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90, "all": 0 }
+
+function rangeToDateParams(range: string): { startDate?: string } {
+  const days = RANGE_TO_DAYS[range]
+  if (!days) return {}
+  const start = new Date()
+  start.setDate(start.getDate() - days)
+  return { startDate: start.toISOString() }
 }
 
-export default async function HasshDetailPage({
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: "Behavioral cluster — HoneyTrap" }
+}
+
+export default async function BehavioralDetailPage({
   params,
+  searchParams,
 }: {
-  params: Promise<{ hassh: string }>
+  params: Promise<{ anchor: string }>
+  searchParams: Promise<{ range?: string }>
 }) {
-  const { hassh } = await params
-  const fp = decodeURIComponent(hassh)
+  const { anchor } = await params
+  const sp = await searchParams
+  const range = sp.range && RANGE_TO_DAYS[sp.range] !== undefined ? sp.range : "30d"
 
   const { sensorIds } = await effectiveSensorScope()
 
@@ -37,41 +50,39 @@ export default async function HasshDetailPage({
   let commandsMap: Record<string, string[]> = {}
   try {
     [sessions, commandsMap] = await Promise.all([
-      fetchSessions({ q: fp, limit: 1000 }, sensorIds),
+      fetchSessions({ limit: 2000, ...rangeToDateParams(range) }, sensorIds),
       fetchSessionCommands(sensorIds),
     ])
   } catch {
     notFound()
   }
 
-  // `q` is a broad ILIKE across several columns — keep only exact-hassh rows.
-  sessions = sessions.filter((s) => s.hassh === fp)
-  if (sessions.length === 0) notFound()
+  // Recompute clusters deterministically (same session set + threshold as the
+  // list view) and pick the one containing the anchor session.
+  const clusters = clusterSessions(sessions, commandsMap, 0.4)
+  const cluster: BehaviorCluster | undefined = clusters.find((c) =>
+    c.sessions.some((s) => s.id === anchor),
+  )
+  if (!cluster) notFound()
 
-  const sorted = [...sessions].sort(
+  const clusterSessionsList = cluster.sessions
+  const simPct = Math.round(cluster.similarity * 100)
+
+  const sortedByTime = [...clusterSessionsList].sort(
     (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
   )
-  const firstSeen = sorted[0].startedAt
-  const lastSeen = sorted[sorted.length - 1].startedAt
-  const durationMs = new Date(lastSeen).getTime() - new Date(firstSeen).getTime()
+  const firstSeen = sortedByTime[0].startedAt
+  const lastSeen = sortedByTime[sortedByTime.length - 1].startedAt
 
-  const srcIps = [...new Set(sessions.map((s) => s.srcIp))]
-  const isMultiIp = srcIps.length > 1
-  const compromised = sessions.filter((s) => s.loginSuccess).length
-  const totalAuth = sessions.reduce((a, s) => a + s.authAttemptCount, 0)
-  const totalCommands = sessions.reduce((a, s) => a + s.commandCount, 0)
+  const srcIps = [...new Set(clusterSessionsList.map((s) => s.srcIp))]
+  const compromised = clusterSessionsList.filter((s) => s.loginSuccess).length
+  const totalCommands = clusterSessionsList.reduce((a, s) => a + s.commandCount, 0)
+  const botCount = clusterSessionsList.filter((s) => s.sessionType === "bot").length
+  const humanCount = clusterSessionsList.filter((s) => s.sessionType === "human").length
 
-  const botCount = sessions.filter((s) => s.sessionType === "bot").length
-  const humanCount = sessions.filter((s) => s.sessionType === "human").length
-
-  // Self-reported client banners — several distinct banners under ONE crypto
-  // fingerprint is a spoofing signal (the tool lies about who it is).
-  const clientVersions = [...new Set(sessions.map((s) => s.clientVersion).filter(Boolean))] as string[]
-
-  // Per-IP breakdown.
   const perIp = srcIps
     .map((ip) => {
-      const ipSessions = sessions.filter((s) => s.srcIp === ip)
+      const ipSessions = clusterSessionsList.filter((s) => s.srcIp === ip)
       return {
         ip,
         sessions: ipSessions.length,
@@ -83,9 +94,22 @@ export default async function HasshDetailPage({
     })
     .sort((a, b) => b.sessions - a.sessions)
 
-  // Credentials tried, most frequent first.
+  // Command frequency across the cluster (for the bar chart).
+  const cmdCounts = new Map<string, number>()
+  for (const s of clusterSessionsList) {
+    for (const cmd of commandsMap[s.id] ?? []) {
+      const trimmed = cmd.trim()
+      if (trimmed) cmdCounts.set(trimmed, (cmdCounts.get(trimmed) ?? 0) + 1)
+    }
+  }
+  const topCommands = [...cmdCounts.entries()]
+    .map(([command, count]) => ({ command, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 15)
+  const maxCmdCount = topCommands[0]?.count ?? 1
+
   const credCounts = new Map<string, number>()
-  for (const s of sessions) {
+  for (const s of clusterSessionsList) {
     if (s.username || s.password) {
       const key = `${s.username ?? ""}:${s.password ?? ""}`
       credCounts.set(key, (credCounts.get(key) ?? 0) + 1)
@@ -96,66 +120,41 @@ export default async function HasshDetailPage({
     .sort((a, b) => b.count - a.count)
     .slice(0, 12)
 
-  // Threat categories aggregated from server-computed threatTags.
   const tagCounts = new Map<string, number>()
-  for (const s of sessions) {
-    for (const tag of s.threatTags ?? []) {
-      tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1)
-    }
+  for (const s of clusterSessionsList) {
+    for (const tag of s.threatTags ?? []) tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1)
   }
   const threatCategories = [...tagCounts.entries()]
     .map(([category, count]) => ({ category, count }))
     .sort((a, b) => b.count - a.count)
 
-  // Top commands actually run under this fingerprint.
-  const cmdCounts = new Map<string, number>()
-  for (const s of sessions) {
-    for (const cmd of commandsMap[s.id] ?? []) {
-      const trimmed = cmd.trim()
-      if (trimmed) cmdCounts.set(trimmed, (cmdCounts.get(trimmed) ?? 0) + 1)
-    }
-  }
-  const topCommands = [...cmdCounts.entries()]
-    .map(([command, count]) => ({ command, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 15)
+  const activityBuckets = buildActivityBuckets(clusterSessionsList.map((s) => s.startedAt))
 
-  const activityBuckets = buildActivityBuckets(sessions.map((s) => s.startedAt))
-
-  const durationLabel = (() => {
-    const h = Math.floor(durationMs / 3_600_000)
-    const d = Math.floor(h / 24)
-    if (d > 0) return `${d}d ${h % 24}h`
-    const m = Math.floor((durationMs % 3_600_000) / 60_000)
-    if (h > 0) return `${h}h ${m}m`
-    if (m > 0) return `${m}m`
-    return `${Math.floor(durationMs / 1000)}s`
-  })()
-
-  const recentSessions = [...sessions]
+  const recentSessions = [...clusterSessionsList]
     .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
     .slice(0, 50)
 
   return (
     <PageShell>
       <div className="mb-6">
-        <Link href="/campaigns" className="mb-3 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <Link href={`/campaigns?range=${range}`} className="mb-3 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-3.5 w-3.5" /> Back to Campaigns
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <Fingerprint className="h-5 w-5 text-cyan-400" />
-              <h1 className="break-all font-mono text-xl font-semibold text-foreground">{fp}</h1>
+              <Layers className="h-5 w-5 text-primary" />
+              <h1 className="text-xl font-semibold text-foreground">Behavioral cluster</h1>
+              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-sm font-semibold text-primary">
+                {simPct}% similar
+              </span>
             </div>
-            {isMultiIp && (
-              <div className="mt-1 flex items-center gap-1.5 text-sm text-yellow-400">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Distributed: same SSH client from {srcIps.length} IPs — coordinated scan or shared tool
-              </div>
-            )}
+            <p className="mt-1 text-sm text-muted-foreground">
+              {clusterSessionsList.length} sessions run near-identical commands from {srcIps.length} IP{srcIps.length > 1 ? "s" : ""}
+              {cluster.dominantUsername ? ` · mostly as ${cluster.dominantUsername}` : ""}
+            </p>
             <p suppressHydrationWarning className="mt-1 text-xs text-muted-foreground">
-              First seen <TimeAgo timestamp={firstSeen} /> · Last seen <TimeAgo timestamp={lastSeen} /> · Active {durationLabel}
+              First seen <TimeAgo timestamp={firstSeen} /> · Last seen <TimeAgo timestamp={lastSeen} />
             </p>
           </div>
           <div className="flex flex-wrap justify-end items-center gap-1.5">
@@ -179,12 +178,39 @@ export default async function HasshDetailPage({
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <StatCard icon={Terminal} label="Sessions" value={sessions.length.toLocaleString("en-US")} color="text-warning" bg="bg-warning/20" />
-        <StatCard icon={Network} label="IPs used" value={srcIps.length} color={isMultiIp ? "text-yellow-400" : undefined} bg={isMultiIp ? "bg-yellow-500/20" : undefined} />
-        <StatCard icon={Key} label="Auth attempts" value={totalAuth.toLocaleString("en-US")} />
+        <StatCard icon={Terminal} label="Sessions" value={clusterSessionsList.length} color="text-primary" bg="bg-primary/15" />
+        <StatCard icon={Network} label="IPs" value={srcIps.length} />
+        <StatCard icon={Hash} label="Avg similarity" value={`${simPct}%`} />
         <StatCard icon={Cpu} label="Commands run" value={totalCommands.toLocaleString("en-US")} />
         <StatCard icon={ShieldX} label="Compromised" value={compromised} color={compromised > 0 ? "text-red-400" : undefined} bg={compromised > 0 ? "bg-red-500/20" : undefined} />
       </div>
+
+      {cluster.sharedCommands.length > 0 && (
+        <Surface className="mb-6 p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <Code2 className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-semibold text-foreground">Shared command signature</h3>
+            <span className="ml-auto text-xs text-muted-foreground">
+              run by every session in this cluster
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {cluster.sharedCommands.map((cmd) => (
+              <code key={cmd} className="rounded bg-secondary px-2 py-1 font-mono text-xs text-foreground">
+                {cmd}
+              </code>
+            ))}
+          </div>
+          {cluster.sharedDomains.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">Shared domains:</span>
+              {cluster.sharedDomains.map((d) => (
+                <code key={d} className="rounded bg-warning/10 px-2 py-1 font-mono text-xs text-warning">{d}</code>
+              ))}
+            </div>
+          )}
+        </Surface>
+      )}
 
       {activityBuckets.length > 0 && (
         <SessionActivityChart buckets={activityBuckets} className="mb-6 p-4" />
@@ -194,11 +220,8 @@ export default async function HasshDetailPage({
         <div className="space-y-6 xl:col-span-2">
           <Surface className="overflow-hidden">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <h3 className="font-semibold text-foreground">IP addresses using this fingerprint</h3>
-              <span className="text-[10px] text-muted-foreground">
-                {srcIps.length} IP{srcIps.length > 1 ? "s" : ""}
-                {isMultiIp ? " — same crypto stack, likely one operator or botnet" : ""}
-              </span>
+              <h3 className="font-semibold text-foreground">IP addresses in this cluster</h3>
+              <span className="text-[10px] text-muted-foreground">{srcIps.length} IP{srcIps.length > 1 ? "s" : ""}</span>
             </div>
             <div className="max-h-[420px] divide-y divide-border overflow-y-auto">
               {perIp.map((row) => (
@@ -225,16 +248,22 @@ export default async function HasshDetailPage({
           {topCommands.length > 0 && (
             <Surface className="overflow-hidden">
               <div className="border-b border-border p-4">
-                <h3 className="font-semibold text-foreground">Commands run under this fingerprint</h3>
+                <h3 className="font-semibold text-foreground">Command frequency</h3>
                 <p className="text-xs text-muted-foreground">{cmdCounts.size} unique · top {topCommands.length}</p>
               </div>
-              <div className="max-h-[420px] divide-y divide-border overflow-y-auto">
+              <div className="space-y-2 p-4">
                 {topCommands.map((item) => (
-                  <div key={item.command} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                    <code className="min-w-0 truncate font-mono text-xs text-foreground" title={item.command}>
+                  <div key={item.command} className="flex items-center gap-3">
+                    <code className="w-1/2 min-w-0 truncate font-mono text-xs text-foreground" title={item.command}>
                       {item.command}
                     </code>
-                    <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">×{item.count}</span>
+                    <div className="h-3 flex-1 overflow-hidden rounded-full bg-secondary">
+                      <div
+                        className="h-full rounded-full bg-primary/70"
+                        style={{ width: `${Math.round((item.count / maxCmdCount) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="w-8 shrink-0 text-right font-mono text-xs text-muted-foreground">×{item.count}</span>
                   </div>
                 ))}
               </div>
@@ -244,7 +273,7 @@ export default async function HasshDetailPage({
           <Surface className="overflow-hidden">
             <div className="border-b border-border p-4">
               <h3 className="font-semibold text-foreground">Sessions</h3>
-              <p className="text-xs text-muted-foreground">{sessions.length} total · showing {recentSessions.length} most recent</p>
+              <p className="text-xs text-muted-foreground">{clusterSessionsList.length} total · showing {recentSessions.length} most recent</p>
             </div>
             <div className="max-h-[520px] divide-y divide-border overflow-y-auto">
               {recentSessions.map((session) => (
@@ -324,23 +353,16 @@ export default async function HasshDetailPage({
             </Surface>
           )}
 
-          <Surface>
-            <div className="border-b border-border p-4">
-              <h3 className="font-semibold text-foreground">Client banners</h3>
-              <p className="text-xs text-muted-foreground">
-                {clientVersions.length} distinct
-                {clientVersions.length > 1 ? " — banner spoofing likely" : ""}
-              </p>
+          <Surface padded className="text-xs text-muted-foreground">
+            <div className="mb-1 flex items-center gap-2">
+              <Globe className="h-3.5 w-3.5" />
+              <span className="font-medium text-foreground">How this cluster was built</span>
             </div>
-            <div className="max-h-48 divide-y divide-border overflow-y-auto">
-              {clientVersions.length > 0 ? (
-                clientVersions.map((cv) => (
-                  <p key={cv} className="break-all px-4 py-2.5 font-mono text-xs text-muted-foreground">{cv}</p>
-                ))
-              ) : (
-                <p className="px-4 py-2.5 text-xs text-muted-foreground">No client banner recorded.</p>
-              )}
-            </div>
+            <p>
+              Sessions are grouped by Jaccard similarity of their command sets. This
+              cluster averages <strong className="text-foreground">{simPct}%</strong> overlap —
+              a strong sign of a shared script or toolkit, even across different IPs.
+            </p>
           </Surface>
         </div>
       </div>
