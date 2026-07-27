@@ -19,12 +19,14 @@ export default async function CommandsPage({
     page?: string
     pageSize?: string
     q?: string
+    category?: string
   }>
 }) {
   const params = await searchParams
   const page = parsePage(params.page)
   const pageSize = PAGE_SIZE_OPTIONS.has(params.pageSize ?? "") ? Number(params.pageSize) : 50
   const q = params.q?.trim() || undefined
+  const category = params.category?.trim() || undefined
 
   const { sensorIds } = await effectiveSensorScope()
 
@@ -32,7 +34,8 @@ export default async function CommandsPage({
   let categories
   try {
     [eventsPage, categories] = await Promise.all([
-      fetchEventsPage({ page, pageSize, q, type: "command.input" }, sensorIds),
+      fetchEventsPage({ page, pageSize, q, category, type: "command.input" }, sensorIds),
+      // Breakdown stays unfiltered by category so every category is always shown.
       fetchCommandCategories({ q }, sensorIds),
     ])
   } catch {
@@ -60,6 +63,7 @@ export default async function CommandsPage({
         searchQuery={q ?? ""}
         pagination={eventsPage.pagination}
         globalCategories={categories}
+        activeCategory={category ?? null}
       />
     </PageShell>
   )

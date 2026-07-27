@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { usePathname } from "next/navigation"
+import { useEffect, useMemo, useState, useCallback } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { TimeAgo } from "@/components/time-ago"
-import { Search, Terminal, Clock, Globe, ShieldAlert, Eye } from "lucide-react"
+import { Search, Terminal, Clock, Globe, ShieldAlert, Eye, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import type { HoneypotEvent, PaginationMeta, CommandCategoriesResponse } from "@/lib/api"
@@ -22,6 +22,8 @@ interface CommandsViewProps {
   pagination: PaginationMeta
   /** Threat-category counts across ALL matching command sessions, not just this page. */
   globalCategories?: CommandCategoriesResponse
+  /** Active category filter from the URL (server-side filtered), or null. */
+  activeCategory?: string | null
 }
 
 const OTHER = "other"
@@ -30,14 +32,25 @@ function categoryOf(event: HoneypotEvent): string {
   return event.commandCategory ?? OTHER
 }
 
-export function CommandsView({ events, searchQuery, pagination, globalCategories }: CommandsViewProps) {
+export function CommandsView({ events, searchQuery, pagination, globalCategories, activeCategory = null }: CommandsViewProps) {
   const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [query, setQuery] = useState(searchQuery)
-  const [activeCategory, setActiveCategory] = useState<string | null>(null)
 
   useEffect(() => {
     setQuery(searchQuery)
   }, [searchQuery])
+
+  // Toggle the server-side category filter via the URL (drops `page` so the
+  // filtered results start at page 1).
+  const toggleCategory = useCallback((category: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (params.get("category") === category) params.delete("category")
+    else params.set("category", category)
+    params.delete("page")
+    router.push(`${pathname}?${params.toString()}`)
+  }, [router, pathname, searchParams])
 
   const commands = useMemo(
     () =>
@@ -75,29 +88,10 @@ export function CommandsView({ events, searchQuery, pagination, globalCategories
     [categoryCounts],
   )
 
-  // Page-local breakdown drives the quick filter chips above the list (which can
-  // only filter the rows actually loaded on this page).
-  const pageCategoryCounts = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const event of commands) {
-      const cat = categoryOf(event)
-      counts.set(cat, (counts.get(cat) ?? 0) + 1)
-    }
-    return [...counts.entries()]
-      .map(([category, count]) => ({ category, count }))
-      .sort((a, b) => {
-        const ai = CMD_SEVERITY_ORDER.indexOf(a.category)
-        const bi = CMD_SEVERITY_ORDER.indexOf(b.category)
-        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
-      })
-  }, [commands])
-
   const maliciousTotal = globalCategories?.malicious
     ?? commands.filter((c) => CMD_MALICIOUS_CATEGORIES.has(categoryOf(c))).length
 
-  const visibleCommands = activeCategory
-    ? commands.filter((c) => categoryOf(c) === activeCategory)
-    : commands
+  const visibleCommands = commands
 
   const topCommands = useMemo(() => {
     const counts = new Map<string, number>()
@@ -120,6 +114,7 @@ export function CommandsView({ events, searchQuery, pagination, globalCategories
           <div className="border-b border-border p-4">
             <form action={pathname} className="flex flex-wrap gap-2">
               <input type="hidden" name="pageSize" value={String(pagination.pageSize)} />
+              {activeCategory && <input type="hidden" name="category" value={activeCategory} />}
               <div className="relative min-w-72 flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -138,37 +133,20 @@ export function CommandsView({ events, searchQuery, pagination, globalCategories
               </button>
             </form>
 
-            {pageCategoryCounts.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
+            {activeCategory && (
+              <div className="mt-3 flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Filtered by:</span>
                 <button
                   type="button"
-                  onClick={() => setActiveCategory(null)}
+                  onClick={() => toggleCategory(activeCategory)}
                   className={cn(
-                    "rounded-md border px-2 py-0.5 text-xs font-medium transition-colors",
-                    activeCategory === null
-                      ? "border-primary bg-primary/15 text-primary"
-                      : "border-border text-muted-foreground hover:bg-secondary",
+                    "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium",
+                    CMD_COLORS[activeCategory] ?? CMD_COLORS.other,
                   )}
                 >
-                  All · {commands.length}
+                  {CMD_LABELS[activeCategory] ?? "Other"}
+                  <X className="h-3 w-3" />
                 </button>
-                {pageCategoryCounts.map(({ category, count }) => (
-                  <button
-                    key={category}
-                    type="button"
-                    onClick={() =>
-                      setActiveCategory((prev) => (prev === category ? null : category))
-                    }
-                    className={cn(
-                      "rounded-md border px-2 py-0.5 text-xs font-medium transition-colors",
-                      activeCategory === category
-                        ? CMD_COLORS[category] ?? CMD_COLORS.other
-                        : "border-border text-muted-foreground hover:bg-secondary",
-                    )}
-                  >
-                    {CMD_LABELS[category] ?? "Other"} · {count}
-                  </button>
-                ))}
               </div>
             )}
           </div>
@@ -265,14 +243,23 @@ export function CommandsView({ events, searchQuery, pagination, globalCategories
           <Surface>
             <div className="border-b border-border p-4">
               <h3 className="font-semibold text-foreground">Threat Categories</h3>
-              <p className="text-xs text-muted-foreground">Across all matching SSH sessions</p>
+              <p className="text-xs text-muted-foreground">Across all matching SSH sessions · click to filter</p>
             </div>
             <div className="divide-y divide-border">
               {categoryCounts.map(({ category, count }) => {
                 const pct = totalCategorized > 0 ? Math.round((count / totalCategorized) * 100) : 0
                 const malicious = CMD_MALICIOUS_CATEGORIES.has(category)
+                const active = activeCategory === category
                 return (
-                  <div key={category} className="p-3">
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => toggleCategory(category)}
+                    className={cn(
+                      "w-full p-3 text-left transition-colors hover:bg-secondary/50",
+                      active && "bg-secondary/60",
+                    )}
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <span className="flex items-center gap-2 text-sm text-foreground">
                         {malicious ? (
@@ -281,6 +268,7 @@ export function CommandsView({ events, searchQuery, pagination, globalCategories
                           <Eye className="h-3.5 w-3.5 text-muted-foreground" />
                         )}
                         {CMD_LABELS[category] ?? "Other"}
+                        {active && <X className="h-3 w-3 text-muted-foreground" />}
                       </span>
                       <span className="text-xs font-medium text-muted-foreground">
                         {count.toLocaleString("en-US")} · {pct}%
@@ -295,7 +283,7 @@ export function CommandsView({ events, searchQuery, pagination, globalCategories
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                  </div>
+                  </button>
                 )
               })}
             </div>

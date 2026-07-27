@@ -4,11 +4,11 @@ import type { HoneypotEvent, ApiSession, ApiSessionDetail, PaginatedResponse, Pa
 
 export async function fetchEventsPage(params?: {
   page?: number; pageSize?: number; limit?: number; offset?: number
-  type?: string; q?: string; startDate?: string; endDate?: string
+  type?: string; q?: string; category?: string; startDate?: string; endDate?: string
 }, sensorIds?: string[]): Promise<PaginatedResponse<HoneypotEvent>> {
   const sp = buildSearchParams({
     page: params?.page, pageSize: params?.pageSize, limit: params?.limit,
-    offset: params?.offset, type: params?.type, q: params?.q,
+    offset: params?.offset, type: params?.type, q: params?.q, category: params?.category,
     startDate: params?.startDate, endDate: params?.endDate,
   })
   return apiFetch(`${getApiUrl()}/events?${sp}${sensorScopeParam(sensorIds)}`)

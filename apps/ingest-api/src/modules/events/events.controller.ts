@@ -8,6 +8,7 @@ import { parseSensorScope } from '../../lib/sensor-scope.js';
 const eventListQuerySchema = basePaginationSchema.extend({
   type: z.string().trim().min(1).optional(),
   q: z.string().trim().min(1).optional(),
+  category: z.string().trim().min(1).optional(),
   startDate: z.string().datetime({ offset: true }).optional(),
   endDate: z.string().datetime({ offset: true }).optional(),
 });
@@ -58,6 +59,21 @@ export async function eventRoutes(fastify: FastifyInstance) {
     const { page, pageSize, offset } = getPagination(parsed.data);
     const scope = parseSensorScope(request.query as Record<string, unknown>);
     const where = buildEventWhere(parsed.data, scope);
+
+    // Threat-category filter: reuse the single TS classifier (no SQL regex
+    // duplication). Classify the distinct matching commands, keep those in the
+    // requested category, then filter the list to `command IN (...)` — an
+    // indexed filter that paginates correctly.
+    if (parsed.data.category) {
+      const grouped = await fastify.prisma.event.groupBy({
+        by: ['command'],
+        where: { ...where, eventType: 'command.input', command: { not: null } },
+      });
+      const wanted = grouped
+        .map((g) => g.command)
+        .filter((cmd): cmd is string => cmd != null && (classifyCommand(cmd) ?? 'other') === parsed.data.category);
+      Object.assign(where, { command: { in: wanted } });
+    }
 
     const [events, total] = await Promise.all([
       fastify.prisma.event.findMany({
