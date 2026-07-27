@@ -4,7 +4,7 @@
  * CSV / STIX 2.1 bundles.
  */
 
-export type IocType = "ip" | "hash" | "c2" | "sshkey"
+export type IocType = "ip" | "hash" | "c2" | "sshkey" | "credential" | "hassh"
 
 export interface IocEntry {
   type: IocType
@@ -52,6 +52,8 @@ const IOC_LABEL: Record<IocType, string> = {
   hash: "Malware hash",
   c2: "C2 endpoint",
   sshkey: "Planted SSH key",
+  credential: "Attacker credential",
+  hassh: "SSH client fingerprint (HASSH)",
 }
 
 /** STIX 2.1 pattern for a single IoC. */
@@ -67,6 +69,16 @@ export function stixPattern(entry: IocEntry): string {
     // No native STIX object for an authorized_keys entry; carry the raw key so
     // an analyst can grep for it. Escape single quotes to keep the pattern valid.
     return `[artifact:payload_bin = '${entry.value.replace(/'/g, "\\'")}']`
+  }
+  if (entry.type === "credential") {
+    const user = String(entry.meta?.username ?? entry.value.split(":")[0]).replace(/'/g, "\\'")
+    const pass = String(entry.meta?.password ?? "").replace(/'/g, "\\'")
+    return `[user-account:user_id = '${user}' AND user-account:credential = '${pass}']`
+  }
+  if (entry.type === "hassh") {
+    // No standardized STIX object for HASSH; emit a custom property so it's
+    // still greppable in a bundle. MISP has a first-class hassh-md5 type.
+    return `[x-ssh:hassh = '${entry.value}']`
   }
   // Hashes: cowrie stores SHA-256 (64 hex), dionaea MD5 (32 hex).
   const algo = entry.value.length === 32 ? "MD5" : "SHA-256"
@@ -103,6 +115,8 @@ function mispAttribute(e: IocEntry): { type: string; category: string; value: st
     return { type: "ip-dst|port", category: "Network activity", value: e.value.replace(":", "|") }
   }
   if (e.type === "sshkey") return { type: "ssh-authorized-keys", category: "Artifacts dropped", value: e.value }
+  if (e.type === "credential") return { type: "text", category: "Attribution", value: e.value }
+  if (e.type === "hassh") return { type: "hassh-md5", category: "Network activity", value: e.value }
   const type = e.value.length === 32 ? "md5" : "sha256"
   return { type, category: "Payload delivery", value: e.value.toLowerCase() }
 }

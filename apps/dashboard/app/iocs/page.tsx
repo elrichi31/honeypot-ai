@@ -48,7 +48,7 @@ export default async function IocsPage({
     fetchMalwareArtifacts({ pageSize: 200, sortBy: "capturedAt", sortDir: "desc" }, sensorIds)
       .then((r) => r.items)
       .catch(() => []),
-    fetchAggregatedIocs({ period }, sensorIds).catch(() => ({ c2: [], sshKeys: [] })),
+    fetchAggregatedIocs({ period }, sensorIds).catch(() => ({ c2: [], sshKeys: [], credentials: [], hassh: [] })),
   ])
 
   const ipEntries: IocEntry[] = threats
@@ -83,17 +83,27 @@ export default async function IocsPage({
     })
   }
 
-  const c2Entries: IocEntry[] = aggregated.c2.map((c) => ({
-    type: "c2",
-    value: c.value,
-    meta: {
-      source: "honeypot",
-      host: c.host,
-      port: c.port,
-      srcIp: c.srcIp,
-      firstSeen: c.firstSeen,
-    },
-  }))
+  // C2 endpoints from commands + the resolved download URL on each captured
+  // malware artifact (the payload-delivery URL, deduped against command C2s).
+  const c2Map = new Map<string, IocEntry>()
+  for (const c of aggregated.c2) {
+    c2Map.set(c.value, {
+      type: "c2",
+      value: c.value,
+      meta: { source: "honeypot", host: c.host, port: c.port, srcIp: c.srcIp, firstSeen: c.firstSeen },
+    })
+  }
+  for (const m of malware) {
+    if (!m.sourceUrl || c2Map.has(m.sourceUrl)) continue
+    let host = m.sourceUrl
+    try { host = new URL(m.sourceUrl).hostname } catch { /* keep raw */ }
+    c2Map.set(m.sourceUrl, {
+      type: "c2",
+      value: m.sourceUrl,
+      meta: { source: "honeypot", host, srcIp: m.srcIp, firstSeen: m.capturedAt },
+    })
+  }
+  const c2Entries: IocEntry[] = [...c2Map.values()]
 
   const sshKeyEntries: IocEntry[] = aggregated.sshKeys.map((k) => ({
     type: "sshkey",
@@ -108,7 +118,32 @@ export default async function IocsPage({
     },
   }))
 
-  const allEntries = [...ipEntries, ...hashEntries, ...c2Entries, ...sshKeyEntries]
+  const credentialEntries: IocEntry[] = aggregated.credentials.map((c) => ({
+    type: "credential",
+    value: `${c.username}:${c.password}`,
+    meta: {
+      source: "honeypot",
+      username: c.username,
+      password: c.password,
+      attempts: c.attempts,
+      uniqueIps: c.uniqueIps,
+      firstSeen: c.firstSeen,
+    },
+  }))
+
+  const hasshEntries: IocEntry[] = aggregated.hassh.map((h) => ({
+    type: "hassh",
+    value: h.hassh,
+    meta: {
+      source: "honeypot",
+      sessions: h.sessions,
+      uniqueIps: h.uniqueIps,
+      sampleClient: h.sampleClient ?? undefined,
+      firstSeen: h.firstSeen,
+    },
+  }))
+
+  const allEntries = [...ipEntries, ...hashEntries, ...c2Entries, ...sshKeyEntries, ...credentialEntries, ...hasshEntries]
 
   return (
     <PageShell>
@@ -127,11 +162,13 @@ export default async function IocsPage({
         <IocFilters />
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard label={t("iocs.stat.ips")} value={ipEntries.length.toLocaleString("en-US")} mono tone="critical" />
-        <StatCard label={t("iocs.stat.hashes")} value={hashEntries.length.toLocaleString("en-US")} mono />
         <StatCard label={t("iocs.stat.c2")} value={c2Entries.length.toLocaleString("en-US")} mono tone="high" />
+        <StatCard label={t("iocs.stat.hashes")} value={hashEntries.length.toLocaleString("en-US")} mono />
         <StatCard label={t("iocs.stat.sshkeys")} value={sshKeyEntries.length.toLocaleString("en-US")} mono />
+        <StatCard label={t("iocs.stat.credentials")} value={credentialEntries.length.toLocaleString("en-US")} mono />
+        <StatCard label={t("iocs.stat.hassh")} value={hasshEntries.length.toLocaleString("en-US")} mono />
       </div>
 
       <div className="space-y-6">
@@ -158,6 +195,18 @@ export default async function IocsPage({
           kind="sshkey"
           entries={sshKeyEntries}
           fileBase="honeypot-ssh-keys"
+        />
+        <IocSection
+          title={t("iocs.section.credentials")}
+          kind="credential"
+          entries={credentialEntries}
+          fileBase="honeypot-credentials"
+        />
+        <IocSection
+          title={t("iocs.section.hassh")}
+          kind="hassh"
+          entries={hasshEntries}
+          fileBase="honeypot-ssh-fingerprints"
         />
       </div>
     </PageShell>

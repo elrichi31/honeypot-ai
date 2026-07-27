@@ -19,9 +19,27 @@ export interface PlantedSshKeyWithSrc {
   firstSeen: string
 }
 
+export interface CredentialIoc {
+  username: string
+  password: string
+  attempts: number
+  uniqueIps: number
+  firstSeen: string
+}
+
+export interface HasshIoc {
+  hassh: string
+  sessions: number
+  uniqueIps: number
+  firstSeen: string
+  sampleClient: string | null
+}
+
 export interface AggregatedIocsResponse {
   c2: C2IndicatorWithSrc[]
   sshKeys: PlantedSshKeyWithSrc[]
+  credentials: CredentialIoc[]
+  hassh: HasshIoc[]
 }
 
 export async function fetchAggregatedIocs(params?: {

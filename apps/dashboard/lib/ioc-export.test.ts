@@ -68,6 +68,26 @@ test("stixPattern handles c2 (url vs ip) and ssh keys", () => {
   assert.match(stixPattern({ type: "sshkey", value: "ssh-rsa AAAA x" }), /artifact:payload_bin/)
 })
 
+test("stixPattern handles credential and hassh", () => {
+  assert.equal(
+    stixPattern({ type: "credential", value: "root:admin123", meta: { username: "root", password: "admin123" } }),
+    "[user-account:user_id = 'root' AND user-account:credential = 'admin123']",
+  )
+  assert.equal(
+    stixPattern({ type: "hassh", value: "0df0d56bc50a35bf" }),
+    "[x-ssh:hassh = '0df0d56bc50a35bf']",
+  )
+})
+
+test("toMispEvent maps credential and hassh types", () => {
+  const misp = JSON.parse(toMispEvent([
+    { type: "credential", value: "root:admin123" },
+    { type: "hassh", value: "0df0d56bc50a35bf" },
+  ]))
+  const types = misp.Event.Attribute.map((a: { type: string }) => a.type)
+  assert.deepEqual(types, ["text", "hassh-md5"])
+})
+
 test("toMispEvent emits one attribute per IoC with correct types", () => {
   const entries: IocEntry[] = [
     { type: "ip", value: "5.6.7.8" },

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { Copy, Check, Download, Search, Crosshair, Biohazard, Radio, KeyRound, ExternalLink } from "lucide-react"
+import { Copy, Check, Download, Search, Crosshair, Biohazard, Radio, KeyRound, Key, Fingerprint, ExternalLink } from "lucide-react"
 import { Surface } from "@/components/ui/surface"
 import { useT } from "@/components/locale-provider"
 import { toPlainList, toCsv, toStixBundle, toMispEvent, type IocEntry, type IocType } from "@/lib/ioc-export"
@@ -10,7 +10,7 @@ import { toPlainList, toCsv, toStixBundle, toMispEvent, type IocEntry, type IocT
 // Icon + per-row metadata resolved here (a Client Component) by `kind`, because
 // icon components/functions can't be passed as props from a Server Component
 // page — doing so crashes the RSC render.
-const KIND_ICON = { ip: Crosshair, hash: Biohazard, c2: Radio, sshkey: KeyRound } as const
+const KIND_ICON = { ip: Crosshair, hash: Biohazard, c2: Radio, sshkey: KeyRound, credential: Key, hassh: Fingerprint } as const
 
 function metaLine(e: IocEntry): string {
   if (e.type === "ip") {
@@ -26,6 +26,17 @@ function metaLine(e: IocEntry): string {
     const src = e.meta?.srcIp ? ` · from ${e.meta.srcIp}` : ""
     const comment = e.meta?.comment ? ` · "${e.meta.comment}"` : ""
     return `${e.meta?.algorithm ?? ""}${comment}${src}`
+  }
+  if (e.type === "credential") {
+    const ips = e.meta?.uniqueIps ? ` · ${e.meta.uniqueIps} IPs` : ""
+    const attempts = e.meta?.attempts ? ` · ${e.meta.attempts} attempts` : ""
+    return `${attempts}${ips}`.replace(/^ · /, "")
+  }
+  if (e.type === "hassh") {
+    const client = e.meta?.sampleClient ? ` · ${e.meta.sampleClient}` : ""
+    const ips = e.meta?.uniqueIps ? ` · ${e.meta.uniqueIps} IPs` : ""
+    const sessions = e.meta?.sessions ? ` · ${e.meta.sessions} sessions` : ""
+    return `${sessions}${ips}${client}`.replace(/^ · /, "")
   }
   return [e.meta?.source, e.meta?.fileType, e.meta?.srcIp].filter(Boolean).join(" · ")
 }
@@ -44,6 +55,13 @@ function RowLink({ e }: { e: IocEntry }) {
       <a href={`https://www.virustotal.com/gui/file/${e.value}`} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground" title="VirusTotal">
         <ExternalLink className="h-3.5 w-3.5" />
       </a>
+    )
+  }
+  if (e.type === "hassh") {
+    return (
+      <Link href={`/campaigns/hassh/${encodeURIComponent(e.value)}`} className="text-muted-foreground hover:text-foreground" title="View fingerprint campaign">
+        <ExternalLink className="h-3.5 w-3.5" />
+      </Link>
     )
   }
   const src = e.meta?.srcIp ? String(e.meta.srcIp) : null

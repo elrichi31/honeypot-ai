@@ -8,9 +8,27 @@ import type { SensorScope } from '../../lib/sensor-scope.js'
 export type C2IndicatorWithSrc = C2Indicator & { srcIp: string; firstSeen: string }
 export type PlantedSshKeyWithSrc = PlantedSshKey & { srcIp: string; firstSeen: string }
 
+export type CredentialIoc = {
+  username: string
+  password: string
+  attempts: number
+  uniqueIps: number
+  firstSeen: string
+}
+
+export type HasshIoc = {
+  hassh: string
+  sessions: number
+  uniqueIps: number
+  firstSeen: string
+  sampleClient: string | null
+}
+
 export type AggregatedIocs = {
   c2: C2IndicatorWithSrc[]
   sshKeys: PlantedSshKeyWithSrc[]
+  credentials: CredentialIoc[]
+  hassh: HasshIoc[]
 }
 
 export class IocsService {
@@ -26,7 +44,11 @@ export class IocsService {
     scope?: SensorScope,
   ): Promise<AggregatedIocs> {
     return withCache(cache, `iocs:aggregated:w=${windowDays}:${scope?.cacheSuffix ?? 'all'}`, 180, async () => {
-      const rows = await this.repo.queryCommandRowsForIocs(windowDays, scope)
+      const [rows, credRows, hasshRows] = await Promise.all([
+        this.repo.queryCommandRowsForIocs(windowDays, scope),
+        this.repo.queryCredentials(windowDays, scope),
+        this.repo.queryHasshFingerprints(windowDays, scope),
+      ])
 
       const c2 = new Map<string, C2IndicatorWithSrc>()
       const sshKeys = new Map<string, PlantedSshKeyWithSrc>()
@@ -49,7 +71,23 @@ export class IocsService {
         }
       }
 
-      return { c2: [...c2.values()], sshKeys: [...sshKeys.values()] }
+      const credentials: CredentialIoc[] = credRows.map(r => ({
+        username: r.username,
+        password: r.password,
+        attempts: Number(r.attempts),
+        uniqueIps: Number(r.unique_ips),
+        firstSeen: r.first_seen.toISOString(),
+      }))
+
+      const hassh: HasshIoc[] = hasshRows.map(r => ({
+        hassh: r.hassh,
+        sessions: Number(r.sessions),
+        uniqueIps: Number(r.unique_ips),
+        firstSeen: r.first_seen.toISOString(),
+        sampleClient: r.sample_client,
+      }))
+
+      return { c2: [...c2.values()], sshKeys: [...sshKeys.values()], credentials, hassh }
     })
   }
 }
