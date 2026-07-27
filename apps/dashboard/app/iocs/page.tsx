@@ -85,8 +85,11 @@ export default async function IocsPage({
 
   // C2 endpoints from commands + the resolved download URL on each captured
   // malware artifact (the payload-delivery URL, deduped against command C2s).
+  // The `?? []` guards on aggregated.* let the page still render against an
+  // older API build whose response predates these fields (a 200 with a missing
+  // array would otherwise crash the .map/for-of below).
   const c2Map = new Map<string, IocEntry>()
-  for (const c of aggregated.c2) {
+  for (const c of aggregated.c2 ?? []) {
     c2Map.set(c.value, {
       type: "c2",
       value: c.value,
@@ -105,7 +108,7 @@ export default async function IocsPage({
   }
   const c2Entries: IocEntry[] = [...c2Map.values()]
 
-  const sshKeyEntries: IocEntry[] = aggregated.sshKeys.map((k) => ({
+  const sshKeyEntries: IocEntry[] = (aggregated.sshKeys ?? []).map((k) => ({
     type: "sshkey",
     value: k.raw,
     meta: {
@@ -118,7 +121,7 @@ export default async function IocsPage({
     },
   }))
 
-  const credentialEntries: IocEntry[] = aggregated.credentials.map((c) => ({
+  const credentialEntries: IocEntry[] = (aggregated.credentials ?? []).map((c) => ({
     type: "credential",
     value: `${c.username}:${c.password}`,
     meta: {
@@ -131,7 +134,7 @@ export default async function IocsPage({
     },
   }))
 
-  const hasshEntries: IocEntry[] = aggregated.hassh.map((h) => ({
+  const hasshEntries: IocEntry[] = (aggregated.hassh ?? []).map((h) => ({
     type: "hassh",
     value: h.hassh,
     meta: {
