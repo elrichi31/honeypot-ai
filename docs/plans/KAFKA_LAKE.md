@@ -303,12 +303,46 @@ local se llena** — no montarlo de entrada (YAGNI).
   existente: cpus vía cgroup, memoria vía config de la app — como
   `KAFKA_HEAP_OPTS` o el `--maxmemory` de Redis, no `deploy.resources.limits.memory`
   que ningún servicio de este compose usa). Memoria real acotada en
-  `clickhouse/config.d/limits.xml`: `max_server_memory_usage` 1.5GB,
-  `background_pool_size` 4, `background_merges_mutations_concurrency_ratio` 1 —
-  arranca más ajustado que los "2 CPU / 4GB" que sugería el texto original,
-  porque el usuario decidió **no resizear la VPS todavía** (sigue en 7.6GB) tras
-  mover los sensores a otro VPS y confirmar ~5GB libres reales. Medir con
-  `docker stats` bajo carga antes de aflojar.
+  `clickhouse/config.d/limits.xml`: `max_server_memory_usage` 1.5GB — arranca
+  más ajustado que los "2 CPU / 4GB" que sugería el texto original, porque el
+  usuario decidió **no resizear la VPS todavía** (sigue en 7.6GB) tras mover
+  los sensores a otro VPS y confirmar ~5GB libres reales. Medir con
+  `docker stats` bajo carga antes de aflojar. **No** se tocó
+  `background_pool_size`/`background_merges_mutations_concurrency_ratio` — ver
+  incidentes de despliegue abajo, un intento de acotarlos rompió el arranque.
+
+**Incidentes reales del primer despliegue (2026-07-27) — los 4 en orden, cada
+uno tapaba al siguiente:**
+
+1. **`chown: Operation not permitted`, crash-loop.** `cap_drop: ALL`
+   (`service-defaults`) bloqueaba el `chown` que el entrypoint oficial hace
+   sobre `/var/log/clickhouse-server` y `/var/lib/clickhouse` antes de bajar de
+   root al usuario `clickhouse`. Fix: `cap_add: [CHOWN, SETUID, SETGID]` en el
+   servicio — mismo patrón ya usado en `cowrie` por la misma razón.
+2. **`Aborted (core dumped)` sin ningún log de ClickHouse.** La imagen
+   `-alpine` (musl) abortaba antes de imprimir nada propio. Fix: cambiar a
+   `clickhouse/clickhouse-server:24.8` (la Ubuntu-based, no la alpine) — es la
+   que ClickHouse recomienda para producción; alpine se había elegido acá solo
+   por consistencia con postgres/redis, que no aplica a ClickHouse.
+3. **`Poco::Exception: cannot start thread`** al correr `clickhouse-client`
+   por `docker exec`. `deploy.resources.limits.pids: 256` — el propio server ya
+   usa varios cientos de threads en reposo (pools de background, IO, 4
+   consumers Kafka) y se comía el cupo. Fix: sacar el límite de `pids`
+   (Postgres/Redis tampoco lo tienen en este compose).
+4. **`DB::Exception: BAD_ARGUMENTS` — sanity check de MergeTree.**
+   `background_pool_size: 4` × `background_merges_mutations_concurrency_ratio: 1`
+   = 4, menor al default de `number_of_free_entries_in_pool_to_execute_mutation`
+   (20) → ClickHouse rechaza arrancar. Fix: sacar esos dos overrides, dejar los
+   defaults de ClickHouse (16×2=32, con margen) — el cgroup `cpus: "1.0"` del
+   contenedor ya cubre el objetivo real (no dejar que ClickHouse use CPU sin
+   límite), así que el override era redundante además de estar mal calculado.
+
+**Lección para la próxima vez que se agregue un servicio pesado nuevo:**
+Los límites de recursos "desde el día 1" son la decisión correcta (evitan
+repetir el incidente de Kafka/2026-07-20), pero cada override tiene que
+validarse contra las sanity checks internas del propio servicio, no solo
+against "un número chico es más seguro". Ajustar y volver a probar, no adivinar
+un valor bajo y asumir que funciona.
 - **Schema:** `clickhouse/init/001-schema.sql`, montado en
   `/docker-entrypoint-initdb.d/` (se ejecuta solo en el primer arranque, como
   Postgres). Las 4 tablas (`cowrie_events`, `web_events`, `protocol_events`,

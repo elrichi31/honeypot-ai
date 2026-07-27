@@ -5,8 +5,15 @@
          only if it measurably throttles — don't repeat the 2026-07-20
          no-quota incident with a new heavy service. -->
     <max_server_memory_usage>1610612736</max_server_memory_usage> <!-- 1.5 GB -->
-    <background_pool_size>4</background_pool_size>
-    <background_merges_mutations_concurrency_ratio>1</background_merges_mutations_concurrency_ratio>
+    <!-- background_pool_size/background_merges_mutations_concurrency_ratio
+         intentionally NOT overridden here: at 4x1 ClickHouse refused to start
+         ("number_of_free_entries_in_pool_to_execute_mutation (20) is greater
+         than background_pool_size*ratio (4)" — confirmed in prod,
+         clickhouse-server.err.log). The container's own cgroup cpus limit
+         (deploy.resources.limits.cpus in the compose) already caps real CPU
+         regardless of internal thread-pool size, so this app-level knob was
+         redundant on top of being miscalculated. Defaults (16 * 2 = 32) pass
+         the sanity check with margin. -->
     <mark_cache_size>134217728</mark_cache_size> <!-- 128 MB -->
     <uncompressed_cache_size>0</uncompressed_cache_size>
 </clickhouse>
