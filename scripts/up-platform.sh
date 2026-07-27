@@ -123,6 +123,7 @@ wait_healthy honeypot-postgres          "postgres (primary)" 60
 wait_healthy honeypot-postgres-replica  "postgres (replica)" 80
 wait_healthy honeypot-redis             "redis"              40
 wait_healthy honeypot-kafka             "kafka"             120
+wait_healthy honeypot-clickhouse        "clickhouse"         60
 wait_healthy ingest-api                 "ingest-api"        100
 wait_healthy honeypot-dashboard         "dashboard"          80
 
@@ -165,6 +166,19 @@ if curl -fsS -o /dev/null --max-time 10 http://localhost:4000/login 2>/dev/null;
   ok "dashboard: GET /login 200 (port 4000, loopback-only)"
 else
   fail "dashboard: /login not reachable on localhost:4000"
+fi
+
+# 5e. ClickHouse Kafka consumers (KAFKA_LAKE Fase 3b) — a consumer can stay
+# "Up (healthy)" on its own /ping check while silently retry-looping on
+# inserts and never committing (confirmed in prod 2026-07-27: protocol_events
+# hit MEMORY_LIMIT_EXCEEDED in a loop). /ping alone won't catch that, so check
+# system.kafka_consumers directly.
+CH_KAFKA_ERRORS=$(timeout 10 docker exec -i honeypot-clickhouse clickhouse-client -q \
+  "SELECT count() FROM system.kafka_consumers WHERE length(exceptions.text) > 0" 2>/dev/null || echo "")
+if [[ "$CH_KAFKA_ERRORS" == "0" ]]; then
+  ok "clickhouse: kafka consumers have no errors"
+else
+  fail "clickhouse: kafka consumer(s) reporting errors (count=${CH_KAFKA_ERRORS:-unknown}) — check: docker exec honeypot-clickhouse clickhouse-client -q \"SELECT table, exceptions.text FROM system.kafka_consumers\""
 fi
 
 # ---------------------------------------------------------------------------
