@@ -76,19 +76,21 @@ export class SessionRepository {
     sessionId: string,
     sessionData: Partial<SessionUpsertData> & { endedAt?: Date; startedAt?: Date },
   ): Promise<string> {
-    const [session, commandEvents, authEvents] = await Promise.all([
+    const [session, commandEvents, authEvents, terminalSizeEventCount] = await Promise.all([
       this.prisma.session.findUnique({
         where: { id: sessionId },
         select: { startedAt: true, clientVersion: true, hassh: true, loginSuccess: true },
       }),
       this.prisma.event.findMany({
         where: { sessionId, eventType: 'command.input' },
-        select: { command: true },
+        select: { command: true, eventTs: true },
+        orderBy: { eventTs: 'asc' },
       }),
       this.prisma.event.findMany({
         where: { sessionId, eventType: { in: ['auth.success', 'auth.failed'] } },
         select: { id: true },
       }),
+      this.prisma.event.count({ where: { sessionId, eventType: 'client.size' } }),
     ]);
 
     if (!session) return 'unknown';
@@ -105,6 +107,8 @@ export class SessionRepository {
       hassh: session.hassh,
       durationSec,
       commands: commandEvents.map(e => e.command ?? '').filter(Boolean),
+      commandTimestamps: commandEvents.map(e => e.eventTs),
+      terminalSizeEventCount,
       authAttemptCount: authEvents.length,
       loginSuccess: sessionData.loginSuccess ?? session.loginSuccess,
       password: sessionData.password,
@@ -151,20 +155,21 @@ export class SessionRepository {
     });
   }
 
-  async queryUnclassified(): Promise<Array<{
+  async queryUnclassified(types: string[] = ['unknown']): Promise<Array<{
     id: string; client_version: string | null; hassh: string | null
     started_at: Date; ended_at: Date | null; login_success: boolean | null; password: string | null
   }>> {
     return this.prisma.$queryRaw`
       SELECT id, client_version, hassh, started_at, ended_at, login_success, password
-      FROM sessions WHERE session_type = 'unknown' LIMIT 5000
+      FROM sessions WHERE session_type IN (${Prisma.join(types)}) LIMIT 5000
     `;
   }
 
-  async queryCommandsForSessions(ids: string[]): Promise<Array<{ session_id: string; command: string | null }>> {
+  async queryCommandsForSessions(ids: string[]): Promise<Array<{ session_id: string; command: string | null; event_ts: Date; event_type: string }>> {
     return this.prisma.$queryRaw`
-      SELECT session_id, command FROM events
-      WHERE session_id IN (${Prisma.join(ids)}) AND event_type = 'command.input'
+      SELECT session_id, command, event_ts, event_type FROM events
+      WHERE session_id IN (${Prisma.join(ids)}) AND event_type IN ('command.input', 'client.size')
+      ORDER BY event_ts ASC
     `;
   }
 

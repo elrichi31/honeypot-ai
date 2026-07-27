@@ -276,3 +276,32 @@ loader/dropper filenames. Add each with a test payload.
   (e.g. after `session_type` backfill runs against real prod traffic), treat
   populating `BOT_HASSH_FINGERPRINTS` as a small standalone follow-up rather
   than reopening this plan.
+- **2026-07-27** — Bot detector v2: made the `human` label require affirmative
+  evidence instead of being the default for "no bot signals" (honeypot base
+  rate is overwhelmingly automated; literature review confirmed inter-command
+  timing as the dominant discriminator). Changes in
+  [`bot-detector.ts`](../../apps/ingest-api/src/lib/bot-detector.ts):
+  - **Inter-command timing** (new, strongest signal): median gap <1s → +45
+    (plus +15 if metronomic, stddev <250ms); median ≥2s → −25 human signal;
+    a ≥10s thinking pause → −10. Uses `command.input` `event_ts`, which was
+    already stored but never fed to the detector.
+  - **Terminal resize** (new): ≥2 `client.size` events (window resized
+    mid-session — a real terminal emulator being dragged) → −30 human signal.
+  - **OpenSSH banner demoted**: removed from `HUMAN_CLIENT_PATTERNS` — it's
+    the banner botnets spoof or genuinely link, near-zero information. GUI
+    clients (PuTTY/WinSCP/etc.) remain −15 and count as a human signal.
+  - **Long-duration bonus tightened**: −20 only when commands ran at
+    non-script pace — a slow-brute or idle connection held open no longer
+    drifts toward human; "many commands" −25 likewise gated on pacing.
+  - **Final call**: `human` now requires botScore ≤25 **and** ≥1 affirmative
+    human signal (timing pace, resize, human-only client); otherwise `unknown`.
+  - Callers updated to feed the new inputs (`classifySession`, `getById`,
+    `backfillActor`); `POST /sessions/backfill-actor?reclassify=1` re-runs
+    sessions previously labeled `human` so stale labels get corrected after
+    detector changes.
+  - Tests: `bot-detector.test.ts` extended to 11 cases (timing, resize,
+    spoofed-OpenSSH-is-not-human). Sources: RIT thesis "Classifying Attacker
+    Automation Level from SSH Honeypot Behavioral Signatures", arXiv
+    "Ghost Without Shell" (2606.28006), LLM Agent Honeypot (arXiv 2410.13919)
+    — all point at inter-command gaps + session pacing as the reliable
+    human/bot discriminators.

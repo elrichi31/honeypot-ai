@@ -51,7 +51,8 @@ export async function sessionRoutes(fastify: FastifyInstance) {
     return session
   })
 
-  fastify.post('/sessions/backfill-actor', async (_request, reply) => {
-    return reply.send(await svc.backfillActor())
+  fastify.post('/sessions/backfill-actor', async (request, reply) => {
+    const { reclassify } = request.query as { reclassify?: string }
+    return reply.send(await svc.backfillActor(reclassify === 'true' || reclassify === '1'))
   })
 }

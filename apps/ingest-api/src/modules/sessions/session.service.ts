@@ -163,11 +163,23 @@ export class SessionService {
     if (!tenant.all && !(session.sensorId && tenant.sensorIds.includes(session.sensorId))) return null
 
     const authAttemptCount = session.events.filter(e => e.eventType === 'auth.success' || e.eventType === 'auth.failed').length
-    const commandCount = session.events.filter(e => e.eventType === 'command.input').length
-    const commands = session.events.filter(e => e.eventType === 'command.input').map(e => e.command ?? '').filter(Boolean)
+    const commandEvents = session.events.filter(e => e.eventType === 'command.input')
+    const commandCount = commandEvents.length
+    const commands = commandEvents.map(e => e.command ?? '').filter(Boolean)
+    const terminalSizeEventCount = session.events.filter(e => e.eventType === 'client.size').length
     const durationSec = toDurationSec(session.startedAt, session.endedAt)
 
-    const { actor: sessionType } = detectBot({ clientVersion: session.clientVersion, hassh: session.hassh, durationSec, commands, authAttemptCount, loginSuccess: session.loginSuccess, password: session.password })
+    const { actor: sessionType } = detectBot({
+      clientVersion: session.clientVersion,
+      hassh: session.hassh,
+      durationSec,
+      commands,
+      commandTimestamps: commandEvents.map(e => e.eventTs),
+      terminalSizeEventCount,
+      authAttemptCount,
+      loginSuccess: session.loginSuccess,
+      password: session.password,
+    })
 
     return {
       ...formatSession({ ...session, sessionType, eventCount: session.events.length, authAttemptCount, commandCount }, deriveThreatTags(commands)),
@@ -175,8 +187,10 @@ export class SessionService {
     }
   }
 
-  async backfillActor(): Promise<{ backfilled: number; remaining: number | 'more' }> {
-    const sessions = await this.repo.queryUnclassified()
+  async backfillActor(reclassify = false): Promise<{ backfilled: number; remaining: number | 'more' }> {
+    // reclassify=true also re-runs sessions previously labeled 'human' — used
+    // after detector rule changes, since old labels don't fix themselves.
+    const sessions = await this.repo.queryUnclassified(reclassify ? ['unknown', 'human'] : ['unknown'])
     if (sessions.length === 0) return { backfilled: 0, remaining: 0 }
 
     const ids = sessions.map(s => s.id)
@@ -187,9 +201,17 @@ export class SessionService {
     ])
 
     const commandsBySession = new Map<string, string[]>()
+    const timestampsBySession = new Map<string, Date[]>()
+    const terminalSizeBySession = new Map<string, number>()
     for (const row of commandRows) {
+      if (row.event_type === 'client.size') {
+        terminalSizeBySession.set(row.session_id, (terminalSizeBySession.get(row.session_id) ?? 0) + 1)
+        continue
+      }
       if (!commandsBySession.has(row.session_id)) commandsBySession.set(row.session_id, [])
       if (row.command) commandsBySession.get(row.session_id)!.push(row.command)
+      if (!timestampsBySession.has(row.session_id)) timestampsBySession.set(row.session_id, [])
+      timestampsBySession.get(row.session_id)!.push(row.event_ts)
     }
     const authCountBySession = new Map<string, number>()
     for (const row of authRows) {
@@ -204,6 +226,8 @@ export class SessionService {
         hassh: s.hassh,
         durationSec,
         commands: commandsBySession.get(s.id) ?? [],
+        commandTimestamps: timestampsBySession.get(s.id) ?? [],
+        terminalSizeEventCount: terminalSizeBySession.get(s.id) ?? 0,
         authAttemptCount: authCountBySession.get(s.id) ?? 0,
         loginSuccess: s.login_success,
         password: s.password,

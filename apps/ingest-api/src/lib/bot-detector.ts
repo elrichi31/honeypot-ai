@@ -2,12 +2,18 @@
  * Bot vs Human session classifier.
  *
  * Scores a session 0–100 for bot-likelihood using behavioral signals:
- * speed, SSH client fingerprint, command volume/type, and auth patterns.
+ * inter-command timing (strongest), speed, SSH client fingerprint,
+ * command volume/type, terminal behavior, and auth patterns.
+ *
+ * Honeypot base rate is overwhelmingly automated traffic, so 'human' is only
+ * assigned when the score is low AND at least one affirmative human signal
+ * fired (thinking pauses between commands, terminal resize, human-only SSH
+ * client). Absence of bot evidence alone yields 'unknown', never 'human'.
  *
  * Thresholds:
- *   >= 60  → bot
- *   <= 25  → human
- *   26–59  → unknown
+ *   >= 60                      → bot
+ *   <= 25 with a human signal  → human
+ *   otherwise                  → unknown
  */
 
 export type SessionActor = 'bot' | 'human' | 'unknown';
@@ -17,6 +23,10 @@ export interface BotDetectionInput {
   hassh: string | null;
   durationSec: number | null;
   commands: string[];
+  /** command.input event timestamps, ascending. Enables inter-command timing — the strongest signal. */
+  commandTimestamps?: Date[];
+  /** Count of cowrie client.size events. 1 = pty-req (weak); >=2 = window resized mid-session (human). */
+  terminalSizeEventCount?: number;
   authAttemptCount: number;
   loginSuccess: boolean | null;
   password?: string | null;
@@ -31,7 +41,7 @@ export interface BotDetectionResult {
 // SSH clients overwhelmingly used by automated scanners/bots
 const BOT_CLIENT_PATTERNS: RegExp[] = [
   /SSH-2\.0-Go\b/i,                  // Go x/crypto/ssh — most common bot library
-  /SSH-2\.0-libssh2/i,               // libssh2 (C, scripted tools)
+  /SSH-2\.0-libssh2?/i,              // libssh / libssh2 (C, scripted tools)
   /SSH-2\.0-paramiko/i,              // Python paramiko (scanners)
   /SSH-2\.0-JSCH/i,                  // Java JSch (bots)
   /SSH-2\.0-AsyncSSH/i,              // asyncssh Python
@@ -39,15 +49,16 @@ const BOT_CLIENT_PATTERNS: RegExp[] = [
   /masscan|zgrab|nmap|zmap/i,        // explicit scanner tools
 ]
 
-// SSH clients strongly associated with human/legitimate use
+// SSH clients strongly associated with human use. OpenSSH is deliberately NOT
+// here: it's the default banner most botnets spoof (or genuinely link), so it
+// carries almost no information. These GUI clients are rarely spoofed.
 const HUMAN_CLIENT_PATTERNS: RegExp[] = [
-  /SSH-2\.0-OpenSSH/i,               // OpenSSH (human terminal use)
-  /SSH-2\.0-PuTTY/i,                 // PuTTY (Windows users)
-  /SSH-2\.0-Bitvise/i,               // Bitvise SSH client
-  /SSH-2\.0-SecureCRT/i,             // SecureCRT (enterprise)
-  /SSH-2\.0-WinSCP/i,                // WinSCP
-  /SSH-2\.0-FileZilla/i,             // FileZilla
-  /SSH-2\.0-MobaXterm/i,             // MobaXterm
+  /SSH-2\.0-PuTTY/i,
+  /SSH-2\.0-Bitvise/i,
+  /SSH-2\.0-SecureCRT/i,
+  /SSH-2\.0-WinSCP/i,
+  /SSH-2\.0-FileZilla/i,
+  /SSH-2\.0-MobaXterm/i,
 ]
 
 // HASSH fingerprints (SSH client key-exchange hash) known to belong to scanner/bot
@@ -70,11 +81,59 @@ const BASIC_RECON_PATTERN = /^(id|whoami|uname(\s+-a)?|hostname|w\b|who\b|uptime
 // Matches DDMMYYYY, MMDDYYYY, YYYYMMDD, DDMMYY, and common separators like 01/01/1990
 const DATE_PASSWORD_PATTERN = /^(\d{2}[.\-/]?\d{2}[.\-/]?\d{2,4}|\d{4}[.\-/]?\d{2}[.\-/]?\d{2})$/
 
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
+}
+
+function stddev(values: number[]): number {
+  const mean = values.reduce((a, b) => a + b, 0) / values.length
+  return Math.sqrt(values.reduce((a, v) => a + (v - mean) ** 2, 0) / values.length)
+}
+
 export function detectBot(input: BotDetectionInput): BotDetectionResult {
   let score = 0
+  let humanSignals = 0
   const reasons: string[] = []
 
-  // ── Duration (strongest signal) ─────────────────────────────────────────────
+  // ── Inter-command timing (strongest signal) ─────────────────────────────────
+  // Humans think between commands: gaps of seconds with high variance. Scripts
+  // fire the next command within milliseconds, at metronomic intervals.
+  const gapsMs: number[] = []
+  const ts = input.commandTimestamps ?? []
+  for (let i = 1; i < ts.length; i++) gapsMs.push(ts[i].getTime() - ts[i - 1].getTime())
+  const medianGap = gapsMs.length >= 2 ? median(gapsMs) : null
+
+  if (medianGap !== null) {
+    if (medianGap < 1000) {
+      score += 45
+      reasons.push(`Commands fired ${Math.round(medianGap)}ms apart (script-speed)`)
+      if (gapsMs.length >= 3 && stddev(gapsMs) < 250) {
+        score += 15
+        reasons.push('Metronomic command intervals (scripted loop)')
+      }
+    } else if (medianGap >= 2000) {
+      score -= 25
+      humanSignals++
+      reasons.push(`Median ${(medianGap / 1000).toFixed(1)}s between commands (human typing/thinking pace)`)
+      if (Math.max(...gapsMs) >= 10000) {
+        score -= 10
+        reasons.push('Long thinking pause (>=10s) mid-session')
+      }
+    }
+  }
+
+  // ── Terminal behavior ────────────────────────────────────────────────────────
+  // A window resize mid-session means a real terminal emulator being dragged
+  // around by a person. Scripts never resize.
+  if ((input.terminalSizeEventCount ?? 0) >= 2) {
+    score -= 30
+    humanSignals++
+    reasons.push('Terminal window resized mid-session (real terminal emulator)')
+  }
+
+  // ── Session duration ─────────────────────────────────────────────────────────
   if (input.durationSec !== null) {
     if (input.durationSec <= 5) {
       score += 45
@@ -82,9 +141,12 @@ export function detectBot(input: BotDetectionInput): BotDetectionResult {
     } else if (input.durationSec <= 15) {
       score += 25
       reasons.push(`Session lasted ${input.durationSec}s (very fast)`)
-    } else if (input.durationSec >= 60) {
+    } else if (input.durationSec >= 60 && input.commands.length > 0 && (medianGap === null || medianGap >= 1500)) {
+      // Long duration only counts toward "interactive" when commands actually ran
+      // at non-script pace; an idle connection or a script inside a held-open
+      // session is not a human.
       score -= 20
-      reasons.push(`Long session (${input.durationSec}s) suggests interactive use`)
+      reasons.push(`Long session (${input.durationSec}s) with activity suggests interactive use`)
     }
   }
 
@@ -98,6 +160,7 @@ export function detectBot(input: BotDetectionInput): BotDetectionResult {
       reasons.push(`Bot SSH client: ${input.clientVersion}`)
     } else if (isHumanClient) {
       score -= 15
+      humanSignals++
       reasons.push(`Human SSH client: ${input.clientVersion}`)
     }
   }
@@ -118,9 +181,12 @@ export function detectBot(input: BotDetectionInput): BotDetectionResult {
       score += 20
       reasons.push(`Only basic recon commands (${input.commands.length})`)
     }
-  } else if (input.commands.length >= 15) {
+  } else if (input.commands.length >= 15 && (medianGap === null || medianGap >= 1500)) {
+    // Many commands only imply an operator when they weren't machine-gunned;
+    // malware droppers routinely run 30+ commands in two seconds.
     score -= 25
-    reasons.push(`Many commands (${input.commands.length}) suggest interactive operator`)
+    reasons.push(`Many commands (${input.commands.length}) at non-script pace`)
+    if (medianGap !== null) humanSignals++
   }
 
   // ── Auth pattern ─────────────────────────────────────────────────────────────
@@ -149,7 +215,7 @@ export function detectBot(input: BotDetectionInput): BotDetectionResult {
 
   const actor: SessionActor =
     botScore >= 60 ? 'bot'
-    : botScore <= 25 ? 'human'
+    : botScore <= 25 && humanSignals > 0 ? 'human'
     : 'unknown'
 
   return { actor, botScore, reasons }
