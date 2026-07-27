@@ -139,7 +139,9 @@ export async function sampleContainerStatsForCron(): Promise<ContainerStat[]> {
 
 // Used by live endpoint — returns the last cron sample; no Docker socket hit on the HTTP path
 export async function sampleContainerStatsLive(): Promise<ContainerStat[]> {
-  const MAX_AGE_MS = 90_000
+  // Must stay above the cron interval (cron.ts samples every 2min) — at 90s
+  // there was a ~30s window every cycle where this always returned stale/empty.
+  const MAX_AGE_MS = 150_000
   if (!lastCronStats || Date.now() - lastCronStats.at > MAX_AGE_MS) return []
   return lastCronStats.data
 }
