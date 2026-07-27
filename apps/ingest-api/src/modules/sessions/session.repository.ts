@@ -184,7 +184,7 @@ export class SessionRepository {
     const valuesSql = updates.map(u => Prisma.sql`(${u.id}::uuid, ${u.actor}::text)`);
     await this.prisma.$executeRaw`
       UPDATE sessions SET session_type = v.actor
-      FROM (VALUES ${Prisma.join(valuesSql)}) AS v(id uuid, actor text)
+      FROM (VALUES ${Prisma.join(valuesSql)}) AS v(id, actor)
       WHERE sessions.id = v.id
     `;
   }
