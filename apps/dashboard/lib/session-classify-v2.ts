@@ -7,6 +7,7 @@ import type { TranslationKey } from "@/lib/i18n/dictionaries"
 // lives in dicts/sessions.ts under `sessions.class.<key>.{label,summary}`.
 export type ClassificationKey =
   | "sshBackdoor"
+  | "reverseShell"
   | "honeypotEvasion"
   | "containerEscape"
   | "cryptoMiner"
@@ -79,6 +80,7 @@ export function classify(session: SessionItem): Classification {
   // recorded login) into the scanner/brute ladder below.
   const TAG_CLASSIFICATIONS: Array<{ tag: string; result: Classification }> = [
     { tag: 'ssh_backdoor',      result: { key: "sshBackdoor",     icon: KeyRound, color: "text-red-500",     bg: "bg-red-500/15",     summaryKey: "sessions.class.sshBackdoor.summary" } },
+    { tag: 'reverse_shell',     result: { key: "reverseShell",    icon: Cpu,      color: "text-red-500",     bg: "bg-red-500/15",     summaryKey: "sessions.class.reverseShell.summary" } },
     { tag: 'honeypot_evasion',  result: { key: "honeypotEvasion", icon: Ghost,    color: "text-purple-400",  bg: "bg-purple-400/15",  summaryKey: "sessions.class.honeypotEvasion.summary" } },
     { tag: 'container_escape',  result: { key: "containerEscape", icon: Container, color: "text-orange-500", bg: "bg-orange-500/15",  summaryKey: "sessions.class.containerEscape.summary" } },
     { tag: 'crypto_mining',     result: { key: "cryptoMiner",     icon: Cpu,      color: "text-yellow-400",  bg: "bg-yellow-400/15",  summaryKey: "sessions.class.cryptoMiner.summary" } },
@@ -263,6 +265,7 @@ export function groupSessionsByIp(sessions: SessionItem[]): IpGroup[] {
 
 const SEVERITY_ORDER: ClassificationKey[] = [
   "malwareDropper",
+  "reverseShell",
   "containerEscape",
   "cryptoMiner",
   "dataExfil",

@@ -4,6 +4,7 @@ export const SSH_AUTH_HIGH_THRESHOLD = 10
 export const SUCCESS_LOGIN_BONUS = 25
 
 export const CMD_BACKDOOR_PTS = 30
+export const CMD_REVERSE_SHELL_PTS = 25
 export const CMD_HONEYPOT_EVASION_PTS = 20
 export const CMD_CONTAINER_ESCAPE_PTS = 20
 export const CMD_MALWARE_DROP_PTS = 20
@@ -58,6 +59,7 @@ export type CommandCategory =
   | "ssh_backdoor"
   | "honeypot_evasion"
   | "container_escape"
+  | "reverse_shell"
   | "malware_drop"
   | "persistence"
   | "lateral_movement"
@@ -85,12 +87,14 @@ export interface RiskInput {
   portScanUniquePorts?: number
 }
 
+// Order matters: classifyCommands() assigns each command to the FIRST matching
+// category, so the most specific/severe categories come first and `recon` last.
 export const CMD_PATTERNS: Record<CommandCategory, RegExp[]> = {
   ssh_backdoor: [
     /chattr\s+.*authorized_keys/i,
-    /echo.+ssh-rsa\s+AAAA/i,
-    /echo.+ssh-ed25519\s+AAAA/i,
-    />\s*~?\/\.ssh\/authorized_keys/i,
+    /echo.+ssh-(rsa|ed25519|dss)\s+AAAA/i,
+    />>?\s*\S*authorized_keys/i,
+    /tee\s+(-a\s+)?\S*authorized_keys/i,
     /clean\.sh|setup\.sh/i,
     /auth_ok/i,
   ],
@@ -102,32 +106,63 @@ export const CMD_PATTERNS: Record<CommandCategory, RegExp[]> = {
     /\/var\/spool\/sms/i,
     /smsd\.conf|qmuxd|simman/i,
     /\/var\/config\/sms|qmux_connect/i,
+    // Mirai-style fingerprint: an all-caps garbage token after busybox is the
+    // bot testing whether the shell is real (real busybox errors distinctively).
+    // Deliberately case-sensitive — lowercase busybox subcommands are legit.
+    /\/bin\/busybox\s+[A-Z0-9]{4,}(\s|$)/,
+    /systemd-detect-virt/i,
+    /(dmesg|lscpu|lspci).*(vmware|virtualbox|qemu|kvm|hypervisor)/i,
   ],
   container_escape: [
     /\/proc\/1\/mounts/i,
     /ls\s+\/proc\/1\//i,
     /cat\s+\/proc\/1\/cgroup/i,
     /curl2\b/i,
+    /\/\.dockerenv/i,
+    /docker\.sock/i,
+    /\bnsenter\b/i,
+    /release_agent/i,
+    /docker\s+run\s+.*--privileged/i,
+  ],
+  reverse_shell: [
+    /bash\s+-i\s+>&\s*\/dev\/tcp/i,
+    /\/dev\/tcp\/\d+\.\d+/i,
+    /nc(\.traditional)?\s+.*-e\s*\/bin\/(ba|da|a)?sh/i,
+    /nc\s+(-[a-z]+\s+)*\d+\.\d+/i,
+    /mkfifo\s+\S+.*\|\s*(\/bin\/)?(ba|da|a)?sh/i,
+    /socat\s+\S*tcp/i,
+    /python[23]?\s+-c\s+['"]import\s+(socket|pty)/i,
+    /php\s+-r\s+.*fsockopen/i,
+    /perl\s+-e\s+.*(socket|inet)/i,
   ],
   malware_drop: [
     /wget\s+https?:\/\//i,
     /curl\s+(-[a-z]+\s+)*https?:\/\//i,
+    /(wget|curl).+\|\s*(\/bin\/)?(ba|da|a)?sh\b/i,
+    /\b(tftp|ftpget|ftpput)\b/i,
+    /busybox\s+(wget|tftp)/i,
     /chmod\s+(\+x|777)\s+\/tmp/i,
+    /chmod\s+(\+x|777)\s+\S+\s*(;|&&)\s*(\.\/|sh\s)/i,
     /\/tmp\/\.[a-z0-9]+/i,
-    /python[23]?\s+-c\s+['"]import\s+socket/i,
-    /bash\s+-i\s+>&\s+\/dev\/tcp/i,
-    /nc\s+(-[a-z]+\s+)*\d+\.\d+/i,
+    /base64\s+(-d|--decode)/i,
+    // Mirai/Gafgyt loaders name payloads by target architecture
+    /\.(mips|mpsl|arm[4-7]?|sh4|m68k|ppc|sparc|x86(_64)?|i[3-6]86)\b/i,
   ],
   persistence: [
-    /crontab\s+-/i,
+    // `crontab -l` (just listing) is recon, not persistence
+    /crontab\s+-(?!l\b)/i,
     /authorized_keys/i,
     /sshd_config/i,
-    /useradd\b/i,
+    /useradd\b|adduser\b/i,
     /chpasswd/i,
-    /systemctl\s+enable/i,
+    /^passwd\b|[;&|]\s*passwd\b/i,
+    /systemctl\s+(enable|daemon-reload)/i,
+    /\/etc\/systemd\/system/i,
     /update-rc\.d/i,
     /\/etc\/rc\.local/i,
     /echo.+>>\s*\/etc\/crontab/i,
+    /echo.+>>\s*\S*\.?(bashrc|profile|bash_profile)/i,
+    /chattr\s+\+i/i,
   ],
   lateral_movement: [
     /nmap\b/i,
@@ -137,15 +172,19 @@ export const CMD_PATTERNS: Record<CommandCategory, RegExp[]> = {
     /sshpass\b/i,
     /masscan\b/i,
     /proxychains\b/i,
+    /\bhydra\b|\bmedusa\b/i,
+    /ssh-keyscan\b/i,
   ],
   crypto_mining: [
-    /xmrig\b/i,
+    /xmrig\b|xmr[-_]?stak/i,
     /minerd\b/i,
     /\bminer\b/i,
-    /stratum\+tcp:\/\//i,
+    /stratum\+(tcp|ssl):\/\//i,
     /pool\.(minexmr|supportxmr|xmrpool|nanopool)/i,
+    /c3pool|moneroocean|hashvault|nicehash|herominers|2miners/i,
+    /--donate-level|--cpu-priority|--max-cpu-usage/i,
+    /kdevtmpfsi|kinsing/i,
     /-o\s+\w+\.\w+:\d{4,5}/i,
-    /nproc/i,
   ],
   data_exfil: [
     /cat\s+\/etc\/(passwd|shadow|hosts|group)/i,
@@ -154,6 +193,11 @@ export const CMD_PATTERNS: Record<CommandCategory, RegExp[]> = {
     /zip\s+.*\/etc/i,
     /\/root\/\.ssh\//i,
     /history\s+-c/i,
+    /unset\s+HISTFILE/i,
+    /HISTFILE=\/dev\/null|HISTSIZE=0/i,
+    /ln\s+-sf?\s+\/dev\/null\s+\S*history/i,
+    /rm\s+(-[a-z]+\s+)*\S*(bash_history|\/var\/log)/i,
+    /\bshred\b/i,
     /cat\s+\/dev\/null\s*>/i,
     /rm\s+-rf?\s+\/var\/log/i,
   ],
@@ -171,7 +215,10 @@ export const CMD_PATTERNS: Record<CommandCategory, RegExp[]> = {
   recon: [
     /^(id|whoami|w|who|last|uptime|hostname|env)(\s|$)/i,
     /uname\s+-a/i,
-    /cat\s+\/etc\/issue/i,
+    /\bnproc\b/i,
+    /\blscpu\b/i,
+    /crontab\s+-l\b/i,
+    /cat\s+\/etc\/(issue|os-release)/i,
     /cat\s+\/proc\/(cpuinfo|version|meminfo)/i,
     /ps\s+(aux|-ef)/i,
     /netstat\b/i,

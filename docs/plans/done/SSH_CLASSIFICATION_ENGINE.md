@@ -305,3 +305,36 @@ loader/dropper filenames. Add each with a test payload.
     "Ghost Without Shell" (2606.28006), LLM Agent Honeypot (arXiv 2410.13919)
     — all point at inter-command gaps + session pacing as the reliable
     human/bot discriminators.
+- **2026-07-27** — Task 7 (pattern hardening) done, plus a new `reverse_shell`
+  category. Changes in
+  [`risk-constants.ts`](../../apps/ingest-api/src/lib/risk-constants.ts) — the
+  single source of truth feeding both the risk score and session `threatTags`:
+  - **New `reverse_shell` category** (25 pts): `bash -i >& /dev/tcp`, `nc -e`,
+    `mkfifo` shells, `socat`, python/php/perl one-liners. Previously these were
+    scattered/missing in `malware_drop`. Surfaced as its own dashboard label
+    (`reverseShell`, severity just under `malwareDropper`) with en/es i18n and
+    `CMD_LABELS`/`CMD_COLORS` entries.
+  - **ssh_backdoor**: added `tee -a authorized_keys`, generalized the
+    `>>authorized_keys` redirect and the `ssh-dss` key type.
+  - **malware_drop**: added `curl|sh`/`wget|sh` pipe-to-shell, `base64 -d|sh`,
+    tftp/ftpget, busybox wget, and Mirai/Gafgyt arch-suffixed payloads
+    (`.mips`, `.arm7`, `.x86`…).
+  - **honeypot_evasion**: added the case-sensitive `busybox <GARBAGE>` Mirai
+    shell probe, `systemd-detect-virt`, and VM-string greps.
+  - **container_escape**: added `/.dockerenv`, `docker.sock`, `nsenter`,
+    `release_agent`, `--privileged`.
+  - **crypto_mining**: added `--donate-level`/`--cpu-priority` flags, common
+    pools (c3pool, moneroocean, nicehash…), `kdevtmpfsi`/`kinsing`, stratum+ssl.
+  - **data_exfil**: added history-tampering (`unset HISTFILE`, `HISTSIZE=0`,
+    symlink history→/dev/null), `shred`.
+  - **persistence**: `crontab -l` (listing) reclassified as **recon**, not
+    persistence — only mutating `crontab -<flag>` counts now; added
+    `adduser`/`passwd`, systemd unit paths, shell-rc appends, `chattr +i`.
+  - **recon**: added `nproc`, `lscpu`, `crontab -l`, `/etc/os-release`.
+  - Made `hasSuspiciousPostAuthActivity` tolerant of partial category records
+    (`?.length`).
+  - Tests: `risk-score.test.ts` extended (hardened-additions suite, the
+    `crontab -l`→recon guard, reverse_shell parity); the classifyCommands
+    "first match wins" ordering is why the category list is severity-ordered.
+    Sources: gbhackers "SSH Attackers Use Single Exec Commands" (2025) and the
+    Cowrie command corpus in the RIT/arXiv honeypot studies above.

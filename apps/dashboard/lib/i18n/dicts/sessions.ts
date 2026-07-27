@@ -7,6 +7,7 @@
 export const en = {
   // ── Classification labels ────────────────────────────────────────────────
   "sessions.class.sshBackdoor.label": "SSH Backdoor",
+  "sessions.class.reverseShell.label": "Reverse Shell",
   "sessions.class.honeypotEvasion.label": "Honeypot Evasion",
   "sessions.class.containerEscape.label": "Container Escape",
   "sessions.class.cryptoMiner.label": "Crypto Miner",
@@ -26,6 +27,7 @@ export const en = {
 
   // ── Classification summaries ─────────────────────────────────────────────
   "sessions.class.sshBackdoor.summary": "Tried to plant a persistent SSH key with chattr +ai",
+  "sessions.class.reverseShell.summary": "Tried to open a reverse shell back to the attacker",
   "sessions.class.honeypotEvasion.summary": "Detected sandbox/honeypot · probed for Telegram/SIM data",
   "sessions.class.containerEscape.summary": "Tried to detect and escape the container environment",
   "sessions.class.cryptoMiner.summary": "Deployed a cryptocurrency miner",
@@ -54,6 +56,7 @@ export const en = {
 export const es: Record<keyof typeof en, string> = {
   // ── Classification labels ────────────────────────────────────────────────
   "sessions.class.sshBackdoor.label": "Puerta trasera SSH",
+  "sessions.class.reverseShell.label": "Shell inversa",
   "sessions.class.honeypotEvasion.label": "Evasión de honeypot",
   "sessions.class.containerEscape.label": "Escape de contenedor",
   "sessions.class.cryptoMiner.label": "Minero de cripto",
@@ -73,6 +76,7 @@ export const es: Record<keyof typeof en, string> = {
 
   // ── Classification summaries ─────────────────────────────────────────────
   "sessions.class.sshBackdoor.summary": "Intentó instalar una clave SSH persistente con chattr +ai",
+  "sessions.class.reverseShell.summary": "Intentó abrir una shell inversa hacia el atacante",
   "sessions.class.honeypotEvasion.summary": "Detectó sandbox/honeypot · sondeó datos de Telegram/SIM",
   "sessions.class.containerEscape.summary": "Intentó detectar y escapar del entorno del contenedor",
   "sessions.class.cryptoMiner.summary": "Desplegó un minero de criptomonedas",

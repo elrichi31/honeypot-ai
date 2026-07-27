@@ -5,6 +5,7 @@ const WEB_EXPLOIT_TYPES = ['cmdi', 'sqli', 'lfi', 'rfi']
 
 const SUSPICIOUS_COMMAND_CATEGORIES: CommandCategory[] = [
   'ssh_backdoor',
+  'reverse_shell',
   'honeypot_evasion',
   'container_escape',
   'malware_drop',
@@ -300,7 +301,7 @@ export function hasExploitAuthSequence(input: {
 }
 
 export function hasSuspiciousPostAuthActivity(commandCategories: Record<CommandCategory, string[]>): boolean {
-  return SUSPICIOUS_COMMAND_CATEGORIES.some((cat) => commandCategories[cat].length > 0)
+  return SUSPICIOUS_COMMAND_CATEGORIES.some((cat) => (commandCategories[cat]?.length ?? 0) > 0)
 }
 
 export function checkDeceptionInteraction(

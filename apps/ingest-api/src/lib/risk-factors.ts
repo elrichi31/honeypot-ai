@@ -5,6 +5,7 @@ import {
   SSH_AUTH_HIGH_THRESHOLD,
   SUCCESS_LOGIN_BONUS,
   CMD_BACKDOOR_PTS,
+  CMD_REVERSE_SHELL_PTS,
   CMD_HONEYPOT_EVASION_PTS,
   CMD_CONTAINER_ESCAPE_PTS,
   CMD_MALWARE_DROP_PTS,
@@ -67,6 +68,7 @@ export function scoreCommandsFactor(cats: Record<CommandCategory, string[]>): Fa
 
   const commandScores: [keyof typeof cats, number, string][] = [
     ["ssh_backdoor",      CMD_BACKDOOR_PTS,          "SSH backdoor installation"],
+    ["reverse_shell",     CMD_REVERSE_SHELL_PTS,      "Reverse shell attempt"],
     ["honeypot_evasion",  CMD_HONEYPOT_EVASION_PTS,  "Honeypot or sandbox evasion"],
     ["container_escape",  CMD_CONTAINER_ESCAPE_PTS,  "Container escape attempt"],
     ["malware_drop",      CMD_MALWARE_DROP_PTS,       "Malware dropper commands"],

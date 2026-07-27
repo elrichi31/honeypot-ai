@@ -100,8 +100,8 @@ test("severity ranking: worst classification wins for an IP group", () => {
 
 test("every ClassificationKey has label + summary in every locale", () => {
   const keys: ClassificationKey[] = [
-    "sshBackdoor", "honeypotEvasion", "containerEscape", "cryptoMiner",
-    "dataExfil", "targetedCrypto", "portProbe", "burstBrute", "slowBrute",
+    "sshBackdoor", "reverseShell", "honeypotEvasion", "containerEscape", "cryptoMiner",
+    "dataExfil", "targetedCrypto", "persistence", "portProbe", "burstBrute", "slowBrute",
     "credSpray", "scanner", "malwareDropper", "interactive", "recon",
     "botScript", "loginOnly",
   ]

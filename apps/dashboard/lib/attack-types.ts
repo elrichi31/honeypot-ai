@@ -78,6 +78,7 @@ export const LEVEL_STYLES: Record<RiskLevel, { badge: string; bg: string; bar: s
 
 /** Tailwind badge classes for command categories */
 export const CMD_COLORS: Record<string, string> = {
+  reverse_shell:    "bg-red-500/15 text-red-400 border-red-500/30",
   malware_drop:     "bg-red-500/15 text-red-400 border-red-500/30",
   persistence:      "bg-orange-500/15 text-orange-400 border-orange-500/30",
   lateral_movement: "bg-purple-500/15 text-purple-400 border-purple-500/30",
@@ -88,6 +89,7 @@ export const CMD_COLORS: Record<string, string> = {
 }
 
 export const CMD_LABELS: Record<string, string> = {
+  reverse_shell:    "Reverse Shell",
   malware_drop:     "Malware Drop",
   persistence:      "Persistence",
   lateral_movement: "Lateral Movement",
@@ -98,6 +100,7 @@ export const CMD_LABELS: Record<string, string> = {
 }
 
 export const CMD_LABELS_SHORT: Record<string, string> = {
+  reverse_shell:    "RevShell",
   malware_drop:     "Malware",
   persistence:      "Persist",
   lateral_movement: "Lateral",
