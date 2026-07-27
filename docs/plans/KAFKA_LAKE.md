@@ -344,6 +344,21 @@ uno tapaba al siguiente:**
    default de librdkafka (`latest`), sin backfill parcial de la ventana de
    retención de Kafka (aceptable — la historia completa la trae 3c desde
    Postgres de todas formas).
+6. **`MEMORY_LIMIT_EXCEEDED` en loop infinito, consumer de `protocol` nunca
+   comitea.** Con las 4 tablas Kafka ya andando, el insert a
+   `mv_protocol_events` pedía hasta ~1.68GB de golpe (contra el techo de
+   1.5GB) — cowrie y web (menos volumen/tamaño de payload) sí entraban, pero
+   protocol reventaba, reintentaba sin nunca avanzar el offset, y
+   `system.kafka_consumers.num_messages_read` se disparó a 41 millones (no son
+   eventos reales, son reintentos del mismo lote cada ~15-20s, 52 rebalances
+   en minutos — esto consume CPU/red activamente, no es un fallo silencioso).
+   Fix doble: (a) `max_server_memory_usage` 1.5GB → **3GB** — el "cientos de
+   MB" que se estimó era el reposo, no el pico de 4 consumers+merges
+   concurrentes; el host tenía ~5GB libres antes de ClickHouse, así que 3GB
+   sigue sin requerir el resize de VPS diferido. (b) `kafka_max_block_size =
+   65536` en las 4 tablas Kafka, para que el tamaño de lote por inserción esté
+   acotado sin importar cuánto crezca el backlog — así no vuelve a pasar
+   aunque el volumen suba.
 
 **Lección para la próxima vez que se agregue un servicio pesado nuevo:**
 Los límites de recursos "desde el día 1" son la decisión correcta (evitan

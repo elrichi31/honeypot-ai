@@ -16,6 +16,12 @@
 --
 -- kafka_skip_broken_messages: one malformed message must not stall the
 -- consumer (the engine's error handling is coarse — see plan caveat).
+--
+-- kafka_max_block_size = 65536 (default is much larger): confirmed in prod
+-- that a full-size insert batch on protocol_events blew past
+-- max_server_memory_usage and retry-looped forever without ever committing.
+-- A smaller block keeps each insert's peak memory bounded regardless of how
+-- large the backlog gets.
 
 CREATE TABLE IF NOT EXISTS honeypot_lake.kafka_cowrie (raw String)
 ENGINE = Kafka
@@ -25,7 +31,8 @@ SETTINGS
     kafka_group_name = 'clickhouse_lake_cowrie',
     kafka_format = 'JSONAsString',
     kafka_num_consumers = 1,
-    kafka_skip_broken_messages = 100;
+    kafka_skip_broken_messages = 100,
+    kafka_max_block_size = 65536;
 
 CREATE TABLE IF NOT EXISTS honeypot_lake.kafka_web (raw String)
 ENGINE = Kafka
@@ -35,7 +42,8 @@ SETTINGS
     kafka_group_name = 'clickhouse_lake_web',
     kafka_format = 'JSONAsString',
     kafka_num_consumers = 1,
-    kafka_skip_broken_messages = 100;
+    kafka_skip_broken_messages = 100,
+    kafka_max_block_size = 65536;
 
 CREATE TABLE IF NOT EXISTS honeypot_lake.kafka_protocol (raw String)
 ENGINE = Kafka
@@ -45,7 +53,8 @@ SETTINGS
     kafka_group_name = 'clickhouse_lake_protocol',
     kafka_format = 'JSONAsString',
     kafka_num_consumers = 1,
-    kafka_skip_broken_messages = 100;
+    kafka_skip_broken_messages = 100,
+    kafka_max_block_size = 65536;
 
 CREATE TABLE IF NOT EXISTS honeypot_lake.kafka_suricata (raw String)
 ENGINE = Kafka
@@ -55,7 +64,8 @@ SETTINGS
     kafka_group_name = 'clickhouse_lake_suricata',
     kafka_format = 'JSONAsString',
     kafka_num_consumers = 1,
-    kafka_skip_broken_messages = 100;
+    kafka_skip_broken_messages = 100,
+    kafka_max_block_size = 65536;
 
 -- cowrie: raw keys are snake_case (CowrieRawEvent). event_id mirrors
 -- IngestService._processLine's `${session}:${eventid}`.

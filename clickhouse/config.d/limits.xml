@@ -4,7 +4,15 @@
          Start tight, watch `docker stats` / cpu.stat under real load, loosen
          only if it measurably throttles — don't repeat the 2026-07-20
          no-quota incident with a new heavy service. -->
-    <max_server_memory_usage>1610612736</max_server_memory_usage> <!-- 1.5 GB -->
+    <!-- Raised from 1.5GB (2026-07-27): measured in prod that 4 concurrent
+         Kafka consumers + MergeTree inserts/merges genuinely need more — the
+         protocol_events insert alone needed ~1.68GB and kept retry-looping
+         (MEMORY_LIMIT_EXCEEDED, never committing, num_messages_read spiraling
+         into the tens of millions from retries). "Cientos de MB" was the
+         at-rest estimate, not the concurrent-ingestion peak. The host had
+         ~5GB free before ClickHouse (2.5GB/7.6GB baseline), so 3GB still
+         leaves headroom without needing the deferred VPS resize. -->
+    <max_server_memory_usage>3221225472</max_server_memory_usage> <!-- 3 GB -->
     <!-- background_pool_size/background_merges_mutations_concurrency_ratio
          intentionally NOT overridden here: at 4x1 ClickHouse refused to start
          ("number_of_free_entries_in_pool_to_execute_mutation (20) is greater
