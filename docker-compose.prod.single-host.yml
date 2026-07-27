@@ -358,8 +358,13 @@ services:
     deploy:
       resources:
         limits:
+          # No pids limit: ClickHouse's own thread pools (background merges,
+          # IO, one Kafka consumer per topic) routinely run past a couple
+          # hundred threads at idle — a tight cgroup pids limit starved
+          # `docker exec ... clickhouse-client` of a thread to start in
+          # (confirmed in prod: "Poco::Exception: cannot start thread").
+          # Postgres/Redis don't cap pids here either, for the same reason.
           cpus: "1.0"
-          pids: 256
 
   kafka-init:
     image: apache/kafka:3.8.0
