@@ -3,7 +3,7 @@
 ## Estado (2026-07-27)
 
 Las Fases 1 y 2 (plomería del bus) están implementadas. **Fase 3 en curso —
-3a y 3b implementadas en código, sin desplegar; 3c y 3d pendientes.**
+3a y 3b desplegadas y verificadas en prod (2026-07-27); 3c y 3d pendientes.**
 
 **Alcance de Fase 3 recortado (decisión 2026-07-27):** arrancar con **ClickHouse
 solo para servir el dashboard** (sub-fases 3a-3d) — nada de R2. El export a
@@ -366,6 +366,13 @@ repetir el incidente de Kafka/2026-07-20), pero cada override tiene que
 validarse contra las sanity checks internas del propio servicio, no solo
 against "un número chico es más seguro". Ajustar y volver a probar, no adivinar
 un valor bajo y asumir que funciona.
+
+**Verificado en prod (2026-07-27, tras el fix #6):** `system.kafka_consumers`
+con `num_commits > 0` y 0 excepciones en las 4 tablas Kafka; filas reales
+llegando a las 4 MergeTree (`cowrie_events`, `web_events`, `protocol_events`,
+`suricata_alerts`). **3a y 3b quedan cerradas.** Siguen: 3c (backfill de
+historia desde Postgres) y 3d (el dashboard lee de ClickHouse) — ninguna de
+las dos es urgente, el lake ya se está llenando solo desde ahora.
 - **Schema:** `clickhouse/init/001-schema.sql`, montado en
   `/docker-entrypoint-initdb.d/` (se ejecuta solo en el primer arranque, como
   Postgres). Las 4 tablas (`cowrie_events`, `web_events`, `protocol_events`,
