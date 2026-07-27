@@ -195,7 +195,7 @@ services:
   clickhouse:
     <<: *service-defaults
     logging: *json-logging
-    image: clickhouse/clickhouse-server:24.8-alpine
+    image: clickhouse/clickhouse-server:24.8
     container_name: honeypot-clickhouse
     # cap_drop: ALL (service-defaults) blocks the entrypoint's own chown of
     # /var/log/clickhouse-server + /var/lib/clickhouse (runs as root, then
