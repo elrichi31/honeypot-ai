@@ -18,6 +18,23 @@ export async function fetchEvents(params?: Parameters<typeof fetchEventsPage>[0]
   return (await fetchEventsPage(params)).items
 }
 
+export interface CommandCategoriesResponse {
+  categories: Record<string, number>
+  total: number
+  malicious: number
+}
+
+/** Global threat-category breakdown over ALL matching command events, not one page. */
+export async function fetchCommandCategories(
+  params?: { q?: string },
+  sensorIds?: string[],
+): Promise<CommandCategoriesResponse> {
+  const sp = buildSearchParams({ q: params?.q })
+  return apiFetch(`${getApiUrl()}/events/command-categories?${sp}${sensorScopeParam(sensorIds)}`, 30)
+    .then((r) => r as CommandCategoriesResponse)
+    .catch(() => ({ categories: {}, total: 0, malicious: 0 }))
+}
+
 export async function fetchSessionsPage(params?: {
   page?: number; pageSize?: number; limit?: number; offset?: number
   q?: string; outcome?: "all" | "compromised" | "blocked"

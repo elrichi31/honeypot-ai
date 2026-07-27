@@ -6,7 +6,7 @@ import { TimeAgo } from "@/components/time-ago"
 import { Search, Terminal, Clock, Globe, ShieldAlert, Eye } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import type { HoneypotEvent, PaginationMeta } from "@/lib/api"
+import type { HoneypotEvent, PaginationMeta, CommandCategoriesResponse } from "@/lib/api"
 import {
   CMD_COLORS,
   CMD_LABELS,
@@ -20,6 +20,8 @@ interface CommandsViewProps {
   events: HoneypotEvent[]
   searchQuery: string
   pagination: PaginationMeta
+  /** Threat-category counts across ALL matching command sessions, not just this page. */
+  globalCategories?: CommandCategoriesResponse
 }
 
 const OTHER = "other"
@@ -28,7 +30,7 @@ function categoryOf(event: HoneypotEvent): string {
   return event.commandCategory ?? OTHER
 }
 
-export function CommandsView({ events, searchQuery, pagination }: CommandsViewProps) {
+export function CommandsView({ events, searchQuery, pagination, globalCategories }: CommandsViewProps) {
   const pathname = usePathname()
   const [query, setQuery] = useState(searchQuery)
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
@@ -45,8 +47,37 @@ export function CommandsView({ events, searchQuery, pagination }: CommandsViewPr
     [events],
   )
 
-  // Category breakdown for the current page, ordered by severity.
+  // Category breakdown across ALL matching sessions (from the backend), ordered
+  // by severity. Falls back to the current page if the global fetch is missing.
   const categoryCounts = useMemo(() => {
+    const source: Record<string, number> = globalCategories?.categories ?? {}
+    const entries = Object.keys(source).length > 0
+      ? Object.entries(source)
+      : (() => {
+          const counts = new Map<string, number>()
+          for (const event of commands) {
+            const cat = categoryOf(event)
+            counts.set(cat, (counts.get(cat) ?? 0) + 1)
+          }
+          return [...counts.entries()]
+        })()
+    return entries
+      .map(([category, count]) => ({ category, count }))
+      .sort((a, b) => {
+        const ai = CMD_SEVERITY_ORDER.indexOf(a.category)
+        const bi = CMD_SEVERITY_ORDER.indexOf(b.category)
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+      })
+  }, [globalCategories, commands])
+
+  const totalCategorized = useMemo(
+    () => categoryCounts.reduce((sum, c) => sum + c.count, 0),
+    [categoryCounts],
+  )
+
+  // Page-local breakdown drives the quick filter chips above the list (which can
+  // only filter the rows actually loaded on this page).
+  const pageCategoryCounts = useMemo(() => {
     const counts = new Map<string, number>()
     for (const event of commands) {
       const cat = categoryOf(event)
@@ -61,10 +92,8 @@ export function CommandsView({ events, searchQuery, pagination }: CommandsViewPr
       })
   }, [commands])
 
-  const maliciousOnPage = useMemo(
-    () => commands.filter((c) => CMD_MALICIOUS_CATEGORIES.has(categoryOf(c))).length,
-    [commands],
-  )
+  const maliciousTotal = globalCategories?.malicious
+    ?? commands.filter((c) => CMD_MALICIOUS_CATEGORIES.has(categoryOf(c))).length
 
   const visibleCommands = activeCategory
     ? commands.filter((c) => categoryOf(c) === activeCategory)
@@ -109,7 +138,7 @@ export function CommandsView({ events, searchQuery, pagination }: CommandsViewPr
               </button>
             </form>
 
-            {categoryCounts.length > 0 && (
+            {pageCategoryCounts.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1.5">
                 <button
                   type="button"
@@ -123,7 +152,7 @@ export function CommandsView({ events, searchQuery, pagination }: CommandsViewPr
                 >
                   All · {commands.length}
                 </button>
-                {categoryCounts.map(({ category, count }) => (
+                {pageCategoryCounts.map(({ category, count }) => (
                   <button
                     key={category}
                     type="button"
@@ -225,9 +254,9 @@ export function CommandsView({ events, searchQuery, pagination }: CommandsViewPr
             </p>
           </Surface>
           <Surface padded>
-            <h3 className="text-sm font-medium text-muted-foreground">Malicious (page)</h3>
+            <h3 className="text-sm font-medium text-muted-foreground">Malicious</h3>
             <p className="mt-1 text-3xl font-bold text-red-400">
-              {maliciousOnPage.toLocaleString("en-US")}
+              {maliciousTotal.toLocaleString("en-US")}
             </p>
           </Surface>
         </div>
@@ -236,24 +265,14 @@ export function CommandsView({ events, searchQuery, pagination }: CommandsViewPr
           <Surface>
             <div className="border-b border-border p-4">
               <h3 className="font-semibold text-foreground">Threat Categories</h3>
-              <p className="text-xs text-muted-foreground">On this page · click to filter</p>
+              <p className="text-xs text-muted-foreground">Across all matching SSH sessions</p>
             </div>
             <div className="divide-y divide-border">
               {categoryCounts.map(({ category, count }) => {
-                const pct = Math.round((count / commands.length) * 100)
+                const pct = totalCategorized > 0 ? Math.round((count / totalCategorized) * 100) : 0
                 const malicious = CMD_MALICIOUS_CATEGORIES.has(category)
                 return (
-                  <button
-                    key={category}
-                    type="button"
-                    onClick={() =>
-                      setActiveCategory((prev) => (prev === category ? null : category))
-                    }
-                    className={cn(
-                      "w-full p-3 text-left transition-colors hover:bg-secondary/50",
-                      activeCategory === category && "bg-secondary/60",
-                    )}
-                  >
+                  <div key={category} className="p-3">
                     <div className="flex items-center justify-between gap-2">
                       <span className="flex items-center gap-2 text-sm text-foreground">
                         {malicious ? (
@@ -264,7 +283,7 @@ export function CommandsView({ events, searchQuery, pagination }: CommandsViewPr
                         {CMD_LABELS[category] ?? "Other"}
                       </span>
                       <span className="text-xs font-medium text-muted-foreground">
-                        {count} · {pct}%
+                        {count.toLocaleString("en-US")} · {pct}%
                       </span>
                     </div>
                     <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
@@ -276,7 +295,7 @@ export function CommandsView({ events, searchQuery, pagination }: CommandsViewPr
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                  </button>
+                  </div>
                 )
               })}
             </div>

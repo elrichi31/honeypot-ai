@@ -12,6 +12,38 @@ const eventListQuerySchema = basePaginationSchema.extend({
   endDate: z.string().datetime({ offset: true }).optional(),
 });
 
+function buildEventWhere(
+  data: { type?: string; q?: string; startDate?: string; endDate?: string },
+  scope: ReturnType<typeof parseSensorScope>,
+) {
+  const search = data.q?.trim();
+  return {
+    // events have no sensor_id — scope through the owning session's sensor.
+    // Empty sensorIds (fail-closed / __none__) → `in: []` matches nothing.
+    ...(scope.all ? {} : { session: { sensorId: { in: scope.sensorIds } } }),
+    ...(data.type ? { eventType: data.type } : {}),
+    ...((data.startDate || data.endDate)
+      ? {
+          eventTs: {
+            ...(data.startDate && { gte: new Date(data.startDate) }),
+            ...(data.endDate && { lte: new Date(data.endDate) }),
+          },
+        }
+      : {}),
+    ...(search
+      ? {
+          OR: [
+            { srcIp: { startsWith: search, mode: 'insensitive' as const } },
+            { command: { contains: search, mode: 'insensitive' as const } },
+            { message: { contains: search, mode: 'insensitive' as const } },
+            { username: { contains: search, mode: 'insensitive' as const } },
+            { password: { contains: search, mode: 'insensitive' as const } },
+          ],
+        }
+      : {}),
+  };
+}
+
 export async function eventRoutes(fastify: FastifyInstance) {
   fastify.get('/events', async (request, reply) => {
     const parsed = eventListQuerySchema.safeParse(request.query);
@@ -24,35 +56,8 @@ export async function eventRoutes(fastify: FastifyInstance) {
     }
 
     const { page, pageSize, offset } = getPagination(parsed.data);
-    const search = parsed.data.q?.trim();
-
-    // events have no sensor_id — scope through the owning session's sensor.
-    // Empty sensorIds (fail-closed / __none__) → `in: []` matches nothing.
     const scope = parseSensorScope(request.query as Record<string, unknown>);
-
-    const where = {
-      ...(scope.all ? {} : { session: { sensorId: { in: scope.sensorIds } } }),
-      ...(parsed.data.type ? { eventType: parsed.data.type } : {}),
-      ...((parsed.data.startDate || parsed.data.endDate)
-        ? {
-            eventTs: {
-              ...(parsed.data.startDate && { gte: new Date(parsed.data.startDate) }),
-              ...(parsed.data.endDate && { lte: new Date(parsed.data.endDate) }),
-            },
-          }
-        : {}),
-      ...(search
-        ? {
-            OR: [
-              { srcIp: { startsWith: search, mode: 'insensitive' as const } },
-              { command: { contains: search, mode: 'insensitive' as const } },
-              { message: { contains: search, mode: 'insensitive' as const } },
-              { username: { contains: search, mode: 'insensitive' as const } },
-              { password: { contains: search, mode: 'insensitive' as const } },
-            ],
-          }
-        : {}),
-    };
+    const where = buildEventWhere(parsed.data, scope);
 
     const [events, total] = await Promise.all([
       fastify.prisma.event.findMany({
@@ -74,5 +79,41 @@ export async function eventRoutes(fastify: FastifyInstance) {
       })),
       pagination: buildPaginationResponse(total, page, pageSize),
     };
+  });
+
+  // Global threat-category breakdown over ALL matching command events (not just
+  // one page). Groups by distinct command — bots reuse the same strings, so the
+  // set stays small — then classifies each once and sums occurrences.
+  fastify.get('/events/command-categories', async (request, reply) => {
+    const parsed = eventListQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: 'Invalid query params',
+        details: parsed.error.flatten().fieldErrors,
+      });
+    }
+
+    const scope = parseSensorScope(request.query as Record<string, unknown>);
+    const where = { ...buildEventWhere(parsed.data, scope), eventType: 'command.input', command: { not: null } };
+
+    const grouped = await fastify.prisma.event.groupBy({
+      by: ['command'],
+      where,
+      _count: { _all: true },
+    });
+
+    const categories: Record<string, number> = {};
+    let total = 0;
+    let malicious = 0;
+    for (const row of grouped) {
+      const count = row._count._all;
+      total += count;
+      const category = row.command ? classifyCommand(row.command) : null;
+      const key = category ?? 'other';
+      categories[key] = (categories[key] ?? 0) + count;
+      if (category && category !== 'recon') malicious += count;
+    }
+
+    return { categories, total, malicious };
   });
 }

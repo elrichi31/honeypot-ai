@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { PageShell } from "@/components/page-shell"
 import { CommandsView } from "@/components/commands-view"
 import { SectionError } from "@/components/section-error"
-import { fetchEventsPage } from "@/lib/api"
+import { fetchEventsPage, fetchCommandCategories } from "@/lib/api"
 import { effectiveSensorScope } from "@/lib/tenant-scope"
 import { parsePage } from "@/lib/utils"
 
@@ -29,13 +29,12 @@ export default async function CommandsPage({
   const { sensorIds } = await effectiveSensorScope()
 
   let eventsPage
+  let categories
   try {
-    eventsPage = await fetchEventsPage({
-      page,
-      pageSize,
-      q,
-      type: "command.input",
-    }, sensorIds)
+    [eventsPage, categories] = await Promise.all([
+      fetchEventsPage({ page, pageSize, q, type: "command.input" }, sensorIds),
+      fetchCommandCategories({ q }, sensorIds),
+    ])
   } catch {
     return (
       <PageShell>
@@ -60,6 +59,7 @@ export default async function CommandsPage({
         events={eventsPage.items}
         searchQuery={q ?? ""}
         pagination={eventsPage.pagination}
+        globalCategories={categories}
       />
     </PageShell>
   )
