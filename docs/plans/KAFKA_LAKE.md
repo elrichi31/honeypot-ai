@@ -336,6 +336,14 @@ uno tapaba al siguiente:**
    defaults de ClickHouse (16×2=32, con margen) — el cgroup `cpus: "1.0"` del
    contenedor ya cubre el objetivo real (no dejar que ClickHouse use CPU sin
    límite), así que el override era redundante además de estar mal calculado.
+5. **`DB::Exception: Unknown setting 'kafka_auto_offset_reset' (UNKNOWN_SETTING)`
+   al correr `002-kafka-consumer.sql`.** Ese nombre de setting no existe para
+   `ENGINE = Kafka` en 24.8 — el resto del script (las 4 tablas Kafka + las 4
+   materialized views) nunca corrió porque el init aborta en el primer error.
+   Fix: sacar el setting de las 4 `CREATE TABLE`; los consumers arrancan con el
+   default de librdkafka (`latest`), sin backfill parcial de la ventana de
+   retención de Kafka (aceptable — la historia completa la trae 3c desde
+   Postgres de todas formas).
 
 **Lección para la próxima vez que se agregue un servicio pesado nuevo:**
 Los límites de recursos "desde el día 1" son la decisión correcta (evitan

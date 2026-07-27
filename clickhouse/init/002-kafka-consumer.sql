@@ -7,10 +7,12 @@
 -- typed Kafka-engine schema would break on the next field anyone adds there.
 -- Parsing happens once, in the MV's SELECT, with JSONExtract.
 --
--- kafka_auto_offset_reset = 'earliest': these are brand-new consumer groups,
--- so this backfills whatever Fase 2 already produced since 2026-07-17 that's
--- still inside Kafka's retention window (days) — free partial history. Full
--- history from Postgres is Sub-fase 3c, not Kafka retention.
+-- No kafka_auto_offset_reset: ClickHouse 24.8 rejects it as an unknown
+-- per-table setting for storage Kafka (confirmed in prod: "Code: 115.
+-- UNKNOWN_SETTING"). Consumers start from librdkafka's default
+-- (`latest`/`largest`) — no free partial backfill from Kafka's retention
+-- window, but that's a nice-to-have, not a requirement: full history comes
+-- from Postgres in Sub-fase 3c regardless.
 --
 -- kafka_skip_broken_messages: one malformed message must not stall the
 -- consumer (the engine's error handling is coarse — see plan caveat).
@@ -23,8 +25,7 @@ SETTINGS
     kafka_group_name = 'clickhouse_lake_cowrie',
     kafka_format = 'JSONAsString',
     kafka_num_consumers = 1,
-    kafka_skip_broken_messages = 100,
-    kafka_auto_offset_reset = 'earliest';
+    kafka_skip_broken_messages = 100;
 
 CREATE TABLE IF NOT EXISTS honeypot_lake.kafka_web (raw String)
 ENGINE = Kafka
@@ -34,8 +35,7 @@ SETTINGS
     kafka_group_name = 'clickhouse_lake_web',
     kafka_format = 'JSONAsString',
     kafka_num_consumers = 1,
-    kafka_skip_broken_messages = 100,
-    kafka_auto_offset_reset = 'earliest';
+    kafka_skip_broken_messages = 100;
 
 CREATE TABLE IF NOT EXISTS honeypot_lake.kafka_protocol (raw String)
 ENGINE = Kafka
@@ -45,8 +45,7 @@ SETTINGS
     kafka_group_name = 'clickhouse_lake_protocol',
     kafka_format = 'JSONAsString',
     kafka_num_consumers = 1,
-    kafka_skip_broken_messages = 100,
-    kafka_auto_offset_reset = 'earliest';
+    kafka_skip_broken_messages = 100;
 
 CREATE TABLE IF NOT EXISTS honeypot_lake.kafka_suricata (raw String)
 ENGINE = Kafka
@@ -56,8 +55,7 @@ SETTINGS
     kafka_group_name = 'clickhouse_lake_suricata',
     kafka_format = 'JSONAsString',
     kafka_num_consumers = 1,
-    kafka_skip_broken_messages = 100,
-    kafka_auto_offset_reset = 'earliest';
+    kafka_skip_broken_messages = 100;
 
 -- cowrie: raw keys are snake_case (CowrieRawEvent). event_id mirrors
 -- IngestService._processLine's `${session}:${eventid}`.
