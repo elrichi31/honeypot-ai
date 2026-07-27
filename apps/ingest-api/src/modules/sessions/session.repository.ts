@@ -181,7 +181,8 @@ export class SessionRepository {
   }
 
   async bulkUpdateSessionType(updates: Array<{ id: string; actor: string }>): Promise<void> {
-    const valuesSql = updates.map(u => Prisma.sql`(${u.id}::uuid, ${u.actor}::text)`);
+    // sessions.id is text (Prisma String @id), not a native uuid column
+    const valuesSql = updates.map(u => Prisma.sql`(${u.id}::text, ${u.actor}::text)`);
     await this.prisma.$executeRaw`
       UPDATE sessions SET session_type = v.actor
       FROM (VALUES ${Prisma.join(valuesSql)}) AS v(id, actor)
