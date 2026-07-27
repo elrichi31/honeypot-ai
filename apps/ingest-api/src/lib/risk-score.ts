@@ -4,6 +4,14 @@ import { scoreSshFactor, scoreCommandsFactor, scoreWebFactor, scoreProtocolsFact
 export type { CommandCategory, RiskInput } from './risk-constants.js'
 import type { CommandCategory, RiskInput } from './risk-constants.js'
 
+/** Category a single command falls into (first match wins), or null if benign. */
+export function classifyCommand(command: string): CommandCategory | null {
+  for (const [category, patterns] of Object.entries(CMD_PATTERNS)) {
+    if (patterns.some((pattern) => pattern.test(command))) return category as CommandCategory
+  }
+  return null
+}
+
 export function classifyCommands(commands: string[]): Record<CommandCategory, string[]> {
   const result: Record<CommandCategory, string[]> = {
     ssh_backdoor: [],

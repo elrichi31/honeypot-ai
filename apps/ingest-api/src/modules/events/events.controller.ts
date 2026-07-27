@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { toOffsetISOString } from '../../lib/date-utils.js';
+import { classifyCommand } from '../../lib/risk-score.js';
 import { basePaginationSchema, getPagination, buildPaginationResponse } from '../../lib/pagination.js';
 import { parseSensorScope } from '../../lib/sensor-scope.js';
 
@@ -69,6 +70,7 @@ export async function eventRoutes(fastify: FastifyInstance) {
         eventTs: toOffsetISOString(e.eventTs),
         createdAt: toOffsetISOString(e.createdAt),
         cowrieTs: toOffsetISOString(new Date(e.cowrieTs as string)),
+        commandCategory: e.command ? classifyCommand(e.command) : null,
       })),
       pagination: buildPaginationResponse(total, page, pageSize),
     };

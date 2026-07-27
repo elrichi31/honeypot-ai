@@ -78,34 +78,69 @@ export const LEVEL_STYLES: Record<RiskLevel, { badge: string; bg: string; bar: s
 
 /** Tailwind badge classes for command categories */
 export const CMD_COLORS: Record<string, string> = {
+  ssh_backdoor:     "bg-red-500/15 text-red-400 border-red-500/30",
   reverse_shell:    "bg-red-500/15 text-red-400 border-red-500/30",
   malware_drop:     "bg-red-500/15 text-red-400 border-red-500/30",
+  container_escape: "bg-orange-500/15 text-orange-400 border-orange-500/30",
+  honeypot_evasion: "bg-purple-500/15 text-purple-400 border-purple-500/30",
   persistence:      "bg-orange-500/15 text-orange-400 border-orange-500/30",
   lateral_movement: "bg-purple-500/15 text-purple-400 border-purple-500/30",
   crypto_mining:    "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
+  solana_targeting: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
   data_exfil:       "bg-pink-500/15 text-pink-400 border-pink-500/30",
   recon:            "bg-muted/50 text-muted-foreground border-border",
   other:            "bg-muted/30 text-muted-foreground border-border",
 }
 
 export const CMD_LABELS: Record<string, string> = {
+  ssh_backdoor:     "SSH Backdoor",
   reverse_shell:    "Reverse Shell",
   malware_drop:     "Malware Drop",
+  container_escape: "Container Escape",
+  honeypot_evasion: "Honeypot Evasion",
   persistence:      "Persistence",
   lateral_movement: "Lateral Movement",
   crypto_mining:    "Crypto Mining",
+  solana_targeting: "Solana Targeting",
   data_exfil:       "Data Exfil",
   recon:            "Recon",
   other:            "Other",
 }
 
 export const CMD_LABELS_SHORT: Record<string, string> = {
+  ssh_backdoor:     "Backdoor",
   reverse_shell:    "RevShell",
   malware_drop:     "Malware",
+  container_escape: "Escape",
+  honeypot_evasion: "Evasion",
   persistence:      "Persist",
   lateral_movement: "Lateral",
   crypto_mining:    "Mining",
+  solana_targeting: "Solana",
   data_exfil:       "Exfil",
   recon:            "Recon",
   other:            "Other",
 }
+
+/** Severity rank for command categories, worst first — drives sort + summary. */
+export const CMD_SEVERITY_ORDER: string[] = [
+  "malware_drop",
+  "reverse_shell",
+  "ssh_backdoor",
+  "container_escape",
+  "crypto_mining",
+  "data_exfil",
+  "solana_targeting",
+  "honeypot_evasion",
+  "persistence",
+  "lateral_movement",
+  "recon",
+  "other",
+]
+
+/** True for categories that represent an active compromise, not just recon/probing. */
+export const CMD_MALICIOUS_CATEGORIES = new Set([
+  "ssh_backdoor", "reverse_shell", "malware_drop", "container_escape",
+  "honeypot_evasion", "persistence", "lateral_movement", "crypto_mining",
+  "data_exfil", "solana_targeting",
+])

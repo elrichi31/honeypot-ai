@@ -338,3 +338,19 @@ loader/dropper filenames. Add each with a test payload.
     "first match wins" ordering is why the category list is severity-ordered.
     Sources: gbhackers "SSH Attackers Use Single Exec Commands" (2025) and the
     Cowrie command corpus in the RIT/arXiv honeypot studies above.
+- **2026-07-27** — Surfaced command classification on the Commands page (it was
+  a flat list of raw command strings, no threat context). Backend: `GET /events`
+  now attaches `commandCategory` per command event via a new
+  `classifyCommand(cmd)` single-command helper in
+  [`risk-score.ts`](../../apps/ingest-api/src/lib/risk-score.ts) (reuses
+  `CMD_PATTERNS` — still one engine, no drift). Frontend
+  ([`commands-view.tsx`](../../apps/dashboard/components/commands-view.tsx)):
+  per-command colored category badge (malicious rows get a red accent + shield
+  icon), a category filter chip row, a "Threat Categories" sidebar breakdown
+  with severity-ordered bars, and a "Malicious (page)" stat tile. Completed the
+  `CMD_LABELS`/`CMD_COLORS` maps in
+  [`attack-types.ts`](../../apps/dashboard/lib/attack-types.ts) for all 11
+  categories and added `CMD_SEVERITY_ORDER` + `CMD_MALICIOUS_CATEGORIES`. Note:
+  filtering/breakdown are scoped to the current page (classification is computed
+  server-side per returned event, not a queryable column) — server-side category
+  filtering would need a stored/indexed category, deferred as YAGNI until asked.

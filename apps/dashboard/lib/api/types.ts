@@ -284,7 +284,22 @@ export interface HoneypotEvent {
   createdAt: string
   cowrieEventId: string
   cowrieTs: string
+  /** Command threat category (command.input events only), null if benign/other. */
+  commandCategory: CommandCategory | null
 }
+
+export type CommandCategory =
+  | "ssh_backdoor"
+  | "honeypot_evasion"
+  | "container_escape"
+  | "reverse_shell"
+  | "malware_drop"
+  | "persistence"
+  | "lateral_movement"
+  | "crypto_mining"
+  | "data_exfil"
+  | "solana_targeting"
+  | "recon"
 
 // A single credential attempt in the Credentials "Recent" tab. Sourced from the
 // unified credential_attempts view (SSH + protocol honeypots), so it carries
