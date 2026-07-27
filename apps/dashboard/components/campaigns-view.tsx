@@ -172,7 +172,7 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
 
 // ─── Behavior cluster card ────────────────────────────────────────────────────
 
-function ClusterCard({ cluster }: { cluster: BehaviorCluster }) {
+function ClusterCard({ cluster, detailHref }: { cluster: BehaviorCluster; detailHref?: string }) {
   const tz = useTimezone()
   const [expanded, setExpanded] = useState(false)
   const simPct = Math.round(cluster.similarity * 100)
@@ -254,6 +254,15 @@ function ClusterCard({ cluster }: { cluster: BehaviorCluster }) {
           </div>
         </div>
       </button>
+
+      {detailHref && (
+        <Link
+          href={detailHref}
+          className="flex items-center justify-center gap-1 border-t border-border py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+        >
+          <Fingerprint className="h-3.5 w-3.5" /> View full fingerprint campaign →
+        </Link>
+      )}
 
       {expanded && (
         <div className="border-t border-border bg-secondary/20">
@@ -495,9 +504,16 @@ export function CampaignsView({
           </p>
 
           <div className="space-y-3">
-            {hasshClusters.map((c) => (
-              <ClusterCard key={c.id} cluster={c} />
-            ))}
+            {hasshClusters.map((c) => {
+              const hassh = c.sessions[0]?.hassh
+              return (
+                <ClusterCard
+                  key={c.id}
+                  cluster={c}
+                  detailHref={hassh ? `/campaigns/hassh/${encodeURIComponent(hassh)}` : undefined}
+                />
+              )
+            })}
           </div>
         </div>
       )}
