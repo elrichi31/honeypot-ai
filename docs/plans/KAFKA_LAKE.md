@@ -3,7 +3,9 @@
 ## Estado (2026-07-27)
 
 Las Fases 1 y 2 (plomería del bus) están implementadas. **Fase 3 en curso —
-3a y 3b desplegadas y verificadas en prod (2026-07-27); 3c y 3d pendientes.**
+3a y 3b desplegadas y verificadas en prod (2026-07-27); 3c implementada, sin
+correr todavía (el usuario decidió priorizarla sobre 3d por ahora); 3d
+pendiente.**
 
 **Alcance de Fase 3 recortado (decisión 2026-07-27):** arrancar con **ClickHouse
 solo para servir el dashboard** (sub-fases 3a-3d) — nada de R2. El export a
@@ -468,6 +470,40 @@ Los topics solo retienen días (retención de Kafka). Para sembrar ClickHouse co
 (vía Parquet intermedio en R2, o `INSERT ... SELECT` con la función de tabla
 `postgresql()` de ClickHouse). Correr una vez tras montar el schema, antes de
 flipear el dashboard. Verificar counts por ventana temporal contra Postgres.
+
+**Progreso (2026-07-27): implementada (opción `INSERT ... SELECT` +
+`postgresql()`, sin Parquet/R2 — no hace falta para esto), sin correr todavía.**
+
+- **`clickhouse/backfill/001-backfill-from-postgres.sql`** + **`scripts/backfill-clickhouse.sh`**
+  (wrapper: lee `POSTGRES_PASSWORD` del `.env`, corre el SQL, compara counts
+  ClickHouse vs Postgres al final). Lee de **`postgres-replica`**, no del
+  primario — no toca el path de escritura.
+- **`cowrie_events` reutiliza el parsing de `mv_cowrie_events` tal cual**:
+  `events.raw_json` en Postgres es el mismo payload crudo que se tee-a a
+  Kafka, así que solo se cambia la fuente (Kafka → `postgresql()`), cero
+  lógica nueva.
+- **`web_events`/`protocol_events`/`suricata_alerts` van directo por columnas
+  tipadas** (`web_hits`/`protocol_hits`/`suricata_alerts` en Postgres ya las
+  tienen, sin blob crudo) — **`raw` queda vacío en las filas backfillleadas**
+  (es un campo de auditoría, ninguna query lo usa; las columnas tipadas
+  cubren todo lo que hace falta). Documentado en el propio SQL.
+- **`suricata_alerts` deriva `event_id` con el mismo hash que `mv_suricata_alerts`**
+  (`cityHash64(sensor_id, timestamp, src_ip, dest_ip, signature_id)`) para que
+  las filas backfilleadas y las que ya insertó el consumer en vivo deduplican
+  entre sí en vez de duplicarse.
+- **`max_insert_block_size = 65536`** al principio del script — mismo valor
+  que el consumer de Kafka (incidente #6), para no repetir el
+  `MEMORY_LIMIT_EXCEEDED` con un batch de backfill mucho más grande.
+- **Password nunca en el archivo committeado:** se pasa como client query
+  parameter (`{pg_password:String}` + `--param_pg_password`), no interpolado
+  en el SQL.
+- **Re-corrible:** las 4 tablas son `ReplacingMergeTree` por `event_id`; un
+  re-run (o el solape con lo que ya insertó el consumer en vivo) produce
+  duplicados que el próximo merge en background colapsa solo.
+- **Pendiente:** correrlo en el server (`./scripts/backfill-clickhouse.sh`,
+  sin urgencia — el usuario priorizó el backfill sobre 3d por ahora) y mirar
+  `docker stats` durante la corrida por las dudas, dado el incidente de
+  memoria reciente.
 
 #### Sub-fase 3d — Lecturas del dashboard: split hot/cold
 
