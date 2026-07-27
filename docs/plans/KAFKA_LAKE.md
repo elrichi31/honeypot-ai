@@ -507,6 +507,11 @@ flipear el dashboard. Verificar counts por ventana temporal contra Postgres.
 
 #### Sub-fase 3d — Lecturas del dashboard: split hot/cold
 
+**Detalle completo movido a [ANALYTICS_MODULE.md](ANALYTICS_MODULE.md)
+(2026-07-27)** — ese plan tiene las 6 fases concretas (Trends Explorer,
+Credential Intelligence, etc.), endpoints, queries y UI. Lo de abajo queda
+como el resumen de arquitectura de alto nivel que ya no hace falta repetir.
+
 **Regla del split:**
 
 - **CALIENTE (vivo/reciente, sub-segundo, NO cambia):** API → Postgres (+ read
@@ -524,6 +529,9 @@ flipear el dashboard. Verificar counts por ventana temporal contra Postgres.
   sin ClickHouse debe seguir andando (cae a las queries Postgres actuales).
 
 #### Sub-fase 3e — Retirar los matviews que ClickHouse vuelve innecesarios
+
+**Detalle completo (criterio de salida, verificación) en
+[ANALYTICS_MODULE.md → Fase B](ANALYTICS_MODULE.md#fase-b--credential-intelligence-prioridad-1-reemplaza-el-matview).**
 
 Candidato #1: **`credential_attempts`** (matview de ~1.6M filas). Hoy su
 `REFRESH` cada 30 min es justo lo que saturó la réplica en el incidente
