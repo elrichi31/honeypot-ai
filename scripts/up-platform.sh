@@ -173,8 +173,11 @@ fi
 # inserts and never committing (confirmed in prod 2026-07-27: protocol_events
 # hit MEMORY_LIMIT_EXCEEDED in a loop). /ping alone won't catch that, so check
 # system.kafka_consumers directly.
-CH_KAFKA_ERRORS=$(timeout 10 docker exec -i honeypot-clickhouse clickhouse-client -q \
-  "SELECT count() FROM system.kafka_consumers WHERE length(exceptions.text) > 0" 2>/dev/null || echo "")
+# No `-i`: it keeps stdin open, and clickhouse-client (unlike psql -c above)
+# blocks waiting for stdin EOF even with -q, hanging forever despite the
+# `timeout` (it doesn't die from the resulting SIGTERM). `-q` needs no stdin.
+CH_KAFKA_ERRORS=$(timeout 10 docker exec honeypot-clickhouse clickhouse-client -q \
+  "SELECT count() FROM system.kafka_consumers WHERE length(exceptions.text) > 0" 2>/dev/null </dev/null || echo "")
 if [[ "$CH_KAFKA_ERRORS" == "0" ]]; then
   ok "clickhouse: kafka consumers have no errors"
 else
