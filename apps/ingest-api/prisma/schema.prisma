@@ -146,6 +146,7 @@ model Sensor {
   realProtocol  String?  @map("real_protocol")
   ip            String
   version       String   @default("")
+  imageVersion  String   @default("") @map("image_version")
   ports         Json     @default("[]")
   probePorts    Json     @default("[]") @map("probe_ports")
   portStatus    Json     @default("{}") @map("port_status")

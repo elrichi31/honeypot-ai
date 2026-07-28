@@ -9,6 +9,7 @@ on:
       - "sensors/ftp-honeypot/**"
       - "sensors/mysql-honeypot/**"
       - "sensors/port-honeypot/**"
+      - "sensors/smb-honeypot/**"
       - "sensors/suricata/**"
       - "sensors/opencanary/**"
   workflow_dispatch:
@@ -38,6 +39,8 @@ jobs:
             context: sensors/mysql-honeypot
           - service: port-honeypot
             context: sensors/port-honeypot
+          - service: smb-honeypot
+            context: sensors/smb-honeypot
           - service: suricata
             context: sensors/suricata
           - service: opencanary
@@ -62,6 +65,8 @@ jobs:
         with:
           context: ${{ matrix.context }}
           push: true
+          build-args: |
+            GIT_SHA=${{ github.sha }}
           tags: |
             ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:latest
             ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}

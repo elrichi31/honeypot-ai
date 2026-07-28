@@ -99,4 +99,9 @@ def send_heartbeat(sensor_ip: str):
         payload["realProtocol"] = "mysql"
     if CONFIG_HASH:
         payload["configHash"] = CONFIG_HASH
+    # Baked into the image at build (SENSOR_IMAGE_VERSION); lets the dashboard
+    # show which image version this sensor runs (SENSOR_FLEET_UPDATES Fase 0).
+    image_version = os.getenv("SENSOR_IMAGE_VERSION")
+    if image_version:
+        payload["imageVersion"] = image_version
     _post("/sensors/heartbeat", payload)

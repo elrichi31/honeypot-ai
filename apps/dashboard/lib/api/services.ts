@@ -69,6 +69,9 @@ export interface Sensor {
   protocol: string
   ip: string
   version: string
+  // Git sha of the sensor image, baked at build and reported via heartbeat.
+  // Empty for beacon-based sensors (cowrie, web) until the Fase 1 host updater.
+  imageVersion?: string
   ports: number[]
   probeHost: string
   lastSeen: string

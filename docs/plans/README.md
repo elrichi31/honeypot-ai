@@ -5,6 +5,7 @@ Each plan is the source of truth for its feature. Keep it updated as work progre
 
 ## Active plans
 
+- [SENSOR_FLEET_UPDATES.md](SENSOR_FLEET_UPDATES.md) - Remote software updates for the sensor fleet: pull-based host updater, digest-pinned release manifest, canary rollout, auto-rollback, image signing.
 - [SENSOR_REMOTE_CONTROL.md](SENSOR_REMOTE_CONTROL.md) - WebSocket control plane for sensors: remote config, acknowledged commands, live status, fallback, security, audit trail, and rollout.
 - [KAFKA_LAKE.md](KAFKA_LAKE.md) - Streaming rework so ingestion behaves identically in single-host and multi-host: reroute cowrie/suricata Vector to HTTP, move Kafka behind the ingest-api as an internal fan-out tee, prerequisite for the data lake.
 - [ANALYTICS_MODULE.md](ANALYTICS_MODULE.md) - Historical analytics on ClickHouse (KAFKA_LAKE 3d/3e in detail): trends explorer, credential intelligence (retires the `credential_attempts` matview), cross-source attacker profile, Suricata signature trends, sensor/client comparison.
@@ -14,6 +15,7 @@ Each plan is the source of truth for its feature. Keep it updated as work progre
 - [REALTIME_STREAM.md](REALTIME_STREAM.md) - SSE alerts and heartbeat. Mark-read toast action, server-side unread count, and live-map consolidation remain.
 - [PLAN_DECEPTION.md](PLAN_DECEPTION.md) - Deception network. Track C is implemented through `INTERNAL_SENSORS` in `done/`; Tracks A and B remain.
 - [CICD.md](CICD.md) - CI/CD pipeline and VPS deployment. Environment examples, post-deploy smoke tests, and auxiliary-service coverage remain.
+- [DECEPTION_BY_CLIENT.md](DECEPTION_BY_CLIENT.md) - Redesign of `/deception` as a per-client card index (one card per client deception network) linking to the existing per-client detail view. Backend/frontend split for two people.
 - [CLIENT_DECEPTION_TAB.md](CLIENT_DECEPTION_TAB.md) - Client Deception tab. Live alerts and stream integration, i18n completion, and component tests remain.
 - [SENSOR_IDENTITY.md](SENSOR_IDENTITY.md) - Unique sensor IDs and Application/Client ownership. Production E2E verification remains.
 - [PERF_AUDIT.md](PERF_AUDIT.md) - Code-level work, M3, and the composite `sessions` index are implemented. Production observation is needed before deciding A2/D2.

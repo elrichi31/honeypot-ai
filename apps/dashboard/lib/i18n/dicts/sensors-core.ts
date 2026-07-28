@@ -30,6 +30,7 @@ export const en = {
 
   // ── Sensor card ────────────────────────────────────────────────────────────
   "sensors.card.couldNotDelete": "Could not delete: {error}",
+  "sensors.card.image": "image",
   "sensors.card.error": "Error {status}",
   "sensors.card.couldNotConnect": "Could not connect",
   "sensors.card.configure": "Configure",
@@ -117,6 +118,7 @@ export const es: Record<keyof typeof en, string> = {
   "sensors.deception.online": "en línea",
 
   "sensors.card.couldNotDelete": "No se pudo eliminar: {error}",
+  "sensors.card.image": "imagen",
   "sensors.card.error": "Error {status}",
   "sensors.card.couldNotConnect": "No se pudo conectar",
   "sensors.card.configure": "Configurar",

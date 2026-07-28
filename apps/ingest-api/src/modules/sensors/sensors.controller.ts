@@ -101,6 +101,10 @@ const heartbeatSchema = z.object({
   // see sensor-config.service.ts confirmApplied() for why the heartbeat,
   // not the agent's own command.result, is what finalizes config.apply.
   configHash:   z.string().optional(),
+  // Git sha baked into the sensor image at build (SENSOR_FLEET_UPDATES Fase 0).
+  // Beacon-based sensors (cowrie, web) can't see the honeypot image env, so
+  // they omit it until the Fase 1 host updater reports digests for everyone.
+  imageVersion: z.string().max(128).default(''),
 })
 
 const assignClientSchema = z.object({
@@ -127,7 +131,7 @@ export async function sensorRoutes(fastify: FastifyInstance) {
 
     await svc.upsertHeartbeat({
       sensorId: d.sensorId, clientId: client.id, name: d.name, protocol: d.protocol,
-      ip: d.ip, version: d.version, ports: d.ports, probePorts, probeHost, now,
+      ip: d.ip, version: d.version, imageVersion: d.imageVersion, ports: d.ports, probePorts, probeHost, now,
       portStatus: d.portStatus, layer: d.layer, realProtocol: d.realProtocol,
     })
 

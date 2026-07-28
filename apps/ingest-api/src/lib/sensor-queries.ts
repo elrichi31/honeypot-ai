@@ -6,7 +6,7 @@ export type ClientRef = { id: string | null; name: string | null; slug: string |
 export type SensorRow = {
   sensor_id: string; client_id: string | null; client_name: string | null
   client_slug: string | null; client_code: string | null; name: string
-  protocol: string; ip: string; version: string; ports: number[]
+  protocol: string; ip: string; version: string; image_version: string; ports: number[]
   probe_ports: number[]; probe_host: string; last_seen: Date
   port_status: Record<string, boolean> | null
   created_at: Date; event_count: bigint
@@ -17,7 +17,7 @@ export type SensorRow = {
 export type SensorResult = {
   sensorId: string; clientId: string | null; clientName: string | null
   clientSlug: string | null; clientCode: string; name: string
-  protocol: string; ip: string; version: string; ports: number[]
+  protocol: string; ip: string; version: string; imageVersion: string; ports: number[]
   probeHost: string; lastSeen: Date; createdAt: Date
   eventsTotal: number; online: boolean; degraded: boolean; portStatus: Record<number, boolean>
   // True when portStatus came from the sensor's own heartbeat (trustworthy for
@@ -153,6 +153,7 @@ export function formatSensor(sensor: SensorRow, portStatus: Record<number, boole
     protocol:   sensor.protocol,
     ip:         sensor.ip,
     version:    sensor.version,
+    imageVersion: sensor.image_version ?? '',
     ports:      Array.isArray(sensor.ports) ? sensor.ports : [],
     probeHost:  sensor.probe_host,
     lastSeen:   sensor.last_seen,

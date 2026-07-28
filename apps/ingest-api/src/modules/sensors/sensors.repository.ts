@@ -6,7 +6,7 @@ export type ClientRef = { id: string | null; name: string | null; slug: string |
 export type SensorRow = {
   sensor_id: string; client_id: string | null; client_name: string | null
   client_slug: string | null; client_code: string | null; name: string
-  protocol: string; ip: string; version: string; ports: number[]
+  protocol: string; ip: string; version: string; image_version: string; ports: number[]
   probe_ports: number[]; probe_host: string; last_seen: Date
   port_status: Record<string, boolean> | null
   created_at: Date; event_count: bigint
@@ -45,12 +45,13 @@ export class SensorRepository {
 
   async upsertHeartbeat(args: {
     sensorId: string; clientId: string | null; name: string; protocol: string
-    ip: string; version: string; ports: number[]; probePorts: number[]
+    ip: string; version: string; imageVersion?: string; ports: number[]; probePorts: number[]
     probeHost: string; now: Date; applicationId?: string | null
     portStatus?: Record<string, boolean>
     layer?: 'external' | 'internal'; realProtocol?: string
   }): Promise<void> {
     const { sensorId, clientId, name, ip, version, ports, probePorts, probeHost, now, applicationId } = args
+    const imageVersion = args.imageVersion ?? ''
     const portStatus = args.portStatus ?? {}
     // When a honeypot runs in internal/deception mode it registers as protocol='deception'
     // so the DeceptionNetworkCard picks it up. The actual protocol (smb, mysql…) is stored
@@ -60,15 +61,15 @@ export class SensorRepository {
     const ownerType = clientId ? 'client' : 'application'
     const appId = applicationId ?? (clientId ? null : (process.env.APPLICATION_ID ?? 'default-application'))
     await this.prisma.$executeRaw`
-      INSERT INTO sensors (id, sensor_id, client_id, application_id, owner_type, name, protocol, real_protocol, ip, version, ports, probe_ports, probe_host, port_status, last_seen, created_at)
-      VALUES (gen_random_uuid()::text, ${sensorId}, ${clientId}, ${appId}, ${ownerType}, ${name}, ${protocol}, ${realProtocol}, ${ip}, ${version},
+      INSERT INTO sensors (id, sensor_id, client_id, application_id, owner_type, name, protocol, real_protocol, ip, version, image_version, ports, probe_ports, probe_host, port_status, last_seen, created_at)
+      VALUES (gen_random_uuid()::text, ${sensorId}, ${clientId}, ${appId}, ${ownerType}, ${name}, ${protocol}, ${realProtocol}, ${ip}, ${version}, ${imageVersion},
         CAST(${JSON.stringify(ports)} AS jsonb), CAST(${JSON.stringify(probePorts)} AS jsonb),
         ${probeHost}, CAST(${JSON.stringify(portStatus)} AS jsonb), ${now}, ${now})
       ON CONFLICT (sensor_id) DO UPDATE SET
         client_id = COALESCE(EXCLUDED.client_id, sensors.client_id),
         owner_type = CASE WHEN COALESCE(EXCLUDED.client_id, sensors.client_id) IS NOT NULL THEN 'client' ELSE 'application' END,
         name = EXCLUDED.name, protocol = EXCLUDED.protocol, real_protocol = EXCLUDED.real_protocol,
-        ip = EXCLUDED.ip, version = EXCLUDED.version, ports = EXCLUDED.ports,
+        ip = EXCLUDED.ip, version = EXCLUDED.version, image_version = EXCLUDED.image_version, ports = EXCLUDED.ports,
         probe_ports = EXCLUDED.probe_ports, probe_host = EXCLUDED.probe_host,
         port_status = EXCLUDED.port_status, last_seen = EXCLUDED.last_seen
     `
@@ -96,7 +97,7 @@ export class SensorRepository {
       )
       SELECT
         s.sensor_id, c.id AS client_id, c.name AS client_name, c.slug AS client_slug,
-        c.code AS client_code, s.name, s.protocol, s.ip, s.version,
+        c.code AS client_code, s.name, s.protocol, s.ip, s.version, s.image_version,
         s.ports, s.probe_ports, s.probe_host, s.port_status, s.last_seen, s.created_at,
         s.owner_type, s.application_id, a.name AS application_name, s.real_protocol,
         COALESCE(

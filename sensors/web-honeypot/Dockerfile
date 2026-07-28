@@ -1,5 +1,10 @@
 FROM python:3.12-slim
 
+# Baked by publish-sensor-images.yml; reported in heartbeats so the dashboard
+# can show which image version each fleet sensor is running (SENSOR_FLEET_UPDATES).
+ARG GIT_SHA=dev
+ENV SENSOR_IMAGE_VERSION=$GIT_SHA
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORT=8080

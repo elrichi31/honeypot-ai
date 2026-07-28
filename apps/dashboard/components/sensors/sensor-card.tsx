@@ -154,9 +154,14 @@ export function SensorCard({
       )}
       <SensorStats sensor={sensor} isInternal={isInternal} honeypotPublicIp={honeypotPublicIp} clientCode={clientCode} />
       <SensorPorts sensor={sensor} isInternal={isInternal} isRemote={isRemote} />
-      {sensor.version && (
-        <div className="rounded-md bg-muted/40 px-2.5 py-1">
-          <p className="text-[10px] font-mono text-muted-foreground">v{sensor.version}</p>
+      {(sensor.version || sensor.imageVersion) && (
+        <div className="rounded-md bg-muted/40 px-2.5 py-1 flex items-center gap-2">
+          {sensor.version && <p className="text-[10px] font-mono text-muted-foreground">v{sensor.version}</p>}
+          {sensor.imageVersion && (
+            <p className="text-[10px] font-mono text-muted-foreground" title={sensor.imageVersion}>
+              {t("sensors.card.image")} {sensor.imageVersion.slice(0, 7)}
+            </p>
+          )}
         </div>
       )}
       {isConfigurable && canConfigure && (
