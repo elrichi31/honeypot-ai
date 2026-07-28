@@ -400,8 +400,32 @@ Primer `int-*` desplegado end-to-end en una VM. `int-ssh` levantó y apareció e
   un step que copia `_shared/*.py` al contexto antes del build (se descartan
   los compose files intactos; el checkout de CI es desechable).
 
-Requiere re-publicar imágenes (push a master dispara el workflow) antes de que
-un `int-smb`/`int-mysql` nuevo arranque.
+Requiere re-publicar imágenes. Ojo: el workflow filtra por `paths: sensors/**`,
+así que un fix que no toca `sensors/` **no lo dispara** — hay que lanzarlo a
+mano con `workflow_dispatch`.
+
+Dos bugs más del instalador que salieron del mismo deploy, ambos en
+`SSH_PORT_STEP`:
+
+- **Lockout por IPv6-only.** El override de `ssh.socket` usaba
+  `ListenStream=8022` pelado. En un host con `bindv6only=1` eso bindea solo
+  IPv6: Cowrie se queda con el 22, sshd responde en `[::]:8022` y nada en
+  `0.0.0.0:8022`, así que todo cliente IPv4 recibe "Connection refused". El
+  host quedó accesible solo por consola del hipervisor. Ahora se declaran las
+  dos familias explícitas.
+- **La verificación no lo detectaba.** Buscaba `:8022 ` en `ss`, patrón que un
+  listener IPv6-only matchea — el instalador imprimía "sshd is now on port
+  8022" sobre una máquina inalcanzable, en vez de disparar el rollback. Ahora
+  exige un listener IPv4 (`0.0.0.0:8022` o `*:8022`).
+- **Backup pisado en la segunda corrida.** El guard era "¿hay algo en el 22?",
+  y en un re-run ese algo es Cowrie, así que el paso corría de nuevo y copiaba
+  el `sshd_config` ya modificado sobre `sshd_config.pre-honeypot`. El backup
+  del original se perdía y `sensor-uninstall` no podía devolver el sshd al 22.
+
+**Pendiente:** `sensor-update` solo hace `pull` + `up -d` sobre el compose
+local; no lo regenera. Cualquier fix de plantilla (como el `cap_add` de
+`int-http`) obliga a rebajar el instalador entero. Vale la pena que
+`sensor-update` sepa refrescar el compose.
 
 ## 8. Deuda técnica y fuera de alcance
 
