@@ -212,6 +212,23 @@ chart renderizando datos reales en el browser.
   `apps/dashboard`: el wiring del collector/render queda para la persona
   responsable del frontend. Validación local incluida en el pase acumulado de
   183 tests.
+- Fase G (experiencia visual de Analytics) — **implementación completa,
+  QA visual con datos pendiente (2026-07-27):**
+  rediseño del frontend autorizado para convertir los endpoints A-E en una
+  vista operativa útil. La dirección visual es una “signal room” sobria:
+  jerarquía KPI → tendencia → distribución → detalle, gráficas mixtas y
+  controles de exploración compartidos. El alcance incluye overview,
+  credenciales, Suricata y comparación; no cambia contratos ni scoping del
+  backend. Implementado el primer pase visual: componentes compartidos de
+  métricas/rango/modo/tooltip; overview con cards, área-barra-línea, brush y
+  donut; credenciales con composición barra+línea y ranking horizontal;
+  Suricata con modos de serie, distribución y ranking; comparación con KPIs,
+  modos de serie y share por entidad. Pendiente validación visual responsive,
+  accesibilidad y ajustes derivados del QA. Validación técnica: `tsc --noEmit`,
+  build de producción de Next.js y 71 tests del dashboard en verde. El intento
+  de QA en navegador llegó al onboarding `/setup` porque el entorno local no
+  tiene una sesión/instalación configurada; repetir el pase desktop+móvil con
+  una sesión válida y datos reales de ClickHouse.
 
 El resto de este plan detalla las Sub-fases 3d/3e de
 [KAFKA_LAKE.md](KAFKA_LAKE.md) — ese documento se queda con el diseño de alto
@@ -485,6 +502,36 @@ No es una ruta nueva: una vez que A y B existen, `/reports`
 rango largo casi gratis, reusando `analytics.service.ts`. Se hace **al
 final**, cuando A/B estén verificadas — no tiene sentido meterla en un reporte
 antes de confiar en los números.
+
+---
+
+## Fase G — Experiencia visual e interacción
+
+**Objetivo:** que un analista pueda responder en segundos cuánto cambió la
+actividad, qué fuente concentra el riesgo y dónde debe investigar, sin leer
+tablas crudas.
+
+**Dirección y estructura (2026-07-27):**
+
+1. Overview con cards de volumen, protocolos, pico y momentum; gráfica principal
+   interactiva, distribución por protocolo y ranking con share.
+2. Credential Intelligence con KPIs de intentos/éxito/campañas, composición
+   intentos vs. tasa de éxito y visualización de concentración de combinaciones.
+3. Suricata con volumen, severidad y concentración, serie temporal y ranking de
+   firmas/categorías.
+4. Comparison con KPIs globales, share por entidad, ranking y cambio entre
+   vistas cliente/sensor.
+5. Estados loading/empty/error coherentes, tooltips legibles, responsive,
+   navegación por teclado y respeto por `prefers-reduced-motion`.
+
+**Criterios de aceptación:**
+
+- Las gráficas derivan exclusivamente de endpoints tenant-scoped existentes.
+- Cada visual explica unidad, rango y agrupación; no usa “números bonitos” sin
+  significado operativo.
+- El selector temporal y los patrones de cards/gráficas son compartidos (DRY).
+- Las librerías pesadas de visualización se cargan solo en rutas de Analytics.
+- Verificación visual en desktop y viewport móvil, además de TypeScript/lint.
 
 ---
 

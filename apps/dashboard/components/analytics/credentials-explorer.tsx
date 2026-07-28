@@ -1,16 +1,20 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { Fingerprint, KeyRound, Network, ShieldCheck } from "lucide-react"
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer,
+  Bar, BarChart, CartesianGrid, ComposedChart, Line, ResponsiveContainer,
+  Tooltip, XAxis, YAxis,
 } from "recharts"
 import { Surface } from "@/components/ui/surface"
 import { EmptyState, ErrorState } from "@/components/ui/data-states"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { useT } from "@/components/locale-provider"
-import { type Range, RangeSelector, ChartTooltip, fmtBucketLabel, LoadingSpinner } from "./shared"
+import {
+  AnalyticsMetric, ChartHeader, ChartTooltip, compactNumber, fmtBucketLabel,
+  LoadingSpinner, type Range, RangeSelector,
+} from "./shared"
 
 type CredentialCombo = {
   username: string | null
@@ -36,7 +40,6 @@ type CredentialSuccessBucket = {
   total: number
   successRate: number
 }
-
 type Status = "loading" | "unavailable" | "error" | "ok"
 
 function useAnalyticsFetch<T>(url: string, extract: (body: unknown) => T[]) {
@@ -47,13 +50,13 @@ function useAnalyticsFetch<T>(url: string, extract: (body: unknown) => T[]) {
     const controller = new AbortController()
     setStatus("loading")
     fetch(url, { signal: controller.signal })
-      .then(async (res) => {
-        if (res.status === 503) { setStatus("unavailable"); return }
-        if (!res.ok) { setStatus("error"); return }
-        setRows(extract(await res.json()))
+      .then(async (response) => {
+        if (response.status === 503) { setStatus("unavailable"); return }
+        if (!response.ok) { setStatus("error"); return }
+        setRows(extract(await response.json()))
         setStatus("ok")
       })
-      .catch((err) => { if (err?.name !== "AbortError") setStatus("error") })
+      .catch((error) => { if (error?.name !== "AbortError") setStatus("error") })
     return () => controller.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url])
@@ -61,8 +64,6 @@ function useAnalyticsFetch<T>(url: string, extract: (body: unknown) => T[]) {
   return { status, rows }
 }
 
-// Only called for status !== "ok" — the empty/loaded cases are handled by
-// each section itself.
 function StatusPanel({ status, t }: { status: Exclude<Status, "ok">; t: ReturnType<typeof useT> }) {
   if (status === "loading") return <LoadingSpinner />
   if (status === "unavailable") return <EmptyState icon="activity" title={t("analytics.unavailable.title")} description={t("analytics.unavailable.description")} />
@@ -72,25 +73,41 @@ function StatusPanel({ status, t }: { status: Exclude<Status, "ok">; t: ReturnTy
 export default function CredentialsExplorer() {
   const t = useT()
   const [range, setRange] = useState<Range>("30d")
-
   const combos = useAnalyticsFetch<CredentialCombo>(
     `/api/analytics/credentials/top-combos?range=${range}&limit=20`,
-    (b) => (b as { data: CredentialCombo[] }).data,
+    (body) => (body as { data: CredentialCombo[] }).data,
   )
   const campaigns = useAnalyticsFetch<CredentialCampaign>(
     `/api/analytics/credentials/campaigns?range=${range}&limit=100`,
-    (b) => (b as { data: CredentialCampaign[] }).data,
+    (body) => (body as { data: CredentialCampaign[] }).data,
   )
   const successRate = useAnalyticsFetch<CredentialSuccessBucket>(
     `/api/analytics/credentials/success-rate?range=${range}`,
-    (b) => (b as { data: CredentialSuccessBucket[] }).data,
+    (body) => (body as { data: CredentialSuccessBucket[] }).data,
   )
 
-  const successPoints = successRate.rows.map((r) => ({
-    ...r,
-    label: fmtBucketLabel(r.bucket, range),
-    successRatePct: Math.round(r.successRate * 1000) / 10,
-  }))
+  const successPoints = useMemo(() => successRate.rows.map((row) => ({
+    ...row,
+    label: fmtBucketLabel(row.bucket, range),
+    successRatePct: Math.round(row.successRate * 1000) / 10,
+  })), [successRate.rows, range])
+
+  const comboPoints = useMemo(() => combos.rows.slice(0, 8).map((row) => ({
+    ...row,
+    label: `${row.username ?? "—"} / ${row.password ?? "—"}`,
+  })).reverse(), [combos.rows])
+
+  const metrics = useMemo(() => {
+    const total = successRate.rows.reduce((sum, row) => sum + row.total, 0)
+    const successes = successRate.rows.reduce((sum, row) => sum + row.successCount, 0)
+    const uniqueAttackers = new Set(campaigns.rows.map((row) => row.srcIp)).size
+    return {
+      total,
+      successRate: total ? (successes / total) * 100 : 0,
+      campaigns: campaigns.rows.length,
+      uniqueAttackers,
+    }
+  }, [campaigns.rows, successRate.rows])
 
   return (
     <div className="space-y-4">
@@ -98,78 +115,76 @@ export default function CredentialsExplorer() {
         <RangeSelector value={range} onChange={setRange} />
       </div>
 
-      {/* Top combos */}
-      <Surface className="overflow-hidden">
-        <div className="px-4 py-3 border-b border-border">
-          <p className="text-sm font-medium text-foreground">{t("analytics.credentials.topCombos.title")}</p>
-        </div>
-        {combos.status !== "ok" ? (
-          <StatusPanel status={combos.status} t={t} />
-        ) : combos.rows.length === 0 ? (
-          <EmptyState title={t("analytics.credentials.topCombos.empty")} />
-        ) : (
-          <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
-            <Table>
-              <TableHeader className="sticky top-0 z-10 bg-card">
-                <TableRow>
-                  <TableHead>{t("analytics.credentials.topCombos.col.username")}</TableHead>
-                  <TableHead>{t("analytics.credentials.topCombos.col.password")}</TableHead>
-                  <TableHead className="text-right">{t("analytics.credentials.topCombos.col.count")}</TableHead>
-                  <TableHead className="text-right">{t("analytics.credentials.topCombos.col.uniqueIps")}</TableHead>
-                  <TableHead>{t("analytics.credentials.topCombos.col.lastSeen")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {combos.rows.map((row, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="font-mono text-xs">{row.username ?? "—"}</TableCell>
-                    <TableCell className="font-mono text-xs">{row.password ?? "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{row.count.toLocaleString()}</TableCell>
-                    <TableCell className="text-right tabular-nums">{row.uniqueIps.toLocaleString()}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{new Date(row.lastSeen.replace(" ", "T")).toLocaleString()}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </Surface>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <AnalyticsMetric label={t("analytics.credentials.metric.attempts")} value={compactNumber(metrics.total)} detail={t("analytics.metric.selectedRange")} icon={<KeyRound className="h-4 w-4" />} tone="sky" />
+        <AnalyticsMetric label={t("analytics.credentials.metric.successRate")} value={`${metrics.successRate.toFixed(1)}%`} detail={t("analytics.credentials.metric.ssh")} icon={<ShieldCheck className="h-4 w-4" />} tone="rose" />
+        <AnalyticsMetric label={t("analytics.credentials.metric.campaigns")} value={compactNumber(metrics.campaigns)} detail={t("analytics.credentials.metric.bursts")} icon={<Network className="h-4 w-4" />} tone="amber" />
+        <AnalyticsMetric label={t("analytics.credentials.metric.attackers")} value={compactNumber(metrics.uniqueAttackers)} detail={t("analytics.credentials.metric.campaignSources")} icon={<Fingerprint className="h-4 w-4" />} tone="violet" />
+      </div>
 
-      {/* Success rate */}
-      <Surface padded className="space-y-3">
-        <div>
-          <p className="text-sm font-medium text-foreground">{t("analytics.credentials.successRate.title")}</p>
-          <p className="text-xs text-muted-foreground">{t("analytics.credentials.successRate.description")}</p>
-        </div>
-        {successRate.status !== "ok" ? (
-          <StatusPanel status={successRate.status} t={t} />
-        ) : successPoints.length === 0 ? (
-          <EmptyState title={t("analytics.credentials.topCombos.empty")} />
-        ) : (
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={successPoints} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} width={40} tickFormatter={(v) => `${v}%`} />
-              <Tooltip content={<ChartTooltip />} />
-              <Line type="monotone" dataKey="successRatePct" name="Success %" stroke="#f87171" strokeWidth={1.5} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </Surface>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,.65fr)]">
+        <Surface padded className="min-w-0 space-y-4">
+          <ChartHeader
+            eyebrow={t("analytics.signal.eyebrow")}
+            title={t("analytics.credentials.successRate.title")}
+            description={t("analytics.credentials.successRate.description")}
+          />
+          {successRate.status !== "ok" ? (
+            <StatusPanel status={successRate.status} t={t} />
+          ) : successPoints.length === 0 ? (
+            <EmptyState title={t("analytics.credentials.topCombos.empty")} />
+          ) : (
+            <ResponsiveContainer width="100%" height={340}>
+              <ComposedChart data={successPoints} margin={{ top: 12, right: 0, left: -12, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="credential-failed" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f87171" stopOpacity={0.85} />
+                    <stop offset="100%" stopColor="#f87171" stopOpacity={0.3} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid vertical={false} strokeDasharray="3 5" stroke="rgba(255,255,255,0.055)" />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} minTickGap={28} />
+                <YAxis yAxisId="count" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} width={46} tickFormatter={compactNumber} />
+                <YAxis yAxisId="rate" orientation="right" domain={[0, 100]} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} width={42} tickFormatter={(value) => `${value}%`} />
+                <Tooltip content={<ChartTooltip />} />
+                <Bar yAxisId="count" dataKey="failedCount" name={t("analytics.credentials.campaigns.col.failed")} stackId="attempts" fill="url(#credential-failed)" radius={[2, 2, 0, 0]} />
+                <Bar yAxisId="count" dataKey="successCount" name={t("analytics.credentials.campaigns.col.success")} stackId="attempts" fill="#34d399" fillOpacity={0.8} radius={[2, 2, 0, 0]} />
+                <Line yAxisId="rate" type="monotone" dataKey="successRatePct" name={t("analytics.credentials.metric.successRate")} stroke="#fbbf24" strokeWidth={2.2} dot={false} activeDot={{ r: 4 }} unit="%" />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
+        </Surface>
 
-      {/* Campaigns */}
+        <Surface padded className="min-w-0 space-y-4">
+          <ChartHeader title={t("analytics.credentials.topCombos.title")} description={t("analytics.credentials.topCombos.chartDescription")} />
+          {combos.status !== "ok" ? (
+            <StatusPanel status={combos.status} t={t} />
+          ) : comboPoints.length === 0 ? (
+            <EmptyState title={t("analytics.credentials.topCombos.empty")} />
+          ) : (
+            <ResponsiveContainer width="100%" height={340}>
+              <BarChart data={comboPoints} layout="vertical" margin={{ top: 4, right: 12, left: 12, bottom: 0 }}>
+                <CartesianGrid horizontal={false} strokeDasharray="3 5" stroke="rgba(255,255,255,0.055)" />
+                <XAxis type="number" hide />
+                <YAxis type="category" dataKey="label" width={112} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} tickFormatter={(value) => String(value).slice(0, 18)} />
+                <Tooltip content={<ChartTooltip />} />
+                <Bar dataKey="count" name={t("analytics.credentials.topCombos.col.count")} fill="#38bdf8" fillOpacity={0.8} radius={[0, 5, 5, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Surface>
+      </div>
+
       <Surface className="overflow-hidden">
-        <div className="px-4 py-3 border-b border-border">
-          <p className="text-sm font-medium text-foreground">{t("analytics.credentials.campaigns.title")}</p>
-          <p className="text-xs text-muted-foreground">{t("analytics.credentials.campaigns.description", { min: "10", window: "5" })}</p>
+        <div className="border-b border-border px-4 py-3">
+          <ChartHeader title={t("analytics.credentials.campaigns.title")} description={t("analytics.credentials.campaigns.description", { min: "10", window: "5" })} />
         </div>
         {campaigns.status !== "ok" ? (
           <StatusPanel status={campaigns.status} t={t} />
         ) : campaigns.rows.length === 0 ? (
           <EmptyState title={t("analytics.credentials.campaigns.empty")} />
         ) : (
-          <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
+          <div className="max-h-[420px] overflow-auto">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow>
@@ -182,18 +197,14 @@ export default function CredentialsExplorer() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {campaigns.rows.map((row, i) => (
-                  <TableRow key={i}>
+                {campaigns.rows.map((row, index) => (
+                  <TableRow key={`${row.bucket}-${row.srcIp}-${index}`}>
                     <TableCell className="text-xs text-muted-foreground">{new Date(row.bucket.replace(" ", "T")).toLocaleString()}</TableCell>
                     <TableCell className="font-mono text-xs">{row.srcIp}</TableCell>
-                    <TableCell className="text-right tabular-nums">{row.attempts.toLocaleString()}</TableCell>
-                    <TableCell className="text-right tabular-nums text-success">{row.successCount.toLocaleString()}</TableCell>
-                    <TableCell className="text-right tabular-nums text-destructive">{row.failedCount.toLocaleString()}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {row.protocols.map((p) => <Badge key={p} variant="muted">{p}</Badge>)}
-                      </div>
-                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">{row.attempts.toLocaleString()}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums text-emerald-300">{row.successCount.toLocaleString()}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums text-rose-300">{row.failedCount.toLocaleString()}</TableCell>
+                    <TableCell><div className="flex flex-wrap gap-1">{row.protocols.map((protocol) => <Badge key={protocol} variant="muted">{protocol}</Badge>)}</div></TableCell>
                   </TableRow>
                 ))}
               </TableBody>

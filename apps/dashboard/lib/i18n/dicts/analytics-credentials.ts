@@ -21,6 +21,14 @@ export const en = {
   "analytics.credentials.campaigns.empty": "No brute-force bursts in this range.",
   "analytics.credentials.successRate.title": "Login success rate (SSH)",
   "analytics.credentials.successRate.description": "Share of cowrie login attempts that succeeded, over time.",
+  "analytics.credentials.topCombos.chartDescription": "The credential pairs receiving the most pressure.",
+  "analytics.credentials.metric.attempts": "SSH attempts",
+  "analytics.credentials.metric.successRate": "Success rate",
+  "analytics.credentials.metric.ssh": "Weighted across SSH attempts",
+  "analytics.credentials.metric.campaigns": "Detected bursts",
+  "analytics.credentials.metric.bursts": "Campaign windows in range",
+  "analytics.credentials.metric.attackers": "Campaign sources",
+  "analytics.credentials.metric.campaignSources": "Unique source IPs in bursts",
 } as const
 
 export const es: Record<keyof typeof en, string> = {
@@ -43,4 +51,12 @@ export const es: Record<keyof typeof en, string> = {
   "analytics.credentials.campaigns.empty": "No hay ráfagas de fuerza bruta en este rango.",
   "analytics.credentials.successRate.title": "Tasa de éxito de login (SSH)",
   "analytics.credentials.successRate.description": "Proporción de intentos de login de cowrie que tuvieron éxito, en el tiempo.",
+  "analytics.credentials.topCombos.chartDescription": "Los pares de credenciales que reciben mayor presión.",
+  "analytics.credentials.metric.attempts": "Intentos SSH",
+  "analytics.credentials.metric.successRate": "Tasa de éxito",
+  "analytics.credentials.metric.ssh": "Ponderada sobre los intentos SSH",
+  "analytics.credentials.metric.campaigns": "Ráfagas detectadas",
+  "analytics.credentials.metric.bursts": "Ventanas de campaña en el rango",
+  "analytics.credentials.metric.attackers": "Orígenes de campaña",
+  "analytics.credentials.metric.campaignSources": "IPs de origen únicas en ráfagas",
 }

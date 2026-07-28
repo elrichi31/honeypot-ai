@@ -1,15 +1,18 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { Activity, Crosshair, Layers3, ShieldAlert } from "lucide-react"
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend,
+  Area, Bar, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart,
+  ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts"
 import { Surface } from "@/components/ui/surface"
 import { EmptyState, ErrorState } from "@/components/ui/data-states"
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { useT } from "@/components/locale-provider"
-import { type Range, RangeSelector, ChartTooltip, CHART_COLORS, fmtBucketLabel, LoadingSpinner } from "./shared"
+import {
+  AnalyticsMetric, type ChartMode, ChartHeader, ChartModeSelector, ChartTooltip,
+  CHART_COLORS, compactNumber, fmtBucketLabel, LoadingSpinner, type Range, RangeSelector,
+} from "./shared"
 
 type GroupBy = "signature" | "category"
 type TrendPoint = { bucket: string; group: string; count: number; severity: number }
@@ -17,7 +20,7 @@ type TrendTotal = { group: string; count: number; severity: number }
 type Point = { bucket: string; label: string } & Record<string, number | string>
 
 function pivot(rows: TrendPoint[], range: Range): { groups: string[]; points: Point[] } {
-  const groups = [...new Set(rows.map((r) => r.group))]
+  const groups = [...new Set(rows.map((row) => row.group))]
   const byBucket = new Map<string, Point>()
   for (const row of rows) {
     let point = byBucket.get(row.bucket)
@@ -34,6 +37,7 @@ export default function SuricataTrendsChart() {
   const t = useT()
   const [range, setRange] = useState<Range>("90d")
   const [groupBy, setGroupBy] = useState<GroupBy>("signature")
+  const [mode, setMode] = useState<ChartMode>("area")
   const [groups, setGroups] = useState<string[]>([])
   const [points, setPoints] = useState<Point[]>([])
   const [top, setTop] = useState<TrendTotal[]>([])
@@ -41,21 +45,21 @@ export default function SuricataTrendsChart() {
   const [unavailable, setUnavailable] = useState(false)
   const [error, setError] = useState(false)
 
-  const load = useCallback((r: Range, g: GroupBy, signal: AbortSignal) => {
+  const load = useCallback((selectedRange: Range, selectedGroup: GroupBy, signal: AbortSignal) => {
     setLoading(true)
     setError(false)
     setUnavailable(false)
-    fetch(`/api/analytics/suricata-trends?range=${r}&groupBy=${g}&limit=10`, { signal })
-      .then(async (res) => {
-        if (res.status === 503) { setUnavailable(true); return }
-        if (!res.ok) { setError(true); return }
-        const body = (await res.json()) as { data: TrendPoint[]; top: TrendTotal[] }
-        const { groups: gs, points: pts } = pivot(body.data, r)
-        setGroups(gs)
-        setPoints(pts)
+    fetch(`/api/analytics/suricata-trends?range=${selectedRange}&groupBy=${selectedGroup}&limit=10`, { signal })
+      .then(async (response) => {
+        if (response.status === 503) { setUnavailable(true); return }
+        if (!response.ok) { setError(true); return }
+        const body = (await response.json()) as { data: TrendPoint[]; top: TrendTotal[] }
+        const next = pivot(body.data, selectedRange)
+        setGroups(next.groups)
+        setPoints(next.points)
         setTop(body.top)
       })
-      .catch((err) => { if (err?.name !== "AbortError") setError(true) })
+      .catch((fetchError) => { if (fetchError?.name !== "AbortError") setError(true) })
       .finally(() => { if (!signal.aborted) setLoading(false) })
   }, [])
 
@@ -65,81 +69,114 @@ export default function SuricataTrendsChart() {
     return () => controller.abort()
   }, [range, groupBy, load])
 
+  const summary = useMemo(() => {
+    const visibleAlerts = top.reduce((sum, row) => sum + row.count, 0)
+    const priorityOne = top.filter((row) => row.severity === 1).length
+    const concentration = visibleAlerts && top[0] ? (top[0].count / visibleAlerts) * 100 : 0
+    return { visibleAlerts, priorityOne, concentration }
+  }, [top])
+
+  const modeLabels = {
+    area: t("analytics.chart.area"),
+    bar: t("analytics.chart.bar"),
+    line: t("analytics.chart.line"),
+  }
+
+  if (loading) return <Surface><LoadingSpinner /></Surface>
+  if (unavailable) return <Surface><EmptyState icon="shield" title={t("analytics.unavailable.title")} description={t("analytics.unavailable.description")} /></Surface>
+  if (error) return <Surface><ErrorState /></Surface>
+  if (points.length === 0) return <Surface><EmptyState title={t("analytics.suricataTrends.empty")} /></Surface>
+
   return (
     <div className="space-y-4">
-      <Surface padded className="space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex rounded-lg border border-border overflow-hidden">
-            {(["signature", "category"] as const).map((g) => (
-              <button
-                key={g}
-                onClick={() => setGroupBy(g)}
-                className={`px-3 py-1 text-[11px] transition-colors ${groupBy === g ? "bg-white/[0.08] text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]"}`}
-              >
-                {t(g === "signature" ? "analytics.suricataTrends.groupBy.signature" : "analytics.suricataTrends.groupBy.category")}
-              </button>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="inline-flex rounded-lg border border-border bg-background/50 p-0.5">
+          {(["signature", "category"] as const).map((group) => (
+            <button
+              key={group}
+              type="button"
+              onClick={() => setGroupBy(group)}
+              aria-pressed={groupBy === group}
+              className={`rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors ${groupBy === group ? "bg-white/[0.08] text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {t(group === "signature" ? "analytics.suricataTrends.groupBy.signature" : "analytics.suricataTrends.groupBy.category")}
+            </button>
+          ))}
+        </div>
+        <RangeSelector value={range} onChange={setRange} />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <AnalyticsMetric label={t("analytics.suricataTrends.metric.visible")} value={compactNumber(summary.visibleAlerts)} detail={t("analytics.suricataTrends.metric.topTen")} icon={<Activity className="h-4 w-4" />} tone="sky" />
+        <AnalyticsMetric label={t("analytics.suricataTrends.metric.groups")} value={String(top.length)} detail={groupBy === "signature" ? t("analytics.suricataTrends.groupBy.signature") : t("analytics.suricataTrends.groupBy.category")} icon={<Layers3 className="h-4 w-4" />} tone="emerald" />
+        <AnalyticsMetric label={t("analytics.suricataTrends.metric.priorityOne")} value={String(summary.priorityOne)} detail={t("analytics.suricataTrends.metric.highestPriority")} icon={<ShieldAlert className="h-4 w-4" />} tone="rose" />
+        <AnalyticsMetric label={t("analytics.suricataTrends.metric.concentration")} value={`${summary.concentration.toFixed(1)}%`} detail={top[0]?.group ?? "—"} icon={<Crosshair className="h-4 w-4" />} tone="amber" />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <Surface padded className="min-w-0 space-y-5 overflow-hidden">
+          <ChartHeader
+            eyebrow={t("analytics.signal.eyebrow")}
+            title={t("analytics.suricataTrends.title")}
+            description={t("analytics.suricataTrends.description")}
+            actions={<ChartModeSelector value={mode} onChange={setMode} labels={modeLabels} />}
+          />
+          <ResponsiveContainer width="100%" height={380}>
+            <ComposedChart data={points} margin={{ top: 12, right: 8, left: -12, bottom: 0 }}>
+              <defs>
+                {groups.map((group, index) => (
+                  <linearGradient key={group} id={`suricata-${index}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={CHART_COLORS[index % CHART_COLORS.length]} stopOpacity={0.4} />
+                    <stop offset="100%" stopColor={CHART_COLORS[index % CHART_COLORS.length]} stopOpacity={0.02} />
+                  </linearGradient>
+                ))}
+              </defs>
+              <CartesianGrid vertical={false} strokeDasharray="3 5" stroke="rgba(255,255,255,0.055)" />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} minTickGap={28} />
+              <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} width={46} tickFormatter={compactNumber} />
+              <Tooltip content={<ChartTooltip />} />
+              <Legend wrapperStyle={{ fontSize: "10px", paddingTop: "10px" }} formatter={(value) => String(value).length > 28 ? `${String(value).slice(0, 28)}…` : value} />
+              {groups.map((group, index) => {
+                const shared = { key: group, dataKey: group, name: group, stroke: CHART_COLORS[index % CHART_COLORS.length] }
+                if (mode === "bar") return <Bar {...shared} stackId="alerts" fill={CHART_COLORS[index % CHART_COLORS.length]} fillOpacity={0.72} radius={[2, 2, 0, 0]} />
+                if (mode === "line") return <Line {...shared} type="monotone" strokeWidth={2} dot={false} />
+                return <Area {...shared} type="monotone" stackId="alerts" fill={`url(#suricata-${index})`} strokeWidth={1.5} />
+              })}
+            </ComposedChart>
+          </ResponsiveContainer>
+        </Surface>
+
+        <Surface padded className="space-y-4">
+          <ChartHeader title={t("analytics.suricataTrends.top.title")} description={t("analytics.suricataTrends.top.description")} />
+          <div className="relative">
+            <ResponsiveContainer width="100%" height={190}>
+              <PieChart>
+                <Pie data={top} dataKey="count" nameKey="group" innerRadius={54} outerRadius={78} paddingAngle={2} stroke="transparent">
+                  {top.map((row, index) => <Cell key={row.group} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
+                </Pie>
+                <Tooltip content={<ChartTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+              <span className="font-mono text-xl font-semibold text-foreground">{compactNumber(summary.visibleAlerts)}</span>
+              <span className="text-[9px] uppercase tracking-widest text-muted-foreground">{t("analytics.suricataTrends.col.count")}</span>
+            </div>
+          </div>
+          <div className="space-y-3">
+            {top.slice(0, 6).map((row, index) => (
+              <div key={row.group} className="space-y-1">
+                <div className="flex items-center justify-between gap-3 text-[11px]">
+                  <span className="truncate text-muted-foreground" title={row.group}>{index + 1}. {row.group}</span>
+                  <span className="shrink-0 font-mono text-foreground">{compactNumber(row.count)}</span>
+                </div>
+                <div className="h-1 overflow-hidden rounded-full bg-white/[0.05]">
+                  <div className="h-full rounded-full" style={{ width: `${top[0] ? (row.count / top[0].count) * 100 : 0}%`, backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                </div>
+              </div>
             ))}
           </div>
-          <RangeSelector value={range} onChange={setRange} />
-        </div>
-
-        {loading ? (
-          <LoadingSpinner />
-        ) : unavailable ? (
-          <EmptyState icon="shield" title={t("analytics.unavailable.title")} description={t("analytics.unavailable.description")} />
-        ) : error ? (
-          <ErrorState />
-        ) : points.length === 0 ? (
-          <EmptyState title={t("analytics.suricataTrends.empty")} />
-        ) : (
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={points} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} width={40} />
-              <Tooltip content={<ChartTooltip />} />
-              <Legend wrapperStyle={{ fontSize: "10px", paddingTop: "8px" }} />
-              {groups.map((name, i) => (
-                <Area
-                  key={name}
-                  type="monotone"
-                  dataKey={name}
-                  stackId="1"
-                  stroke={CHART_COLORS[i % CHART_COLORS.length]}
-                  fill={CHART_COLORS[i % CHART_COLORS.length]}
-                  fillOpacity={0.25}
-                />
-              ))}
-            </AreaChart>
-          </ResponsiveContainer>
-        )}
-      </Surface>
-
-      {top.length > 0 && (
-        <Surface className="overflow-hidden">
-          <div className="px-4 py-3 border-b border-border">
-            <p className="text-sm font-medium text-foreground">{t("analytics.suricataTrends.top.title")}</p>
-          </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("analytics.suricataTrends.col.name")}</TableHead>
-                <TableHead className="text-right">{t("analytics.suricataTrends.col.count")}</TableHead>
-                <TableHead className="text-right">{t("analytics.suricataTrends.col.severity")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {top.map((row) => (
-                <TableRow key={row.group}>
-                  <TableCell className="text-xs">{row.group}</TableCell>
-                  <TableCell className="text-right tabular-nums">{row.count.toLocaleString()}</TableCell>
-                  <TableCell className="text-right tabular-nums">{row.severity}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
         </Surface>
-      )}
+      </div>
     </div>
   )
 }

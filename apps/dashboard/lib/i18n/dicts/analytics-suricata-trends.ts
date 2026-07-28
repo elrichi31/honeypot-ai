@@ -11,6 +11,13 @@ export const en = {
   "analytics.suricataTrends.col.count": "Alerts",
   "analytics.suricataTrends.col.severity": "Min. severity",
   "analytics.suricataTrends.empty": "No Suricata alerts in this range yet.",
+  "analytics.suricataTrends.top.description": "Concentration within the top groups returned for this range.",
+  "analytics.suricataTrends.metric.visible": "Visible alert volume",
+  "analytics.suricataTrends.metric.topTen": "Across the top 10 groups",
+  "analytics.suricataTrends.metric.groups": "Tracked groups",
+  "analytics.suricataTrends.metric.priorityOne": "Priority 1 groups",
+  "analytics.suricataTrends.metric.highestPriority": "Highest Suricata priority",
+  "analytics.suricataTrends.metric.concentration": "Top concentration",
 } as const
 
 export const es: Record<keyof typeof en, string> = {
@@ -23,4 +30,11 @@ export const es: Record<keyof typeof en, string> = {
   "analytics.suricataTrends.col.count": "Alertas",
   "analytics.suricataTrends.col.severity": "Severidad mín.",
   "analytics.suricataTrends.empty": "Todavía no hay alertas de Suricata en este rango.",
+  "analytics.suricataTrends.top.description": "Concentración dentro de los grupos principales devueltos para este rango.",
+  "analytics.suricataTrends.metric.visible": "Volumen visible de alertas",
+  "analytics.suricataTrends.metric.topTen": "En los 10 grupos principales",
+  "analytics.suricataTrends.metric.groups": "Grupos rastreados",
+  "analytics.suricataTrends.metric.priorityOne": "Grupos prioridad 1",
+  "analytics.suricataTrends.metric.highestPriority": "Máxima prioridad de Suricata",
+  "analytics.suricataTrends.metric.concentration": "Concentración principal",
 }
