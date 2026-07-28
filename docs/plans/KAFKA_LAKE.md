@@ -361,6 +361,17 @@ uno tapaba al siguiente:**
    65536` en las 4 tablas Kafka, para que el tamaño de lote por inserción esté
    acotado sin importar cuánto crezca el backlog — así no vuelve a pasar
    aunque el volumen suba.
+7. **`fetch failed` — ClickHouse inalcanzable desde otros contenedores**
+   (encontrado 2026-07-27 usando el endpoint de ANALYTICS_MODULE, no durante
+   el deploy original). Sin `CLICKHOUSE_LISTEN_HOST` seteado, el entrypoint
+   por defecto arranca con `--listen_host=127.0.0.1` — el propio healthcheck
+   de ClickHouse (corre *dentro* del contenedor) pasaba perfecto, pero
+   `ingest-api` (otro contenedor, misma red Docker) no podía llegar a
+   `clickhouse:8123` para nada: `docker ps` mostraba los dos "healthy" y aun
+   así la conexión fallaba. Fix: `CLICKHOUSE_LISTEN_HOST: "0.0.0.0"` en el
+   servicio `clickhouse` de los dos composes — sigue sin exponerse a
+   internet (sin `ports:` publicado), solo se vuelve alcanzable para el
+   resto de la red Docker interna, que es lo que siempre se necesitó.
 
 **Lección para la próxima vez que se agregue un servicio pesado nuevo:**
 Los límites de recursos "desde el día 1" son la decisión correcta (evitan
