@@ -5,6 +5,21 @@ const SESSION_FALLBACK_WINDOW = Prisma.sql`interval '2 hours'`
 
 export type Scope = { clientId: string; sensorIds: string[] } | null
 
+export type DeceptionNetworkMetrics = {
+  clientId: string
+  clientSlug: string
+  clientName: string
+  nodesTotal: number
+  nodesOnline: number
+  hits24h: number
+  hits7d: number
+  authAttempts24h: number
+  uniqueSrcIps24h: number
+  activeChains24h: number
+  distinctNodes24h: number
+  lastEvent: Date | null
+}
+
 export type KillChainStepRow = {
   node_id: string | null; node_name: string | null; protocol: string; dst_port: number
   event_type: string; username: string | null; password: string | null
@@ -20,6 +35,78 @@ function sensorScopeClause(scope: Scope, col = 'sensor_id'): Prisma.Sql {
 
 export class DeceptionRepository {
   constructor(private prismaRead: PrismaClient, private prisma: PrismaClient) {}
+
+  async getNetworks(): Promise<DeceptionNetworkMetrics[]> {
+    const [networks, activity] = await Promise.all([
+      this.prismaRead.$queryRaw<Array<{
+        client_id: string
+        client_slug: string
+        client_name: string
+        nodes_total: bigint
+        nodes_online: bigint
+      }>>`
+        SELECT c.id AS client_id, c.slug AS client_slug, c.name AS client_name,
+               COUNT(*)::bigint AS nodes_total,
+               COUNT(*) FILTER (WHERE s.last_seen >= NOW() - INTERVAL '2 minutes')::bigint AS nodes_online
+        FROM sensors s
+        JOIN clients c ON c.id = s.client_id
+        WHERE s.protocol = 'deception' AND s.client_id IS NOT NULL
+        GROUP BY c.id, c.slug, c.name
+      `,
+      this.prismaRead.$queryRaw<Array<{
+        client_id: string
+        hits_24h: bigint
+        hits_7d: bigint
+        auth_24h: bigint
+        unique_src_ips_24h: bigint
+        distinct_nodes_24h: bigint
+        active_chains_24h: bigint
+        last_event: Date | null
+      }>>`
+        SELECT s.client_id,
+               COUNT(*) FILTER (WHERE ph.timestamp >= NOW() - INTERVAL '24 hours')::bigint AS hits_24h,
+               COUNT(*)::bigint AS hits_7d,
+               COUNT(*) FILTER (
+                 WHERE ph.event_type = 'auth' AND ph.timestamp >= NOW() - INTERVAL '24 hours'
+               )::bigint AS auth_24h,
+               COUNT(DISTINCT ph.src_ip) FILTER (
+                 WHERE ph.timestamp >= NOW() - INTERVAL '24 hours'
+               )::bigint AS unique_src_ips_24h,
+               COUNT(DISTINCT COALESCE(ph.data->>'node_id', ph.sensor_id)) FILTER (
+                 WHERE ph.timestamp >= NOW() - INTERVAL '24 hours'
+               )::bigint AS distinct_nodes_24h,
+               COUNT(DISTINCT COALESCE(ph.data->>'session_id', ph.src_ip)) FILTER (
+                 WHERE ph.timestamp >= NOW() - INTERVAL '24 hours'
+               )::bigint AS active_chains_24h,
+               MAX(ph.timestamp) AS last_event
+        FROM protocol_hits ph
+        JOIN sensors s ON s.sensor_id = ph.sensor_id
+        WHERE ${DECEPTION_FILTER}
+          AND ph.timestamp >= NOW() - INTERVAL '7 days'
+          AND s.client_id IS NOT NULL
+        GROUP BY s.client_id
+      `,
+    ])
+
+    const activityByClient = new Map(activity.map(row => [row.client_id, row]))
+    return networks.map(network => {
+      const row = activityByClient.get(network.client_id)
+      return {
+        clientId: network.client_id,
+        clientSlug: network.client_slug,
+        clientName: network.client_name,
+        nodesTotal: Number(network.nodes_total),
+        nodesOnline: Number(network.nodes_online),
+        hits24h: Number(row?.hits_24h ?? 0),
+        hits7d: Number(row?.hits_7d ?? 0),
+        authAttempts24h: Number(row?.auth_24h ?? 0),
+        uniqueSrcIps24h: Number(row?.unique_src_ips_24h ?? 0),
+        activeChains24h: Number(row?.active_chains_24h ?? 0),
+        distinctNodes24h: Number(row?.distinct_nodes_24h ?? 0),
+        lastEvent: row?.last_event ?? null,
+      }
+    })
+  }
 
   async getOverview(scope: Scope) {
     const nodeWhere = scope

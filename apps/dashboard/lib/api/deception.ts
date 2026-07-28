@@ -10,6 +10,23 @@ export type DeceptionOverview = {
   lastEvent: string | null
 }
 
+export type DeceptionNetworkStatus = "quiet" | "active" | "breached"
+
+export type DeceptionNetworkSummary = {
+  clientId: string
+  clientSlug: string
+  clientName: string
+  nodesTotal: number
+  nodesOnline: number
+  hits24h: number
+  hits7d: number
+  authAttempts24h: number
+  uniqueSrcIps24h: number
+  activeChains24h: number
+  lastEvent: string | null
+  status: DeceptionNetworkStatus
+}
+
 export type DeceptionNode = {
   sensorId: string
   name: string
@@ -91,6 +108,11 @@ export type DeceptionPortscan = {
 export type DeceptionPortscansResponse = {
   data: DeceptionPortscan[]
   meta: { page: number; limit: number; total: number }
+}
+
+/** One row per client that owns a deception network — the /deception index. */
+export function fetchDeceptionNetworks(): Promise<DeceptionNetworkSummary[]> {
+  return apiFetch(`${getApiUrl()}/deception/networks`, 30)
 }
 
 export function fetchDeceptionOverview(): Promise<DeceptionOverview> {

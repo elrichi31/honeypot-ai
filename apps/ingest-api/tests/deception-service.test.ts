@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { buildKillchains } from '../src/modules/deception/deception.service.js'
-import type { KillChainStepRow } from '../src/modules/deception/deception.repository.js'
+import { buildKillchains, buildNetworkSummaries } from '../src/modules/deception/deception.service.js'
+import type {
+  DeceptionNetworkMetrics,
+  KillChainStepRow,
+} from '../src/modules/deception/deception.repository.js'
 
 function row(overrides: Partial<KillChainStepRow>): KillChainStepRow {
   return {
@@ -54,5 +57,44 @@ describe('buildKillchains', () => {
       row({ session_id: 'newer', timestamp: new Date('2026-07-05T11:00:00Z') }),
     ])
     expect(chains.map(c => c.key)).toEqual(['newer', 'older'])
+  })
+})
+
+describe('buildNetworkSummaries', () => {
+  it('assigns statuses and sorts breached, active, then quiet', () => {
+    const network = (
+      clientId: string,
+      hits24h: number,
+      distinctNodes24h: number,
+      lastEvent: Date | null,
+    ): DeceptionNetworkMetrics => ({
+      clientId,
+      clientSlug: clientId,
+      clientName: clientId,
+      nodesTotal: 2,
+      nodesOnline: 2,
+      hits24h,
+      hits7d: hits24h,
+      authAttempts24h: 0,
+      uniqueSrcIps24h: 0,
+      activeChains24h: 0,
+      distinctNodes24h,
+      lastEvent,
+    })
+
+    const summaries = buildNetworkSummaries([
+      network('quiet', 0, 0, null),
+      network('active-older', 3, 1, new Date('2026-07-28T10:00:00Z')),
+      network('active-newer', 1, 1, new Date('2026-07-28T11:00:00Z')),
+      network('breached', 4, 2, new Date('2026-07-28T09:00:00Z')),
+    ])
+
+    expect(summaries.map(({ clientId, status }) => ({ clientId, status }))).toEqual([
+      { clientId: 'breached', status: 'breached' },
+      { clientId: 'active-newer', status: 'active' },
+      { clientId: 'active-older', status: 'active' },
+      { clientId: 'quiet', status: 'quiet' },
+    ])
+    expect(summaries.every(summary => !('distinctNodes24h' in summary))).toBe(true)
   })
 })

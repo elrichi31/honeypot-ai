@@ -1,10 +1,19 @@
 import type { PrismaClient } from '@prisma/client'
 import type { FastifyInstance } from 'fastify'
-import { DeceptionRepository, type Scope, type KillChainStepRow } from './deception.repository.js'
+import {
+  DeceptionRepository,
+  type DeceptionNetworkMetrics,
+  type Scope,
+  type KillChainStepRow,
+} from './deception.repository.js'
 import { resolveClientSensors } from '../../lib/client-helpers.js'
 import { withCache } from '../../lib/cache-helper.js'
 
 export type { Scope }
+
+export type DeceptionNetworkSummary = Omit<DeceptionNetworkMetrics, 'distinctNodes24h'> & {
+  status: 'quiet' | 'active' | 'breached'
+}
 
 export class DeceptionService {
   private repo: DeceptionRepository
@@ -15,6 +24,13 @@ export class DeceptionService {
 
   async resolveScope(clientSlug: string): Promise<Scope | null> {
     return resolveClientSensors(this.repo['prismaRead'], clientSlug)
+  }
+
+  getNetworks(cache: FastifyInstance['cache']) {
+    return withCache(cache, 'deception:networks', 30, async () => {
+      const networks = await this.repo.getNetworks()
+      return buildNetworkSummaries(networks)
+    })
   }
 
   getOverview(cache: FastifyInstance['cache'], scope: Scope, cacheKey: string) {
@@ -43,6 +59,23 @@ export class DeceptionService {
   getPortscans(scope: Scope, page: number, limit: number, nodeId: string | null) {
     return this.repo.getPortscans(scope, page, limit, nodeId)
   }
+}
+
+export function buildNetworkSummaries(networks: DeceptionNetworkMetrics[]): DeceptionNetworkSummary[] {
+  const statusRank = { breached: 0, active: 1, quiet: 2 } as const
+
+  return networks
+    .map(({ distinctNodes24h, ...network }) => ({
+      ...network,
+      status: network.hits24h > 0
+        ? distinctNodes24h >= 2 ? 'breached' as const : 'active' as const
+        : 'quiet' as const,
+    }))
+    .sort((a, b) => {
+      const statusDifference = statusRank[a.status] - statusRank[b.status]
+      if (statusDifference !== 0) return statusDifference
+      return (b.lastEvent?.getTime() ?? 0) - (a.lastEvent?.getTime() ?? 0)
+    })
 }
 
 export function buildKillchains(steps: KillChainStepRow[]) {

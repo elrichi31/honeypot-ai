@@ -38,6 +38,11 @@ export async function deceptionRoutes(fastify: FastifyInstance) {
   })
 
   // ── Global ────────────────────────────────────────────────────────────────
+  fastify.get('/deception/networks', (request, reply) => {
+    if (!ensureIngestToken(request, reply)) return reply
+    return svc.getNetworks(fastify.cache).then(reply.send.bind(reply))
+  })
+
   fastify.get('/deception/overview', (request, reply) => {
     if (!ensureIngestToken(request, reply)) return reply
     return svc.getOverview(fastify.cache, null, 'deception:overview').then(reply.send.bind(reply))

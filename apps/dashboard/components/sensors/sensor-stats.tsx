@@ -5,7 +5,7 @@ import type { Sensor } from "@/lib/api"
 import { useT } from "@/components/locale-provider"
 import { useSensorLive } from "./sensor-live-context"
 
-function StatCell({ label, children }: { label: string; children: React.ReactNode }) {
+export function StatCell({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
       <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">{label}</p>

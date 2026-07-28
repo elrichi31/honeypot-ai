@@ -26,6 +26,7 @@ import * as iocs from "./dicts/iocs"
 import * as malware from "./dicts/malware"
 import * as suricata from "./dicts/suricata"
 import * as defense from "./dicts/defense"
+import * as deception from "./dicts/deception"
 import * as clientsCore from "./dicts/clients-core"
 import * as clientsDetail from "./dicts/clients-detail"
 import * as sensorsCore from "./dicts/sensors-core"
@@ -69,6 +70,7 @@ const en = {
   ...malware.en,
   ...suricata.en,
   ...defense.en,
+  ...deception.en,
   ...clientsCore.en,
   ...clientsDetail.en,
   ...sensorsCore.en,
@@ -106,6 +108,7 @@ const es: Record<TranslationKey, string> = {
   ...malware.es,
   ...suricata.es,
   ...defense.es,
+  ...deception.es,
   ...clientsCore.es,
   ...clientsDetail.es,
   ...sensorsCore.es,
