@@ -7,11 +7,13 @@ import {
   Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts"
 import { Surface } from "@/components/ui/surface"
+import { StatCard } from "@/components/ui/stat-card"
 import { EmptyState, ErrorState } from "@/components/ui/data-states"
 import { useT } from "@/components/locale-provider"
+import { getProtocolMarkerColor } from "@/lib/protocol-colors"
 import {
-  AnalyticsMetric, type ChartMode, ChartHeader, ChartModeSelector, ChartTooltip,
-  CHART_COLORS, compactNumber, fmtBucketLabel, LoadingSpinner, percentChange,
+  type ChartMode, ChartHeader, ChartModeSelector, ChartTooltip,
+  compactNumber, fmtBucketLabel, LoadingSpinner, percentChange,
   type Range, RangeSelector,
 } from "./shared"
 
@@ -118,33 +120,33 @@ export default function TrendsChart() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <AnalyticsMetric
+        <StatCard
           label={t("analytics.metric.events")}
           value={compactNumber(summary.total)}
-          detail={t("analytics.metric.selectedRange")}
-          icon={<Activity className="h-4 w-4" />}
-          tone="sky"
+          sub={t("analytics.metric.selectedRange")}
+          icon={<Activity className="h-4 w-4 text-sky-400" />}
+          mono
         />
-        <AnalyticsMetric
+        <StatCard
           label={t("analytics.metric.protocols")}
           value={String(protocols.length)}
-          detail={summary.totals[0]?.name ?? "—"}
-          icon={<Layers3 className="h-4 w-4" />}
-          tone="emerald"
+          sub={summary.totals[0]?.name ?? "—"}
+          icon={<Layers3 className="h-4 w-4 text-emerald-400" />}
+          mono
         />
-        <AnalyticsMetric
+        <StatCard
           label={t("analytics.metric.peak")}
           value={compactNumber(summary.peak.value)}
-          detail={summary.peak.point ? String(summary.peak.point.label) : "—"}
-          icon={<Gauge className="h-4 w-4" />}
-          tone="amber"
+          sub={summary.peak.point ? String(summary.peak.point.label) : "—"}
+          icon={<Gauge className="h-4 w-4 text-amber-400" />}
+          mono
         />
-        <AnalyticsMetric
+        <StatCard
           label={t("analytics.metric.momentum")}
           value={summary.momentum == null ? t("analytics.metric.new") : `${summary.momentum > 0 ? "+" : ""}${summary.momentum.toFixed(1)}%`}
-          detail={t("analytics.metric.periodComparison")}
-          icon={<TrendingUp className="h-4 w-4" />}
-          tone="rose"
+          sub={t("analytics.metric.periodComparison")}
+          icon={<TrendingUp className="h-4 w-4 text-rose-400" />}
+          mono
         />
       </div>
 
@@ -162,8 +164,8 @@ export default function TrendsChart() {
               <defs>
                 {protocols.map((protocol, index) => (
                   <linearGradient key={protocol} id={`trend-${index}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={CHART_COLORS[index % CHART_COLORS.length]} stopOpacity={0.42} />
-                    <stop offset="100%" stopColor={CHART_COLORS[index % CHART_COLORS.length]} stopOpacity={0.02} />
+                    <stop offset="0%" stopColor={getProtocolMarkerColor(protocol)} stopOpacity={0.42} />
+                    <stop offset="100%" stopColor={getProtocolMarkerColor(protocol)} stopOpacity={0.02} />
                   </linearGradient>
                 ))}
               </defs>
@@ -182,9 +184,9 @@ export default function TrendsChart() {
                   dataKey: protocol,
                   name: protocol,
                   hide: hidden.has(protocol),
-                  stroke: CHART_COLORS[index % CHART_COLORS.length],
+                  stroke: getProtocolMarkerColor(protocol),
                 }
-                if (mode === "bar") return <Bar {...shared} stackId="events" fill={CHART_COLORS[index % CHART_COLORS.length]} fillOpacity={0.72} radius={[2, 2, 0, 0]} />
+                if (mode === "bar") return <Bar {...shared} stackId="events" fill={getProtocolMarkerColor(protocol)} fillOpacity={0.72} radius={[2, 2, 0, 0]} />
                 if (mode === "line") return <Line {...shared} type="monotone" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
                 return <Area {...shared} type="monotone" stackId="events" fill={`url(#trend-${index})`} strokeWidth={1.6} />
               })}
@@ -199,7 +201,7 @@ export default function TrendsChart() {
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie data={summary.totals} dataKey="value" nameKey="name" innerRadius={66} outerRadius={92} paddingAngle={2} stroke="transparent">
-                  {summary.totals.map((item, index) => <Cell key={item.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
+                  {summary.totals.map((item) => <Cell key={item.name} fill={getProtocolMarkerColor(item.name)} />)}
                 </Pie>
                 <Tooltip content={<ChartTooltip />} />
               </PieChart>
@@ -210,14 +212,14 @@ export default function TrendsChart() {
             </div>
           </div>
           <div className="space-y-2.5">
-            {summary.totals.slice(0, 6).map((item, index) => (
+            {summary.totals.slice(0, 6).map((item) => (
               <button
                 type="button"
                 key={item.name}
                 onClick={() => toggleProtocol(item.name)}
                 className="group flex w-full items-center gap-2 text-left text-xs"
               >
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: getProtocolMarkerColor(item.name) }} />
                 <span className="min-w-0 flex-1 truncate text-muted-foreground group-hover:text-foreground">{item.name}</span>
                 <span className="font-mono tabular-nums text-foreground">{summary.total ? ((item.value / summary.total) * 100).toFixed(1) : 0}%</span>
               </button>

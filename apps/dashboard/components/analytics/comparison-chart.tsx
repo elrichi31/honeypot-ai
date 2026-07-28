@@ -7,10 +7,11 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts"
 import { Surface } from "@/components/ui/surface"
+import { StatCard } from "@/components/ui/stat-card"
 import { EmptyState, ErrorState } from "@/components/ui/data-states"
 import { useT } from "@/components/locale-provider"
 import {
-  AnalyticsMetric, type ChartMode, ChartHeader, ChartModeSelector, ChartTooltip,
+  type ChartMode, ChartHeader, ChartModeSelector, ChartTooltip,
   CHART_COLORS, compactNumber, fmtBucketLabel, LoadingSpinner, type Range, RangeSelector,
 } from "./shared"
 
@@ -119,10 +120,10 @@ export default function ComparisonChart() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <AnalyticsMetric label={t("analytics.comparison.metric.events")} value={compactNumber(summary.total)} detail={t("analytics.metric.selectedRange")} icon={<Activity className="h-4 w-4" />} tone="sky" />
-        <AnalyticsMetric label={t("analytics.comparison.metric.entities")} value={String(names.length)} detail={tab === "byClient" ? t("analytics.comparison.tab.byClient") : t("analytics.comparison.tab.bySensor")} icon={<Building2 className="h-4 w-4" />} tone="emerald" />
-        <AnalyticsMetric label={t("analytics.comparison.metric.leader")} value={summary.leader ? compactNumber(summary.leader.value) : "—"} detail={summary.leader?.name ?? "—"} icon={<Trophy className="h-4 w-4" />} tone="amber" />
-        <AnalyticsMetric label={t("analytics.comparison.metric.concentration")} value={`${summary.concentration.toFixed(1)}%`} detail={t("analytics.comparison.metric.leadingShare")} icon={<Gauge className="h-4 w-4" />} tone="violet" />
+        <StatCard label={t("analytics.comparison.metric.events")} value={compactNumber(summary.total)} sub={t("analytics.metric.selectedRange")} icon={<Activity className="h-4 w-4 text-sky-400" />} mono />
+        <StatCard label={t("analytics.comparison.metric.entities")} value={String(names.length)} sub={tab === "byClient" ? t("analytics.comparison.tab.byClient") : t("analytics.comparison.tab.bySensor")} icon={<Building2 className="h-4 w-4 text-emerald-400" />} mono />
+        <StatCard label={t("analytics.comparison.metric.leader")} value={summary.leader ? compactNumber(summary.leader.value) : "—"} sub={summary.leader?.name ?? "—"} icon={<Trophy className="h-4 w-4 text-amber-400" />} mono />
+        <StatCard label={t("analytics.comparison.metric.concentration")} value={`${summary.concentration.toFixed(1)}%`} sub={t("analytics.comparison.metric.leadingShare")} icon={<Gauge className="h-4 w-4 text-violet-400" />} mono />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">

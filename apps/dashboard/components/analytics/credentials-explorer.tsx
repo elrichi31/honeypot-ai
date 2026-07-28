@@ -1,18 +1,20 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Fingerprint, KeyRound, Network, ShieldCheck } from "lucide-react"
 import {
   Bar, BarChart, CartesianGrid, ComposedChart, Line, ResponsiveContainer,
   Tooltip, XAxis, YAxis,
 } from "recharts"
 import { Surface } from "@/components/ui/surface"
+import { StatCard } from "@/components/ui/stat-card"
 import { EmptyState, ErrorState } from "@/components/ui/data-states"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { useT } from "@/components/locale-provider"
 import {
-  AnalyticsMetric, ChartHeader, ChartTooltip, compactNumber, fmtBucketLabel,
+  ChartHeader, ChartTooltip, compactNumber, fmtBucketLabel,
   LoadingSpinner, type Range, RangeSelector,
 } from "./shared"
 
@@ -72,6 +74,7 @@ function StatusPanel({ status, t }: { status: Exclude<Status, "ok">; t: ReturnTy
 
 export default function CredentialsExplorer() {
   const t = useT()
+  const router = useRouter()
   const [range, setRange] = useState<Range>("30d")
   const combos = useAnalyticsFetch<CredentialCombo>(
     `/api/analytics/credentials/top-combos?range=${range}&limit=20`,
@@ -116,10 +119,10 @@ export default function CredentialsExplorer() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <AnalyticsMetric label={t("analytics.credentials.metric.attempts")} value={compactNumber(metrics.total)} detail={t("analytics.metric.selectedRange")} icon={<KeyRound className="h-4 w-4" />} tone="sky" />
-        <AnalyticsMetric label={t("analytics.credentials.metric.successRate")} value={`${metrics.successRate.toFixed(1)}%`} detail={t("analytics.credentials.metric.ssh")} icon={<ShieldCheck className="h-4 w-4" />} tone="rose" />
-        <AnalyticsMetric label={t("analytics.credentials.metric.campaigns")} value={compactNumber(metrics.campaigns)} detail={t("analytics.credentials.metric.bursts")} icon={<Network className="h-4 w-4" />} tone="amber" />
-        <AnalyticsMetric label={t("analytics.credentials.metric.attackers")} value={compactNumber(metrics.uniqueAttackers)} detail={t("analytics.credentials.metric.campaignSources")} icon={<Fingerprint className="h-4 w-4" />} tone="violet" />
+        <StatCard label={t("analytics.credentials.metric.attempts")} value={compactNumber(metrics.total)} sub={t("analytics.metric.selectedRange")} icon={<KeyRound className="h-4 w-4 text-sky-400" />} mono />
+        <StatCard label={t("analytics.credentials.metric.successRate")} value={`${metrics.successRate.toFixed(1)}%`} sub={t("analytics.credentials.metric.ssh")} icon={<ShieldCheck className="h-4 w-4 text-rose-400" />} mono />
+        <StatCard label={t("analytics.credentials.metric.campaigns")} value={compactNumber(metrics.campaigns)} sub={t("analytics.credentials.metric.bursts")} icon={<Network className="h-4 w-4 text-amber-400" />} mono />
+        <StatCard label={t("analytics.credentials.metric.attackers")} value={compactNumber(metrics.uniqueAttackers)} sub={t("analytics.credentials.metric.campaignSources")} icon={<Fingerprint className="h-4 w-4 text-violet-400" />} mono />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,.65fr)]">
@@ -177,6 +180,44 @@ export default function CredentialsExplorer() {
 
       <Surface className="overflow-hidden">
         <div className="border-b border-border px-4 py-3">
+          <ChartHeader title={t("analytics.credentials.topCombos.title")} description={t("analytics.credentials.topCombos.chartDescription")} />
+        </div>
+        {combos.status !== "ok" ? (
+          <StatusPanel status={combos.status} t={t} />
+        ) : combos.rows.length === 0 ? (
+          <EmptyState title={t("analytics.credentials.topCombos.empty")} />
+        ) : (
+          <div className="max-h-[420px] overflow-auto">
+            <Table>
+              <TableHeader className="sticky top-0 z-10 bg-card">
+                <TableRow>
+                  <TableHead>{t("analytics.credentials.topCombos.col.username")}</TableHead>
+                  <TableHead>{t("analytics.credentials.topCombos.col.password")}</TableHead>
+                  <TableHead className="text-right">{t("analytics.credentials.topCombos.col.count")}</TableHead>
+                  <TableHead className="text-right">{t("analytics.credentials.topCombos.col.uniqueIps")}</TableHead>
+                  <TableHead>{t("analytics.credentials.topCombos.col.firstSeen")}</TableHead>
+                  <TableHead>{t("analytics.credentials.topCombos.col.lastSeen")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {combos.rows.map((row, index) => (
+                  <TableRow key={`${row.username}-${row.password}-${index}`}>
+                    <TableCell className="font-mono text-xs">{row.username ?? "—"}</TableCell>
+                    <TableCell className="font-mono text-xs">{row.password ?? "—"}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">{row.count.toLocaleString()}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">{row.uniqueIps.toLocaleString()}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{new Date(row.firstSeen.replace(" ", "T")).toLocaleString()}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{new Date(row.lastSeen.replace(" ", "T")).toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </Surface>
+
+      <Surface className="overflow-hidden">
+        <div className="border-b border-border px-4 py-3">
           <ChartHeader title={t("analytics.credentials.campaigns.title")} description={t("analytics.credentials.campaigns.description", { min: "10", window: "5" })} />
         </div>
         {campaigns.status !== "ok" ? (
@@ -193,17 +234,23 @@ export default function CredentialsExplorer() {
                   <TableHead className="text-right">{t("analytics.credentials.campaigns.col.attempts")}</TableHead>
                   <TableHead className="text-right">{t("analytics.credentials.campaigns.col.success")}</TableHead>
                   <TableHead className="text-right">{t("analytics.credentials.campaigns.col.failed")}</TableHead>
+                  <TableHead className="text-right">{t("analytics.credentials.campaigns.col.unknown")}</TableHead>
                   <TableHead>{t("analytics.credentials.campaigns.col.protocols")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {campaigns.rows.map((row, index) => (
-                  <TableRow key={`${row.bucket}-${row.srcIp}-${index}`}>
+                  <TableRow
+                    key={`${row.bucket}-${row.srcIp}-${index}`}
+                    onClick={() => router.push(`/threats/${encodeURIComponent(row.srcIp)}`)}
+                    className="cursor-pointer"
+                  >
                     <TableCell className="text-xs text-muted-foreground">{new Date(row.bucket.replace(" ", "T")).toLocaleString()}</TableCell>
                     <TableCell className="font-mono text-xs">{row.srcIp}</TableCell>
                     <TableCell className="text-right font-mono tabular-nums">{row.attempts.toLocaleString()}</TableCell>
                     <TableCell className="text-right font-mono tabular-nums text-emerald-300">{row.successCount.toLocaleString()}</TableCell>
                     <TableCell className="text-right font-mono tabular-nums text-rose-300">{row.failedCount.toLocaleString()}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums text-muted-foreground">{row.unknownCount.toLocaleString()}</TableCell>
                     <TableCell><div className="flex flex-wrap gap-1">{row.protocols.map((protocol) => <Badge key={protocol} variant="muted">{protocol}</Badge>)}</div></TableCell>
                   </TableRow>
                 ))}

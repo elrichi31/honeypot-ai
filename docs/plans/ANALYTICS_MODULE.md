@@ -533,6 +533,65 @@ tablas crudas.
 - Las librerías pesadas de visualización se cargan solo en rutas de Analytics.
 - Verificación visual en desktop y viewport móvil, además de TypeScript/lint.
 
+**Ajuste de consistencia + interactividad (2026-07-27, mismo día):** el primer
+pase visual de Fase G había construido su propio "mini design system" en
+`components/analytics/shared.tsx` (tarjeta KPI con badges en gradiente,
+acento "sky" hardcodeado, tooltip propio, eyebrow labels) en vez de reusar los
+componentes ya establecidos en el resto del dashboard. Corregido:
+- `AnalyticsMetric` (custom) eliminado por completo — las 4 páginas
+  (`trends-chart.tsx`, `credentials-explorer.tsx`, `suricata-trends-chart.tsx`,
+  `comparison-chart.tsx`) ahora usan `StatCard` (`components/ui/stat-card.tsx`)
+  directamente, el mismo componente que usan `/suricata`, `/threats`,
+  `/web-attacks`, `/iocs` — sin wrapper intermedio (YAGNI, `StatCard` ya
+  hacía exactamente el trabajo).
+- `RangeSelector`/`ChartModeSelector` (`shared.tsx`): acento activo pasó de
+  `bg-sky-500/15 text-sky-300` a `bg-white/[0.08] text-foreground` — el mismo
+  tono neutro que ya usaban los selectores inline de tab/groupBy dentro de
+  `suricata-trends-chart.tsx`/`comparison-chart.tsx` (antes había dos acentos
+  distintos en las mismas páginas) y que usa el segmented control de
+  `monitoring/container-stats-chart.tsx`.
+- `ChartTooltip` (`shared.tsx`) restyleado a los tokens de `ChartTooltipContent`
+  (`components/ui/chart.tsx`): `border-border/50 bg-background rounded-lg`
+  en vez de `border-white/10 bg-card/95 backdrop-blur rounded-xl`.
+- `ChartHeader`'s eyebrow: de `text-sky-400` a `text-muted-foreground`
+  (se mantiene la estructura, se quita el tinte de marca).
+- Colores de protocolo en `trends-chart.tsx` (área/barra/línea + donut): de
+  `CHART_COLORS[index % ...]` (ciclo arbitrario) a `getProtocolMarkerColor()`
+  (`lib/protocol-colors.ts`) — el mismo mapa que usa el mapa en vivo y los
+  chips de IP, para que "ssh"/"http" no cambien de color según el orden en
+  que llegan del backend. Se agregaron alias `cowrie`→ssh, `web`→http,
+  `suricata`→ids a ese mapa (los "protocolos" de nivel superior que devuelve
+  `all_events`, sin equivalente previo en el mapa).
+- Suricata: donut/ranking/serie ahora colorean por severidad
+  (`SEVERITY_COLOR` en `suricata-trends-chart.tsx`, mismo mapeo 1-4 →
+  crítico/alto/medio/bajo que `SEVERITY_CONFIG` en `suricata-client.tsx`) en
+  vez de un color categórico arbitrario por índice — el color ahora comunica
+  riesgo real.
+- Nuevas interacciones con datos que ya se pedían al backend pero no se
+  mostraban: filas de la tabla de campañas de credenciales navegan a
+  `/threats/[ip]` (mismo patrón que `app/threats/threats-table.tsx`); nueva
+  tabla de "Top credential combos" con `uniqueIps`/`firstSeen`/`lastSeen`
+  (esos 3 campos venían del backend y tenían claves i18n ya reservadas —
+  `analytics-credentials.ts` col.username/password/uniqueIps/lastSeen — pero
+  nunca se habían renderizado); columna `unknownCount` agregada a la tabla de
+  campañas (también fetcheada y descartada antes).
+- Deliberadamente fuera de alcance por ahora: migrar los 4 charts a
+  `ChartContainer`/`ChartConfig` (`components/ui/chart.tsx`) — es un segundo
+  patrón legítimo ya presente en el codebase (`monitoring/container-stats-chart.tsx`
+  también usa recharts crudo + tooltip propio en vez de `ChartContainer`), y
+  las series de analytics son dinámicas (protocolos/firmas no se conocen en
+  build-time), lo que no calza tan bien con un `ChartConfig` estático. Se
+  dejó la implementación actual (recharts crudo + `ChartTooltip` restyleado)
+  en vez de forzar la migración — agregar si el segundo patrón deja de
+  tolerarse. Tampoco se migró `RangeSelector` a `TimeRangeFilter`
+  (`components/time-range-filter.tsx`, URL-driven `?range=`) porque maneja un
+  set de valores distinto (`7d/30d/90d/1y` vs `24h/7d/30d/all`) — forzarlo
+  hubiera sido más complejidad que beneficio.
+- Validado: `tsc --noEmit` limpio, 71 tests del dashboard en verde, build de
+  producción de Next.js sin errores (rutas `/analytics/*` y sus proxies
+  generadas correctamente). QA visual en navegador con datos reales todavía
+  pendiente (mismo pendiente que dejó el primer pase de Fase G).
+
 ---
 
 ## Prerequisitos y orden recomendado

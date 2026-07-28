@@ -7,17 +7,24 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts"
 import { Surface } from "@/components/ui/surface"
+import { StatCard } from "@/components/ui/stat-card"
 import { EmptyState, ErrorState } from "@/components/ui/data-states"
 import { useT } from "@/components/locale-provider"
 import {
-  AnalyticsMetric, type ChartMode, ChartHeader, ChartModeSelector, ChartTooltip,
-  CHART_COLORS, compactNumber, fmtBucketLabel, LoadingSpinner, type Range, RangeSelector,
+  type ChartMode, ChartHeader, ChartModeSelector, ChartTooltip,
+  compactNumber, fmtBucketLabel, LoadingSpinner, type Range, RangeSelector,
 } from "./shared"
 
 type GroupBy = "signature" | "category"
 type TrendPoint = { bucket: string; group: string; count: number; severity: number }
 type TrendTotal = { group: string; count: number; severity: number }
 type Point = { bucket: string; label: string } & Record<string, number | string>
+
+// Same severity→color convention as /suricata (app/suricata/suricata-client.tsx SEVERITY_CONFIG).
+const SEVERITY_COLOR: Record<number, string> = { 1: "#f87171", 2: "#fb923c", 3: "#facc15", 4: "#60a5fa" }
+function severityColor(severity: number): string {
+  return SEVERITY_COLOR[severity] ?? SEVERITY_COLOR[4]
+}
 
 function pivot(rows: TrendPoint[], range: Range): { groups: string[]; points: Point[] } {
   const groups = [...new Set(rows.map((row) => row.group))]
@@ -76,6 +83,12 @@ export default function SuricataTrendsChart() {
     return { visibleAlerts, priorityOne, concentration }
   }, [top])
 
+  const severityByGroup = useMemo(() => new Map(top.map((row) => [row.group, row.severity])), [top])
+  const colorForGroup = useCallback(
+    (group: string) => severityColor(severityByGroup.get(group) ?? 4),
+    [severityByGroup],
+  )
+
   const modeLabels = {
     area: t("analytics.chart.area"),
     bar: t("analytics.chart.bar"),
@@ -107,10 +120,10 @@ export default function SuricataTrendsChart() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <AnalyticsMetric label={t("analytics.suricataTrends.metric.visible")} value={compactNumber(summary.visibleAlerts)} detail={t("analytics.suricataTrends.metric.topTen")} icon={<Activity className="h-4 w-4" />} tone="sky" />
-        <AnalyticsMetric label={t("analytics.suricataTrends.metric.groups")} value={String(top.length)} detail={groupBy === "signature" ? t("analytics.suricataTrends.groupBy.signature") : t("analytics.suricataTrends.groupBy.category")} icon={<Layers3 className="h-4 w-4" />} tone="emerald" />
-        <AnalyticsMetric label={t("analytics.suricataTrends.metric.priorityOne")} value={String(summary.priorityOne)} detail={t("analytics.suricataTrends.metric.highestPriority")} icon={<ShieldAlert className="h-4 w-4" />} tone="rose" />
-        <AnalyticsMetric label={t("analytics.suricataTrends.metric.concentration")} value={`${summary.concentration.toFixed(1)}%`} detail={top[0]?.group ?? "—"} icon={<Crosshair className="h-4 w-4" />} tone="amber" />
+        <StatCard label={t("analytics.suricataTrends.metric.visible")} value={compactNumber(summary.visibleAlerts)} sub={t("analytics.suricataTrends.metric.topTen")} icon={<Activity className="h-4 w-4 text-sky-400" />} mono />
+        <StatCard label={t("analytics.suricataTrends.metric.groups")} value={String(top.length)} sub={groupBy === "signature" ? t("analytics.suricataTrends.groupBy.signature") : t("analytics.suricataTrends.groupBy.category")} icon={<Layers3 className="h-4 w-4 text-emerald-400" />} mono />
+        <StatCard label={t("analytics.suricataTrends.metric.priorityOne")} value={String(summary.priorityOne)} sub={t("analytics.suricataTrends.metric.highestPriority")} icon={<ShieldAlert className="h-4 w-4 text-rose-400" />} mono />
+        <StatCard label={t("analytics.suricataTrends.metric.concentration")} value={`${summary.concentration.toFixed(1)}%`} sub={top[0]?.group ?? "—"} icon={<Crosshair className="h-4 w-4 text-amber-400" />} mono />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -126,8 +139,8 @@ export default function SuricataTrendsChart() {
               <defs>
                 {groups.map((group, index) => (
                   <linearGradient key={group} id={`suricata-${index}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={CHART_COLORS[index % CHART_COLORS.length]} stopOpacity={0.4} />
-                    <stop offset="100%" stopColor={CHART_COLORS[index % CHART_COLORS.length]} stopOpacity={0.02} />
+                    <stop offset="0%" stopColor={colorForGroup(group)} stopOpacity={0.4} />
+                    <stop offset="100%" stopColor={colorForGroup(group)} stopOpacity={0.02} />
                   </linearGradient>
                 ))}
               </defs>
@@ -137,8 +150,8 @@ export default function SuricataTrendsChart() {
               <Tooltip content={<ChartTooltip />} />
               <Legend wrapperStyle={{ fontSize: "10px", paddingTop: "10px" }} formatter={(value) => String(value).length > 28 ? `${String(value).slice(0, 28)}…` : value} />
               {groups.map((group, index) => {
-                const shared = { key: group, dataKey: group, name: group, stroke: CHART_COLORS[index % CHART_COLORS.length] }
-                if (mode === "bar") return <Bar {...shared} stackId="alerts" fill={CHART_COLORS[index % CHART_COLORS.length]} fillOpacity={0.72} radius={[2, 2, 0, 0]} />
+                const shared = { key: group, dataKey: group, name: group, stroke: colorForGroup(group) }
+                if (mode === "bar") return <Bar {...shared} stackId="alerts" fill={colorForGroup(group)} fillOpacity={0.72} radius={[2, 2, 0, 0]} />
                 if (mode === "line") return <Line {...shared} type="monotone" strokeWidth={2} dot={false} />
                 return <Area {...shared} type="monotone" stackId="alerts" fill={`url(#suricata-${index})`} strokeWidth={1.5} />
               })}
@@ -152,7 +165,7 @@ export default function SuricataTrendsChart() {
             <ResponsiveContainer width="100%" height={190}>
               <PieChart>
                 <Pie data={top} dataKey="count" nameKey="group" innerRadius={54} outerRadius={78} paddingAngle={2} stroke="transparent">
-                  {top.map((row, index) => <Cell key={row.group} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
+                  {top.map((row) => <Cell key={row.group} fill={severityColor(row.severity)} />)}
                 </Pie>
                 <Tooltip content={<ChartTooltip />} />
               </PieChart>
@@ -170,7 +183,7 @@ export default function SuricataTrendsChart() {
                   <span className="shrink-0 font-mono text-foreground">{compactNumber(row.count)}</span>
                 </div>
                 <div className="h-1 overflow-hidden rounded-full bg-white/[0.05]">
-                  <div className="h-full rounded-full" style={{ width: `${top[0] ? (row.count / top[0].count) * 100 : 0}%`, backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                  <div className="h-full rounded-full" style={{ width: `${top[0] ? (row.count / top[0].count) * 100 : 0}%`, backgroundColor: severityColor(row.severity) }} />
                 </div>
               </div>
             ))}

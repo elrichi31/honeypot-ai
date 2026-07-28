@@ -1,6 +1,9 @@
 export const PROTOCOL_MARKER_COLOR: Record<string, string> = {
   ssh: "#f43f5e",
+  cowrie: "#f43f5e", // cowrie honeypot = ssh
   http: "#fb923c",
+  web: "#fb923c", // web honeypot = http
+  suricata: "#f87171", // IDS alerts, same family as `ids`
   ftp: "#facc15",
   mysql: "#c084fc",
   "port-scan": "#38bdf8",
