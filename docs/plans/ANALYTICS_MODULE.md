@@ -229,6 +229,19 @@ chart renderizando datos reales en el browser.
   de QA en navegador llegó al onboarding `/setup` porque el entorno local no
   tiene una sesión/instalación configurada; repetir el pase desktop+móvil con
   una sesión válida y datos reales de ClickHouse.
+- Fase G-backend (datos para exploración visual) — **backend implementado
+  (2026-07-27):** por definición explícita de alcance, este hilo trabaja solo
+  `ingest-api`; el frontend queda a cargo de otra persona. Se absorben H1 y H3:
+  tendencias tenant-scoped por sensor y ranking global cross-fuente de
+  atacantes. Ambos reutilizan el lake/scoping/cache actual y no agregan proxies
+  ni componentes al dashboard. Implementados repositorio/servicio/rutas y
+  pruebas de SQL, normalización, directorio de sensores, contrato HTTP, límites
+  y propagación de scope. El `UNION ALL` normalizado de las cuatro fuentes quedó
+  extraído en `analytics-all-events.repository.ts` y es compartido por Trends,
+  comparación y ranking. Validación local: build TypeScript limpio y suite
+  completa de `ingest-api` en verde (190 tests; 35 integraciones omitidas por
+  no tener `TEST_DATABASE_URL`). Pendiente solo contrastar resultados/latencia
+  con ClickHouse real después del backfill.
 
 El resto de este plan detalla las Sub-fases 3d/3e de
 [KAFKA_LAKE.md](KAFKA_LAKE.md) — ese documento se queda con el diseño de alto
@@ -533,6 +546,64 @@ tablas crudas.
 - Las librerías pesadas de visualización se cargan solo en rutas de Analytics.
 - Verificación visual en desktop y viewport móvil, además de TypeScript/lint.
 
+### Fase G-backend — contratos de datos
+
+Alcance acordado el 2026-07-27: implementar únicamente backend; cualquier
+consumo o representación visual queda fuera de este hilo.
+
+1. `GET /analytics/trends/by-sensor?range=&sensorIds=` devuelve
+   `{ bucket, sensorId, sensorName, count }[]`. Usa scope tenant normal, no el
+   gate global-superadmin de `/analytics/comparison`; el nombre se resuelve en
+   el servicio mediante el directorio Postgres existente.
+2. `GET /analytics/top-attackers?range=&limit=&sensorIds=` devuelve
+   `{ srcIp, count, firstSeen, lastSeen, sources }[]`, agregado sobre las cuatro
+   fuentes del lake y limitado obligatoriamente por `ClickHouseScope`.
+3. Las rutas solo validan/scopian/responden; SQL exclusivamente en repositorios,
+   composición y normalización en servicios, cache separado por rango/límite y
+   `scope.cacheSuffix`.
+4. Tests de consulta segura, propagación de scope, mapeo de sensor, contrato
+   HTTP y `503` sin ClickHouse. Validación contra datos reales sigue en la deuda
+   operativa hasta disponer del lake/backfill.
+
+**Implementado (2026-07-27):** `AnalyticsComparisonService` expone la serie
+scoped de sensores reutilizando su repositorio/directorio; el nuevo
+`AnalyticsRankingRepository` agrega atacantes sobre el subquery común de las
+cuatro fuentes y `AnalyticsRankingService` normaliza/cachea el contrato. Las dos
+rutas quedaron registradas en `analytics.controller.ts`, sin cambios en
+`apps/dashboard`.
+
+**Frontend de G-backend + H2 implementado (2026-07-27, mismo día):** 3
+proxies nuevos en `app/api/analytics/*` (mismo patrón que los 7 existentes):
+`trends/by-sensor/route.ts`, `top-attackers/route.ts`,
+`report-summary/route.ts` (este último no existía — Fase F nunca lo había
+conectado). Cambios en `/analytics`:
+- **H1 (desglose por sensor):** `trends-chart.tsx` ganó un toggle
+  "By protocol / By sensor" (mismo patrón visual que el toggle
+  signature/category de `suricata-trends-chart.tsx`) en vez de una página
+  separada — la fila de datos de `/trends/by-sensor` se remapea a la forma
+  `{bucket, protocol, count}` antes de pivotear, así el `pivot()`/KPI/chart
+  existentes de Fase A se reusan sin duplicar código. Los colores de sensor
+  usan el mismo ciclo categórico que `comparison-chart.tsx` (no hay mapa
+  canónico de color por sensor como sí existe para protocolos).
+- **H2 (resumen ejecutivo):** nuevo `components/analytics/overview-summary.tsx`
+  arriba del Trends Explorer — 3 `StatCard` (eventos totales 30d, tasa de éxito
+  de credenciales, top combo) alimentados por `report-summary`. Rango fijo a
+  30d a propósito (es un snapshot, no otro selector interactivo — el Trends
+  Explorer de abajo ya da control total del rango).
+- **H3 (top atacantes):** nuevo `components/analytics/top-attackers-table.tsx`
+  entre el Trends Explorer y las tarjetas de navegación — selector de rango
+  propio, filas clickeables a `/threats/[ip]` (mismo patrón `onClick` +
+  `cursor-pointer` que la tabla de campañas de credenciales).
+- 15 claves i18n nuevas en `analytics.ts` (90 líneas, sigue bajo el límite de
+  150 de `CLAUDE.md`).
+- Validado: `tsc --noEmit` limpio, 71 tests en verde, build de producción sin
+  errores (rutas `/api/analytics/trends/by-sensor`, `/api/analytics/top-attackers`,
+  `/api/analytics/report-summary` generadas). QA visual en navegador con datos
+  reales sigue pendiente (mismo motivo que el resto de Fase G: sin ClickHouse
+  local ni sesión autenticada disponibles en este entorno).
+- Fase F sigue con la otra mitad pendiente: `report-summary` ahora se consume
+  en `/analytics`, pero `/reports` (el PDF) todavía no lo usa.
+
 **Ajuste de consistencia + interactividad (2026-07-27, mismo día):** el primer
 pase visual de Fase G había construido su propio "mini design system" en
 `components/analytics/shared.tsx` (tarjeta KPI con badges en gradiente,
@@ -591,6 +662,140 @@ componentes ya establecidos en el resto del dashboard. Corregido:
   producción de Next.js sin errores (rutas `/analytics/*` y sus proxies
   generadas correctamente). QA visual en navegador con datos reales todavía
   pendiente (mismo pendiente que dejó el primer pase de Fase G).
+
+---
+
+## Deuda pendiente de Fases A-G (antes de sumar Fase H)
+
+No es trabajo nuevo — es re-surfacear lo que ya estaba anotado como pendiente
+en cada fase para que no se pierda entre tanto texto. **Ninguna de las fases
+B, C, D, E, G tiene verificación contra datos reales de ClickHouse todavía**
+— todas pasaron `tsc`/tests unitarios pero corrieron sin un ClickHouse local
+disponible. Antes (o en paralelo) de construir Fase H:
+
+1. **Correr el backfill (`./scripts/backfill-clickhouse.sh`, Sub-fase 3c de
+   KAFKA_LAKE)** — sigue sin correr. Sin esto, cualquier fase nueva se prueba
+   contra "un mes de historia" en vez del histórico real.
+2. **Fase B vs. matview**: correr Credential Intelligence en paralelo con
+   `credential_attempts` y comparar números en una ventana conocida — recién
+   ahí se retira el matview (Sub-fase 3e de KAFKA_LAKE, sigue vivo).
+3. **Fases C/D/E**: validar latencia y resultados contra ClickHouse con datos
+   reales — quedó explícitamente pendiente en las tres.
+4. **Fase F**: `report-summary` ya se consume en `/analytics` (H2, ver Fase G
+   arriba) — **pero sigue sin conectarse a `/reports`** (el PDF), que era el
+   objetivo original de la fase. Esa mitad sigue sin dueño.
+5. **Fase G**: QA visual en navegador con datos reales sigue pendiente (dos
+   intentos fallidos por falta de sesión/ClickHouse local — ver entradas de
+   Fase G arriba).
+
+Si la próxima persona/IA en tocar este módulo tiene acceso a un ClickHouse
+con datos (local o prod), resolver 1-3 primero da más valor que features
+nuevas: ahora mismo *nada* de B-G está confirmado contra datos reales.
+
+---
+
+## Fase H — Analítica avanzada (propuesta absorbida por G-backend)
+
+H1 y H3 quedaron implementadas el 2026-07-27 como Fase G-backend para respetar
+el alcance solicitado; **las tres (H1, H2, H3) tienen frontend implementado y
+conectado el mismo día** (ver entrada de Fase G arriba, "Frontend de
+G-backend + H2 implementado").
+
+### H1 — Desglose por sensor propio — **implementado (backend + frontend)**
+
+**Objetivo:** hoy un cliente con varios sensores no tiene forma de ver "¿cuál
+de mis sensores concentra más actividad?" dentro de `/analytics` — esa vista
+existe (Fase E, `bySensor`) pero está **gateada a superadmin** porque cruza
+tenants a propósito. Esto es la versión "solo mis sensores", disponible para
+cualquier rol.
+
+**Fuente:** el mismo `all_events` (UNION de Fase A) ya trae `sensor_id` por
+fila (`analytics.repository.ts` lo selecciona pero lo descarta al agregar
+por protocolo) — no hace falta tocar ClickHouse, solo agregar
+`GROUP BY sensor_id` además de `toStartOf*(timestamp)`, con el join a nombre
+de sensor **en la capa de servicio** vía Postgres (mismo patrón que
+`analytics-comparison.service.ts`, pero sin el join a `client_id` — acá el
+scope de tenant ya resuelve qué sensores puede ver el usuario).
+
+**Endpoint:** `GET /analytics/trends/by-sensor?range=&sensorIds=` →
+`{ bucket, sensorId, sensorName, count }[]` — **scope normal** (`?sensorIds=`
+resuelto server-side por `effectiveSensorScope()`, como Fase A/B/D), no el
+canal de superadmin de Fase E. Cualquier rol con acceso a analytics lo puede
+pedir; el propio scope ya limita a sus sensores.
+
+**UI (referencia para quien conecte el frontend):** el pivot y el gráfico ya
+existen en `comparison-chart.tsx` (`tab="bySensor"`) — es prácticamente el
+mismo componente sin el tab de cliente ni el gate de superadmin. Vive bien
+como una pestaña extra en `/analytics` (Trends) o un tab dentro de la propia
+página, no necesita ruta nueva.
+
+**Criterio de salida:** mismo que Fase A — la suma de todos los sensores de
+un tenant en una ventana coincide con el total que hoy da `/analytics/trends`
+sin desglose.
+
+### H2 — Resumen ejecutivo en `/analytics` — **implementado (frontend, 2026-07-27)**
+
+**Objetivo:** ahora mismo la landing de `/analytics` es solo el Trends
+Explorer + 3 tarjetas de navegación — se siente vacía como primera pantalla.
+`GET /analytics/report-summary` (Fase F) ya devuelve exactamente lo que hace
+falta (volumen histórico + top credenciales + serie de éxito Cowrie) pero
+**nadie lo consume** — Fase F lo dejó explícitamente para alimentar
+`/reports`, y eso tampoco se hizo (ver deuda pendiente arriba).
+
+**No hay endpoint nuevo que construir.** Esto es 100% trabajo de frontend:
+un proxy `app/api/analytics/report-summary/route.ts` (mismo patrón que los
+otros 6 proxies) + una tarjeta "Overview" arriba del Trends Explorer en
+`app/analytics/page.tsx`. Si la IA de backend llega hasta acá sin nada más
+que hacer, este ítem **no es para ella** — es la próxima tarea de frontend,
+y de paso resuelve la mitad de Fase F pendiente (la otra mitad, `/reports`,
+sigue siendo un trabajo aparte).
+
+### H3 — Top atacantes global cross-fuente — **implementado (backend + frontend)**
+
+**Objetivo:** hoy el único ranking de IPs dentro de analytics vive adentro de
+"campañas de fuerza bruta" (solo credenciales). Un ranking que cruce las 4
+fuentes — "¿quién nos pegó más este mes, sin importar SSH/web/protocolo/IDS?"
+— no existe todavía, y es el punto de entrada natural hacia el perfil
+cross-fuente que ya construyó Fase C.
+
+**Fuente:** `all_events` (vista/union de Fase A) `GROUP BY src_ip ORDER BY
+count DESC LIMIT N`, con el scope de tenant obligatorio de siempre. Agregar
+`min(timestamp)`/`max(timestamp)` como `firstSeen`/`lastSeen`, y qué tablas
+aportaron (`groupUniqArray` o equivalente sobre la columna `protocol` ya
+normalizada) para poder mostrar de qué vectores viene cada atacante — mismo
+uso que ya le da la UI a `protocols: string[]` en la tabla de campañas de
+credenciales.
+
+**Endpoint:** `GET /analytics/top-attackers?range=&limit=&sensorIds=` →
+`{ srcIp, count, firstSeen, lastSeen, sources: string[] }[]`.
+
+**UI (referencia):** una tabla más en `/analytics` (o su propia sub-ruta),
+mismo patrón de fila-clickeable-a-`/threats/[ip]` que ya se implementó en
+`credentials-explorer.tsx` (`onClick` + `cursor-pointer`, ver commit
+`7b79b72`) — el perfil cross-fuente de Fase C es exactamente lo que se abre
+al hacer click.
+
+**Criterio de salida:** mismo criterio de Fase A/E — verificar contra una
+consulta equivalente en Postgres para una ventana conocida antes de confiar
+en los números.
+
+### Backlog sin espec completa (mencionar, no implementar todavía)
+
+Salieron en la misma conversación pero son más trabajo y menos prioridad que
+H1/H3 — anotados para no perderlos, no para que la IA de backend los tome ya:
+
+- **Versiones de largo plazo de las vistas "foto actual" de `/insights`**:
+  Bot vs Human (`bot-ratio.tsx`, hoy fijo a 90d contra Postgres), Novelty
+  (`novelty-stats.tsx`, atacantes nuevos vs. recurrentes) y MITRE ATT&CK
+  (`mitre-matrix.tsx`) — llevarlas a ClickHouse como series temporales
+  (¿sube el % de bots en el tiempo? ¿crece la tasa de atacantes nuevos?)
+  sería la analítica más "ejecutiva" que le falta a la sección, pero son 3
+  fuentes/queries nuevas, no una extensión de lo que ya existe.
+- **Geográfico**: `/web-attacks/geo` ya tiene enriquecimiento IP→país: un
+  ranking/serie de países atacantes en el tiempo dentro de analytics
+  reutilizaría esa base, pero requiere confirmar que el país queda accesible
+  desde las tablas de ClickHouse (hoy no está en el schema de 3a/3b, según
+  este plan) antes de prometerlo.
 
 ---
 

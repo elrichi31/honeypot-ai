@@ -1,6 +1,7 @@
 import type { ClickHouseClient } from '@clickhouse/client'
 import type { PrismaClient } from '@prisma/client'
 import type { ClickHouseScope } from '../../lib/clickhouse-scope.js'
+import { ALL_ANALYTICS_EVENTS_SUBQUERY } from './analytics-all-events.repository.js'
 
 export type ComparisonGranularity = 'hour' | 'day' | 'week'
 
@@ -40,13 +41,7 @@ export class AnalyticsComparisonRepository {
           count() AS count
         FROM
         (
-          SELECT timestamp, sensor_id FROM cowrie_events
-          UNION ALL
-          SELECT timestamp, sensor_id FROM web_events
-          UNION ALL
-          SELECT timestamp, sensor_id FROM protocol_events
-          UNION ALL
-          SELECT timestamp, sensor_id FROM suricata_alerts
+          ${ALL_ANALYTICS_EVENTS_SUBQUERY}
         )
         WHERE timestamp >= now() - INTERVAL {rangeDays:UInt16} DAY
           ${scope.condition}

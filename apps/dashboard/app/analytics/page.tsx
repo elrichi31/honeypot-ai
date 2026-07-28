@@ -6,6 +6,8 @@ import { KeyRound, FileCode, GitCompare, ArrowRight } from "lucide-react"
 import { PageShell } from "@/components/page-shell"
 import { Surface } from "@/components/ui/surface"
 import { TrendsExplorer } from "@/components/analytics/trends-explorer"
+import { OverviewSummary } from "@/components/analytics/overview-summary"
+import { TopAttackersTable } from "@/components/analytics/top-attackers-table"
 import { requireRole } from "@/lib/roles"
 import { getServerT } from "@/lib/i18n/server"
 import { redirect } from "next/navigation"
@@ -37,7 +39,11 @@ export default async function AnalyticsPage() {
       </div>
 
       <div className="space-y-4">
+        <OverviewSummary />
+
         <TrendsExplorer />
+
+        <TopAttackersTable />
 
         <div className="grid gap-4 md:grid-cols-3">
           {links.map(({ href, icon: Icon, titleKey, descriptionKey }) => (

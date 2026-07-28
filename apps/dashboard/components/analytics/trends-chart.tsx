@@ -12,15 +12,27 @@ import { EmptyState, ErrorState } from "@/components/ui/data-states"
 import { useT } from "@/components/locale-provider"
 import { getProtocolMarkerColor } from "@/lib/protocol-colors"
 import {
-  type ChartMode, ChartHeader, ChartModeSelector, ChartTooltip,
+  CHART_COLORS, type ChartMode, ChartHeader, ChartModeSelector, ChartTooltip,
   compactNumber, fmtBucketLabel, LoadingSpinner, percentChange,
   type Range, RangeSelector,
 } from "./shared"
 
+type Breakdown = "protocol" | "sensor"
 type TrendBucket = { bucket: string; protocol: string; count: number }
 type TrendsResponse = { data: TrendBucket[] }
+type SensorTrendBucket = { bucket: string; sensorId: string; sensorName: string; count: number }
+type SensorTrendsResponse = { data: SensorTrendBucket[] }
 type Point = { bucket: string; label: string } & Record<string, number | string>
 
+// Colors are only meaningful per-protocol (lib/protocol-colors.ts is keyed by
+// protocol name) — sensor names have no canonical color, so they fall back to
+// the same index-cycled palette comparison-chart.tsx uses for client/sensor series.
+function colorFor(breakdown: Breakdown, name: string, index: number): string {
+  return breakdown === "protocol" ? getProtocolMarkerColor(name) : CHART_COLORS[index % CHART_COLORS.length]
+}
+
+// `protocols`/`row.protocol` below double as the generic "series key" — when
+// breakdown is "sensor" it holds the sensor name, not a protocol.
 function pivot(rows: TrendBucket[], range: Range): { protocols: string[]; points: Point[] } {
   const protocols = [...new Set(rows.map((row) => row.protocol))].sort()
   const byBucket = new Map<string, Point>()
@@ -47,6 +59,7 @@ function pointTotal(point: Point, protocols: string[]) {
 export default function TrendsChart() {
   const t = useT()
   const [range, setRange] = useState<Range>("30d")
+  const [breakdown, setBreakdown] = useState<Breakdown>("protocol")
   const [mode, setMode] = useState<ChartMode>("area")
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [protocols, setProtocols] = useState<string[]>([])
@@ -55,16 +68,23 @@ export default function TrendsChart() {
   const [unavailable, setUnavailable] = useState(false)
   const [error, setError] = useState(false)
 
-  const load = useCallback((selectedRange: Range, signal: AbortSignal) => {
+  const load = useCallback((selectedRange: Range, selectedBreakdown: Breakdown, signal: AbortSignal) => {
     setLoading(true)
     setError(false)
     setUnavailable(false)
-    fetch(`/api/analytics/trends?range=${selectedRange}`, { signal })
+    const url = selectedBreakdown === "protocol"
+      ? `/api/analytics/trends?range=${selectedRange}`
+      : `/api/analytics/trends/by-sensor?range=${selectedRange}`
+    fetch(url, { signal })
       .then(async (response) => {
         if (response.status === 503) { setUnavailable(true); return }
         if (!response.ok) { setError(true); return }
-        const body = (await response.json()) as TrendsResponse
-        const next = pivot(body.data, selectedRange)
+        const rows = selectedBreakdown === "protocol"
+          ? (await response.json() as TrendsResponse).data
+          : (await response.json() as SensorTrendsResponse).data.map((row) => ({
+              bucket: row.bucket, protocol: row.sensorName, count: row.count,
+            }))
+        const next = pivot(rows, selectedRange)
         setProtocols(next.protocols)
         setPoints(next.points)
         setHidden(new Set())
@@ -75,9 +95,9 @@ export default function TrendsChart() {
 
   useEffect(() => {
     const controller = new AbortController()
-    load(range, controller.signal)
+    load(range, breakdown, controller.signal)
     return () => controller.abort()
-  }, [range, load])
+  }, [range, breakdown, load])
 
   const summary = useMemo(() => {
     const totals = protocols.map((protocol) => ({
@@ -115,7 +135,20 @@ export default function TrendsChart() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="inline-flex rounded-lg border border-border bg-background/50 p-0.5">
+          {(["protocol", "sensor"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setBreakdown(option)}
+              aria-pressed={breakdown === option}
+              className={`rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors ${breakdown === option ? "bg-white/[0.08] text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {t(option === "protocol" ? "analytics.trends.breakdown.protocol" : "analytics.trends.breakdown.sensor")}
+            </button>
+          ))}
+        </div>
         <RangeSelector value={range} onChange={setRange} />
       </div>
 
@@ -128,7 +161,7 @@ export default function TrendsChart() {
           mono
         />
         <StatCard
-          label={t("analytics.metric.protocols")}
+          label={breakdown === "protocol" ? t("analytics.metric.protocols") : t("analytics.metric.sensors")}
           value={String(protocols.length)}
           sub={summary.totals[0]?.name ?? "—"}
           icon={<Layers3 className="h-4 w-4 text-emerald-400" />}
@@ -164,8 +197,8 @@ export default function TrendsChart() {
               <defs>
                 {protocols.map((protocol, index) => (
                   <linearGradient key={protocol} id={`trend-${index}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={getProtocolMarkerColor(protocol)} stopOpacity={0.42} />
-                    <stop offset="100%" stopColor={getProtocolMarkerColor(protocol)} stopOpacity={0.02} />
+                    <stop offset="0%" stopColor={colorFor(breakdown, protocol, index)} stopOpacity={0.42} />
+                    <stop offset="100%" stopColor={colorFor(breakdown, protocol, index)} stopOpacity={0.02} />
                   </linearGradient>
                 ))}
               </defs>
@@ -184,9 +217,9 @@ export default function TrendsChart() {
                   dataKey: protocol,
                   name: protocol,
                   hide: hidden.has(protocol),
-                  stroke: getProtocolMarkerColor(protocol),
+                  stroke: colorFor(breakdown, protocol, index),
                 }
-                if (mode === "bar") return <Bar {...shared} stackId="events" fill={getProtocolMarkerColor(protocol)} fillOpacity={0.72} radius={[2, 2, 0, 0]} />
+                if (mode === "bar") return <Bar {...shared} stackId="events" fill={colorFor(breakdown, protocol, index)} fillOpacity={0.72} radius={[2, 2, 0, 0]} />
                 if (mode === "line") return <Line {...shared} type="monotone" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
                 return <Area {...shared} type="monotone" stackId="events" fill={`url(#trend-${index})`} strokeWidth={1.6} />
               })}
@@ -196,12 +229,15 @@ export default function TrendsChart() {
         </Surface>
 
         <Surface padded className="space-y-4">
-          <ChartHeader title={t("analytics.distribution.title")} description={t("analytics.distribution.description")} />
+          <ChartHeader
+            title={breakdown === "protocol" ? t("analytics.distribution.title") : t("analytics.distribution.title.sensor")}
+            description={breakdown === "protocol" ? t("analytics.distribution.description") : t("analytics.distribution.description.sensor")}
+          />
           <div className="relative">
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie data={summary.totals} dataKey="value" nameKey="name" innerRadius={66} outerRadius={92} paddingAngle={2} stroke="transparent">
-                  {summary.totals.map((item) => <Cell key={item.name} fill={getProtocolMarkerColor(item.name)} />)}
+                  {summary.totals.map((item, index) => <Cell key={item.name} fill={colorFor(breakdown, item.name, index)} />)}
                 </Pie>
                 <Tooltip content={<ChartTooltip />} />
               </PieChart>
@@ -212,14 +248,14 @@ export default function TrendsChart() {
             </div>
           </div>
           <div className="space-y-2.5">
-            {summary.totals.slice(0, 6).map((item) => (
+            {summary.totals.slice(0, 6).map((item, index) => (
               <button
                 type="button"
                 key={item.name}
                 onClick={() => toggleProtocol(item.name)}
                 className="group flex w-full items-center gap-2 text-left text-xs"
               >
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: getProtocolMarkerColor(item.name) }} />
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorFor(breakdown, item.name, index) }} />
                 <span className="min-w-0 flex-1 truncate text-muted-foreground group-hover:text-foreground">{item.name}</span>
                 <span className="font-mono tabular-nums text-foreground">{summary.total ? ((item.value / summary.total) * 100).toFixed(1) : 0}%</span>
               </button>

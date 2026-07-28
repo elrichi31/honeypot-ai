@@ -248,4 +248,86 @@ describe('analytics routes', () => {
       { rangeDays: 30, sensorIds: ['sensor-a'] },
     ])
   })
+
+  it('returns scoped trends by sensor for regular analytics consumers', async () => {
+    const query = vi.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue([
+        { bucket: '2026-07-27 10:00:00', sensorId: 'sensor-a', count: '12' },
+      ]),
+    })
+    const prismaRead = {
+      $queryRaw: vi.fn().mockResolvedValue([
+        { sensorId: 'sensor-a', sensorName: 'Primary SSH', clientId: 'client-1', clientName: 'Acme' },
+      ]),
+    } as unknown as PrismaClient
+    const app = await createApp({ query } as unknown as ClickHouseClient, prismaRead)
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/analytics/trends/by-sensor?range=7d&sensorIds=sensor-a',
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({
+      range: '7d',
+      data: [
+        {
+          bucket: '2026-07-27 10:00:00',
+          sensorId: 'sensor-a',
+          sensorName: 'Primary SSH',
+          count: 12,
+        },
+      ],
+    })
+    expect(query.mock.calls[0]?.[0].query_params).toEqual({
+      rangeDays: 7,
+      sensorIds: ['sensor-a'],
+    })
+  })
+
+  it('returns a scoped cross-source attacker ranking and validates its limit', async () => {
+    const query = vi.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue([
+        {
+          srcIp: '203.0.113.8',
+          count: '42',
+          firstSeen: '2026-07-01 00:00:00',
+          lastSeen: '2026-07-27 00:00:00',
+          sources: ['suricata', 'cowrie'],
+        },
+      ]),
+    })
+    const app = await createApp({ query } as unknown as ClickHouseClient)
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/analytics/top-attackers?range=30d&limit=5&sensorIds=sensor-a',
+    })
+    const invalid = await app.inject({
+      method: 'GET',
+      url: '/analytics/top-attackers?limit=101',
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({
+      range: '30d',
+      limit: 5,
+      data: [
+        {
+          srcIp: '203.0.113.8',
+          count: 42,
+          firstSeen: '2026-07-01 00:00:00',
+          lastSeen: '2026-07-27 00:00:00',
+          sources: ['cowrie', 'suricata'],
+        },
+      ],
+    })
+    expect(query.mock.calls[0]?.[0].query_params).toEqual({
+      rangeDays: 30,
+      limit: 5,
+      sensorIds: ['sensor-a'],
+    })
+    expect(invalid.statusCode).toBe(400)
+    expect(query).toHaveBeenCalledTimes(1)
+  })
 })

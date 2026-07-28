@@ -8,6 +8,7 @@ import {
 import { AnalyticsAttackerService } from './analytics-attacker.service.js'
 import { AnalyticsSuricataService } from './analytics-suricata.service.js'
 import { AnalyticsComparisonService } from './analytics-comparison.service.js'
+import { AnalyticsRankingService } from './analytics-ranking.service.js'
 import { parseClickHouseScope } from '../../lib/clickhouse-scope.js'
 import { isInternalIp } from '../../lib/internal-ip.js'
 import { ensureControlApiToken, getControlActor } from '../../lib/control-auth.js'
@@ -47,6 +48,10 @@ const reportSummaryQuerySchema = z.object({
   range: rangeSchema.default('30d'),
   credentialLimit: z.coerce.number().int().min(1).max(50).default(10),
 })
+const topAttackersQuerySchema = z.object({
+  range: rangeSchema.default('30d'),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+})
 
 function parseAnalyticsQuery<T extends z.ZodTypeAny>(
   schema: T,
@@ -81,6 +86,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
   const attackerSvc = new AnalyticsAttackerService(fastify.clickhouse)
   const suricataSvc = new AnalyticsSuricataService(fastify.clickhouse)
   const comparisonSvc = new AnalyticsComparisonService(fastify.clickhouse, fastify.prismaRead)
+  const rankingSvc = new AnalyticsRankingService(fastify.clickhouse)
 
   // 503, not a silent fallback to Postgres — a single-host deploy without
   // ClickHouse should tell the UI "unavailable", not run a query that could
@@ -95,6 +101,35 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
       const data = await svc.getTrends(fastify.cache, q.range, q.protocol ?? null, scope)
       return { range: q.range, protocol: q.protocol ?? null, data }
     })
+  })
+
+  fastify.get('/analytics/trends/by-sensor', async (request, reply) => {
+    if (!comparisonSvc.enabled) {
+      return reply.status(503).send({ error: 'analytics_unavailable' })
+    }
+
+    const q = parseAnalyticsQuery(comparisonQuerySchema, request, reply)
+    if (!q) return reply
+    const scope = parseClickHouseScope(request.query as Record<string, unknown>)
+    return sendAnalyticsResponse(request, reply, async () => ({
+      range: q.range,
+      data: await comparisonSvc.getScopedSensorTrends(fastify.cache, q.range, scope),
+    }))
+  })
+
+  fastify.get('/analytics/top-attackers', async (request, reply) => {
+    if (!rankingSvc.enabled) {
+      return reply.status(503).send({ error: 'analytics_unavailable' })
+    }
+
+    const q = parseAnalyticsQuery(topAttackersQuerySchema, request, reply)
+    if (!q) return reply
+    const scope = parseClickHouseScope(request.query as Record<string, unknown>)
+    return sendAnalyticsResponse(request, reply, async () => ({
+      range: q.range,
+      limit: q.limit,
+      data: await rankingSvc.getTopAttackers(fastify.cache, q.range, q.limit, scope),
+    }))
   })
 
   fastify.get('/analytics/credentials/top-combos', async (request, reply) => {

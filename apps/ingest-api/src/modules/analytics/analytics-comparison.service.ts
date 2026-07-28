@@ -34,7 +34,15 @@ export type AnalyticsComparison = {
   byClient: ClientComparisonPoint[]
 }
 
+export type ScopedSensorTrendPoint = {
+  bucket: string
+  sensorId: string
+  sensorName: string
+  count: number
+}
+
 const COMPARISON_TTL_SECONDS = 600
+const SENSOR_TRENDS_TTL_SECONDS = 300
 const UNASSIGNED_CLIENT_NAME = 'Unassigned'
 
 export class AnalyticsComparisonService {
@@ -66,6 +74,25 @@ export class AnalyticsComparisonService {
         this.directory.list(),
       ])
       return buildComparison(rows, directoryRows)
+    })
+  }
+
+  async getScopedSensorTrends(
+    cache: FastifyInstance['cache'],
+    range: TrendRange,
+    scope: ClickHouseScope,
+  ): Promise<ScopedSensorTrendPoint[]> {
+    const repo = this.repo
+    if (!repo) throw new Error('analytics_unavailable')
+
+    const { days, granularity } = ANALYTICS_RANGE_CONFIG[range]
+    const cacheKey = `analytics:trends:by-sensor:${range}:${scope.cacheSuffix}`
+    return withCache(cache, cacheKey, SENSOR_TRENDS_TTL_SECONDS, async () => {
+      const [rows, directoryRows] = await Promise.all([
+        repo.getSensorTrends(days, granularity, scope),
+        this.directory.list(),
+      ])
+      return buildScopedSensorTrends(rows, directoryRows)
     })
   }
 }
@@ -103,4 +130,17 @@ function buildComparison(
     a.bucket.localeCompare(b.bucket) || b.count - a.count || a.clientName.localeCompare(b.clientName),
   )
   return { bySensor, byClient }
+}
+
+function buildScopedSensorTrends(
+  rows: Array<{ bucket: string; sensorId: string; count: number }>,
+  directoryRows: SensorDirectoryRow[],
+): ScopedSensorTrendPoint[] {
+  const names = new Map(directoryRows.map((row) => [row.sensorId, row.sensorName]))
+  return rows.map((row) => ({
+    bucket: row.bucket,
+    sensorId: row.sensorId,
+    sensorName: names.get(row.sensorId) ?? row.sensorId,
+    count: Number(row.count),
+  }))
 }

@@ -75,4 +75,48 @@ describe('AnalyticsComparisonService', () => {
       sensorIds: ['sensor-a', 'sensor-b', 'orphan'],
     })
   })
+
+  it('returns tenant-scoped sensor trends without exposing client metadata', async () => {
+    const query = vi.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue([
+        { bucket: '2026-07-01 00:00:00', sensorId: 'sensor-a', count: '9' },
+        { bucket: '2026-07-01 00:00:00', sensorId: 'orphan', count: '2' },
+      ]),
+    })
+    const prismaRead = {
+      $queryRaw: vi.fn().mockResolvedValue([
+        { sensorId: 'sensor-a', sensorName: 'SSH A', clientId: 'client-1', clientName: 'Acme' },
+      ]),
+    } as unknown as PrismaClient
+    const service = new AnalyticsComparisonService(
+      { query } as unknown as ClickHouseClient,
+      prismaRead,
+    )
+
+    const result = await service.getScopedSensorTrends(
+      null,
+      '7d',
+      parseClickHouseScope({ sensorIds: 'sensor-a,orphan' }),
+    )
+
+    expect(result).toEqual([
+      {
+        bucket: '2026-07-01 00:00:00',
+        sensorId: 'sensor-a',
+        sensorName: 'SSH A',
+        count: 9,
+      },
+      {
+        bucket: '2026-07-01 00:00:00',
+        sensorId: 'orphan',
+        sensorName: 'orphan',
+        count: 2,
+      },
+    ])
+    expect(result[0]).not.toHaveProperty('clientId')
+    expect(query.mock.calls[0]?.[0].query_params).toEqual({
+      rangeDays: 7,
+      sensorIds: ['sensor-a', 'orphan'],
+    })
+  })
 })
