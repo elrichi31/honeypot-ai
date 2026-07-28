@@ -441,6 +441,8 @@ fi
 # ── 3. Remove symlinks ───────────────────────────────────────────────────────
 echo "==> Removing helper symlinks..."
 rm -f /usr/local/bin/sensor-status
+rm -f /usr/local/bin/sensor-update
+rm -f /usr/local/bin/sensor-test
 rm -f /usr/local/bin/sensor-uninstall
 printf "  %b[+]%b  Symlinks removed\n" "$GREEN" "$RESET"
 
@@ -458,6 +460,76 @@ echo ""
 ENDOFUNINSTALL
 chmod +x "$DIR/sensor-uninstall"
 ln -sf "$DIR/sensor-uninstall" /usr/local/bin/sensor-uninstall 2>/dev/null || true
+
+# Install sensor-update helper
+cat > "$DIR/sensor-update" << 'ENDOFUPDATE'
+#!/usr/bin/env bash
+# sensor-update — pulls the newest sensor images and restarts only what changed.
+# Manual bridge until the fleet updater ships (SENSOR_FLEET_UPDATES Fase 1).
+# Run as root or with sudo: sensor-update
+set -euo pipefail
+
+DIR="/opt/honeypot-sensor"
+
+if [ "$(id -u)" -ne 0 ]; then
+  if command -v sudo &>/dev/null; then
+    exec sudo bash "$0" "$@"
+  fi
+  echo "ERROR: must run as root. Re-run with: sudo sensor-update" >&2
+  exit 1
+fi
+
+RED=$(printf '\x1b[0;31m'); GREEN=$(printf '\x1b[0;32m'); YELLOW=$(printf '\x1b[1;33m')
+RESET=$(printf '\x1b[0m'); BOLD=$(printf '\x1b[1m')
+
+cd "$DIR"
+
+echo ""
+printf "%b=== Honeypot Sensor Update ===%b\n" "$BOLD" "$RESET"
+echo ""
+
+# Same interface detection as the installer — the compose interpolates it for Suricata.
+SURICATA_INTERFACE=$(ip route 2>/dev/null | grep '^default' | awk '{print $5}' | head -1)
+[ -z "$SURICATA_INTERFACE" ] && SURICATA_INTERFACE="eth0"
+export SURICATA_INTERFACE
+
+echo "==> Pulling latest images..."
+docker compose pull
+
+echo ""
+echo "==> Restarting updated containers..."
+# up -d only recreates containers whose image (or config) changed; the rest stay untouched.
+docker compose up -d
+
+echo ""
+echo "==> Verifying containers..."
+sleep 5
+EXITED=$(docker compose ps --status=exited --format '{{.Service}}' 2>/dev/null || true)
+if [ -n "$EXITED" ]; then
+  echo "" >&2
+  printf "%bERROR: these containers crashed after the update:%b\n" "$RED" "$RESET" >&2
+  echo "$EXITED" | sed 's/^/  - /' >&2
+  for svc in $EXITED; do
+    echo "----- $svc -----" >&2
+    docker compose logs --no-color --tail 30 "$svc" >&2 || true
+  done
+  echo "" >&2
+  printf "%bUpdate INCOMPLETE. Check the logs above, then run: sensor-status%b\n" "$YELLOW" "$RESET" >&2
+  exit 1
+fi
+
+# Reclaim disk from superseded image layers (old images keep no rollback value
+# here — rolling back means pulling the previous tag, which Fase 1 automates).
+docker image prune -f >/dev/null 2>&1 || true
+
+echo ""
+printf "%b%bSensor updated successfully.%b\n" "$GREEN" "$BOLD" "$RESET"
+echo "  The dashboard shows the new image version within ~60 s (sensor card)."
+echo "  Health check: sensor-status"
+echo ""
+ENDOFUPDATE
+chmod +x "$DIR/sensor-update"
+ln -sf "$DIR/sensor-update" /usr/local/bin/sensor-update 2>/dev/null || true
 
 # Install sensor-test helper
 cat > "$DIR/sensor-test" << 'ENDOFTEST'
@@ -646,6 +718,7 @@ if $_INGEST_OK && $_CONTAINERS_OK; then
   echo " Status:      sensor-status"
   echo " Test:        sensor-test [--protocol ssh|http|ftp|mysql|port|smb]"
   echo " Logs:        cd $DIR && docker compose logs -f"
+  echo " Update:      sensor-update"
   echo " Uninstall:   sensor-uninstall"{{controlPlaneNote}}
   echo "===================================================="
 else
@@ -653,6 +726,7 @@ else
   echo " Sensor deployed but needs attention."
   echo " Run 'sensor-status' for details."
   echo " Test:        sensor-test"
+  echo " Update:      sensor-update"
   echo " Uninstall:   sensor-uninstall"
   echo "===================================================="
 fi

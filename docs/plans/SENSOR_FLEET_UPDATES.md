@@ -40,6 +40,18 @@ sensores ya desplegados muestran versión vacía hasta que su host haga pull
 de la imagen nueva — hoy eso sigue siendo manual, es justo lo que Fase 1
 automatiza.
 
+**Comando `sensor-update` en el host (2026-07-28):** el instalador ahora deja
+un helper `sensor-update` junto a `sensor-status`/`sensor-test`/`sensor-uninstall`
+(`lib/sensor-install-script.ts`): `docker compose pull` + `up -d` (solo recrea
+lo que cambió) + verificación de contenedores caídos con logs + `image prune`.
+Es el puente manual hasta el updater de Fase 1 — mismo mecanismo, sin rollout
+controlado ni digests. Solo lo reciben instalaciones nuevas (el helper se
+escribe en el install); a los hosts ya desplegados se les puede copiar a mano
+o esperar a Fase 1. De paso se corrigió que el desinstalador no borraba los
+symlinks `sensor-test` (gap preexistente) ni `sensor-update`.
+Verificado: script generado con `buildScript` real y `bash -n` sobre el
+instalador completo y sobre el `sensor-update` extraído; `tsc` limpio.
+
 **Siguiente paso:** Fase 1 (tabla `sensor_releases`, `GET /fleet/manifest`,
 updater de host, endpoints de promoción, página Fleet updates).
 
