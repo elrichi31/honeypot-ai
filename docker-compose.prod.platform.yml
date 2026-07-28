@@ -279,6 +279,9 @@ services:
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET}
       CONTROL_API_SECRET: ${CONTROL_API_SECRET}
       SENSOR_CONTROL_CREDENTIAL_PEPPER: ${SENSOR_CONTROL_CREDENTIAL_PEPPER}
+      # sensor-update asks ingest-api for a fresh compose; the generator lives in
+      # the dashboard, which sensors cannot reach directly.
+      DASHBOARD_INTERNAL_URL: ${DASHBOARD_INTERNAL_URL:-http://honeypot-dashboard:4000}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       CORS_ALLOWED_ORIGINS: ${BETTER_AUTH_URL:-http://localhost:4000}
       REDIS_URL: redis://redis:6379

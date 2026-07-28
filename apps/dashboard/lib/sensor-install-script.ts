@@ -25,7 +25,24 @@ export function buildScript(
     .replaceAll("{{sshPortStep}}", sshPortStep(services))
     .replaceAll("{{configDownloads}}", configDownloadLines(services))
     .replaceAll("{{controlPlaneNote}}", controlPlaneNote(services))
+    .replaceAll("{{sensorMeta}}", sensorMeta(deployId, ingestUrl, secret, services, clientSlug, clientName))
     .replaceAll("{{compose}}", compose)
+}
+
+// Single-quoted so the values are literal to the shell that sources this.
+function sensorMeta(
+  deployId: string, ingestUrl: string, secret: string, services: ServiceKey[], clientSlug: string, clientName: string,
+) {
+  const quote = (v: string) => `'${v.replaceAll("'", "'\\''")}'`
+  return [
+    `DEPLOY_ID=${quote(deployId)}`,
+    `SERVICES=${quote(services.join(","))}`,
+    `CLIENT_SLUG=${quote(clientSlug)}`,
+    `CLIENT_NAME=${quote(clientName)}`,
+    `INGEST_API_URL=${quote(ingestUrl)}`,
+    // Already sitting in docker-compose.yml beside it; the file is chmod 600.
+    `INGEST_SECRET=${quote(secret)}`,
+  ].join("\n")
 }
 
 // Standalone LAN deploys (internal-canary, int-* nodes) carry no Suricata:
@@ -270,8 +287,11 @@ fi
 # LAN address of this host. Internal trap nodes report it as their sensor IP:
 # a container on a bridge network can only see 172.x, and the public IP is the
 # same for every node behind the NAT, so neither identifies the box it runs on.
-HOST_LAN_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' | head -1)
-[ -z "$HOST_LAN_IP" ] && HOST_LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+# "|| true" is load-bearing: pipefail turns a failed lookup (a host with no
+# default route) into a fatal error that aborts the whole script.
+HOST_LAN_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' | head -1 || true)
+[ -z "$HOST_LAN_IP" ] && HOST_LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || true)
+true
 export HOST_LAN_IP
 
 if ! command -v docker &>/dev/null; then
@@ -306,6 +326,13 @@ echo "==> Writing docker-compose.yml..."
 cat > docker-compose.yml << 'ENDOFCOMPOSE'
 {{compose}}
 ENDOFCOMPOSE
+
+# What this host is, so sensor-update can ask for its compose to be regenerated
+# with the same identity. Losing DEPLOY_ID would rename every sensor here.
+cat > .sensor-meta << 'ENDOFMETA'
+{{sensorMeta}}
+ENDOFMETA
+chmod 600 .sensor-meta
 
 echo "==> Pulling images..."
 docker compose pull
@@ -544,9 +571,46 @@ echo ""
 SURICATA_INTERFACE=$(ip route 2>/dev/null | grep '^default' | awk '{print $5}' | head -1)
 [ -z "$SURICATA_INTERFACE" ] && SURICATA_INTERFACE="eth0"
 export SURICATA_INTERFACE
-HOST_LAN_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' | head -1)
-[ -z "$HOST_LAN_IP" ] && HOST_LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+# "|| true" is load-bearing: pipefail turns a failed lookup (a host with no
+# default route) into a fatal error that aborts the whole script.
+HOST_LAN_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' | head -1 || true)
+[ -z "$HOST_LAN_IP" ] && HOST_LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || true)
+true
 export HOST_LAN_IP
+
+# Pull a freshly generated compose for THIS deployId, so template fixes ship
+# through an update instead of a full reinstall. Every failure path here leaves
+# the working compose untouched: an update that cannot reach the server should
+# still refresh images, never strand the host with a broken file.
+if [ -f "$DIR/.sensor-meta" ]; then
+  . "$DIR/.sensor-meta"
+  echo "==> Refreshing docker-compose.yml..."
+  if curl -fsS --max-time 20 -o docker-compose.yml.new \
+       -H "X-Ingest-Token: $INGEST_SECRET" \
+       --get "$INGEST_API_URL/sensor/compose" \
+       --data-urlencode "deployId=$DEPLOY_ID" \
+       --data-urlencode "services=$SERVICES" \
+       --data-urlencode "clientSlug=$CLIENT_SLUG" \
+       --data-urlencode "clientName=$CLIENT_NAME" 2>/dev/null; then
+    if ! docker compose -f docker-compose.yml.new config -q 2>/dev/null; then
+      printf "  %b[!]%b  Server returned an invalid compose — keeping the current one\n" "$YELLOW" "$RESET"
+      rm -f docker-compose.yml.new
+    elif cmp -s docker-compose.yml.new docker-compose.yml; then
+      printf "  %b[+]%b  Already up to date\n" "$GREEN" "$RESET"
+      rm -f docker-compose.yml.new
+    else
+      cp docker-compose.yml docker-compose.yml.bak
+      mv docker-compose.yml.new docker-compose.yml
+      printf "  %b[+]%b  Updated (previous saved as docker-compose.yml.bak)\n" "$GREEN" "$RESET"
+    fi
+  else
+    rm -f docker-compose.yml.new
+    printf "  %b[!]%b  Could not fetch it — continuing with the current one\n" "$YELLOW" "$RESET"
+  fi
+else
+  printf "  %b[!]%b  No .sensor-meta: this sensor predates compose refresh.\n" "$YELLOW" "$RESET"
+  printf "      Re-download the installer once to enable it.\n"
+fi
 
 echo "==> Pulling latest images..."
 docker compose pull
