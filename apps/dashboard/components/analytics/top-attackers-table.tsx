@@ -7,7 +7,9 @@ import { EmptyState, ErrorState } from "@/components/ui/data-states"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { useT } from "@/components/locale-provider"
-import { ChartHeader, LoadingSpinner, type Range, RangeSelector } from "./shared"
+import { useTimezone } from "@/components/timezone-provider"
+import { formatInTimezone } from "@/lib/timezone"
+import { chTimestampToIso, ChartHeader, FULL_TIMESTAMP_OPTS, LoadingSpinner, type Range, RangeSelector } from "./shared"
 
 type TopAttacker = {
   srcIp: string
@@ -20,6 +22,7 @@ type Status = "loading" | "unavailable" | "error" | "ok"
 
 export function TopAttackersTable() {
   const t = useT()
+  const tz = useTimezone()
   const router = useRouter()
   const [range, setRange] = useState<Range>("30d")
   const [status, setStatus] = useState<Status>("loading")
@@ -61,7 +64,7 @@ export function TopAttackersTable() {
       ) : (
         <div className="max-h-[420px] overflow-auto">
           <Table>
-            <TableHeader className="sticky top-0 z-10 bg-card">
+            <TableHeader>
               <TableRow>
                 <TableHead>{t("analytics.topAttackers.col.ip")}</TableHead>
                 <TableHead className="text-right">{t("analytics.topAttackers.col.count")}</TableHead>
@@ -78,10 +81,10 @@ export function TopAttackersTable() {
                   className="cursor-pointer"
                 >
                   <TableCell className="font-mono text-xs">{row.srcIp}</TableCell>
-                  <TableCell className="text-right font-mono tabular-nums">{row.count.toLocaleString()}</TableCell>
+                  <TableCell className="text-right font-mono tabular-nums">{Number(row.count).toLocaleString()}</TableCell>
                   <TableCell><div className="flex flex-wrap gap-1">{row.sources.map((source) => <Badge key={source} variant="muted">{source}</Badge>)}</div></TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{new Date(row.firstSeen.replace(" ", "T")).toLocaleString()}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{new Date(row.lastSeen.replace(" ", "T")).toLocaleString()}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{formatInTimezone(chTimestampToIso(row.firstSeen), tz, FULL_TIMESTAMP_OPTS)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{formatInTimezone(chTimestampToIso(row.lastSeen), tz, FULL_TIMESTAMP_OPTS)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

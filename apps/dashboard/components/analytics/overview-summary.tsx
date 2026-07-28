@@ -39,9 +39,12 @@ export function OverviewSummary() {
   if (status === "unavailable") return <EmptyState icon="activity" title={t("analytics.unavailable.title")} description={t("analytics.unavailable.description")} />
   if (status === "error" || !summary) return <ErrorState />
 
-  const totalEvents = summary.trends.reduce((sum, row) => sum + row.count, 0)
-  const totalAttempts = summary.credentials.successRate.reduce((sum, row) => sum + row.total, 0)
-  const totalSuccesses = summary.credentials.successRate.reduce((sum, row) => sum + row.successCount, 0)
+  // ClickHouse serializes counts as strings (UInt64 precision) — `+` without
+  // Number() here silently string-concatenates instead of summing, which is
+  // exactly what produced the astronomical "170,142,..." total events bug.
+  const totalEvents = summary.trends.reduce((sum, row) => sum + Number(row.count), 0)
+  const totalAttempts = summary.credentials.successRate.reduce((sum, row) => sum + Number(row.total), 0)
+  const totalSuccesses = summary.credentials.successRate.reduce((sum, row) => sum + Number(row.successCount), 0)
   const successRatePct = totalAttempts ? (totalSuccesses / totalAttempts) * 100 : 0
   const topCombo = summary.credentials.top[0]
 
@@ -64,7 +67,7 @@ export function OverviewSummary() {
       <StatCard
         label={t("analytics.overview.metric.topCombo")}
         value={topCombo ? `${topCombo.username ?? "—"} / ${topCombo.password ?? "—"}` : "—"}
-        sub={topCombo ? t("analytics.overview.metric.topComboSub", { count: topCombo.count.toLocaleString() }) : t("analytics.credentials.topCombos.empty")}
+        sub={topCombo ? t("analytics.overview.metric.topComboSub", { count: Number(topCombo.count).toLocaleString() }) : t("analytics.credentials.topCombos.empty")}
         icon={<KeyRound className="h-4 w-4 text-amber-400" />}
       />
     </div>

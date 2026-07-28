@@ -5,7 +5,10 @@ import { Terminal, Globe, Radar, ShieldAlert } from "lucide-react"
 import { Surface } from "@/components/ui/surface"
 import { EmptyState, ErrorState } from "@/components/ui/data-states"
 import { useT } from "@/components/locale-provider"
+import { useTimezone } from "@/components/timezone-provider"
+import { formatInTimezone } from "@/lib/timezone"
 import type { TranslationKey } from "@/lib/i18n/dictionaries"
+import { chTimestampToIso, FULL_TIMESTAMP_OPTS } from "./shared"
 
 type Source = "cowrie" | "web" | "protocol" | "suricata"
 type TimelineItem = { eventId: string; timestamp: string; sensorId: string; source: Source; kind: string; summary: string }
@@ -32,6 +35,7 @@ const SOURCE_LABEL_KEY: Record<Source, TranslationKey> = {
 
 export function AttackerTimeline({ ip }: { ip: string }) {
   const t = useT()
+  const tz = useTimezone()
   const [items, setItems] = useState<TimelineItem[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [nextBefore, setNextBefore] = useState<string | null>(null)
@@ -105,7 +109,7 @@ export function AttackerTimeline({ ip }: { ip: string }) {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm text-foreground">{item.summary}</p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {new Date(item.timestamp.replace(" ", "T")).toLocaleString()} · {t(SOURCE_LABEL_KEY[item.source])} · {item.sensorId}
+                      {formatInTimezone(chTimestampToIso(item.timestamp), tz, FULL_TIMESTAMP_OPTS)} · {t(SOURCE_LABEL_KEY[item.source])} · {item.sensorId}
                     </p>
                   </div>
                 </div>

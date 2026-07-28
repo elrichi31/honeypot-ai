@@ -13,9 +13,11 @@ import { EmptyState, ErrorState } from "@/components/ui/data-states"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { useT } from "@/components/locale-provider"
+import { useTimezone } from "@/components/timezone-provider"
+import { formatInTimezone } from "@/lib/timezone"
 import {
-  ChartHeader, ChartTooltip, compactNumber, fmtBucketLabel,
-  LoadingSpinner, type Range, RangeSelector,
+  chTimestampToIso, ChartHeader, ChartTooltip, compactNumber, fmtBucketLabel,
+  FULL_TIMESTAMP_OPTS, LoadingSpinner, type Range, RangeSelector,
 } from "./shared"
 
 type CredentialCombo = {
@@ -74,6 +76,7 @@ function StatusPanel({ status, t }: { status: Exclude<Status, "ok">; t: ReturnTy
 
 export default function CredentialsExplorer() {
   const t = useT()
+  const tz = useTimezone()
   const router = useRouter()
   const [range, setRange] = useState<Range>("30d")
   const combos = useAnalyticsFetch<CredentialCombo>(
@@ -91,9 +94,9 @@ export default function CredentialsExplorer() {
 
   const successPoints = useMemo(() => successRate.rows.map((row) => ({
     ...row,
-    label: fmtBucketLabel(row.bucket, range),
+    label: fmtBucketLabel(row.bucket, range, tz),
     successRatePct: Math.round(row.successRate * 1000) / 10,
-  })), [successRate.rows, range])
+  })), [successRate.rows, range, tz])
 
   const comboPoints = useMemo(() => combos.rows.slice(0, 8).map((row) => ({
     ...row,
@@ -101,8 +104,8 @@ export default function CredentialsExplorer() {
   })).reverse(), [combos.rows])
 
   const metrics = useMemo(() => {
-    const total = successRate.rows.reduce((sum, row) => sum + row.total, 0)
-    const successes = successRate.rows.reduce((sum, row) => sum + row.successCount, 0)
+    const total = successRate.rows.reduce((sum, row) => sum + Number(row.total), 0)
+    const successes = successRate.rows.reduce((sum, row) => sum + Number(row.successCount), 0)
     const uniqueAttackers = new Set(campaigns.rows.map((row) => row.srcIp)).size
     return {
       total,
@@ -180,7 +183,7 @@ export default function CredentialsExplorer() {
 
       <Surface className="overflow-hidden">
         <div className="border-b border-border px-4 py-3">
-          <ChartHeader title={t("analytics.credentials.topCombos.title")} description={t("analytics.credentials.topCombos.chartDescription")} />
+          <ChartHeader title={t("analytics.credentials.topCombos.tableTitle")} description={t("analytics.credentials.topCombos.tableDescription")} />
         </div>
         {combos.status !== "ok" ? (
           <StatusPanel status={combos.status} t={t} />
@@ -189,7 +192,7 @@ export default function CredentialsExplorer() {
         ) : (
           <div className="max-h-[420px] overflow-auto">
             <Table>
-              <TableHeader className="sticky top-0 z-10 bg-card">
+              <TableHeader>
                 <TableRow>
                   <TableHead>{t("analytics.credentials.topCombos.col.username")}</TableHead>
                   <TableHead>{t("analytics.credentials.topCombos.col.password")}</TableHead>
@@ -204,10 +207,10 @@ export default function CredentialsExplorer() {
                   <TableRow key={`${row.username}-${row.password}-${index}`}>
                     <TableCell className="font-mono text-xs">{row.username ?? "—"}</TableCell>
                     <TableCell className="font-mono text-xs">{row.password ?? "—"}</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">{row.count.toLocaleString()}</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">{row.uniqueIps.toLocaleString()}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{new Date(row.firstSeen.replace(" ", "T")).toLocaleString()}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{new Date(row.lastSeen.replace(" ", "T")).toLocaleString()}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">{Number(row.count).toLocaleString()}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">{Number(row.uniqueIps).toLocaleString()}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{formatInTimezone(chTimestampToIso(row.firstSeen), tz, FULL_TIMESTAMP_OPTS)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{formatInTimezone(chTimestampToIso(row.lastSeen), tz, FULL_TIMESTAMP_OPTS)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -227,7 +230,7 @@ export default function CredentialsExplorer() {
         ) : (
           <div className="max-h-[420px] overflow-auto">
             <Table>
-              <TableHeader className="sticky top-0 z-10 bg-card">
+              <TableHeader>
                 <TableRow>
                   <TableHead>{t("analytics.credentials.campaigns.col.time")}</TableHead>
                   <TableHead>{t("analytics.credentials.campaigns.col.ip")}</TableHead>
@@ -245,12 +248,12 @@ export default function CredentialsExplorer() {
                     onClick={() => router.push(`/threats/${encodeURIComponent(row.srcIp)}`)}
                     className="cursor-pointer"
                   >
-                    <TableCell className="text-xs text-muted-foreground">{new Date(row.bucket.replace(" ", "T")).toLocaleString()}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{formatInTimezone(chTimestampToIso(row.bucket), tz, FULL_TIMESTAMP_OPTS)}</TableCell>
                     <TableCell className="font-mono text-xs">{row.srcIp}</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">{row.attempts.toLocaleString()}</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums text-emerald-300">{row.successCount.toLocaleString()}</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums text-rose-300">{row.failedCount.toLocaleString()}</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums text-muted-foreground">{row.unknownCount.toLocaleString()}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">{Number(row.attempts).toLocaleString()}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums text-emerald-300">{Number(row.successCount).toLocaleString()}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums text-rose-300">{Number(row.failedCount).toLocaleString()}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums text-muted-foreground">{Number(row.unknownCount).toLocaleString()}</TableCell>
                     <TableCell><div className="flex flex-wrap gap-1">{row.protocols.map((protocol) => <Badge key={protocol} variant="muted">{protocol}</Badge>)}</div></TableCell>
                   </TableRow>
                 ))}

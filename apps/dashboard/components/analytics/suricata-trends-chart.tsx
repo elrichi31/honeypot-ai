@@ -10,6 +10,7 @@ import { Surface } from "@/components/ui/surface"
 import { StatCard } from "@/components/ui/stat-card"
 import { EmptyState, ErrorState } from "@/components/ui/data-states"
 import { useT } from "@/components/locale-provider"
+import { useTimezone } from "@/components/timezone-provider"
 import {
   type ChartMode, ChartHeader, ChartModeSelector, ChartTooltip,
   compactNumber, fmtBucketLabel, LoadingSpinner, type Range, RangeSelector,
@@ -26,22 +27,23 @@ function severityColor(severity: number): string {
   return SEVERITY_COLOR[severity] ?? SEVERITY_COLOR[4]
 }
 
-function pivot(rows: TrendPoint[], range: Range): { groups: string[]; points: Point[] } {
+function pivot(rows: TrendPoint[], range: Range, timezone: string): { groups: string[]; points: Point[] } {
   const groups = [...new Set(rows.map((row) => row.group))]
   const byBucket = new Map<string, Point>()
   for (const row of rows) {
     let point = byBucket.get(row.bucket)
     if (!point) {
-      point = { bucket: row.bucket, label: fmtBucketLabel(row.bucket, range) }
+      point = { bucket: row.bucket, label: fmtBucketLabel(row.bucket, range, timezone) }
       byBucket.set(row.bucket, point)
     }
-    point[row.group] = row.count
+    point[row.group] = Number(row.count)
   }
   return { groups, points: [...byBucket.values()].sort((a, b) => a.bucket.localeCompare(b.bucket)) }
 }
 
 export default function SuricataTrendsChart() {
   const t = useT()
+  const tz = useTimezone()
   const [range, setRange] = useState<Range>("90d")
   const [groupBy, setGroupBy] = useState<GroupBy>("signature")
   const [mode, setMode] = useState<ChartMode>("area")
@@ -52,7 +54,7 @@ export default function SuricataTrendsChart() {
   const [unavailable, setUnavailable] = useState(false)
   const [error, setError] = useState(false)
 
-  const load = useCallback((selectedRange: Range, selectedGroup: GroupBy, signal: AbortSignal) => {
+  const load = useCallback((selectedRange: Range, selectedGroup: GroupBy, timezone: string, signal: AbortSignal) => {
     setLoading(true)
     setError(false)
     setUnavailable(false)
@@ -61,7 +63,7 @@ export default function SuricataTrendsChart() {
         if (response.status === 503) { setUnavailable(true); return }
         if (!response.ok) { setError(true); return }
         const body = (await response.json()) as { data: TrendPoint[]; top: TrendTotal[] }
-        const next = pivot(body.data, selectedRange)
+        const next = pivot(body.data, selectedRange, timezone)
         setGroups(next.groups)
         setPoints(next.points)
         setTop(body.top)
@@ -72,9 +74,9 @@ export default function SuricataTrendsChart() {
 
   useEffect(() => {
     const controller = new AbortController()
-    load(range, groupBy, controller.signal)
+    load(range, groupBy, tz, controller.signal)
     return () => controller.abort()
-  }, [range, groupBy, load])
+  }, [range, groupBy, tz, load])
 
   const summary = useMemo(() => {
     const visibleAlerts = top.reduce((sum, row) => sum + row.count, 0)

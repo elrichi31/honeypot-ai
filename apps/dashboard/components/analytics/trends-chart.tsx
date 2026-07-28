@@ -10,6 +10,7 @@ import { Surface } from "@/components/ui/surface"
 import { StatCard } from "@/components/ui/stat-card"
 import { EmptyState, ErrorState } from "@/components/ui/data-states"
 import { useT } from "@/components/locale-provider"
+import { useTimezone } from "@/components/timezone-provider"
 import { getProtocolMarkerColor } from "@/lib/protocol-colors"
 import {
   CHART_COLORS, type ChartMode, ChartHeader, ChartModeSelector, ChartTooltip,
@@ -33,17 +34,17 @@ function colorFor(breakdown: Breakdown, name: string, index: number): string {
 
 // `protocols`/`row.protocol` below double as the generic "series key" — when
 // breakdown is "sensor" it holds the sensor name, not a protocol.
-function pivot(rows: TrendBucket[], range: Range): { protocols: string[]; points: Point[] } {
+function pivot(rows: TrendBucket[], range: Range, timezone: string): { protocols: string[]; points: Point[] } {
   const protocols = [...new Set(rows.map((row) => row.protocol))].sort()
   const byBucket = new Map<string, Point>()
 
   for (const row of rows) {
     let point = byBucket.get(row.bucket)
     if (!point) {
-      point = { bucket: row.bucket, label: fmtBucketLabel(row.bucket, range) }
+      point = { bucket: row.bucket, label: fmtBucketLabel(row.bucket, range, timezone) }
       byBucket.set(row.bucket, point)
     }
-    point[row.protocol] = row.count
+    point[row.protocol] = Number(row.count)
   }
 
   return {
@@ -58,6 +59,7 @@ function pointTotal(point: Point, protocols: string[]) {
 
 export default function TrendsChart() {
   const t = useT()
+  const tz = useTimezone()
   const [range, setRange] = useState<Range>("30d")
   const [breakdown, setBreakdown] = useState<Breakdown>("protocol")
   const [mode, setMode] = useState<ChartMode>("area")
@@ -68,7 +70,7 @@ export default function TrendsChart() {
   const [unavailable, setUnavailable] = useState(false)
   const [error, setError] = useState(false)
 
-  const load = useCallback((selectedRange: Range, selectedBreakdown: Breakdown, signal: AbortSignal) => {
+  const load = useCallback((selectedRange: Range, selectedBreakdown: Breakdown, timezone: string, signal: AbortSignal) => {
     setLoading(true)
     setError(false)
     setUnavailable(false)
@@ -84,7 +86,7 @@ export default function TrendsChart() {
           : (await response.json() as SensorTrendsResponse).data.map((row) => ({
               bucket: row.bucket, protocol: row.sensorName, count: row.count,
             }))
-        const next = pivot(rows, selectedRange)
+        const next = pivot(rows, selectedRange, timezone)
         setProtocols(next.protocols)
         setPoints(next.points)
         setHidden(new Set())
@@ -95,9 +97,9 @@ export default function TrendsChart() {
 
   useEffect(() => {
     const controller = new AbortController()
-    load(range, breakdown, controller.signal)
+    load(range, breakdown, tz, controller.signal)
     return () => controller.abort()
-  }, [range, breakdown, load])
+  }, [range, breakdown, tz, load])
 
   const summary = useMemo(() => {
     const totals = protocols.map((protocol) => ({

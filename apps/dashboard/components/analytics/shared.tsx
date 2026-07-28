@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 import { AreaChart, BarChart3, LineChart } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useT } from "@/components/locale-provider"
+import { formatInTimezone } from "@/lib/timezone"
 
 export type Range = "7d" | "30d" | "90d" | "1y"
 export type ChartMode = "area" | "bar" | "line"
@@ -17,10 +18,28 @@ export const RANGE_OPTIONS: { label: string; value: Range }[] = [
 
 export const CHART_COLORS = ["#38bdf8", "#34d399", "#f59e0b", "#f87171", "#a78bfa", "#fb923c", "#22d3ee"]
 
-export function fmtBucketLabel(bucket: string, range: Range): string {
-  const date = new Date(bucket.replace(" ", "T"))
-  if (range === "7d") return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  return date.toLocaleDateString([], { month: "short", day: "numeric" })
+// Full timestamp format for table cells (bucket/firstSeen/lastSeen) — same
+// options suricata-client.tsx/timeline-chart.tsx use, always rendered through
+// the configured dashboard timezone (useTimezone()), never the browser's local one.
+export const FULL_TIMESTAMP_OPTS: Intl.DateTimeFormatOptions = {
+  year: "numeric", month: "2-digit", day: "2-digit",
+  hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+}
+
+// ClickHouse's JSON DateTime format is "YYYY-MM-DD HH:MM:SS" in UTC, with no
+// timezone marker — `new Date(...)` on that string (even after swapping the
+// space for "T") parses it as the *browser's* local time, not UTC. Appending
+// "Z" is what makes it parse as the correct UTC instant before formatting
+// into the dashboard's configured timezone.
+export function chTimestampToIso(value: string): string {
+  return value.includes("T") ? value : `${value.replace(" ", "T")}Z`
+}
+
+export function fmtBucketLabel(bucket: string, range: Range, timezone: string): string {
+  const opts: Intl.DateTimeFormatOptions = range === "7d"
+    ? { hour: "2-digit", minute: "2-digit", hour12: false }
+    : { month: "short", day: "numeric" }
+  return formatInTimezone(chTimestampToIso(bucket), timezone, opts)
 }
 
 export function compactNumber(value: number): string {

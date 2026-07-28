@@ -604,6 +604,48 @@ conectado). Cambios en `/analytics`:
 - Fase F sigue con la otra mitad pendiente: `report-summary` ahora se consume
   en `/analytics`, pero `/reports` (el PDF) todavía no lo usa.
 
+**QA visual real, dos bugs encontrados y corregidos (2026-07-27, mismo día):**
+el usuario mandó screenshots de `/analytics` con datos reales de prod — la
+primera verificación visual real de todo lo construido en Fase G/H. Encontró:
+1. **Overview mostraba "170,142,279,210,162,014,029,917" eventos totales.**
+   ClickHouse serializa los counts como **strings** (precisión de UInt64), y
+   `overview-summary.tsx` sumaba con `+` sin `Number(...)` — `0 + "123"` en JS
+   da el string `"0123"`, no el número 123, así que cada `reduce` iba
+   *concatenando* dígitos en vez de sumarlos. El resto del módulo (Fase A-G)
+   ya se defendía de esto en todos lados (`Number(point[protocol] ?? 0)` en
+   `trends-chart.tsx`, `Number(row.count)` en `analytics-ranking.service.ts`
+   del backend) — el código nuevo de esta sesión (`overview-summary.tsx`,
+   `top-attackers-table.tsx`) no seguía esa convención. Corregido: `Number(...)`
+   antes de cualquier `+`/`.toLocaleString()` sobre un campo numérico venido
+   de un endpoint de analytics, en los 2 archivos nuevos y también en
+   `comparison-chart.tsx` (tenía el mismo bug a medias: recasteaba el
+   acumulador pero no `row.count`) y en las 6 celdas de
+   `credentials-explorer.tsx` que nunca lo tuvieron pero comparten el mismo
+   riesgo.
+2. **Los timestamps ignoraban la timezone configurada.** Todo el módulo
+   (incluida `attacker-timeline.tsx` de Fase C, preexistente) parseaba los
+   timestamps de ClickHouse (`"YYYY-MM-DD HH:MM:SS"`, UTC, sin sufijo) con
+   `new Date(x.replace(" ","T"))` y los mostraba con `.toLocaleString()` sin
+   argumentos — dos bugs apilados: (a) sin `Z`, `new Date(...)` interpreta ese
+   string como hora **local del navegador**, no UTC, corriendo la hora real
+   según el offset de quien mire la pantalla; (b) `.toLocaleString()` sin
+   opciones usa la timezone del navegador, no la configurada en Settings
+   (`useTimezone()`/`DASHBOARD_TIMEZONE`) — exactamente el patrón que ya sigue
+   el resto de la app (`suricata-client.tsx`, `credential-campaigns.tsx`,
+   `timeline-chart.tsx`: `const tz = useTimezone(); formatInTimezone(value, tz, opts)`).
+   Corregido: nuevo helper `chTimestampToIso()` en `shared.tsx` (agrega la `Z`
+   que falta) + `fmtBucketLabel()` ahora recibe `timezone` como parámetro
+   obligatorio; los 4 charts (`trends`, `credentials`, `suricata-trends`,
+   `comparison`) y las 3 tablas con timestamps absolutos (`credentials`
+   top-combos/campaigns, `top-attackers`, `attacker-timeline`) ahora usan
+   `useTimezone()` + `formatInTimezone()`, igual que el resto del dashboard.
+   También se limpió un header duplicado en `/analytics/credentials` (la
+   tabla de detalle de top-combos repetía el título/descripción del chart de
+   al lado — ahora tiene copy propio, `topCombos.tableTitle`/`tableDescription`).
+   Validado: `tsc --noEmit` limpio, 71 tests en verde, build de producción sin
+   errores, y un script de Node que reproduce el bug de timezone confirmando
+   que el fix da la hora correcta en la zona configurada.
+
 **Ajuste de consistencia + interactividad (2026-07-27, mismo día):** el primer
 pase visual de Fase G había construido su propio "mini design system" en
 `components/analytics/shared.tsx` (tarjeta KPI con badges en gradiente,
@@ -694,12 +736,25 @@ nuevas: ahora mismo *nada* de B-G está confirmado contra datos reales.
 
 ---
 
-## Fase H — Analítica avanzada (propuesta absorbida por G-backend)
+## Fase H — Analítica avanzada — **backend completo**
 
 H1 y H3 quedaron implementadas el 2026-07-27 como Fase G-backend para respetar
 el alcance solicitado; **las tres (H1, H2, H3) tienen frontend implementado y
 conectado el mismo día** (ver entrada de Fase G arriba, "Frontend de
 G-backend + H2 implementado").
+
+**Auditoría backend (2026-07-27):** no queda implementación backend pendiente
+en esta fase. H1 está cubierta por
+`GET /analytics/trends/by-sensor?range=&sensorIds=`; H2 consume el contrato ya
+existente `GET /analytics/report-summary?range=&credentialLimit=&sensorIds=`
+de Fase F y deliberadamente no requiere otra ruta; H3 está cubierta por
+`GET /analytics/top-attackers?range=&limit=&sensorIds=`. Los tres contratos
+tienen validación, cache separado por scope y pruebas HTTP/tenant. El bloque
+"Backlog sin spec completa" de abajo no forma parte del criterio de salida de
+H; deberá convertirse en una fase nueva con decisiones explícitas de schema
+antes de implementarse. Auditoría validada con build TypeScript limpio, 17
+tests específicos de los contratos H y suite completa de `ingest-api` en verde
+(190 tests; 35 integraciones omitidas por falta de `TEST_DATABASE_URL`).
 
 ### H1 — Desglose por sensor propio — **implementado (backend + frontend)**
 

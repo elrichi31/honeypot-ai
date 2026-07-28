@@ -10,6 +10,7 @@ import { Surface } from "@/components/ui/surface"
 import { StatCard } from "@/components/ui/stat-card"
 import { EmptyState, ErrorState } from "@/components/ui/data-states"
 import { useT } from "@/components/locale-provider"
+import { useTimezone } from "@/components/timezone-provider"
 import {
   type ChartMode, ChartHeader, ChartModeSelector, ChartTooltip,
   CHART_COLORS, compactNumber, fmtBucketLabel, LoadingSpinner, type Range, RangeSelector,
@@ -21,7 +22,7 @@ type ComparisonResponse = { bySensor: SensorPoint[]; byClient: ClientPoint[] }
 type Point = { bucket: string; label: string } & Record<string, number | string>
 type Tab = "bySensor" | "byClient"
 
-function pivot(rows: Array<{ bucket: string; count: number }>, nameOf: (row: unknown) => string, range: Range) {
+function pivot(rows: Array<{ bucket: string; count: number }>, nameOf: (row: unknown) => string, range: Range, timezone: string) {
   const names = new Set<string>()
   const byBucket = new Map<string, Point>()
   for (const row of rows) {
@@ -29,16 +30,17 @@ function pivot(rows: Array<{ bucket: string; count: number }>, nameOf: (row: unk
     names.add(name)
     let point = byBucket.get(row.bucket)
     if (!point) {
-      point = { bucket: row.bucket, label: fmtBucketLabel(row.bucket, range) }
+      point = { bucket: row.bucket, label: fmtBucketLabel(row.bucket, range, timezone) }
       byBucket.set(row.bucket, point)
     }
-    point[name] = (Number(point[name]) || 0) + row.count
+    point[name] = (Number(point[name]) || 0) + Number(row.count)
   }
   return { names: [...names], points: [...byBucket.values()].sort((a, b) => a.bucket.localeCompare(b.bucket)) }
 }
 
 export default function ComparisonChart() {
   const t = useT()
+  const tz = useTimezone()
   const [range, setRange] = useState<Range>("30d")
   const [tab, setTab] = useState<Tab>("byClient")
   const [mode, setMode] = useState<ChartMode>("area")
@@ -71,8 +73,8 @@ export default function ComparisonChart() {
   }, [range, load])
 
   const { names, points } = tab === "byClient"
-    ? pivot(data?.byClient ?? [], (row) => (row as ClientPoint).clientName, range)
-    : pivot(data?.bySensor ?? [], (row) => (row as SensorPoint).sensorName, range)
+    ? pivot(data?.byClient ?? [], (row) => (row as ClientPoint).clientName, range, tz)
+    : pivot(data?.bySensor ?? [], (row) => (row as SensorPoint).sensorName, range, tz)
 
   const summary = useMemo(() => {
     const totals = names.map((name) => ({
