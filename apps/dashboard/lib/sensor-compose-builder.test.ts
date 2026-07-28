@@ -103,6 +103,23 @@ test("int-*: every internal node reports the host LAN IP alongside its public on
   assert.ok(!yaml.includes('SENSOR_IP: "${HOST_LAN_IP:-}"'), "the LAN address must not overwrite the public one")
 })
 
+// The dashboard shows the reported ports as "how to reach this node", so a node
+// that publishes 80 and reports its internal 8080 points people at a closed port.
+test("int-*: the ports a node reports are the ones published on the host", () => {
+  const yaml = compose(INT_NODES)
+  const published = new Set(
+    [...yaml.matchAll(/^\s+- "(\d+):\d+"/gm)].map(m => m[1]),
+  )
+  const reported = new Set([
+    ...[...yaml.matchAll(/SENSOR_PORTS: "([^"]+)"/g)].flatMap(m => m[1].split(" ")),
+    ...[...yaml.matchAll(/DST_PORT: "(\d+)"/g)].map(m => m[1]),
+  ])
+  assert.ok(published.size > 0, "expected published ports")
+  for (const port of published) {
+    assert.ok(reported.has(port), `host port ${port} is published but never reported to the dashboard`)
+  }
+})
+
 // web-honeypot's entrypoint chowns its log volume and gosu-drops to app, both
 // forbidden by cap_drop:ALL. Dropping the caps crash-loops the container.
 for (const svc of ["http", "int-http"] as ServiceKey[]) {

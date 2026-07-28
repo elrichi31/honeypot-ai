@@ -771,6 +771,11 @@ const INT_HTTP_TEMPLATE = `  web-honeypot:
       SENSOR_LOCAL_IP: "\${HOST_LAN_IP:-}"
       SENSOR_NAME: "Web Honeypot (Internal)"
       SENSOR_LAYER: "internal"
+      # What the LAN can actually reach (80), not what the container binds
+      # (8080). The dashboard shows these, and 8080 sends anyone who reads the
+      # card to a closed port.
+      SENSOR_PORTS: "80"
+      SENSOR_PROBE_PORTS: "8080"
       SENSOR_HOST: web-honeypot
     ports:
       - "80:8080"
