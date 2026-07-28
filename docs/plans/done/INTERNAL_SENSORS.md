@@ -445,10 +445,31 @@ un reinstall cambia el `deployId` y deja el nodo anterior colgado en offline.
 Requiere: migración aplicada en el API, imágenes republicadas (web, smb, mysql)
 y reinstalar el sensor para que el compose lleve la variable.
 
-**Pendiente:** `sensor-update` solo hace `pull` + `up -d` sobre el compose
-local; no lo regenera. Cualquier fix de plantilla (como el `cap_add` de
-`int-http`) obliga a rebajar el instalador entero. Vale la pena que
-`sensor-update` sepa refrescar el compose.
+### 2026-07-28 — `sensor-update` ahora sí actualiza todo
+
+Cerrada la deuda de arriba. El instalador escribe `/opt/honeypot-sensor/.sensor-meta`
+(deployId, services, cliente, URL y secreto de ingest; `chmod 600`) y
+`sensor-update` pide el compose regenerado **con ese mismo deployId** — uno
+nuevo renombraría todos los sensores del host y dejaría las filas viejas
+huérfanas.
+
+El generador vive en el dashboard, al que los sensores no llegan (solo se
+publica el ingest-api), así que `ingest-api` hace de puente por la red interna:
+`GET /sensor/compose` → `DASHBOARD_INTERNAL_URL/api/sensor/compose/refresh`.
+Autentica con el secreto compartido de ingest, que el que llama ya tiene y que
+el propio compose contiene, así que no habilita nada nuevo.
+
+Toda ruta de fallo conserva el compose que funciona: servidor caído, 401, o un
+cuerpo que no pasa `docker compose config` avisan y siguen con el `pull`. Los
+sensores instalados antes de esto imprimen una nota y no se rompen.
+
+De paso, la búsqueda de la IP LAN lleva `|| true`: con `pipefail`, un host sin
+ruta a 1.1.1.1 abortaba el script entero — justo la LAN aislada donde vive un
+nodo `int-*`. Salió de ejercitar el `sensor-update` generado contra un servidor
+de prueba, rama por rama (nuevo / igual / inválido / inalcanzable / sin meta).
+
+Requiere `DASHBOARD_INTERNAL_URL` en el `ingest-api` (ya en
+`docker-compose.prod.platform.yml`, default `http://honeypot-dashboard:4000`).
 
 ## 8. Deuda técnica y fuera de alcance
 
