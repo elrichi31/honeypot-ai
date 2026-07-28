@@ -755,6 +755,12 @@ const INT_HTTP_TEMPLATE = `  web-honeypot:
     logging: *json-logging
     image: {{registry}}/web-honeypot:latest
     container_name: web-honeypot
+    # Same reason as the external http block: entrypoint.sh chowns the mounted
+    # log volume and gosu-drops to app, both of which cap_drop:ALL forbids.
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
     environment:
       <<: *ingest
       PORT: "8080"

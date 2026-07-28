@@ -88,3 +88,14 @@ test("int-*: events reach vector and no image is pulled that nobody publishes", 
   }
   assert.ok(!yaml.includes("cowrie-beacon:latest"), "no cowrie-beacon image is ever built or published")
 })
+
+// web-honeypot's entrypoint chowns its log volume and gosu-drops to app, both
+// forbidden by cap_drop:ALL. Dropping the caps crash-loops the container.
+for (const svc of ["http", "int-http"] as ServiceKey[]) {
+  test(`${svc}: web-honeypot keeps the caps its entrypoint needs`, () => {
+    const block = compose([svc]).split(/^  \S/m).find(s => s.includes("container_name: web-honeypot"))!
+    for (const cap of ["CHOWN", "SETUID", "SETGID"]) {
+      assert.ok(block.includes(`- ${cap}`), `${svc} must cap_add ${cap}`)
+    }
+  })
+}

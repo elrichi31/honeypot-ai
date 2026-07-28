@@ -60,6 +60,16 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # sensors/_shared/*.py lives outside every per-sensor build context, so the
+      # published images shipped without control_agent.py and crash-looped on
+      # import. Compose deploys never hit it — they bind-mount _shared at runtime —
+      # but the int-* deception blocks run the image as-is. Stage it into the
+      # context here; the checkout is throwaway.
+      - name: Stage shared sensor modules into the build context
+        run: |
+          [ -f "${{ matrix.context }}/app.py" ] || [ -f "${{ matrix.context }}/heartbeat.py" ] \
+            && cp sensors/_shared/*.py "${{ matrix.context }}/" || true
+
       - name: Build and push ${{ matrix.service }}
         uses: docker/build-push-action@v5
         with:

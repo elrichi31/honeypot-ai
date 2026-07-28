@@ -378,9 +378,30 @@ valida, y scripts que pasan `bash -n`. Tres tests nuevos en
 declarados y la ausencia de la imagen fantasma. Suite del dashboard 77/77,
 `tsc` limpio.
 
-**Pendiente:** ningún `int-*` se ha desplegado end-to-end todavía — la
-validación es del compose generado, no de contenedores corriendo en una VM.
-El control plane (`config.apply`) sigue fuera de alcance para nodos internos.
+**Pendiente:** el control plane (`config.apply`) sigue fuera de alcance para
+nodos internos.
+
+### 2026-07-28 — primer deploy real `int-ssh + int-http + int-smb` (IST AMERICAS)
+
+Primer `int-*` desplegado end-to-end en una VM. `int-ssh` levantó y apareció en
+`/deception`; los otros dos crash-loopearon, cada uno por su causa:
+
+- **`int-http`**: al `INT_HTTP_TEMPLATE` le faltaba el `cap_add`
+  (CHOWN/SETUID/SETGID) que el bloque `http` externo sí tiene. `cap_drop: ALL`
+  de `service-defaults` mata el `chown` + `gosu` de `entrypoint.sh`
+  (`Operation not permitted` en loop). Arreglado + test de regresión que cubre
+  `http` e `int-http` a la vez.
+- **`int-smb`**: `ModuleNotFoundError: control_agent`. Causa raíz en
+  `publish-sensor-images.yml`: el contexto de build es `sensors/<svc>`, así que
+  `sensors/_shared/*.py` nunca entra a la imagen. Afecta a **todas** las
+  imágenes publicadas de ftp/mysql/port/smb/web, no solo smb — los deploys por
+  compose no lo notaban porque bind-montean `_shared` en runtime, y el bloque
+  SMB externo lo esquivaba buildeando desde fuente con `ADD` explícitos. Fix:
+  un step que copia `_shared/*.py` al contexto antes del build (se descartan
+  los compose files intactos; el checkout de CI es desechable).
+
+Requiere re-publicar imágenes (push a master dispara el workflow) antes de que
+un `int-smb`/`int-mysql` nuevo arranque.
 
 ## 8. Deuda técnica y fuera de alcance
 
