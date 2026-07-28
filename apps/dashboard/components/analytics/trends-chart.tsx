@@ -23,6 +23,27 @@ const RANGE_OPTIONS: { label: string; value: Range }[] = [
 
 const COLORS = ["#60a5fa", "#34d399", "#f59e0b", "#f87171", "#a78bfa", "#fb923c", "#22d3ee"]
 
+// Same custom tooltip pattern as container-stats-chart.tsx's ContainerTooltip
+// — `contentStyle` alone doesn't reliably pick up the CSS variables here, so
+// it renders without the bordered/shadowed card the rest of the app uses.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function TrendsTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null
+  const items = (payload as Array<{ color: string; name: string; value: number | null }>)
+    .filter((p) => p.value != null)
+  if (!items.length) return null
+  return (
+    <div className="rounded-lg border border-border bg-card px-3 py-2 text-[11px] shadow-lg max-w-[220px]">
+      <p className="text-muted-foreground mb-1.5">{label}</p>
+      {items.map((p) => (
+        <p key={p.name} style={{ color: p.color }} className="font-medium">
+          {p.name}: {Number(p.value).toLocaleString()}
+        </p>
+      ))}
+    </div>
+  )
+}
+
 function fmtLabel(bucket: string, range: Range): string {
   const d = new Date(bucket.replace(" ", "T"))
   if (range === "7d") return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -125,9 +146,7 @@ export default function TrendsChart() {
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
             <XAxis dataKey="label" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
             <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} width={40} />
-            <Tooltip
-              contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 11 }}
-            />
+            <Tooltip content={<TrendsTooltip />} />
             <Legend
               wrapperStyle={{ fontSize: "10px", paddingTop: "8px", cursor: "pointer" }}
               onClick={(e) => toggleProtocol(String(e.dataKey))}
