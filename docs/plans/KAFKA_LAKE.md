@@ -363,14 +363,20 @@ uno tapaba al siguiente:**
    aunque el volumen suba.
 7. **`fetch failed` — ClickHouse inalcanzable desde otros contenedores**
    (encontrado 2026-07-27 usando el endpoint de ANALYTICS_MODULE, no durante
-   el deploy original). Sin `CLICKHOUSE_LISTEN_HOST` seteado, el entrypoint
-   por defecto arranca con `--listen_host=127.0.0.1` — el propio healthcheck
-   de ClickHouse (corre *dentro* del contenedor) pasaba perfecto, pero
-   `ingest-api` (otro contenedor, misma red Docker) no podía llegar a
-   `clickhouse:8123` para nada: `docker ps` mostraba los dos "healthy" y aun
-   así la conexión fallaba. Fix: `CLICKHOUSE_LISTEN_HOST: "0.0.0.0"` en el
-   servicio `clickhouse` de los dos composes — sigue sin exponerse a
-   internet (sin `ports:` publicado), solo se vuelve alcanzable para el
+   el deploy original). Por defecto el entrypoint arranca con
+   `--listen_host=127.0.0.1` — el propio healthcheck de ClickHouse (corre
+   *dentro* del contenedor) pasaba perfecto, pero `ingest-api` (otro
+   contenedor, misma red Docker) no podía llegar a `clickhouse:8123` para
+   nada: `docker ps` mostraba los dos "healthy" y aun así la conexión
+   fallaba. **Primer intento fallido:** una env var `CLICKHOUSE_LISTEN_HOST`
+   en el compose — no hace nada, el entrypoint no la lee; `listen_host` es un
+   setting de `config.xml`, no una env var (confirmado el modo difícil,
+   corriendo `env | grep LISTEN` adentro del contenedor y viendo que estaba
+   seteada igual sin efecto). **Fix real:** `<listen_host>0.0.0.0</listen_host>`
+   agregado a `clickhouse/config.d/limits.xml` (el mismo archivo que ya
+   sobreescribe `max_server_memory_usage` — confirmado que se mergea en cada
+   arranque). Sigue sin exponerse a internet (sin `ports:` publicado), solo
+   se vuelve alcanzable para el
    resto de la red Docker interna, que es lo que siempre se necesitó.
 
 **Lección para la próxima vez que se agregue un servicio pesado nuevo:**

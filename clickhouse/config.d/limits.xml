@@ -24,4 +24,12 @@
          the sanity check with margin. -->
     <mark_cache_size>134217728</mark_cache_size> <!-- 128 MB -->
     <uncompressed_cache_size>0</uncompressed_cache_size>
+    <!-- Without this the entrypoint defaults to 127.0.0.1 — reachable only
+         from inside the container itself (its own healthcheck passed fine;
+         other containers on the Docker network got "fetch failed"). A
+         CLICKHOUSE_LISTEN_HOST env var does NOT do this — listen_host is a
+         config.xml setting, confirmed the hard way in prod. Still never
+         exposed to the host/internet: no `ports:` published on the service,
+         reachable only from honeypot_ingest/db_private. -->
+    <listen_host>0.0.0.0</listen_host>
 </clickhouse>

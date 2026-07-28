@@ -342,14 +342,6 @@ services:
       CLICKHOUSE_DB: ${CLICKHOUSE_DATABASE:-honeypot_lake}
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-honeypot}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
-      # Without this the entrypoint defaults to --listen_host=127.0.0.1 —
-      # its own healthcheck (runs inside the container) passes fine, but no
-      # other container on the Docker network can reach it (confirmed in
-      # prod: ingest-api got "fetch failed" against clickhouse:8123 while
-      # `docker ps` showed both containers healthy). Still never exposed to
-      # the host/internet — no `ports:` published, reachable only from
-      # honeypot_ingest/db_private.
-      CLICKHOUSE_LISTEN_HOST: "0.0.0.0"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - ./clickhouse/config.d:/etc/clickhouse-server/config.d:ro
