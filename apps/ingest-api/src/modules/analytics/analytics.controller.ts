@@ -19,7 +19,15 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
 
     const q = trendsQuerySchema.parse(request.query)
     const scope = parseClickHouseScope(request.query as Record<string, unknown>)
-    const data = await svc.getTrends(fastify.cache, q.range as TrendRange, q.protocol ?? null, scope)
-    return reply.send({ range: q.range, protocol: q.protocol ?? null, data })
+    try {
+      const data = await svc.getTrends(fastify.cache, q.range as TrendRange, q.protocol ?? null, scope)
+      return reply.send({ range: q.range, protocol: q.protocol ?? null, data })
+    } catch (err) {
+      // ClickHouse configured but unreachable/erroring right now (e.g. still
+      // starting up — plugins/clickhouse.ts no longer gates on a boot ping).
+      // Surface the same 503 the UI already handles, not a generic 500.
+      request.log.warn({ err }, 'ClickHouse query failed')
+      return reply.status(503).send({ error: 'analytics_unavailable' })
+    }
   })
 }

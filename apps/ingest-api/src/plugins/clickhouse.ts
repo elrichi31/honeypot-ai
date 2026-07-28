@@ -9,10 +9,15 @@ declare module 'fastify' {
   }
 }
 
-// Same shape as plugins/redis.ts: absent/unreachable -> decorate null, the
-// analytics module (the only consumer of fastify.clickhouse) disables itself.
-// Never blocks or fails Fastify startup — Postgres and everything else on
-// this API is completely independent of ClickHouse being up.
+// Decorates fastify.clickhouse whenever CLICKHOUSE_URL is set — NOT gated on
+// a boot-time ping (that was the original design here, and it lost a real
+// startup race in prod: ingest-api and clickhouse have no depends_on between
+// them by design, so ClickHouse can still be starting when this plugin's
+// ping ran, permanently disabling analytics for the process lifetime with no
+// retry). Reachability is discovered per-request instead: the analytics
+// controller catches query failures and returns 503, so a slow/late
+// ClickHouse start — or a later restart — recovers on the very next request,
+// no ingest-api restart needed.
 export default fp(async (fastify: FastifyInstance) => {
   if (!isClickHouseConfigured()) {
     fastify.decorate('clickhouse', null)
@@ -21,17 +26,18 @@ export default fp(async (fastify: FastifyInstance) => {
   }
 
   const client = createClickHouseClient()
-  try {
-    const result = await client!.ping()
-    if (!result.success) throw new Error('ping returned success:false')
-    fastify.log.info('ClickHouse connected — analytics module enabled')
-  } catch (err) {
-    fastify.log.warn({ err }, 'ClickHouse ping failed — analytics module disabled')
-    await closeClickHouseClient()
-    fastify.decorate('clickhouse', null)
-    return
-  }
-
   fastify.decorate('clickhouse', client)
+  fastify.log.info('ClickHouse client configured — analytics module enabled')
+
+  // Best-effort background check, logging only — never gates the decoration.
+  setImmediate(async () => {
+    try {
+      const result = await client!.ping()
+      fastify.log.info(result.success ? 'ClickHouse reachable' : 'ClickHouse ping returned success:false — queries will retry per-request')
+    } catch (err) {
+      fastify.log.warn({ err }, 'ClickHouse not reachable yet — analytics queries will 503 until it is')
+    }
+  })
+
   fastify.addHook('onClose', () => closeClickHouseClient())
 }, { name: 'clickhouse' })

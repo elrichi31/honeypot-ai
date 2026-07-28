@@ -2,15 +2,31 @@
 
 ## Estado (2026-07-27)
 
-**Fase A completa de punta a punta (2026-07-27) — sin desplegar todavía.**
-Cliente ClickHouse + endpoint `GET /analytics/trends` en `ingest-api`
-(**aislado del resto del backend** — el usuario fue explícito en que este
-cliente es solo para analítica, todo lo demás sigue en Postgres vía Prisma
-sin tocar), y el dashboard ya lo consume: `/analytics` muestra el chart real
-(área apilada por protocolo, selector 7d/30d/90d/1y, toggle de series por
-leyenda), no más tarjeta "coming soon" para Trends. Falta correr el backfill
-de 3c en el server para que tenga historia real (hoy solo verá lo que entró
-desde que el consumer de Kafka arrancó).
+**Fase A completa de punta a punta, desplegada — un bug de boot encontrado y
+arreglado en el camino (2026-07-27).** Cliente ClickHouse + endpoint `GET
+/analytics/trends` en `ingest-api` (**aislado del resto del backend** — el
+usuario fue explícito en que este cliente es solo para analítica, todo lo
+demás sigue en Postgres vía Prisma sin tocar), y el dashboard ya lo consume:
+`/analytics` muestra el chart real (área apilada por protocolo, selector
+7d/30d/90d/1y, toggle de series por leyenda), no más tarjeta "coming soon"
+para Trends. Falta correr el backfill de 3c en el server para que tenga
+historia real (hoy solo verá lo que entró desde que el consumer de Kafka
+arrancó).
+
+**Bug real encontrado en el primer deploy: `/analytics` mostraba "Analytics
+is not available" a pesar de que ClickHouse estaba sano.** Causa:
+`plugins/clickhouse.ts` hacía un `ping()` **una sola vez al arrancar** y, si
+fallaba, desactivaba el módulo para toda la vida del proceso, sin reintentar.
+Como `ingest-api` y `clickhouse` no tienen `depends_on` entre sí (a
+propósito), `ingest-api` puede arrancar y correr ese ping mientras ClickHouse
+todavía está iniciando — perdió esa carrera en prod. Fix: el plugin ya no
+gatea en el ping — decora `fastify.clickhouse` apenas `CLICKHOUSE_URL` está
+seteada, y el ping de boot queda solo como log informativo en background
+(`setImmediate`, no bloqueante). La disponibilidad real se descubre **por
+request**: el controller ahora envuelve la query en `try/catch` y devuelve
+`503` si falla, así que un ClickHouse que arrancó tarde (o se reinicia más
+adelante) se recupera solo en el próximo request — no hace falta reiniciar
+`ingest-api`. Verificado: `tsc --noEmit` limpio, 166 tests en verde.
 
 **Dashboard (nuevo, 2026-07-27):**
 - `app/api/analytics/trends/route.ts` — proxy server-side: resuelve
