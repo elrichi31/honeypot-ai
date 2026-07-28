@@ -422,6 +422,29 @@ Dos bugs más del instalador que salieron del mismo deploy, ambos en
   el `sshd_config` ya modificado sobre `sshd_config.pre-honeypot`. El backup
   del original se perdía y `sensor-uninstall` no podía devolver el sshd al 22.
 
+### 2026-07-28 — IP LAN de los nodos + borrado desde `/deception`
+
+Con los tres nodos ya reportando salió que los tres mostraban **la misma IP
+pública** (la del NAT del sitio): correcta, pero no distingue un nodo de otro
+ni dice en qué máquina corre cada uno. El contenedor no puede averiguarla solo
+— en `deception_net` únicamente se ve a sí mismo como `172.x`.
+
+Solución: el instalador la resuelve de la ruta por defecto y la pasa como
+`SENSOR_LOCAL_IP`; el heartbeat la manda como `localIp` **junto a** la pública,
+no en su lugar. Columna nueva `sensors.local_ip` (migración
+`20260728000000_add_sensor_local_ip`), y el upsert conserva el último valor
+conocido cuando late un sensor anterior al campo. `sensor-update` también
+exporta la variable, si no un update la borraba.
+
+En el front: la tarjeta de `/sensors` reusa el par de celdas interna/externa
+que ya existía para sensores con IP privada, y la de `/deception` suma una
+línea `LAN`. Las tarjetas de `/deception` además ganaron el botón de borrado
+(mismo diálogo que `/sensors`, extraído a `delete-sensor-dialog.tsx`), porque
+un reinstall cambia el `deployId` y deja el nodo anterior colgado en offline.
+
+Requiere: migración aplicada en el API, imágenes republicadas (web, smb, mysql)
+y reinstalar el sensor para que el compose lleve la variable.
+
 **Pendiente:** `sensor-update` solo hace `pull` + `up -d` sobre el compose
 local; no lo regenera. Cualquier fix de plantilla (como el `cap_add` de
 `int-http`) obliga a rebajar el instalador entero. Vale la pena que
