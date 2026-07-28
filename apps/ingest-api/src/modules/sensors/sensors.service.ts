@@ -43,7 +43,7 @@ export class SensorService {
     sensorId: string; clientId: string | null; name: string; protocol: string
     ip: string; version: string; imageVersion?: string; ports: number[]; probePorts: number[]
     probeHost: string; now: Date; portStatus?: Record<string, boolean>
-    layer?: 'external' | 'internal'; realProtocol?: string
+    layer?: 'external' | 'internal'; realProtocol?: string; localIp?: string
   }) {
     return this.repo.upsertHeartbeat(args)
   }
@@ -83,7 +83,7 @@ export class SensorService {
       if (ssh.count > 0n) {
         result.push({
           sensorId: 'cowrie-ssh', clientId: null, clientName: null, clientSlug: null,
-          clientCode: '', name: 'SSH Honeypot (Cowrie)', protocol: 'ssh', ip: '-',
+          clientCode: '', name: 'SSH Honeypot (Cowrie)', protocol: 'ssh', ip: '-', localIp: '',
           version: '', imageVersion: '', ports: [], probeHost: '', eventsTotal: Number(ssh.count),
           lastSeen: ssh.last_seen ?? new Date(0), createdAt: new Date(0),
           online: ssh.last_seen ? ssh.last_seen > twoMinutesAgo : false, degraded: false, portStatus: {}, portStatusReported: false,

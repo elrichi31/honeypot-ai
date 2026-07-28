@@ -12,12 +12,13 @@ export type SensorRow = {
   created_at: Date; event_count: bigint
   owner_type: string; application_id: string | null; application_name: string | null
   real_protocol: string | null
+  local_ip?: string
 }
 
 export type SensorResult = {
   sensorId: string; clientId: string | null; clientName: string | null
   clientSlug: string | null; clientCode: string; name: string
-  protocol: string; ip: string; version: string; imageVersion: string; ports: number[]
+  protocol: string; ip: string; localIp: string; version: string; imageVersion: string; ports: number[]
   probeHost: string; lastSeen: Date; createdAt: Date
   eventsTotal: number; online: boolean; degraded: boolean; portStatus: Record<number, boolean>
   // True when portStatus came from the sensor's own heartbeat (trustworthy for
@@ -167,5 +168,6 @@ export function formatSensor(sensor: SensorRow, portStatus: Record<number, boole
     applicationId:   sensor.application_id ?? null,
     applicationName: sensor.application_name ?? null,
     realProtocol:    sensor.real_protocol ?? null,
+    localIp:         sensor.local_ip ?? '',
   }
 }

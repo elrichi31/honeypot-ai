@@ -150,8 +150,8 @@ export class DeceptionRepository {
     const hitScope = sensorScopeClause(scope)
 
     const [sensors, activity] = await Promise.all([
-      this.prismaRead.$queryRaw<Array<{ sensor_id: string; name: string; ip: string; ports: unknown; last_seen: Date; real_protocol: string | null }>>`
-        SELECT sensor_id, name, ip, ports, last_seen, real_protocol FROM sensors
+      this.prismaRead.$queryRaw<Array<{ sensor_id: string; name: string; ip: string; local_ip: string; ports: unknown; last_seen: Date; real_protocol: string | null }>>`
+        SELECT sensor_id, name, ip, local_ip, ports, last_seen, real_protocol FROM sensors
         WHERE ${sensorWhere} ORDER BY ip ASC
       `,
       this.prismaRead.$queryRaw<Array<{ node_id: string; hits: bigint; auth_attempts: bigint; last_hit: Date | null }>>`
@@ -169,7 +169,7 @@ export class DeceptionRepository {
     return sensors.map(s => {
       const act = byNode.get(s.sensor_id)
       return {
-        sensorId: s.sensor_id, name: s.name, ip: s.ip,
+        sensorId: s.sensor_id, name: s.name, ip: s.ip, localIp: s.local_ip ?? '',
         ports: Array.isArray(s.ports) ? s.ports : [],
         online: now - new Date(s.last_seen).getTime() < 2 * 60 * 1000,
         lastSeen: s.last_seen,

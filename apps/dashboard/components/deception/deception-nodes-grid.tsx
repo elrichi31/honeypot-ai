@@ -58,6 +58,9 @@ function NodeCard({ node }: { node: DeceptionNode }) {
         </div>
       </div>
       <p className="font-mono text-[11px] text-muted-foreground">{node.ip} · ports {node.ports.join(", ") || "—"}</p>
+      {node.localIp && (
+        <p className="font-mono text-[11px] text-muted-foreground/70">LAN {node.localIp}</p>
+      )}
       <div className="mt-3 grid grid-cols-2 gap-2">
         <div>
           <p className="text-lg font-semibold tabular-nums text-blue-400">{node.hits.toLocaleString()}</p>

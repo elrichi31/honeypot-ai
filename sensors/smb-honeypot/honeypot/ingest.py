@@ -9,7 +9,7 @@ from urllib.request import Request, urlopen
 
 from .config import (
     CONFIG_HASH, INGEST_API_URL, INGEST_SHARED_SECRET, SENSOR_ID, SENSOR_NAME,
-    CLIENT_SLUG, CLIENT_NAME, VERSION, SENSOR_HOST, SENSOR_LAYER,
+    CLIENT_SLUG, CLIENT_NAME, VERSION, SENSOR_HOST, SENSOR_LAYER, SENSOR_LOCAL_IP,
     DST_PORT, EVENT_LOG_PATH,
 )
 
@@ -103,6 +103,8 @@ def send_heartbeat(sensor_ip: str) -> tuple[bool, int | None, str | None]:
         "portStatus": {DST_PORT: _port_open("127.0.0.1", int(os.getenv("PORT", "445")))},
         "host":       SENSOR_HOST,
     }
+    if SENSOR_LOCAL_IP:
+        payload["localIp"] = SENSOR_LOCAL_IP
     if SENSOR_LAYER == "internal":
         payload["layer"] = "internal"
         payload["realProtocol"] = "smb"

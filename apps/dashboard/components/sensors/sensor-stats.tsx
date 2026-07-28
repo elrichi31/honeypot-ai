@@ -36,6 +36,21 @@ function IpSection({
       </div>
     )
   }
+  // A sensor whose own address is public still runs on a box with a LAN
+  // address; the heartbeat reports it so trap nodes sharing one NAT IP stay
+  // distinguishable.
+  if (sensor.localIp) {
+    return (
+      <div className="col-span-2 grid grid-cols-2 gap-2">
+        <StatCell label={t("sensors.stats.ipInternal")}>
+          <p className="font-mono text-xs text-violet-400">{sensor.localIp}</p>
+        </StatCell>
+        <StatCell label={t("sensors.stats.ipExternal")}>
+          <p className="font-mono text-xs text-foreground">{sensor.ip || "-"}</p>
+        </StatCell>
+      </div>
+    )
+  }
   return (
     <div className="col-span-2 grid grid-cols-2 gap-2">
       <StatCell label={t("sensors.stats.ip")}>

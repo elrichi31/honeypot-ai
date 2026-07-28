@@ -68,6 +68,9 @@ export interface Sensor {
   name: string
   protocol: string
   ip: string
+  // LAN address of the host the sensor runs on, reported by its heartbeat.
+  // Empty for sensors deployed before the field existed.
+  localIp?: string
   version: string
   // Git sha of the sensor image, baked at build and reported via heartbeat.
   // Empty for beacon-based sensors (cowrie, web) until the Fase 1 host updater.

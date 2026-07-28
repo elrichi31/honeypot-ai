@@ -60,6 +60,9 @@ def _passive_fingerprint() -> str:
 
 
 SENSOR_IP = detect_ip()
+# LAN address of the host, passed in by the installer: a container on a bridge
+# network cannot discover it, and the public IP is shared by the whole site.
+SENSOR_LOCAL_IP = os.environ.get("SENSOR_LOCAL_IP", "")
 
 # Static headers that every response carries — mimics a typical Ubuntu/Apache/PHP stack.
 # Keep these consistent across requests so fingerprinting tools see a stable identity.
@@ -271,6 +274,8 @@ def _send_heartbeat():
             "portStatus": port_status,
             "host": SENSOR_HOST,
         }
+        if SENSOR_LOCAL_IP:
+            payload["localIp"] = SENSOR_LOCAL_IP
         if SENSOR_LAYER == "internal":
             payload["layer"] = "internal"
             payload["realProtocol"] = "http"

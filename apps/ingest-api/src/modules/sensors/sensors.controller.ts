@@ -95,6 +95,7 @@ const heartbeatSchema = z.object({
   // self-report yet — the server falls back to its own TCP probe.
   portStatus:   z.record(z.string(), z.boolean()).default({}),
   host:         z.string().default(''),
+  localIp:      z.string().default(''),
   layer:        z.enum(['external', 'internal']).default('external'),
   realProtocol: z.string().optional(),
   // Reported by cowrie-beacon's control_agent.py alongside every heartbeat —
@@ -132,7 +133,7 @@ export async function sensorRoutes(fastify: FastifyInstance) {
     await svc.upsertHeartbeat({
       sensorId: d.sensorId, clientId: client.id, name: d.name, protocol: d.protocol,
       ip: d.ip, version: d.version, imageVersion: d.imageVersion, ports: d.ports, probePorts, probeHost, now,
-      portStatus: d.portStatus, layer: d.layer, realProtocol: d.realProtocol,
+      portStatus: d.portStatus, layer: d.layer, realProtocol: d.realProtocol, localIp: d.localIp,
     })
 
     void clearSensorOfflineAlert(fastify.prisma, d.sensorId)

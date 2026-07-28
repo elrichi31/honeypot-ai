@@ -31,6 +31,7 @@ export type DeceptionNode = {
   sensorId: string
   name: string
   ip: string
+  localIp?: string
   ports: number[]
   online: boolean
   lastSeen: string

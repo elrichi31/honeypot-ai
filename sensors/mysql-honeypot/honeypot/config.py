@@ -12,6 +12,9 @@ SENSOR_NAME = os.getenv("SENSOR_NAME", "MySQL Honeypot")
 CLIENT_SLUG = os.getenv("CLIENT_SLUG", "")
 CLIENT_NAME = os.getenv("CLIENT_NAME", "")
 SENSOR_LAYER = os.getenv("SENSOR_LAYER", "external")
+# LAN address of the host, passed in by the installer: a container on a bridge
+# network cannot discover it, and the public IP is shared by the whole site.
+SENSOR_LOCAL_IP = os.getenv("SENSOR_LOCAL_IP", "")
 VERSION = "1.0.0"
 SENSOR_HOST = os.getenv("SENSOR_HOST", socket.gethostname())
 

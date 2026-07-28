@@ -21,6 +21,9 @@ SENSOR_NAME = os.getenv("SENSOR_NAME",           "SSH Honeypot (Cowrie)")
 CLIENT_SLUG = os.getenv("CLIENT_SLUG",           "")
 CLIENT_NAME = os.getenv("CLIENT_NAME",           "")
 SENSOR_IP   = os.getenv("SENSOR_IP",             "")
+# LAN address of the host, passed in by the installer: a container on a bridge
+# network cannot discover it, and the public IP is shared by the whole site.
+LOCAL_IP    = os.getenv("SENSOR_LOCAL_IP",       "")
 PROTOCOL    = os.getenv("SENSOR_PROTOCOL",       "ssh")
 VERSION     = os.getenv("SENSOR_VERSION",        "cowrie")
 _ports_raw  = os.getenv("SENSOR_PORTS",          "22")
@@ -91,6 +94,8 @@ def send(ip: str) -> None:
         "portStatus": _port_status(),
         "host":       HOST,
     }
+    if LOCAL_IP:
+        payload["localIp"] = LOCAL_IP
     if SENSOR_LAYER == "internal":
         payload["layer"] = "internal"
         payload["realProtocol"] = PROTOCOL
