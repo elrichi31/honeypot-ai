@@ -195,10 +195,14 @@ if ss -tlnp | grep -q ':22 ' && ! ss -tlnp | grep -q ':8022 '; then
   sed -i 's/^#*Port .*/Port 8022/' /etc/ssh/sshd_config
   SOCKET_DROP="/etc/systemd/system/ssh.socket.d"
   mkdir -p "$SOCKET_DROP"
+  # Both families explicitly: a bare "ListenStream=8022" binds a single socket
+  # that on a bindv6only=1 host serves IPv6 only, so every IPv4 client gets
+  # "Connection refused" — a silent lockout on a LAN box reached over IPv4.
   cat > "$SOCKET_DROP/override.conf" << 'EOF'
 [Socket]
 ListenStream=
-ListenStream=8022
+ListenStream=0.0.0.0:8022
+ListenStream=[::]:8022
 EOF
   systemctl daemon-reload
   if ! systemctl restart ssh.socket 2>/dev/null && ! systemctl restart sshd 2>/dev/null; then
@@ -206,10 +210,12 @@ EOF
     exit 1
   fi
 
-  # Verify sshd is actually listening on 8022 before declaring success
+  # Verify sshd answers over IPv4 before declaring success. Grepping for
+  # ":8022 " is not enough: an IPv6-only listener matches it while every IPv4
+  # client is still refused.
   _SSH_VERIFIED=false
   for _i in 1 2 3 4 5; do
-    if ss -tlnp | grep -q ':8022 '; then
+    if ss -tlnp | grep -qE '(0\\.0\\.0\\.0|\\*):8022 '; then
       _SSH_VERIFIED=true
       break
     fi
@@ -217,7 +223,7 @@ EOF
   done
 
   if [ "$_SSH_VERIFIED" = "false" ]; then
-    echo "ERROR: sshd did not come up on port 8022 after restart." >&2
+    echo "ERROR: sshd did not come up on port 8022 (IPv4) after restart." >&2
     _ssh_rollback
     exit 1
   fi
