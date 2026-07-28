@@ -2,14 +2,35 @@
 
 ## Estado (2026-07-27)
 
-**Backend de Fase A implementado (2026-07-27), dashboard todavía sin
-consumirlo.** UI shell (sección del sidebar + landing `/analytics` con las 2
-tarjetas "coming soon") ya estaba en `master`. Ahora además: cliente
-ClickHouse + helper de tenant scoping + endpoint `GET /analytics/trends` en
-`ingest-api`, **aislado del resto del backend** — el usuario fue explícito en
-que este cliente es solo para analítica, todo lo demás sigue en Postgres vía
-Prisma sin tocar. Falta: correr el backfill de 3c, y que el dashboard
-reemplace las tarjetas "coming soon" por el chart real.
+**Fase A completa de punta a punta (2026-07-27) — sin desplegar todavía.**
+Cliente ClickHouse + endpoint `GET /analytics/trends` en `ingest-api`
+(**aislado del resto del backend** — el usuario fue explícito en que este
+cliente es solo para analítica, todo lo demás sigue en Postgres vía Prisma
+sin tocar), y el dashboard ya lo consume: `/analytics` muestra el chart real
+(área apilada por protocolo, selector 7d/30d/90d/1y, toggle de series por
+leyenda), no más tarjeta "coming soon" para Trends. Falta correr el backfill
+de 3c en el server para que tenga historia real (hoy solo verá lo que entró
+desde que el consumer de Kafka arrancó).
+
+**Dashboard (nuevo, 2026-07-27):**
+- `app/api/analytics/trends/route.ts` — proxy server-side: resuelve
+  `effectiveSensorScope()` (el tenant del usuario autenticado) y lo reenvía
+  como `?sensorIds=` a `ingest-api`, mismo patrón que
+  `app/api/stats/novelty/route.ts`. Un cliente scoped no puede ampliar su
+  vista editando el query string — el scope se resuelve server-side, nunca se
+  confía en lo que mande el browser.
+- `components/analytics/trends-chart.tsx` + `trends-explorer.tsx` — mismo
+  split que `container-stats-chart.tsx`/`container-stats.tsx` (el wrapper
+  hace el `dynamic(..., { ssr: false })` porque recharts toca `window`).
+  Pivotea `{bucket, protocol, count}[]` a filas por bucket, un `Area` por
+  protocolo detectado en la respuesta (no hardcodeado).
+- Maneja los 3 estados que importan: `503` → "analytics no disponible"
+  (ClickHouse caído/no configurado, distinto de "sin datos"), sin filas →
+  empty state, error de red → `ErrorState` con retry.
+- **Omitido a propósito (YAGNI por ahora):** filtro manual de sensor/cliente
+  (`ClientSensorFilter`) y el toggle "línea total vs. apilado" que sugería
+  este plan — el scope automático por tenant ya filtra correctamente sin
+  eso; agregar si alguien lo pide.
 
 **Arquitectura implementada — resumen:**
 - `apps/ingest-api/src/lib/clickhouse.ts` — cliente (`@clickhouse/client`),
