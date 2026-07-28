@@ -2,31 +2,43 @@
 
 ## Estado (2026-07-27)
 
-**Fase A completa de punta a punta, desplegada — un bug de boot encontrado y
-arreglado en el camino (2026-07-27).** Cliente ClickHouse + endpoint `GET
-/analytics/trends` en `ingest-api` (**aislado del resto del backend** — el
-usuario fue explícito en que este cliente es solo para analítica, todo lo
-demás sigue en Postgres vía Prisma sin tocar), y el dashboard ya lo consume:
-`/analytics` muestra el chart real (área apilada por protocolo, selector
-7d/30d/90d/1y, toggle de series por leyenda), no más tarjeta "coming soon"
-para Trends. Falta correr el backfill de 3c en el server para que tenga
-historia real (hoy solo verá lo que entró desde que el consumer de Kafka
-arrancó).
+**Fase A completa, desplegada y VERIFICADA funcionando en prod con datos
+reales (2026-07-27).** Cliente ClickHouse + endpoint `GET /analytics/trends`
+en `ingest-api` (**aislado del resto del backend** — el usuario fue explícito
+en que este cliente es solo para analítica, todo lo demás sigue en Postgres
+vía Prisma sin tocar), y el dashboard lo consume: `/analytics` muestra el
+chart real (área apilada por protocolo — `cowrie`, `web`, `suricata`,
+`port-scan`, `ftp`, `mysql`, `smb` — selector 7d/30d/90d/1y, tooltip con
+tarjeta con borde igual al resto de la app, toggle de series por leyenda).
+Confirmado visualmente por el usuario con datos reales del honeypot. Falta
+correr el backfill de 3c para que el rango cubra más que "desde que arrancó
+el consumer de Kafka".
 
-**Bug real encontrado en el primer deploy: `/analytics` mostraba "Analytics
-is not available" a pesar de que ClickHouse estaba sano.** Causa:
-`plugins/clickhouse.ts` hacía un `ping()` **una sola vez al arrancar** y, si
-fallaba, desactivaba el módulo para toda la vida del proceso, sin reintentar.
-Como `ingest-api` y `clickhouse` no tienen `depends_on` entre sí (a
-propósito), `ingest-api` puede arrancar y correr ese ping mientras ClickHouse
-todavía está iniciando — perdió esa carrera en prod. Fix: el plugin ya no
-gatea en el ping — decora `fastify.clickhouse` apenas `CLICKHOUSE_URL` está
-seteada, y el ping de boot queda solo como log informativo en background
-(`setImmediate`, no bloqueante). La disponibilidad real se descubre **por
-request**: el controller ahora envuelve la query en `try/catch` y devuelve
-`503` si falla, así que un ClickHouse que arrancó tarde (o se reinicia más
-adelante) se recupera solo en el próximo request — no hace falta reiniciar
-`ingest-api`. Verificado: `tsc --noEmit` limpio, 166 tests en verde.
+**Dos bugs reales encontrados en el deploy, ambos resueltos:**
+1. **Boot-race:** `plugins/clickhouse.ts` hacía un `ping()` una sola vez al
+   arrancar y, si fallaba, desactivaba el módulo para toda la vida del
+   proceso, sin reintentar. Como `ingest-api` y `clickhouse` no tienen
+   `depends_on` entre sí (a propósito), `ingest-api` podía arrancar y correr
+   ese ping mientras ClickHouse todavía estaba iniciando — perdió esa carrera
+   en prod. Fix: el plugin ya no gatea en el ping — decora
+   `fastify.clickhouse` apenas `CLICKHOUSE_URL` está seteada; la
+   disponibilidad real se descubre **por request** (el controller envuelve la
+   query en `try/catch` → `503` si falla), así que un ClickHouse que arrancó
+   tarde se recupera solo en el próximo request.
+2. **`listen_host` — el bug más grande de los dos.** Aun con el fix #1,
+   `ingest-api` seguía sin poder llegar a `clickhouse:8123` (`fetch failed`
+   puro, nada que ver con el cliente/credenciales) — el healthcheck de
+   ClickHouse pasaba porque corre *dentro* del contenedor, pero nadie de
+   afuera podía conectarse. Causa: sin configurar, el entrypoint arranca con
+   `--listen_host=127.0.0.1`. **Primer intento fallido:** una env var
+   `CLICKHOUSE_LISTEN_HOST` en el compose — no existe, el entrypoint no la
+   lee. **Fix real:** `<listen_host>0.0.0.0</listen_host>` en
+   `clickhouse/config.d/limits.xml` (mismo archivo que ya sobreescribe
+   `max_server_memory_usage`). Ver detalle completo en
+   [KAFKA_LAKE.md, incidente #7](KAFKA_LAKE.md#sub-fase-3a--clickhouse-arriba--schema).
+
+Verificado: `tsc --noEmit` limpio en los dos paquetes, 166 tests en verde,
+chart renderizando datos reales en el browser.
 
 **Dashboard (nuevo, 2026-07-27):**
 - `app/api/analytics/trends/route.ts` — proxy server-side: resuelve
@@ -43,6 +55,11 @@ adelante) se recupera solo en el próximo request — no hace falta reiniciar
 - Maneja los 3 estados que importan: `503` → "analytics no disponible"
   (ClickHouse caído/no configurado, distinto de "sin datos"), sin filas →
   empty state, error de red → `ErrorState` con retry.
+- **Fix de UI post-deploy:** el tooltip al pasar el mouse salía como texto
+  flotante sin la tarjeta con borde/sombra que tiene el resto de la app —
+  `contentStyle` de Recharts no levantaba bien las variables CSS. Se
+  reemplazó por el mismo patrón de tooltip custom (`content={<Tooltip/>}`)
+  que ya usa `container-stats-chart.tsx`.
 - **Omitido a propósito (YAGNI por ahora):** filtro manual de sensor/cliente
   (`ClientSensorFilter`) y el toggle "línea total vs. apilado" que sugería
   este plan — el scope automático por tenant ya filtra correctamente sin
@@ -50,37 +67,31 @@ adelante) se recupera solo en el próximo request — no hace falta reiniciar
 
 **Arquitectura implementada — resumen:**
 - `apps/ingest-api/src/lib/clickhouse.ts` — cliente (`@clickhouse/client`),
-  gateado por `CLICKHOUSE_URL` igual que `KAFKA_BROKERS` gatea el lake
-  producer.
-- `apps/ingest-api/src/plugins/clickhouse.ts` — plugin Fastify: si
-  `CLICKHOUSE_URL` falta o el `ping()` falla, decora `fastify.clickhouse =
-  null` y sigue — nunca bloquea el arranque, sin `depends_on` en ningún
-  sentido (mismo desacople que ya tiene el propio servicio `clickhouse`).
+  creado apenas `CLICKHOUSE_URL` está seteada (ya no gateado por un ping de
+  boot, ver bug #1 arriba).
+- `apps/ingest-api/src/plugins/clickhouse.ts` — decora `fastify.clickhouse`
+  sin bloquear el arranque; el ping de boot es solo un log en background.
 - `apps/ingest-api/src/lib/clickhouse-scope.ts` — equivalente de
   `sensor-scope.ts` pero para el cliente de ClickHouse (`Prisma.Sql` no
   aplica ahí). Mismo contrato (`?sensorIds=`, `__none__` fail-closed,
-  `cacheSuffix` estable), con test (`clickhouse-scope.test.ts`, mismo patrón
-  que `sensor-scope.test.ts`) — es lógica de seguridad (fuga cross-tenant si
-  se rompe), no queda sin verificación.
+  `cacheSuffix` estable), con test (`clickhouse-scope.test.ts`) — es lógica
+  de seguridad (fuga cross-tenant si se rompe), no queda sin verificación.
 - `apps/ingest-api/src/modules/analytics/` (`*.repository/service/controller.ts`) —
   `GET /analytics/trends?range=7d|30d|90d|1y&protocol=&sensorIds=`. El
   `UNION ALL` de las 4 tablas (boceto como `all_events` VIEW en este plan)
   quedó **inline en el repositorio**, no como VIEW — un solo call site hoy,
-  YAGNI crear la vista hasta que haga falta en un segundo lugar.
-  Gating explícito: sin ClickHouse conectado, el endpoint devuelve `503
-  { error: 'analytics_unavailable' }` (no cae a Postgres en silencio).
-- `CLICKHOUSE_URL/USER/PASSWORD/DATABASE` agregadas al `environment` de
-  `ingest-api` en los dos composes core.
-- Verificado: `tsc --noEmit` limpio, 161+5 tests en verde (0 regresiones),
-  `docker compose config` OK en los dos composes.
+  YAGNI crear la vista hasta que haga falta en un segundo lugar. `503`
+  explícito (configurado-pero-caído o directamente no configurado), nunca
+  cae a Postgres en silencio.
+- `clickhouse/config.d/limits.xml` — suma `<listen_host>0.0.0.0</listen_host>`
+  (bug #2 arriba).
+- `CLICKHOUSE_URL/USER/PASSWORD/DATABASE` en el `environment` de `ingest-api`,
+  dashboard con `app/api/analytics/trends/route.ts` +
+  `components/analytics/trends-{chart,explorer}.tsx`.
 
 **Pendiente:**
 - Correr `./scripts/backfill-clickhouse.sh` (Sub-fase 3c) para que el
   endpoint tenga historia real, no solo desde que arrancó el consumer.
-- Dashboard: `/analytics` sigue mostrando las tarjetas placeholder — falta el
-  fetch + chart real contra `/analytics/trends` (reusar el patrón de
-  `container-stats-chart.tsx`: selector de rango, gráfico de área apilada por
-  protocolo).
 - Fase B (Credential Intelligence) — mismo patrón de repo/service/controller,
   sin empezar todavía.
 
