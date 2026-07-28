@@ -170,11 +170,13 @@ const SSH_PORT_STEP = `
 # Move real sshd to port 8022 so Cowrie can claim port 22.
 # Opens 8022 first, verifies it responds, then closes 22 — so a failure
 # at any step leaves SSH accessible and the backup restores the original state.
-if ss -tlnp | grep -q ':22 '; then
+# On a re-run port 22 is held by Cowrie, not sshd — without the 8022 check the
+# step runs again and overwrites the backup with the already-moved config,
+# leaving sensor-uninstall unable to restore the original port.
+if ss -tlnp | grep -q ':22 ' && ! ss -tlnp | grep -q ':8022 '; then
   echo "==> Moving sshd to port 8022 to free port 22 for Cowrie..."
 
-  # Backup original config
-  cp /etc/ssh/sshd_config /etc/ssh/sshd_config.pre-honeypot
+  [ -f /etc/ssh/sshd_config.pre-honeypot ] || cp /etc/ssh/sshd_config /etc/ssh/sshd_config.pre-honeypot
 
   _ssh_rollback() {
     echo "ERROR: sshd port move failed — restoring original config..." >&2
