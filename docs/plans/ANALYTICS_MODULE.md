@@ -129,14 +129,31 @@ Motivación concreta, no especulativa:
 
 ## Arquitectura común (aplica a las 6 fases de abajo)
 
+**Fase A ya implementada es la referencia viva de todo lo de abajo** —
+`apps/ingest-api/src/modules/analytics/*`, `lib/clickhouse.ts`,
+`lib/clickhouse-scope.ts`, `plugins/clickhouse.ts`,
+`apps/dashboard/app/api/analytics/trends/route.ts`,
+`apps/dashboard/components/analytics/*`. Ante cualquier duda de "¿cómo hago
+esto en Fase B/C/D?", el código de Fase A responde más confiable que el
+prosa de abajo (el código no se desactualiza solo).
+
 ### Backend — capas (regla de `docs/project-notes/backend-layering.md`)
 
-Nuevo módulo `apps/ingest-api/src/modules/analytics/`:
+Módulo `apps/ingest-api/src/modules/analytics/` (ya existe, extender ahí —
+no crear uno nuevo):
 
-- **`lib/clickhouse.ts`** — cliente HTTP a ClickHouse (paquete
-  `@clickhouse/client`, apunta a `http://clickhouse:8123`). Un singleton,
-  igual patrón que `lakeProducer`/Redis: `connect()` gateado por
-  `CLICKHOUSE_URL` presente, `null` si no está configurada.
+- **`lib/clickhouse.ts` + `plugins/clickhouse.ts`** — YA IMPLEMENTADOS, no
+  tocar el patrón: el cliente se crea (y `fastify.clickhouse` se decora) en
+  cuanto `CLICKHOUSE_URL` está presente — **sin** gatear en un ping de
+  conexión al boot. Un ping ahí perdió una carrera real en prod contra el
+  arranque de ClickHouse (`ingest-api`/`clickhouse` no tienen `depends_on`
+  entre sí, a propósito) y dejó el módulo desactivado para toda la vida del
+  proceso — ver "Estado" arriba, bug #1. La disponibilidad real se descubre
+  **por request**: cada controller envuelve su query en `try/catch` y
+  devuelve `503` si falla (ver `analytics.controller.ts`, `getTrends`) — así
+  un ClickHouse caído/lento se recupera solo en el próximo request. Cualquier
+  endpoint nuevo (Fase B en adelante) sigue este mismo `try/catch` → `503`,
+  no un chequeo de disponibilidad al boot.
 - **`analytics.repository.ts`** (o partido por sub-dominio si crece: 
   `trends.repository.ts`, `credentials.repository.ts`, `attacker-profile.repository.ts` —
   decidir al implementar, según cuánto crezca cada uno; **no partir de
@@ -179,6 +196,13 @@ exactamente lo que `docs/plans/MULTI_TENANT_ROADMAP.md` existe para evitar.
 
 ### Dashboard — estructura de UI
 
+**Antes de tocar Server/Client Components acá, leer
+[docs/project-notes/dashboard-dev-conventions.md](../project-notes/dashboard-dev-conventions.md)**
+— tiene el gotcha real de RSC (pasar una función/componente de un Server
+Component a uno `"use client"` compila con `tsc` pero explota en runtime con
+recursión infinita) que ya mordió una vez en `/iocs`, más las convenciones de
+testing y el trap de Tailwind purge en prod.
+
 Nueva sección `/analytics` (top-level, sidebar), con tabs/sub-rutas por fase:
 
 ```
@@ -194,9 +218,11 @@ viva ahí. Fase F no es una ruta, es alimentar `/reports` con los repos de A/B.
 
 - Charts: reusar `recharts` (ya es dependencia — ver
   `container-stats-chart.tsx`), mismo estilo visual que Monitoring.
-- i18n: `apps/dashboard/lib/i18n/dicts/analytics-trends.ts`,
-  `analytics-credentials.ts`, etc. — un dict por fase, bajo ~150 líneas cada
-  uno (regla de `CLAUDE.md`), strings fuente en inglés.
+- i18n: Fase A agregó sus claves a `apps/dashboard/lib/i18n/dicts/analytics.ts`
+  (un solo archivo, no uno por fase como sugería la versión original de este
+  plan). Seguir sumando ahí mientras quede bajo ~150 líneas (regla de
+  `CLAUDE.md`); recién partirlo en `analytics-credentials.ts` etc. si lo
+  supera — YAGNI antes de eso. Strings fuente en inglés.
 - Cache-Control / stale-while-revalidate: igual al resto del dashboard, TTLs
   más largos que las stats "calientes" (esto es histórico, no necesita
   refrescar cada minuto — 5-15 min de TTL es razonable, a decidir por fase).
