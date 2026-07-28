@@ -4,7 +4,6 @@
 export const en = {
   "analytics.title": "Data Analytics",
   "analytics.description": "Long-range historical trends across every honeypot source, powered by ClickHouse.",
-  "analytics.comingSoon": "Coming soon",
   "analytics.trends.title": "Trends Explorer",
   "analytics.trends.description": "Attack volume over any time range, broken down by protocol, sensor or client.",
   "analytics.trends.empty.title": "No events in this range yet",
@@ -12,13 +11,11 @@ export const en = {
   "analytics.unavailable.title": "Analytics is not available",
   "analytics.unavailable.description": "The ClickHouse-backed analytics module isn't reachable on this deployment.",
   "analytics.credentials.title": "Credential Intelligence",
-  "analytics.credentials.description": "Top username/password combos, brute-force campaign timelines and success-rate trends.",
 } as const
 
 export const es: Record<keyof typeof en, string> = {
   "analytics.title": "Analítica de Datos",
   "analytics.description": "Tendencias históricas de largo rango de todas las fuentes del honeypot, con ClickHouse.",
-  "analytics.comingSoon": "Próximamente",
   "analytics.trends.title": "Explorador de Tendencias",
   "analytics.trends.description": "Volumen de ataques en cualquier rango de tiempo, desglosado por protocolo, sensor o cliente.",
   "analytics.trends.empty.title": "Todavía no hay eventos en este rango",
@@ -26,5 +23,4 @@ export const es: Record<keyof typeof en, string> = {
   "analytics.unavailable.title": "La analítica no está disponible",
   "analytics.unavailable.description": "El módulo de analítica con ClickHouse no está alcanzable en este deploy.",
   "analytics.credentials.title": "Inteligencia de Credenciales",
-  "analytics.credentials.description": "Top de combos usuario/contraseña, campañas de fuerza bruta y tendencia de tasa de éxito.",
 }

@@ -14,6 +14,47 @@ Confirmado visualmente por el usuario con datos reales del honeypot. Falta
 correr el backfill de 3c para que el rango cubra más que "desde que arrancó
 el consumer de Kafka".
 
+**Backend de Fases B–F implementado (2026-07-27) + frontend de B–E ya cableado
+(2026-07-27, mismo día).** El backend quedó disponible (Credential
+Intelligence, timeline de atacante, tendencias Suricata, comparativa
+superadmin sensor/cliente y el payload consolidado para reportes) y encima se
+construyó el frontend completo de B, C, D y E — **F (alimentar `/reports`)
+queda pendiente**, es integración con el sistema de PDF existente
+(`CLIENT_REPORTS_PDF.md`), no una página nueva, y no se tocó todavía.
+Validación: `tsc --noEmit` limpio en los dos paquetes, suite completa de
+`ingest-api` en verde (183 tests). **Sin verificar contra datos reales en
+prod todavía** — falta desplegar y correr el backfill de 3c antes de darle
+esto a un cliente.
+
+**Qué quedó (frontend, 2026-07-27):**
+- `components/analytics/shared.tsx` — extraído de `trends-chart.tsx` una vez
+  que 3 charts más necesitaron el mismo selector de rango/tooltip/colores
+  (`RangeSelector`, `ChartTooltip`, `fmtBucketLabel`, `CHART_COLORS`,
+  `LoadingSpinner`). `trends-chart.tsx` se refactorizó para usarlo — mismo
+  comportamiento, menos código duplicado.
+- **`/analytics/credentials`** (Fase B) — top combos, campañas de fuerza
+  bruta, tasa de éxito de login SSH. 3 fetches independientes por sección.
+- **`/analytics/suricata-trends`** (Fase D) — área apilada por
+  firma/categoría (toggle), tabla de top del rango.
+- **`/analytics/comparison`** (Fase E) — **superadmin-only**, gateado en la
+  página (`requireRole("superadmin")`) y en su proxy (usa
+  `controlHeaders()`/`CONTROL_API_SECRET`, el mismo canal que
+  sensor-control — **no** el `?sensorIds=` normal, porque este endpoint
+  cruza tenants a propósito).
+- **`/threats/[ip]`** (Fase C) — nueva sección `AttackerTimeline` al final de
+  la página existente (no una ruta nueva), con paginación por cursor
+  (`before`/`hasMore`/`nextBefore` que ya expone el backend).
+- Sidebar: 3 items nuevos bajo "Data Analytics" (Comparison con
+  `minRole: superadmin`); la landing `/analytics` reemplazó la tarjeta
+  "coming soon" por tarjetas de navegación reales a Credentials/Suricata
+  Trends/Comparison (Comparison solo visible si `auth.isSuperadmin`).
+- 4 dicts nuevos (`analytics-credentials`, `analytics-suricata-trends`,
+  `analytics-comparison`, `analytics-attacker`), registrados en
+  `dictionaries.ts`; se limpiaron 2 claves de `analytics.ts` que quedaron
+  muertas al reemplazar la tarjeta "coming soon".
+- 6 proxies nuevos en `app/api/analytics/*` — mismo patrón que
+  `app/api/analytics/trends/route.ts` salvo `comparison` (ver arriba).
+
 **Dos bugs reales encontrados en el deploy, ambos resueltos:**
 1. **Boot-race:** `plugins/clickhouse.ts` hacía un `ping()` una sola vez al
    arrancar y, si fallaba, desactivaba el módulo para toda la vida del
@@ -89,11 +130,88 @@ chart renderizando datos reales en el browser.
   dashboard con `app/api/analytics/trends/route.ts` +
   `components/analytics/trends-{chart,explorer}.tsx`.
 
-**Pendiente:**
+**Estado por fase y pendientes operativos:**
 - Correr `./scripts/backfill-clickhouse.sh` (Sub-fase 3c) para que el
   endpoint tenga historia real, no solo desde que arrancó el consumer.
-- Fase B (Credential Intelligence) — mismo patrón de repo/service/controller,
-  sin empezar todavía.
+- Fase B (Credential Intelligence) — **backend implementado (2026-07-27);
+  verificación de datos pendiente:** agregado
+  `analytics-credentials.repository.ts` con las queries
+  ClickHouse tenant-scoped para top combos, campañas en ventanas de 5 minutos
+  (umbral de 10 intentos) y tasa de éxito/fracaso exclusiva de Cowrie. El
+  servicio ya orquesta las tres consultas con cache SWR de 10 minutos y claves
+  separadas por rango, límite y tenant. Expuestos los tres endpoints HTTP del
+  contrato con validación Zod, `503` recuperable por request y metadata
+  explícita para umbral/ventana/fuente. El primer pase de TypeScript detectó y
+  se corrigió un cast/import residual en la ruta de tendencias. Pendiente:
+  validación final y verificación con datos reales antes de retirar el matview.
+  Agregados tests unitarios del repositorio que fijan el `UNION` de fuentes,
+  scope tenant fail-closed, parámetros tipados, ventana de campañas y que la
+  tasa de éxito no mezcle resultados desconocidos de `protocol_events`.
+  Analytics ahora responde `400` estructurado para queries inválidas (incluida
+  la ruta de Fase A) y tiene tests de integración Fastify para `503`, validación,
+  propagación del scope y metadata de campañas/tasa de éxito. Validación local:
+  `tsc --noEmit` limpio y suite completa de `ingest-api` en verde (173 tests;
+  35 integraciones omitidas por no tener `TEST_DATABASE_URL`). No había un
+  contenedor ClickHouse local activo, así que sigue pendiente comparar contra
+  el matview con datos reales; **no retirar ni detener su refresh todavía**.
+- Fase C (perfil de atacante cross-fuente) — **backend implementado
+  (2026-07-27):** agregado `analytics-attacker.repository.ts` con una
+  consulta tenant-scoped por cada fuente ClickHouse. El contrato normaliza
+  campos útiles sin devolver `raw` ni contraseñas, admite límite y cursor
+  temporal exclusivo (`before`) para evitar respuestas sin cota. Agregado
+  `analytics-attacker.service.ts`: ejecuta las cuatro fuentes en paralelo,
+  genera resúmenes seguros en inglés, hace merge estable descendente y devuelve
+  `hasMore`/`nextBefore` con cache SWR de 5 minutos por IP, cursor y tenant.
+  Expuesto `GET /analytics/attacker/:ip/timeline?limit=&before=&sensorIds=`
+  con validación de IPv4/IPv6, rechazo de IPs internas consistente con
+  `/threats/:ip`, `503` recuperable y scope ClickHouse obligatorio. Agregados
+  tests del merge/resúmenes, orden estable, paginación, ausencia de
+  `raw`/contraseñas, propagación tenant/cursor a las cuatro fuentes y contrato
+  HTTP. Validación local: `tsc --noEmit` limpio y suite completa de
+  `ingest-api` en verde (177 tests; 35 integraciones omitidas por no tener
+  `TEST_DATABASE_URL`). Pendiente únicamente validar la consulta contra un
+  ClickHouse con datos reales después del backfill.
+- Fase D (Suricata Signature Trends) — **backend implementado
+  (2026-07-27):** agregado `analytics-suricata.repository.ts`. La consulta
+  tenant-scoped selecciona primero los grupos principales para acotar
+  cardinalidad y luego genera buckets adaptativos por `signature` o `category`,
+  incluyendo severidad mínima del grupo. Agregado
+  `analytics-suricata.service.ts`, que reutiliza la configuración común de
+  rangos, aplica cache SWR de 10 minutos, normaliza números de ClickHouse y
+  deriva el ranking total desde la misma serie. Expuesto
+  `GET /analytics/suricata-trends?range=&groupBy=&limit=&sensorIds=` con Zod,
+  `503` recuperable y scope tenant obligatorio. Agregados tests de columna
+  segura, granularidad adaptativa, normalización/ranking, propagación del scope
+  a ambas partes de la query y contrato HTTP. Validación local:
+  `tsc --noEmit` limpio y suite completa de `ingest-api` en verde (180 tests;
+  35 integraciones omitidas por no tener `TEST_DATABASE_URL`). Pendiente
+  únicamente validar latencia y resultados contra un ClickHouse con datos
+  reales después del backfill.
+- Fase E (comparativa por sensor/cliente) — **backend implementado
+  (2026-07-27):** agregado `analytics-comparison.repository.ts`.
+  ClickHouse agrega las cuatro fuentes por bucket+sensor con scope parametrizado;
+  un repositorio Postgres separado obtiene el directorio sensor→cliente. El join
+  queda para el servicio sobre resultados agregados, sin desnormalizar
+  `client_id` en el lake. Agregado `analytics-comparison.service.ts`: consulta
+  lake+directorio en paralelo, normaliza conteos, conserva sensores sin asignar,
+  agrega una segunda serie por cliente y cachea 10 minutos por rango/scope.
+  Expuesto `GET /analytics/comparison?range=&sensorIds=`. La ruta exige el token
+  interno con comparación timing-safe y actor firmado `superadmin` en scope
+  global; rechaza roles inferiores o superadmins tenant-scoped antes de consultar
+  datos. Agregados tests del join en memoria, suma por cliente, sensores sin
+  asignar, parámetros tenant y autorización (un viewer no alcanza ClickHouse).
+  Validación local incluida en el pase acumulado de 183 tests; pendiente
+  contrastar agregados sensor/cliente con datos reales.
+- Fase F (alimentar reportes) — **backend implementado (2026-07-27):**
+  agregado `AnalyticsService.getReportSummary` y
+  `GET /analytics/report-summary?range=&credentialLimit=&sensorIds=`. El
+  contrato ejecuta A+B en paralelo y entrega volumen histórico, top credenciales
+  y serie de éxito Cowrie con el mismo scope/cache de sus fuentes, sin SQL
+  duplicado. Agregado test HTTP que fija el payload consolidado y la propagación
+  tenant a las tres consultas. Por decisión de alcance, no se modificó
+  `apps/dashboard`: el wiring del collector/render queda para la persona
+  responsable del frontend. Validación local incluida en el pase acumulado de
+  183 tests.
 
 El resto de este plan detalla las Sub-fases 3d/3e de
 [KAFKA_LAKE.md](KAFKA_LAKE.md) — ese documento se queda con el diseño de alto

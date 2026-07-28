@@ -12,6 +12,7 @@ import { AiThreatSummary } from "@/components/ai-threat-summary"
 import { IpEnrichment } from "@/components/ip-enrichment"
 import { ThreatGraphView } from "@/components/threat-graph-view"
 import { IntelTimeline } from "@/components/intel-timeline"
+import { AttackerTimeline } from "@/components/analytics/attacker-timeline"
 import { buildThreatGraph } from "@/lib/threat-graph"
 import { db } from "@/lib/db"
 import type { IpEnrichment as IpEnrichmentData } from "@/lib/ip-enrichment"
@@ -441,6 +442,10 @@ export default async function ThreatDetailPage({
           </div>
           <IntelTimeline threat={threat} enrichment={enrichmentCache} timezone={tz} />
         </Surface>
+
+        {/* ANALYTICS_MODULE Fase C — full cross-source history from
+            ClickHouse, beyond what Postgres/IntelTimeline retains. */}
+        <AttackerTimeline ip={srcIp} />
   </PageShell>
   )
 }

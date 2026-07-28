@@ -40,6 +40,10 @@ import * as webAttacks from "./dicts/web-attacks"
 import * as reports from "./dicts/reports"
 import * as alerts from "./dicts/alerts"
 import * as analytics from "./dicts/analytics"
+import * as analyticsCredentials from "./dicts/analytics-credentials"
+import * as analyticsSuricataTrends from "./dicts/analytics-suricata-trends"
+import * as analyticsComparison from "./dicts/analytics-comparison"
+import * as analyticsAttacker from "./dicts/analytics-attacker"
 
 export const LOCALES = ["en", "es"] as const
 export type Locale = (typeof LOCALES)[number]
@@ -79,6 +83,10 @@ const en = {
   ...reports.en,
   ...alerts.en,
   ...analytics.en,
+  ...analyticsCredentials.en,
+  ...analyticsSuricataTrends.en,
+  ...analyticsComparison.en,
+  ...analyticsAttacker.en,
 } as const
 
 export type TranslationKey = keyof typeof en
@@ -112,6 +120,10 @@ const es: Record<TranslationKey, string> = {
   ...reports.es,
   ...alerts.es,
   ...analytics.es,
+  ...analyticsCredentials.es,
+  ...analyticsSuricataTrends.es,
+  ...analyticsComparison.es,
+  ...analyticsAttacker.es,
 }
 
 export const dictionaries: Record<Locale, Record<TranslationKey, string>> = { en, es }

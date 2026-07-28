@@ -1,0 +1,46 @@
+// Analytics — Credential Intelligence (docs/plans/ANALYTICS_MODULE.md Fase B).
+// Part of the namespaced dictionary; combined in ../dictionaries.ts.
+
+export const en = {
+  "analytics.credentials.pageDescription": "Top username/password combos, brute-force campaigns and login success rate across every honeypot source.",
+  "analytics.credentials.topCombos.title": "Top credential combos",
+  "analytics.credentials.topCombos.col.username": "Username",
+  "analytics.credentials.topCombos.col.password": "Password",
+  "analytics.credentials.topCombos.col.count": "Attempts",
+  "analytics.credentials.topCombos.col.uniqueIps": "Unique IPs",
+  "analytics.credentials.topCombos.col.lastSeen": "Last seen",
+  "analytics.credentials.topCombos.empty": "No credential attempts in this range yet.",
+  "analytics.credentials.campaigns.title": "Brute-force campaigns",
+  "analytics.credentials.campaigns.description": "Bursts of {min}+ attempts from the same IP within a {window}-minute window.",
+  "analytics.credentials.campaigns.col.time": "Time",
+  "analytics.credentials.campaigns.col.ip": "Source IP",
+  "analytics.credentials.campaigns.col.attempts": "Attempts",
+  "analytics.credentials.campaigns.col.success": "Success",
+  "analytics.credentials.campaigns.col.failed": "Failed",
+  "analytics.credentials.campaigns.col.protocols": "Protocols",
+  "analytics.credentials.campaigns.empty": "No brute-force bursts in this range.",
+  "analytics.credentials.successRate.title": "Login success rate (SSH)",
+  "analytics.credentials.successRate.description": "Share of cowrie login attempts that succeeded, over time.",
+} as const
+
+export const es: Record<keyof typeof en, string> = {
+  "analytics.credentials.pageDescription": "Top de combos usuario/contraseña, campañas de fuerza bruta y tasa de éxito de login en todas las fuentes del honeypot.",
+  "analytics.credentials.topCombos.title": "Top de combos de credenciales",
+  "analytics.credentials.topCombos.col.username": "Usuario",
+  "analytics.credentials.topCombos.col.password": "Contraseña",
+  "analytics.credentials.topCombos.col.count": "Intentos",
+  "analytics.credentials.topCombos.col.uniqueIps": "IPs únicas",
+  "analytics.credentials.topCombos.col.lastSeen": "Última vez",
+  "analytics.credentials.topCombos.empty": "Todavía no hay intentos de credenciales en este rango.",
+  "analytics.credentials.campaigns.title": "Campañas de fuerza bruta",
+  "analytics.credentials.campaigns.description": "Ráfagas de {min}+ intentos desde el mismo IP en una ventana de {window} minutos.",
+  "analytics.credentials.campaigns.col.time": "Hora",
+  "analytics.credentials.campaigns.col.ip": "IP origen",
+  "analytics.credentials.campaigns.col.attempts": "Intentos",
+  "analytics.credentials.campaigns.col.success": "Éxito",
+  "analytics.credentials.campaigns.col.failed": "Fallidos",
+  "analytics.credentials.campaigns.col.protocols": "Protocolos",
+  "analytics.credentials.campaigns.empty": "No hay ráfagas de fuerza bruta en este rango.",
+  "analytics.credentials.successRate.title": "Tasa de éxito de login (SSH)",
+  "analytics.credentials.successRate.description": "Proporción de intentos de login de cowrie que tuvieron éxito, en el tiempo.",
+}

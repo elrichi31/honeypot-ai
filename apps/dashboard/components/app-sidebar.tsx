@@ -30,6 +30,8 @@ import {
   BookOpen,
   Ghost,
   Fingerprint,
+  KeyRound,
+  GitCompare,
   MonitorSmartphone,
   PanelLeftClose,
   PanelLeftOpen,
@@ -108,6 +110,9 @@ const navSections = [
     icon: TrendingUp,
     items: [
       { titleKey: "sidebar.item.analyticsTrends", href: "/analytics", icon: TrendingUp },
+      { titleKey: "sidebar.item.analyticsCredentials", href: "/analytics/credentials", icon: KeyRound },
+      { titleKey: "sidebar.item.analyticsSuricataTrends", href: "/analytics/suricata-trends", icon: FileCode },
+      { titleKey: "sidebar.item.analyticsComparison", href: "/analytics/comparison", icon: GitCompare, minRole: "superadmin" as Role },
     ],
   },
   {

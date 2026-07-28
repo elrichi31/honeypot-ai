@@ -53,6 +53,9 @@ export const en = {
   "sidebar.item.auditLog": "Audit Log",
   "sidebar.item.reports": "Reports",
   "sidebar.item.analyticsTrends": "Trends",
+  "sidebar.item.analyticsCredentials": "Credentials",
+  "sidebar.item.analyticsSuricataTrends": "Suricata Trends",
+  "sidebar.item.analyticsComparison": "Comparison",
 
   // ── User menu ────────────────────────────────────────────────────────────
   "user.account": "Account",
@@ -113,6 +116,9 @@ export const es: Record<keyof typeof en, string> = {
   "sidebar.item.auditLog": "Registro de Auditoría",
   "sidebar.item.reports": "Reportes",
   "sidebar.item.analyticsTrends": "Tendencias",
+  "sidebar.item.analyticsCredentials": "Credenciales",
+  "sidebar.item.analyticsSuricataTrends": "Tendencias Suricata",
+  "sidebar.item.analyticsComparison": "Comparativa",
 
   // ── User menu ────────────────────────────────────────────────────────────
   "user.account": "Cuenta",
