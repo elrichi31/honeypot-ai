@@ -267,6 +267,13 @@ if [ -z "$SURICATA_INTERFACE" ]; then
 fi
 {{suricataIfaceEcho}}export SURICATA_INTERFACE
 
+# LAN address of this host. Internal trap nodes report it as their sensor IP:
+# a container on a bridge network can only see 172.x, and the public IP is the
+# same for every node behind the NAT, so neither identifies the box it runs on.
+HOST_LAN_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' | head -1)
+[ -z "$HOST_LAN_IP" ] && HOST_LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+export HOST_LAN_IP
+
 if ! command -v docker &>/dev/null; then
   echo "==> Installing Docker..."
   curl -fsSL https://get.docker.com | sh
@@ -304,7 +311,7 @@ echo "==> Pulling images..."
 docker compose pull
 
 echo "==> Starting services..."
-SURICATA_INTERFACE="$SURICATA_INTERFACE" docker compose up -d
+SURICATA_INTERFACE="$SURICATA_INTERFACE" HOST_LAN_IP="$HOST_LAN_IP" docker compose up -d
 
 # Verify containers actually stayed up (up -d returns 0 even if a container crashes on boot)
 echo "==> Verifying containers..."
@@ -532,10 +539,14 @@ echo ""
 printf "%b=== Honeypot Sensor Update ===%b\n" "$BOLD" "$RESET"
 echo ""
 
-# Same interface detection as the installer — the compose interpolates it for Suricata.
+# Same detection as the installer — the compose interpolates both. Without
+# HOST_LAN_IP here an update would blank out every internal node's reported IP.
 SURICATA_INTERFACE=$(ip route 2>/dev/null | grep '^default' | awk '{print $5}' | head -1)
 [ -z "$SURICATA_INTERFACE" ] && SURICATA_INTERFACE="eth0"
 export SURICATA_INTERFACE
+HOST_LAN_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' | head -1)
+[ -z "$HOST_LAN_IP" ] && HOST_LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+export HOST_LAN_IP
 
 echo "==> Pulling latest images..."
 docker compose pull

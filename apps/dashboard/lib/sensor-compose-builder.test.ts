@@ -89,6 +89,19 @@ test("int-*: events reach vector and no image is pulled that nobody publishes", 
   assert.ok(!yaml.includes("cowrie-beacon:latest"), "no cowrie-beacon image is ever built or published")
 })
 
+// A container on deception_net can only see its 172.x bridge address, and the
+// public IP is identical for every node behind the NAT — the host's LAN IP is
+// the only thing that identifies which box an internal node runs on.
+test("int-*: every internal node reports the host LAN IP as its sensor IP", () => {
+  const yaml = compose(INT_NODES)
+  // SENSOR_NAME, not SENSOR_ID: vector carries the ssh sensor id too, but it is
+  // a shipper, not a node that heartbeats an address.
+  const nodes = yaml.match(/SENSOR_NAME: /g) ?? []
+  const ips = yaml.match(/SENSOR_IP: "\$\{HOST_LAN_IP:-\}"/g) ?? []
+  assert.ok(nodes.length > 0, "expected at least one int-* node")
+  assert.equal(ips.length, nodes.length, "each int-* node must set SENSOR_IP from HOST_LAN_IP")
+})
+
 // web-honeypot's entrypoint chowns its log volume and gosu-drops to app, both
 // forbidden by cap_drop:ALL. Dropping the caps crash-loops the container.
 for (const svc of ["http", "int-http"] as ServiceKey[]) {

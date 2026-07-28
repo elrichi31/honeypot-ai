@@ -1,9 +1,13 @@
 "use client"
 
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Server } from "lucide-react"
 import { TimeAgo } from "@/components/time-ago"
 import { Surface } from "@/components/ui/surface"
 import { getMeta } from "@/components/network/constants"
+import { DeleteSensorDialog } from "@/components/sensors/delete-sensor-dialog"
+import { apiFetch, assertOk } from "@/lib/client-fetch"
 import type { DeceptionNode } from "@/lib/api/deception"
 
 function StatusDot({ online }: { online: boolean }) {
@@ -12,6 +16,62 @@ function StatusDot({ online }: { online: boolean }) {
       {online && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />}
       <span className={`relative inline-flex h-2 w-2 rounded-full ${online ? "bg-emerald-400" : "bg-red-400"}`} />
     </span>
+  )
+}
+
+function NodeCard({ node }: { node: DeceptionNode }) {
+  const router = useRouter()
+  const [deleting, setDeleting] = useState(false)
+  const [removed, setRemoved] = useState(false)
+  const meta = getMeta(node.realProtocol ?? "deception")
+
+  async function handleDelete() {
+    setDeleting(true)
+    setRemoved(true)
+    try {
+      await assertOk(await apiFetch(`/api/sensors/${encodeURIComponent(node.sensorId)}`, { method: "DELETE" }))
+      router.refresh()
+    } catch {
+      setRemoved(false)
+      setDeleting(false)
+    }
+  }
+
+  if (removed) return null
+
+  return (
+    <Surface padded>
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Server className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-foreground">{node.name}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${meta.color} ${meta.bg}`}>
+            {meta.label}
+          </span>
+          <StatusDot online={node.online} />
+          <span className={`text-[10px] ${node.online ? "text-emerald-400" : "text-red-400"}`}>
+            {node.online ? "online" : "offline"}
+          </span>
+          <DeleteSensorDialog name={node.name} sensorId={node.sensorId} deleting={deleting} onDelete={handleDelete} />
+        </div>
+      </div>
+      <p className="font-mono text-[11px] text-muted-foreground">{node.ip} · ports {node.ports.join(", ") || "—"}</p>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div>
+          <p className="text-lg font-semibold tabular-nums text-blue-400">{node.hits.toLocaleString()}</p>
+          <p className="text-[10px] text-muted-foreground">interactions</p>
+        </div>
+        <div>
+          <p className="text-lg font-semibold tabular-nums text-red-400">{node.authAttempts.toLocaleString()}</p>
+          <p className="text-[10px] text-muted-foreground">auth attempts</p>
+        </div>
+      </div>
+      <p className="mt-2 text-[10px] text-muted-foreground/60">
+        {node.lastHit ? <>last hit <TimeAgo timestamp={node.lastHit} /></> : "no activity"}
+      </p>
+    </Surface>
   )
 }
 
@@ -25,41 +85,7 @@ export function DeceptionNodesGrid({ nodes }: { nodes: DeceptionNode[] }) {
   }
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {nodes.map(node => {
-        const meta = getMeta(node.realProtocol ?? "deception")
-        return (
-        <Surface key={node.sensorId} padded>
-          <div className="mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Server className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-foreground">{node.name}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${meta.color} ${meta.bg}`}>
-                {meta.label}
-              </span>
-              <StatusDot online={node.online} />
-              <span className={`text-[10px] ${node.online ? "text-emerald-400" : "text-red-400"}`}>
-                {node.online ? "online" : "offline"}
-              </span>
-            </div>
-          </div>
-          <p className="font-mono text-[11px] text-muted-foreground">{node.ip} · ports {node.ports.join(", ") || "—"}</p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <div>
-              <p className="text-lg font-semibold tabular-nums text-blue-400">{node.hits.toLocaleString()}</p>
-              <p className="text-[10px] text-muted-foreground">interactions</p>
-            </div>
-            <div>
-              <p className="text-lg font-semibold tabular-nums text-red-400">{node.authAttempts.toLocaleString()}</p>
-              <p className="text-[10px] text-muted-foreground">auth attempts</p>
-            </div>
-          </div>
-          <p className="mt-2 text-[10px] text-muted-foreground/60">
-            {node.lastHit ? <>last hit <TimeAgo timestamp={node.lastHit} /></> : "no activity"}
-          </p>
-        </Surface>
-      )})}
+      {nodes.map(node => <NodeCard key={node.sensorId} node={node} />)}
     </div>
   )
 }

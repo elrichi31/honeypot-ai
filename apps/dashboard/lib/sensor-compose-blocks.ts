@@ -670,6 +670,7 @@ const INT_SMB_TEMPLATE = `  smb-honeypot:
       PORT: "445"
       DST_PORT: "445"
       SENSOR_ID: int-smb-{{deployId}}
+      SENSOR_IP: "\${HOST_LAN_IP:-}"
       SENSOR_NAME: "SMB Honeypot (Internal)"
       SENSOR_LAYER: "internal"
       SMB_SHARE_NAME: "\${SMB_SHARE_NAME:-ADMIN$$}"
@@ -697,6 +698,7 @@ const INT_MYSQL_TEMPLATE = `  mysql-honeypot:
       PORT: "3306"
       DST_PORT: "3306"
       SENSOR_ID: int-mysql-{{deployId}}
+      SENSOR_IP: "\${HOST_LAN_IP:-}"
       SENSOR_NAME: "MySQL Honeypot (Internal)"
       SENSOR_LAYER: "internal"
       SENSOR_HOST: mysql-honeypot
@@ -732,6 +734,7 @@ const INT_SSH_TEMPLATE = `  cowrie:
     environment:
       <<: *ingest
       SENSOR_ID: int-ssh-{{deployId}}
+      SENSOR_IP: "\${HOST_LAN_IP:-}"
       SENSOR_NAME: "SSH Honeypot (Internal)"
       SENSOR_LAYER: "internal"
       SENSOR_PROTOCOL: ssh
@@ -765,6 +768,7 @@ const INT_HTTP_TEMPLATE = `  web-honeypot:
       <<: *ingest
       PORT: "8080"
       SENSOR_ID: int-http-{{deployId}}
+      SENSOR_IP: "\${HOST_LAN_IP:-}"
       SENSOR_NAME: "Web Honeypot (Internal)"
       SENSOR_LAYER: "internal"
       SENSOR_HOST: web-honeypot
