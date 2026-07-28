@@ -56,3 +56,35 @@ test("only one vector service is emitted", () => {
     assert.ok(yaml.includes(`/etc/vector/${cfg}`), `combined vector must load ${cfg}`)
   }
 })
+
+// The int-* LAN topology shipped broken: int-ssh carried its own half-configured
+// vector while the builder appended the standard one, so compose died on a
+// duplicate `vector` key before anything could start.
+const INT_NODES: ServiceKey[] = ["int-ssh", "int-smb", "int-mysql", "int-http"]
+
+test("int-*: emits exactly one vector, on deception_net, without suricata", () => {
+  const yaml = compose(INT_NODES)
+  assert.equal((yaml.match(/^  vector:$/gm) ?? []).length, 1, "exactly one vector service")
+  assert.ok(!yaml.includes("suricata"), "internal LAN deploys have no interface to sniff")
+  assert.ok(!yaml.includes("- edge"), "internal nodes never join the edge network")
+  for (const cfg of ["cowrie.toml", "protocol.toml", "web-honeypot.toml"]) {
+    assert.ok(yaml.includes(`/etc/vector/${cfg}`), `internal vector must load ${cfg}`)
+  }
+})
+
+test("int-*: every referenced network and volume is declared", () => {
+  const yaml = compose(INT_NODES)
+  assert.match(yaml, /^  deception_net:$/m, "deception_net must be declared")
+  for (const vol of ["cowrie_var", "cowrie_signal", "vector_data", "smb_share", "smb_captures", "smb_events", "mysql_events", "web_events"]) {
+    assert.match(yaml, new RegExp(`^  ${vol}:$`, "m"), `${vol} must be declared`)
+  }
+})
+
+test("int-*: events reach vector and no image is pulled that nobody publishes", () => {
+  const yaml = compose(INT_NODES)
+  for (const [vol, dir] of [["smb_events", "smb-honeypot"], ["mysql_events", "mysql-honeypot"], ["web_events", "web-honeypot"]]) {
+    assert.match(yaml, new RegExp(`- ${vol}:/var/log/${dir}\\b`), `${dir} must mount its events volume`)
+    assert.match(yaml, new RegExp(`- ${vol}:/var/log/${dir}:ro`), `vector must tail ${dir}`)
+  }
+  assert.ok(!yaml.includes("cowrie-beacon:latest"), "no cowrie-beacon image is ever built or published")
+})

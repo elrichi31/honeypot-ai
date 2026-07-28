@@ -44,31 +44,45 @@ export function portBlock(deployId: string, registry: string) {
 // mounts + loads a config for every selected honeypot that logs to a file
 // (cowrie, and the protocol honeypots via the shared protocol.toml / web-honeypot.toml).
 // Without this wiring the honeypots write events to a file nobody ships.
-export function vectorBlock(services: ServiceKey[], deployId: string): string {
-  const has = (s: ServiceKey) => services.includes(s)
-  const configs = ["/etc/vector/suricata.toml"]
-  const volumes = ["      - suricata_logs:/tmp/suricata-logs:ro"]
-  const env = [`      SURICATA_SENSOR_ID: suricata-${deployId}`]
+// `internal` builds the vector for an int-* LAN deploy: same shipper wiring, but
+// keyed off the int-* service names, on deception_net, and without suricata
+// (an internal VM has no internet-facing interface to sniff).
+export function vectorBlock(
+  services: ServiceKey[],
+  deployId: string,
+  { internal = false }: { internal?: boolean } = {},
+): string {
+  const network = internal ? "deception_net" : "edge"
+  const has = (s: string) => services.includes((internal ? `int-${s}` : s) as ServiceKey)
+  const configs: string[] = []
+  const volumes: string[] = []
+  const env: string[] = []
   const dependsOn: string[] = []
+
+  if (!internal) {
+    configs.push("/etc/vector/suricata.toml")
+    volumes.push("      - suricata_logs:/tmp/suricata-logs:ro")
+    env.push(`      SURICATA_SENSOR_ID: suricata-${deployId}`)
+  }
 
   if (has("ssh")) {
     configs.unshift("/etc/vector/cowrie.toml")
     volumes.push("      - cowrie_var:/cowrie/cowrie-git/var:ro")
     env.push(
       "      COWRIE_LOG_PATH: /cowrie/cowrie-git/var/log/cowrie/cowrie.json",
-      `      SENSOR_ID: cowrie-ssh-${deployId}`,
+      `      SENSOR_ID: ${internal ? `int-ssh-${deployId}` : `cowrie-ssh-${deployId}`}`,
     )
     dependsOn.push("cowrie")
   }
 
   // Every file-logging protocol honeypot shares one shipper config (protocol.toml);
   // it only needs the *_LOG_PATH of the ones actually present.
-  const proto: [ServiceKey, string, string][] = [
+  const proto: [string, string, string][] = [
     ["port", "port-honeypot", "PORT_LOG_PATH"],
     ["ftp", "ftp-honeypot", "FTP_LOG_PATH"],
     ["mysql", "mysql-honeypot", "MYSQL_LOG_PATH"],
     ["smb", "smb-honeypot", "SMB_LOG_PATH"],
-  ].filter(([s]) => has(s as ServiceKey)) as [ServiceKey, string, string][]
+  ].filter(([s]) => has(s)) as [string, string, string][]
   if (proto.length) {
     configs.push("/etc/vector/protocol.toml")
     for (const [svc, dir, envKey] of proto) {
@@ -102,7 +116,7 @@ ${[...configMounts, ...volumes].join("\n")}
       <<: *ingest
 ${env.join("\n")}
     networks:
-      - edge
+      - ${network}
     pids_limit: 128`
 }
 
@@ -663,9 +677,13 @@ const INT_SMB_TEMPLATE = `  smb-honeypot:
       SMB_SERVER_DOMAIN: "\${SMB_SERVER_DOMAIN:-CORP}"
       SMB_SHARE_PATH: /share
       SMB_CAPTURE_DIR: /captures
+      SENSOR_HOST: smb-honeypot
+    ports:
+      - "445:445"
     volumes:
       - smb_share:/share
       - smb_captures:/captures
+      - smb_events:/var/log/smb-honeypot
     networks:
       - deception_net`
 
@@ -681,6 +699,11 @@ const INT_MYSQL_TEMPLATE = `  mysql-honeypot:
       SENSOR_ID: int-mysql-{{deployId}}
       SENSOR_NAME: "MySQL Honeypot (Internal)"
       SENSOR_LAYER: "internal"
+      SENSOR_HOST: mysql-honeypot
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_events:/var/log/mysql-honeypot
     networks:
       - deception_net`
 
@@ -692,6 +715,8 @@ const INT_SSH_TEMPLATE = `  cowrie:
     cap_add:
       - SETUID
       - SETGID
+    ports:
+      - "22:2222"
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var
     networks:
@@ -700,31 +725,30 @@ const INT_SSH_TEMPLATE = `  cowrie:
   cowrie-beacon:
     <<: *service-defaults
     logging: *json-logging
-    image: {{registry}}/cowrie-beacon:latest
+    # Stock python + mounted scripts, same as the external ssh block. There is no
+    # {{registry}}/cowrie-beacon image — nothing ever built or published one.
+    image: python:3.12-alpine
     container_name: cowrie-beacon
     environment:
       <<: *ingest
       SENSOR_ID: int-ssh-{{deployId}}
       SENSOR_NAME: "SSH Honeypot (Internal)"
       SENSOR_LAYER: "internal"
+      SENSOR_PROTOCOL: ssh
+      SENSOR_VERSION: cowrie
+      SENSOR_PORTS: "22"
+      SENSOR_PROBE_PORTS: "2222"
+      SENSOR_HOST: cowrie
+      SENSOR_CONTROL_SECRET: ""
+      SIGNAL_DIR: /signal
+    volumes:
+      - ./heartbeat.py:/heartbeat.py:ro
+      - ./control_agent.py:/control_agent.py:ro
+      - cowrie_signal:/signal
+    command: ["sh", "-c", "pip install --quiet --no-cache-dir websockets==13.1 && python3 /heartbeat.py"]
     networks:
       - deception_net
-
-  vector:
-    <<: *service-defaults
-    logging: *json-logging
-    image: timberio/vector:0.40.0-alpine
-    container_name: vector
-    depends_on:
-      - cowrie
-    volumes:
-      - cowrie_var:/cowrie/cowrie-git/var:ro
-      - vector_data:/var/lib/vector
-    environment:
-      <<: *ingest
-      SENSOR_ID: int-ssh-{{deployId}}
-    networks:
-      - deception_net`
+    pids_limit: 16`
 
 const INT_HTTP_TEMPLATE = `  web-honeypot:
     <<: *service-defaults
@@ -737,6 +761,11 @@ const INT_HTTP_TEMPLATE = `  web-honeypot:
       SENSOR_ID: int-http-{{deployId}}
       SENSOR_NAME: "Web Honeypot (Internal)"
       SENSOR_LAYER: "internal"
+      SENSOR_HOST: web-honeypot
+    ports:
+      - "80:8080"
+    volumes:
+      - web_events:/var/log/web-honeypot
     networks:
       - deception_net`
 

@@ -39,9 +39,14 @@ export function buildCompose(
   const isInternalCanary = services.includes("internal-canary")
   const blocks = selectedServiceBlocks(services, deployId, registry, rawBase)
   const volumeLines = buildVolumeLines(services)
-  // Internal canary is a standalone LAN deploy — no Suricata (no internet iface)
-  // and no standard edge network.
-  const extraBlocks = isInternalCanary ? [] : [suricataBlock(registry), vectorBlock(services, deployId)]
+  // Internal deploys (canary and int-* nodes) are standalone LAN composes — no
+  // Suricata (no internet iface to sniff) and no edge network. int-* still needs
+  // a vector to ship events, but on deception_net and without the suricata config.
+  const extraBlocks = isInternalCanary
+    ? []
+    : isInternalNodes(services)
+      ? [vectorBlock(services, deployId, { internal: true })]
+      : [suricataBlock(registry), vectorBlock(services, deployId)]
   return [
     headerBlock(ingestUrl, secret, clientSlug, clientName),
     ...blocks,
@@ -58,8 +63,7 @@ function selectedServiceBlocks(services: ServiceKey[], deployId: string, registr
     return [internalCanaryBlock(deployId, registry)]
   }
   // Internal deception nodes — a single VM with the LAN IP, no Suricata/edge net.
-  const isInternal = services.some(s => (s as string).startsWith("int-"))
-  if (isInternal) {
+  if (isInternalNodes(services)) {
     const blocks: string[] = []
     if (services.includes("int-smb"))   blocks.push(intSmbBlock(deployId, registry))
     if (services.includes("int-mysql")) blocks.push(intMysqlBlock(deployId, registry))
@@ -98,7 +102,21 @@ function attachCowrieToDeception(sshBlockText: string, withDeception: boolean): 
   )
 }
 
+// int-* nodes ship as one standalone LAN compose. internal-canary is its own
+// separate standalone deploy and never mixes with these.
+function isInternalNodes(services: ServiceKey[]) {
+  return services.some(s => (s as string).startsWith("int-"))
+}
+
 function buildVolumeLines(services: ServiceKey[]) {
+  if (isInternalNodes(services)) {
+    const volumes = ["volumes:", "  vector_data:"]
+    if (services.includes("int-ssh")) volumes.push("  cowrie_var:", "  cowrie_signal:")
+    if (services.includes("int-http")) volumes.push("  web_events:")
+    if (services.includes("int-smb")) volumes.push("  smb_share:", "  smb_captures:", "  smb_events:")
+    if (services.includes("int-mysql")) volumes.push("  mysql_events:")
+    return volumes.join("\n")
+  }
   if (services.includes("internal-canary")) {
     return [
       "volumes:",
@@ -121,6 +139,13 @@ function buildVolumeLines(services: ServiceKey[]) {
 }
 
 function buildNetworks(services: ServiceKey[]) {
+  if (isInternalNodes(services)) {
+    // Plain bridge: int-* nodes reach each other by service name and don't need
+    // the fixed 10.0.1.x addressing that cowrie's /etc/hosts hardcodes.
+    return `networks:
+  deception_net:
+    driver: bridge`
+  }
   if (services.includes("internal-canary")) {
     return `networks:
   ic_net:

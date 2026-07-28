@@ -319,6 +319,69 @@ Implementación completa en un único sprint. `tsc` pasa sin errores en ambos pa
 
 ---
 
+## 7bis. Fix del instalador `int-*` (2026-07-28)
+
+El instalador generado para `int-ssh`/`int-smb`/`int-mysql`/`int-http` **nunca
+había producido un deploy que arrancara**. Salió a la luz al instalar la red
+interna de un cliente real: `docker compose pull` moría con
+`mapping key "vector" already defined`. Detrás de ese error había seis fallos
+más encadenados — cada uno bloqueaba el arranque después de arreglar el
+anterior:
+
+1. **`vector` duplicado** — `INT_SSH_TEMPLATE` traía su propio servicio
+   `vector` y `buildCompose` añadía otro a todo lo que no fuera
+   `internal-canary`. YAML inválido: el compose ni se parseaba.
+2. **`suricata` en un deploy LAN** — sin interfaz de internet que esnifar, y
+   encima se enganchaba a la red `edge`.
+3. **`deception_net` nunca declarada** — todos los servicios `int-*` la
+   referencian, pero `buildNetworks` solo emitía `edge` salvo para
+   `internal-canary`.
+4. **Volúmenes sin declarar** — `cowrie_var`, `smb_share`, `smb_captures`, etc.
+   se montaban sin existir en el bloque `volumes:` de nivel superior.
+5. **`{{registry}}/cowrie-beacon:latest` no existe** — ninguna imagen con ese
+   nombre se construyó ni publicó jamás (no hay `sensors/cowrie-beacon/`).
+6. **Sin puertos publicados** — ningún `int-*` mapeaba puertos al host, así que
+   los honeypots eran inalcanzables desde la LAN corporativa, que es su única
+   razón de existir.
+7. **Eventos que se perdían en silencio** — `int-smb`/`int-mysql`/`int-http` no
+   montaban volumen de eventos y el `vector` de `int-ssh` no cargaba ninguna
+   config. El fallo silencioso exacto que documenta
+   [sensor-event-shipping.md](../../project-notes/sensor-event-shipping.md).
+
+**Fix aplicado:**
+
+- `vectorBlock(services, deployId, { internal })` es ahora el único generador de
+  vector para ambas topologías: mismo cableado de shippers, pero sobre
+  `deception_net` y sin suricata cuando es interno. Se borró el vector a medias
+  de `INT_SSH_TEMPLATE`.
+- `buildNetworks`/`buildVolumeLines` reconocen la topología `int-*` (bridge
+  `deception_net` + los volúmenes que cada nodo monta de verdad).
+- El beacon de `int-ssh` pasa a `python:3.12-alpine` + scripts montados, el
+  mismo patrón del bloque `ssh` externo, con `SIGNAL_DIR`/`cowrie_signal` para
+  que el auto-enroll de credencial sobreviva un recreate (era la deuda anotada
+  en SENSOR_REMOTE_CONTROL para `ic-cowrie-beacon`).
+- Puertos publicados: 22 (ssh), 445 (smb), 3306 (mysql), 80 (http). `int-ssh`
+  ahora también dispara el paso de mover el sshd del host a 8022, igual que el
+  `ssh` externo, o el contenedor no puede bindear el 22.
+- Volúmenes de eventos + configs de shipper (`cowrie.toml`, `protocol.toml`,
+  `web-honeypot.toml`) descargados y montados según los nodos elegidos.
+- El instalador ya no anuncia "+ Suricata IDS" en deploys internos.
+
+`smb-honeypot` se había agregado a `publish-sensor-images.yml` el mismo día
+(Fase 0 de [SENSOR_FLEET_UPDATES](../SENSOR_FLEET_UPDATES.md)); `int-smb` lo
+consume por registry, así que esa imagen ya existe.
+
+**Verificación:** las 6 combinaciones (externa completa, externa+deception,
+canary, y tres variantes `int-*`) generan compose que `docker compose config`
+valida, y scripts que pasan `bash -n`. Tres tests nuevos en
+`sensor-compose-builder.test.ts` blindan el vector único, las redes/volúmenes
+declarados y la ausencia de la imagen fantasma. Suite del dashboard 77/77,
+`tsc` limpio.
+
+**Pendiente:** ningún `int-*` se ha desplegado end-to-end todavía — la
+validación es del compose generado, no de contenedores corriendo en una VM.
+El control plane (`config.apply`) sigue fuera de alcance para nodos internos.
+
 ## 8. Deuda técnica y fuera de alcance
 
 | Ítem | Descripción |
