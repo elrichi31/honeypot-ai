@@ -2,12 +2,52 @@
 
 ## Estado (2026-07-27)
 
-**Planificado — UI shell arrancada (2026-07-27).** La sección "Data Analytics"
-del sidebar y `/analytics` (landing con las 2 tarjetas "coming soon" de Fase
-A/B) ya están en `master` — sin datos reales todavía, a propósito: el usuario
-decidió armar primero el punto de entrada de navegación y dejar el wiring a
-ClickHouse (repos, endpoints) para después. El resto de este plan detalla las
-Sub-fases 3d/3e de
+**Backend de Fase A implementado (2026-07-27), dashboard todavía sin
+consumirlo.** UI shell (sección del sidebar + landing `/analytics` con las 2
+tarjetas "coming soon") ya estaba en `master`. Ahora además: cliente
+ClickHouse + helper de tenant scoping + endpoint `GET /analytics/trends` en
+`ingest-api`, **aislado del resto del backend** — el usuario fue explícito en
+que este cliente es solo para analítica, todo lo demás sigue en Postgres vía
+Prisma sin tocar. Falta: correr el backfill de 3c, y que el dashboard
+reemplace las tarjetas "coming soon" por el chart real.
+
+**Arquitectura implementada — resumen:**
+- `apps/ingest-api/src/lib/clickhouse.ts` — cliente (`@clickhouse/client`),
+  gateado por `CLICKHOUSE_URL` igual que `KAFKA_BROKERS` gatea el lake
+  producer.
+- `apps/ingest-api/src/plugins/clickhouse.ts` — plugin Fastify: si
+  `CLICKHOUSE_URL` falta o el `ping()` falla, decora `fastify.clickhouse =
+  null` y sigue — nunca bloquea el arranque, sin `depends_on` en ningún
+  sentido (mismo desacople que ya tiene el propio servicio `clickhouse`).
+- `apps/ingest-api/src/lib/clickhouse-scope.ts` — equivalente de
+  `sensor-scope.ts` pero para el cliente de ClickHouse (`Prisma.Sql` no
+  aplica ahí). Mismo contrato (`?sensorIds=`, `__none__` fail-closed,
+  `cacheSuffix` estable), con test (`clickhouse-scope.test.ts`, mismo patrón
+  que `sensor-scope.test.ts`) — es lógica de seguridad (fuga cross-tenant si
+  se rompe), no queda sin verificación.
+- `apps/ingest-api/src/modules/analytics/` (`*.repository/service/controller.ts`) —
+  `GET /analytics/trends?range=7d|30d|90d|1y&protocol=&sensorIds=`. El
+  `UNION ALL` de las 4 tablas (boceto como `all_events` VIEW en este plan)
+  quedó **inline en el repositorio**, no como VIEW — un solo call site hoy,
+  YAGNI crear la vista hasta que haga falta en un segundo lugar.
+  Gating explícito: sin ClickHouse conectado, el endpoint devuelve `503
+  { error: 'analytics_unavailable' }` (no cae a Postgres en silencio).
+- `CLICKHOUSE_URL/USER/PASSWORD/DATABASE` agregadas al `environment` de
+  `ingest-api` en los dos composes core.
+- Verificado: `tsc --noEmit` limpio, 161+5 tests en verde (0 regresiones),
+  `docker compose config` OK en los dos composes.
+
+**Pendiente:**
+- Correr `./scripts/backfill-clickhouse.sh` (Sub-fase 3c) para que el
+  endpoint tenga historia real, no solo desde que arrancó el consumer.
+- Dashboard: `/analytics` sigue mostrando las tarjetas placeholder — falta el
+  fetch + chart real contra `/analytics/trends` (reusar el patrón de
+  `container-stats-chart.tsx`: selector de rango, gráfico de área apilada por
+  protocolo).
+- Fase B (Credential Intelligence) — mismo patrón de repo/service/controller,
+  sin empezar todavía.
+
+El resto de este plan detalla las Sub-fases 3d/3e de
 [KAFKA_LAKE.md](KAFKA_LAKE.md) — ese documento se queda con el diseño de alto
 nivel (split hot/cold, gating por `CLICKHOUSE_URL`); este es el plan completo
 de **qué construir, en qué orden, y cómo**, para el módulo de analítica en sí.

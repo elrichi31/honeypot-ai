@@ -283,6 +283,14 @@ services:
       CORS_ALLOWED_ORIGINS: ${BETTER_AUTH_URL:-http://localhost:4000}
       REDIS_URL: redis://redis:6379
       KAFKA_BROKERS: kafka:9092
+      # ANALYTICS_MODULE (docs/plans/ANALYTICS_MODULE.md): only the analytics
+      # module reads from this — no depends_on either direction (same
+      # decoupling as clickhouse itself), the plugin gates gracefully if
+      # ClickHouse is down.
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-honeypot}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE:-honeypot_lake}
       PORT: "3000"
       HOST: "0.0.0.0"
       SURICATA_OWN_IPS: ${SURICATA_OWN_IPS:-}

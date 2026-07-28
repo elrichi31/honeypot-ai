@@ -424,6 +424,14 @@ services:
       FTP_CAPTURES_PATH: /ftp-captures
       SURICATA_OWN_IPS: ${SURICATA_OWN_IPS:-}
       KAFKA_BROKERS: kafka:9092
+      # ANALYTICS_MODULE (docs/plans/ANALYTICS_MODULE.md): only the analytics
+      # module reads from this — no depends_on either direction (same
+      # decoupling as clickhouse itself), the plugin gates gracefully if
+      # ClickHouse is down.
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-honeypot}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE:-honeypot_lake}
       # geoip-lite reads its GeoLite2 .dat files from here instead of its
       # bundled (never-updated) node_modules copy. geoip-updater refreshes
       # them weekly in the shared geoip_data volume; geoip-lite's own

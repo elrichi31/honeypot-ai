@@ -16,6 +16,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@clickhouse/client": "^1.23.1",
     "@fastify/cors": "^11.2.0",
     "@fastify/websocket": "^11.3.0",
     "@prisma/client": "^6.6.0",
