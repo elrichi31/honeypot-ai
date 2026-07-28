@@ -13,6 +13,7 @@ import {
   DialogDescription,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { isSensorInstalled } from "@/lib/sensor-install-status"
 import type { Client, Sensor } from "@/lib/api"
 import type { ServiceKey } from "@/app/api/sensor/install/route"
 
@@ -205,8 +206,6 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
   const [downloadingEnv, setDownloadingEnv] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const assignedProtocols = new Set(assignedSensors.map((s) => s.protocol))
-
   function toggle(key: ServiceKey) {
     setError(null)
     setSelected((prev) => {
@@ -255,7 +254,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
     }
   }
 
-  const installedCount = CATALOG.filter((e) => assignedProtocols.has(e.protocol)).length
+  const installedCount = CATALOG.filter((e) => isSensorInstalled(e, assignedSensors)).length
 
   return (
     <Dialog>
@@ -311,7 +310,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
             <div className="grid gap-2 grid-cols-2 lg:grid-cols-3">
               {EXTERNAL_ENTRIES.map((entry) => {
                 const Icon = entry.icon
-                const installed = assignedProtocols.has(entry.protocol)
+                const installed = isSensorInstalled(entry, assignedSensors)
                 const active = selected.includes(entry.serviceKey!)
                 return (
                   <button
@@ -374,7 +373,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
             <div className="grid gap-2 grid-cols-2 lg:grid-cols-3">
               {DECEPTION_ENTRIES.map((entry) => {
                 const Icon = entry.icon
-                const installed = assignedProtocols.has(entry.protocol)
+                const installed = isSensorInstalled(entry, assignedSensors)
                 const active = selected.includes(entry.serviceKey!)
                 return (
                   <button
@@ -462,7 +461,7 @@ export function ClientSensorCatalog({ client, assignedSensors }: Props) {
             <div className="grid gap-3 sm:grid-cols-2">
               {STANDALONE_ENTRIES.map((entry) => {
                 const Icon = entry.icon
-                const installed = assignedProtocols.has(entry.protocol)
+                const installed = isSensorInstalled(entry, assignedSensors)
                 const isDownloading = downloadingEnv === entry.protocol
                 return (
                   <div
