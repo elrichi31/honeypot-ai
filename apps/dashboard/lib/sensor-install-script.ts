@@ -29,6 +29,29 @@ export function buildScript(
     .replaceAll("{{compose}}", compose)
 }
 
+// Everything the installer drops on a host besides docker-compose.yml: the
+// files mounted into containers, and the helper commands themselves. Together
+// with the compose this is the whole install, so sensor-update can reach every
+// part of it without a reinstall.
+export const HELPER_NAMES = ["sensor-status", "sensor-test", "sensor-update", "sensor-uninstall"]
+
+// "<destination> <url>" per line. Config files come from the public raw host;
+// helpers are generated per deploy, so they are served by ingest-api itself.
+export function refreshManifest(services: ServiceKey[], rawBase: string, ingestUrl: string) {
+  const files = [...configDownloadLines(services).matchAll(/curl -fsSL "\$RAW\/(\S+?)"\s+-o (\S+)/g)]
+    .map(m => `${m[2]} ${rawBase}/${m[1]}`)
+  const helpers = HELPER_NAMES.map(n => `${n} ${ingestUrl}/sensor/compose?kind=helper&name=${n}`)
+  return [...files, ...helpers].join("\n")
+}
+
+// Pulls one helper back out of a built install script. Cheaper than splitting
+// SCRIPT_TEMPLATE apart, and it cannot drift from what the installer writes.
+export function helperScript(script: string, name: string): string | null {
+  if (!HELPER_NAMES.includes(name)) return null
+  const match = script.match(new RegExp(`cat > "\\$DIR/${name}" << '(ENDOF\\w+)'\\n([\\s\\S]*?)\\n\\1`))
+  return match ? match[2] : null
+}
+
 // Single-quoted so the values are literal to the shell that sources this.
 function sensorMeta(
   deployId: string, ingestUrl: string, secret: string, services: ServiceKey[], clientSlug: string, clientName: string,
@@ -612,6 +635,53 @@ else
   printf "      Re-download the installer once to enable it.\n"
 fi
 
+# The rest of the install: files mounted into containers (heartbeat.py, the
+# vector shipper configs) and the helper commands themselves. Same rules as the
+# compose — validate first, and leave what works alone on any failure.
+REFRESHED_MOUNTS=0
+REFRESHED_HELPERS=0
+if [ -f "$DIR/.sensor-meta" ]; then
+  STAGE=$(mktemp -d)
+  if curl -fsS --max-time 20 -o "$STAGE/manifest" \
+       -H "X-Ingest-Token: $INGEST_SECRET" \
+       --get "$INGEST_API_URL/sensor/compose" \
+       --data-urlencode "kind=files" \
+       --data-urlencode "deployId=$DEPLOY_ID" \
+       --data-urlencode "services=$SERVICES" \
+       --data-urlencode "clientSlug=$CLIENT_SLUG" \
+       --data-urlencode "clientName=$CLIENT_NAME" 2>/dev/null; then
+    while read -r dest url; do
+      [ -z "$dest" ] && continue
+      mkdir -p "$STAGE/$(dirname "$dest")"
+      # The ingest token goes to our own API and nowhere else — the config files
+      # come from a public host that has no business seeing it.
+      case "$url" in
+        "$INGEST_API_URL"*)
+          curl -fsS --max-time 30 -H "X-Ingest-Token: $INGEST_SECRET" "$url" -o "$STAGE/$dest" </dev/null || continue ;;
+        *)
+          curl -fsS --max-time 30 "$url" -o "$STAGE/$dest" </dev/null || continue ;;
+      esac
+      [ -s "$STAGE/$dest" ] || continue
+      # A helper that does not parse would break the next update permanently.
+      case "$dest" in sensor-*) bash -n "$STAGE/$dest" 2>/dev/null || continue ;; esac
+      cmp -s "$STAGE/$dest" "$DIR/$dest" 2>/dev/null && continue
+      mkdir -p "$DIR/$(dirname "$dest")"
+      # mv, never edit in place: this script may be one of the files being
+      # replaced, and bash reads it as it runs.
+      mv "$STAGE/$dest" "$DIR/$dest"
+      case "$dest" in
+        sensor-*) chmod +x "$DIR/$dest"; REFRESHED_HELPERS=$((REFRESHED_HELPERS + 1)) ;;
+        *)        REFRESHED_MOUNTS=$((REFRESHED_MOUNTS + 1)) ;;
+      esac
+    done < "$STAGE/manifest"
+    [ "$REFRESHED_MOUNTS" -gt 0 ] && printf "  %b[+]%b  %s mounted file(s) refreshed\n" "$GREEN" "$RESET" "$REFRESHED_MOUNTS"
+    [ "$REFRESHED_HELPERS" -gt 0 ] && printf "  %b[+]%b  %s helper command(s) refreshed\n" "$GREEN" "$RESET" "$REFRESHED_HELPERS"
+  else
+    printf "  %b[!]%b  Could not fetch the file manifest — keeping the current files\n" "$YELLOW" "$RESET"
+  fi
+  rm -rf "$STAGE"
+fi
+
 echo "==> Pulling latest images..."
 docker compose pull
 
@@ -619,6 +689,14 @@ echo ""
 echo "==> Restarting updated containers..."
 # up -d only recreates containers whose image (or config) changed; the rest stay untouched.
 docker compose up -d
+
+# A changed bind-mounted file is invisible to "up -d" — the container keeps the
+# process it started with, so heartbeat.py or a vector config would sit there
+# updated on disk and unused.
+if [ "$REFRESHED_MOUNTS" -gt 0 ]; then
+  echo "==> Restarting containers to pick up the refreshed files..."
+  docker compose restart
+fi
 
 echo ""
 echo "==> Verifying containers..."

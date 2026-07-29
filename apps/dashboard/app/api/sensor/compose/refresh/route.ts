@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { timingSafeEqual } from "node:crypto"
 import { ALL_SERVICES, buildCompose, type ServiceKey } from "@/lib/sensor-compose-builder"
+import { buildScript, helperScript, refreshManifest } from "@/lib/sensor-install-script"
 import { resolveIngestUrl, getIngestSecret } from "@/lib/server-config"
 
 const REGISTRY = process.env.SENSOR_REGISTRY ?? "ghcr.io/elrichi31/honeypot-ai"
@@ -45,11 +46,33 @@ export async function GET(req: NextRequest) {
   const { url: ingestUrl } = await resolveIngestUrl()
   if (!ingestUrl) return NextResponse.json({ error: "Could not resolve ingest URL" }, { status: 500 })
 
-  const compose = buildCompose(
-    deployId, ingestUrl, secret, services, REGISTRY,
-    params.get("clientSlug")?.trim() ?? "",
-    params.get("clientName")?.trim() ?? "",
-    RAW_BASE,
-  )
-  return new NextResponse(compose, { headers: { "Content-Type": "text/yaml; charset=utf-8" } })
+  const clientSlug = params.get("clientSlug")?.trim() ?? ""
+  const clientName = params.get("clientName")?.trim() ?? ""
+  const text = (body: string) =>
+    new NextResponse(body, { headers: { "Content-Type": "text/plain; charset=utf-8" } })
+
+  // One route, three payloads: the compose, the list of everything else the
+  // install owns, and each helper command. Splitting them would mean three
+  // proxy hops and three allowlist entries for no gain.
+  switch (params.get("kind") ?? "compose") {
+    case "compose":
+      return new NextResponse(
+        buildCompose(deployId, ingestUrl, secret, services, REGISTRY, clientSlug, clientName, RAW_BASE),
+        { headers: { "Content-Type": "text/yaml; charset=utf-8" } },
+      )
+
+    case "files":
+      return text(refreshManifest(services, RAW_BASE, ingestUrl))
+
+    case "helper": {
+      const name = params.get("name")?.trim() ?? ""
+      const built = buildScript(deployId, ingestUrl, secret, RAW_BASE, REGISTRY, services, clientSlug, clientName)
+      const helper = helperScript(built, name)
+      if (!helper) return NextResponse.json({ error: `Unknown helper: ${name}` }, { status: 404 })
+      return text(helper)
+    }
+
+    default:
+      return NextResponse.json({ error: "Unknown kind" }, { status: 400 })
+  }
 }

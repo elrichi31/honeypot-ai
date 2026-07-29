@@ -37,6 +37,10 @@ export async function sensorProvisionRoutes(fastify: FastifyInstance) {
       services: z.string().trim().min(1),
       clientSlug: z.string().trim().default(''),
       clientName: z.string().trim().default(''),
+      // Which part of the install to hand back: the compose, the manifest of
+      // everything else it owns, or one helper command.
+      kind: z.enum(['compose', 'files', 'helper']).default('compose'),
+      name: z.string().trim().default(''),
     }).safeParse(request.query)
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Invalid query', details: parsed.error.flatten() })
@@ -68,7 +72,7 @@ export async function sensorProvisionRoutes(fastify: FastifyInstance) {
         request.log.error('compose refresh: dashboard returned markup, not a compose')
         return reply.status(502).send({ error: 'Dashboard returned markup, not a compose' })
       }
-      return reply.header('Content-Type', 'text/yaml; charset=utf-8').send(body)
+      return reply.header('Content-Type', 'text/plain; charset=utf-8').send(body)
     } catch (err) {
       request.log.error({ err }, 'compose refresh: dashboard unreachable')
       return reply.status(502).send({ error: 'Dashboard unreachable' })
