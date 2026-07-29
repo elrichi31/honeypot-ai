@@ -1,11 +1,16 @@
 "use client"
 
-import { useState, Fragment } from "react"
-import { formatDistanceToNow } from "date-fns"
+import { useMemo, useState, Fragment } from "react"
 import { TimeAgo } from "@/components/time-ago"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import type { DeceptionEvent } from "@/lib/api/deception"
 import { Surface } from "@/components/ui/surface"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { EmptyRow } from "@/components/ui/table-card"
+import { TablePagination } from "@/components/table-pagination"
+import { useLocalPagination } from "@/lib/use-local-pagination"
+
+const PAGE_SIZE = 10
 
 // OpenCanary logdata keys we know how to label nicely. Anything else still shows
 // up in the raw JSON toggle, so we never hide data — we just surface the common
@@ -94,6 +99,16 @@ function EventDetail({ event }: { event: DeceptionEvent }) {
 export function DeceptionEventsTable({ events, showClient = true }: { events: DeceptionEvent[]; showClient?: boolean }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const columnCount = showClient ? 8 : 7
+  const sortedEvents = useMemo(
+    () => [...events].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
+    [events],
+  )
+  const { pageItems, pagination, setPage } = useLocalPagination(sortedEvents, PAGE_SIZE)
+
+  function goToPage(page: number) {
+    setExpandedId(null)
+    setPage(page)
+  }
 
   return (
     <Surface>
@@ -101,63 +116,68 @@ export function DeceptionEventsTable({ events, showClient = true }: { events: De
         <h2 className="text-sm font-semibold text-foreground">Raw events on trap nodes</h2>
         <p className="text-[11px] text-muted-foreground">Every interaction logged by OpenCanary on the internal network. Click a row to see the detail.</p>
       </div>
-      <div className="overflow-x-clip">
-        <table className="w-full text-left text-[12px]">
-          <thead className="sticky top-0 z-10 bg-card text-[10px] uppercase text-muted-foreground/60">
-            <tr className="border-b border-border/40">
-              <th className="px-4 py-2 font-medium w-6"></th>
-              {showClient && <th className="px-4 py-2 font-medium">Client</th>}
-              <th className="px-4 py-2 font-medium">Node</th>
-              <th className="px-4 py-2 font-medium">Source</th>
-              <th className="px-4 py-2 font-medium">Service</th>
-              <th className="px-4 py-2 font-medium">Type</th>
-              <th className="px-4 py-2 font-medium">Credential</th>
-              <th className="px-4 py-2 font-medium text-right">When</th>
-            </tr>
-          </thead>
-          <tbody>
+      <Table className="text-left text-[12px] [&_td]:whitespace-normal">
+        <TableHeader className="text-[10px] uppercase text-muted-foreground/60">
+          <TableRow className="border-b border-border/40 hover:bg-transparent">
+            <TableHead className="h-auto w-6 bg-transparent px-4 py-2 text-[10px] font-medium tracking-normal"></TableHead>
+            {showClient && <TableHead className="h-auto bg-transparent px-4 py-2 text-[10px] font-medium tracking-normal">Client</TableHead>}
+            <TableHead className="h-auto bg-transparent px-4 py-2 text-[10px] font-medium tracking-normal">Node</TableHead>
+            <TableHead className="h-auto bg-transparent px-4 py-2 text-[10px] font-medium tracking-normal">Source</TableHead>
+            <TableHead className="h-auto bg-transparent px-4 py-2 text-[10px] font-medium tracking-normal">Service</TableHead>
+            <TableHead className="h-auto bg-transparent px-4 py-2 text-[10px] font-medium tracking-normal">Type</TableHead>
+            <TableHead className="h-auto bg-transparent px-4 py-2 text-[10px] font-medium tracking-normal">Credential</TableHead>
+            <TableHead className="h-auto bg-transparent px-4 py-2 text-right text-[10px] font-medium tracking-normal">When</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody className="[&_tr:last-child]:border-b">
             {events.length === 0 ? (
-              <tr><td colSpan={columnCount} className="px-4 py-8 text-center text-muted-foreground">No events.</td></tr>
-            ) : events.map(e => {
+              <EmptyRow colSpan={columnCount} className="py-8">No events.</EmptyRow>
+            ) : pageItems.map(e => {
               const isExpanded = expandedId === e.id
               return (
                 <Fragment key={e.id}>
-                  <tr
+                  <TableRow
                     onClick={() => setExpandedId(isExpanded ? null : e.id)}
                     className="border-b border-border/20 hover:bg-white/[0.02] cursor-pointer"
                   >
-                    <td className="px-4 py-2 text-muted-foreground/50">
+                    <TableCell className="px-4 py-2 text-muted-foreground/50">
                       {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                    </td>
+                    </TableCell>
                     {showClient && (
-                      <td className="px-4 py-2 text-muted-foreground">{e.client_name ?? "—"}</td>
+                      <TableCell className="px-4 py-2 text-muted-foreground">{e.client_name ?? "—"}</TableCell>
                     )}
-                    <td className="px-4 py-2 font-mono text-foreground">{e.node_name ?? e.node_id ?? "?"}</td>
-                    <td className="px-4 py-2 font-mono text-muted-foreground">{e.src_ip}</td>
-                    <td className="px-4 py-2 text-muted-foreground">{e.protocol.toUpperCase()} :{e.dst_port}</td>
-                    <td className="px-4 py-2">
+                    <TableCell className="px-4 py-2 font-mono text-foreground">{e.node_name ?? e.node_id ?? "?"}</TableCell>
+                    <TableCell className="px-4 py-2 font-mono text-muted-foreground">{e.src_ip}</TableCell>
+                    <TableCell className="px-4 py-2 text-muted-foreground">{e.protocol.toUpperCase()} :{e.dst_port}</TableCell>
+                    <TableCell className="px-4 py-2">
                       <span className={e.event_type === "auth" ? "text-red-400" : "text-muted-foreground"}>{e.event_type}</span>
-                    </td>
-                    <td className="px-4 py-2 font-mono text-muted-foreground">
+                    </TableCell>
+                    <TableCell className="px-4 py-2 font-mono text-muted-foreground">
                       {e.username ? `${e.username}${e.password ? ` / ${e.password}` : ""}` : "—"}
-                    </td>
-                    <td className="px-4 py-2 text-right text-muted-foreground/70">
+                    </TableCell>
+                    <TableCell className="px-4 py-2 text-right text-muted-foreground/70">
                       <TimeAgo timestamp={e.timestamp} />
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                   {isExpanded && (
-                    <tr>
-                      <td colSpan={columnCount} className="p-0">
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={columnCount} className="p-0">
                         <EventDetail event={e} />
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )}
                 </Fragment>
               )
             })}
-          </tbody>
-        </table>
-      </div>
+        </TableBody>
+      </Table>
+      {pagination.totalPages > 1 && (
+        <TablePagination
+          pagination={pagination}
+          showPageSize={false}
+          onPageChange={goToPage}
+        />
+      )}
     </Surface>
   )
 }

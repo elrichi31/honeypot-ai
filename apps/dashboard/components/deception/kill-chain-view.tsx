@@ -1,14 +1,17 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import { Terminal, ChevronRight, ChevronDown, Database, Server, Globe, HardDrive, KeyRound, ExternalLink, Ghost } from "lucide-react"
-import { formatDistanceToNow } from "date-fns"
 import { TimeAgo } from "@/components/time-ago"
 import { useTimezone } from "@/components/timezone-provider"
 import { formatInTimezone } from "@/lib/timezone"
 import type { KillChain, KillChainStep } from "@/lib/api/deception"
 import { Surface } from "@/components/ui/surface"
+import { TablePagination } from "@/components/table-pagination"
+import { useLocalPagination } from "@/lib/use-local-pagination"
+
+const PAGE_SIZE = 5
 
 // OpenCanary logdata keys worth surfacing per step, in display order.
 const STEP_FIELD_LABELS: Record<string, string> = {
@@ -202,9 +205,28 @@ export function KillChainView({ chains, showClient = true }: { chains: KillChain
       </div>
     )
   }
+
+  return <PaginatedKillChains chains={chains} showClient={showClient} />
+}
+
+function PaginatedKillChains({ chains, showClient }: { chains: KillChain[]; showClient: boolean }) {
+  const sortedChains = useMemo(
+    () => [...chains].sort((a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime()),
+    [chains],
+  )
+  const { pageItems, pagination, setPage } = useLocalPagination(sortedChains, PAGE_SIZE)
+
   return (
     <div className="space-y-3">
-      {chains.map(chain => <ChainRow key={chain.key} chain={chain} showClient={showClient} />)}
+      {pageItems.map(chain => <ChainRow key={chain.key} chain={chain} showClient={showClient} />)}
+      {pagination.totalPages > 1 && (
+        <TablePagination
+          pagination={pagination}
+          showPageSize={false}
+          onPageChange={setPage}
+          className="px-0"
+        />
+      )}
     </div>
   )
 }

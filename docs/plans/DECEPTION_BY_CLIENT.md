@@ -348,3 +348,18 @@ Con la DB local (`honeypot_full`, puerto 55432) hay datos reales para probar.
 - **Sensores deception sin cliente asignado** — no aparecen en el índice. Si
   aparecen en producción es un fallo de asignación, se arregla en el sensor, no
   metiendo una card "Unassigned".
+
+---
+
+## Seguimiento — 2026-07-29
+
+- [x] La lista de movimiento lateral muestra 5 cadenas por página, ordenadas
+  por `lastSeen DESC`, reutilizando el paginador compartido sin cambiar el
+  aspecto de las tarjetas.
+- [x] Raw events usa los componentes compartidos de tabla y muestra 10 eventos
+  por página, ordenados por `timestamp DESC`; el detalle expandible conserva
+  el mismo layout.
+- [x] El paginador compartido admite navegación local controlada y puede
+  ocultar el selector de tamaño. Las tablas con paginación por URL mantienen
+  su comportamiento anterior.
+- Commit: pendiente.

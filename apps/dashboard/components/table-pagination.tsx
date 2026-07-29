@@ -1,19 +1,27 @@
 "use client"
 
+import type { ComponentProps } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import type { PaginationMeta } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { useNavTransitionOptional } from "@/lib/use-nav-transition"
 import { useT } from "@/components/locale-provider"
+import { cn } from "@/lib/utils"
 
 const DEFAULT_PAGE_SIZES = [20, 30, 50, 100]
 
 export function TablePagination({
   pagination,
   pageSizeOptions = DEFAULT_PAGE_SIZES,
+  showPageSize = true,
+  onPageChange,
+  className,
 }: {
   pagination: PaginationMeta
   pageSizeOptions?: number[]
+  showPageSize?: boolean
+  onPageChange?: (page: number) => void
+  className?: ComponentProps<"div">["className"]
 }) {
   const { pushParams, isPending } = useNavTransitionOptional()
   const t = useT()
@@ -28,6 +36,10 @@ export function TablePagination({
   }
 
   function goToPage(page: number) {
+    if (onPageChange) {
+      onPageChange(page)
+      return
+    }
     updateParams({ page: String(page) })
   }
 
@@ -39,27 +51,32 @@ export function TablePagination({
   }
 
   return (
-    <div className="flex flex-col gap-3 border-t border-border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+    <div className={cn(
+      "flex flex-col gap-3 border-t border-border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between",
+      className,
+    )}>
       <div className="text-muted-foreground">
         {t("common.pagination.showing", { start, end, total: pagination.total.toLocaleString('en-US') })}
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <label className="flex items-center gap-2 text-muted-foreground">
-          <span>{t("common.pagination.perPage")}</span>
-          <select
-            value={String(pagination.pageSize)}
-            onChange={(event) => onPageSizeChange(event.target.value)}
-            disabled={isPending}
-            className="h-9 rounded-md border border-border bg-background px-2 text-foreground disabled:opacity-50"
-          >
-            {pageSizeOptions.map((size) => (
-              <option key={size} value={size}>
-                {size}
-              </option>
-            ))}
-          </select>
-        </label>
+        {showPageSize && (
+          <label className="flex items-center gap-2 text-muted-foreground">
+            <span>{t("common.pagination.perPage")}</span>
+            <select
+              value={String(pagination.pageSize)}
+              onChange={(event) => onPageSizeChange(event.target.value)}
+              disabled={isPending}
+              className="h-9 rounded-md border border-border bg-background px-2 text-foreground disabled:opacity-50"
+            >
+              {pageSizeOptions.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <div className="flex items-center gap-2">
           <Button
