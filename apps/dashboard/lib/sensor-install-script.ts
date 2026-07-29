@@ -36,12 +36,17 @@ export function buildScript(
 export const HELPER_NAMES = ["sensor-status", "sensor-test", "sensor-update", "sensor-uninstall"]
 
 // "<destination> <url>" per line. Config files come from the public raw host;
-// helpers are generated per deploy, so they are served by ingest-api itself.
-export function refreshManifest(services: ServiceKey[], rawBase: string, ingestUrl: string) {
+// helpers are generated per deploy, so the caller supplies their URL — it has to
+// carry the same identity params the helper route needs to build them.
+export function refreshManifest(
+  services: ServiceKey[], rawBase: string, helperUrl: (name: string) => string,
+) {
   const files = [...configDownloadLines(services).matchAll(/curl -fsSL "\$RAW\/(\S+?)"\s+-o (\S+)/g)]
     .map(m => `${m[2]} ${rawBase}/${m[1]}`)
-  const helpers = HELPER_NAMES.map(n => `${n} ${ingestUrl}/sensor/compose?kind=helper&name=${n}`)
-  return [...files, ...helpers].join("\n")
+  const helpers = HELPER_NAMES.map(n => `${n} ${helperUrl(n)}`)
+  // Trailing newline is load-bearing: "while read" drops a final line that has
+  // none, and the last helper would never be fetched.
+  return [...files, ...helpers].join("\n") + "\n"
 }
 
 // Pulls one helper back out of a built install script. Cheaper than splitting
@@ -650,7 +655,9 @@ if [ -f "$DIR/.sensor-meta" ]; then
        --data-urlencode "services=$SERVICES" \
        --data-urlencode "clientSlug=$CLIENT_SLUG" \
        --data-urlencode "clientName=$CLIENT_NAME" 2>/dev/null; then
-    while read -r dest url; do
+    # "|| [ -n "$dest" ]" catches a manifest whose last line has no newline —
+    # read returns non-zero there and the entry would be skipped in silence.
+    while read -r dest url || [ -n "$dest" ]; do
       [ -z "$dest" ] && continue
       mkdir -p "$STAGE/$(dirname "$dest")"
       # The ingest token goes to our own API and nowhere else — the config files

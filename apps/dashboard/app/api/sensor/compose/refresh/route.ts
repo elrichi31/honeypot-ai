@@ -61,8 +61,18 @@ export async function GET(req: NextRequest) {
         { headers: { "Content-Type": "text/yaml; charset=utf-8" } },
       )
 
-    case "files":
-      return text(refreshManifest(services, RAW_BASE, ingestUrl))
+    case "files": {
+      // Reuse the caller's own params so each helper URL carries the identity
+      // this request already proved; building them from kind+name alone gets a
+      // 400 back from the route that has to generate them.
+      const helperUrl = (name: string) => {
+        const next = new URLSearchParams(params)
+        next.set("kind", "helper")
+        next.set("name", name)
+        return `${ingestUrl}/sensor/compose?${next}`
+      }
+      return text(refreshManifest(services, RAW_BASE, helperUrl))
+    }
 
     case "helper": {
       const name = params.get("name")?.trim() ?? ""

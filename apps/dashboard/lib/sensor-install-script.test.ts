@@ -61,7 +61,7 @@ test("re-running the installer neither moves sshd twice nor clobbers its backup"
 // Everything the installer put on the host must be reachable by the updater,
 // or that part silently rots at the version it was installed with.
 test("the refresh manifest covers the mounted files and every helper", () => {
-  const manifest = refreshManifest(["int-ssh", "int-http"], "https://raw.example", "https://ingest.example")
+  const manifest = refreshManifest(["int-ssh", "int-http"], "https://raw.example", n => `https://ingest.example/sensor/compose?deployId=d1&services=int-ssh&kind=helper&name=${n}`)
   const dests = manifest.split("\n").map(l => l.split(" ")[0])
   for (const mounted of ["heartbeat.py", "control_agent.py", "cowrie.toml", "web-honeypot.toml"]) {
     assert.ok(dests.includes(mounted), `${mounted} is mounted into a container but never refreshed`)
@@ -72,8 +72,8 @@ test("the refresh manifest covers the mounted files and every helper", () => {
 })
 
 test("config files are fetched from the public host, helpers from ingest", () => {
-  const manifest = refreshManifest(["int-ssh"], "https://raw.example", "https://ingest.example")
-  for (const line of manifest.split("\n")) {
+  const manifest = refreshManifest(["int-ssh"], "https://raw.example", n => `https://ingest.example/sensor/compose?deployId=d1&services=int-ssh&kind=helper&name=${n}`)
+  for (const line of manifest.trimEnd().split("\n")) {
     const [dest, url] = line.split(" ")
     const expected = dest.startsWith("sensor-") ? "https://ingest.example" : "https://raw.example"
     assert.ok(url.startsWith(expected), `${dest} should come from ${expected}, got ${url}`)
@@ -114,4 +114,27 @@ test("refreshed files are moved into place, never written over", () => {
 test("changed mounted files trigger a container restart", () => {
   const s = script(["int-ssh"])
   assert.match(s, /if \[ "\$REFRESHED_MOUNTS" -gt 0 \]; then\n\s+echo[^\n]*\n\s*docker compose restart/)
+})
+
+// Both halves of the same bug: a helper URL without the identity params gets a
+// 400, and a manifest without a trailing newline loses its last entry to `read`.
+test("helper URLs carry the identity the helper route requires", () => {
+  const manifest = refreshManifest(["int-ssh"], "https://raw.example",
+    n => `https://ingest.example/sensor/compose?deployId=d1&services=int-ssh&kind=helper&name=${n}`)
+  for (const line of manifest.trimEnd().split("\n")) {
+    const [dest, url] = line.split(" ")
+    if (!dest.startsWith("sensor-")) continue
+    for (const param of ["deployId=", "services=", "kind=helper", `name=${dest}`]) {
+      assert.ok(url.includes(param), `${dest} URL is missing ${param}`)
+    }
+  }
+})
+
+test("the manifest ends with a newline so the last entry survives read", () => {
+  const manifest = refreshManifest(["int-ssh"], "https://raw.example", n => `https://i.example/${n}`)
+  assert.ok(manifest.endsWith("\n"), "a final line without a newline is silently dropped")
+})
+
+test("the update loop reads a last line that has no newline anyway", () => {
+  assert.match(script(["int-ssh"]), /while read -r dest url \|\| \[ -n "\$dest" \]; do/)
 })
