@@ -56,11 +56,19 @@ export async function sensorProvisionRoutes(fastify: FastifyInstance) {
       const res = await fetch(url, {
         headers: { 'X-Ingest-Token': process.env.INGEST_SHARED_SECRET ?? '' },
         signal: AbortSignal.timeout(10_000),
+        // Following one would silently turn the dashboard's auth redirect into a
+        // 200 carrying the login page, which the sensor would treat as a compose.
+        redirect: 'manual',
       })
       if (!res.ok) {
         return reply.status(502).send({ error: `Dashboard returned ${res.status}` })
       }
-      return reply.header('Content-Type', 'text/yaml; charset=utf-8').send(await res.text())
+      const body = await res.text()
+      if (body.trimStart().startsWith('<')) {
+        request.log.error('compose refresh: dashboard returned markup, not a compose')
+        return reply.status(502).send({ error: 'Dashboard returned markup, not a compose' })
+      }
+      return reply.header('Content-Type', 'text/yaml; charset=utf-8').send(body)
     } catch (err) {
       request.log.error({ err }, 'compose refresh: dashboard unreachable')
       return reply.status(502).send({ error: 'Dashboard unreachable' })

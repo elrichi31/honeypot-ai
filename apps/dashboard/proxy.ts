@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const PUBLIC_PATHS = ["/login", "/setup", "/api/auth", "/api/setup-status", "/api/brand", "/brands"]
+// "Public" here means "not gated on a session cookie". The compose-refresh
+// route is called by sensor hosts through ingest-api, which have no session;
+// it authenticates on the shared ingest secret itself. Without this entry the
+// caller is redirected to /login and receives that page as its compose.
+const PUBLIC_PATHS = [
+  "/login", "/setup", "/api/auth", "/api/setup-status", "/api/brand", "/brands",
+  "/api/sensor/compose/refresh",
+]
 const SESSION_COOKIE_NAMES = [
   "better-auth.session_token",
   "__Secure-better-auth.session_token",
