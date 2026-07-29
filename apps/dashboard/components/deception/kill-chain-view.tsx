@@ -149,7 +149,7 @@ function ChainRow({ chain, showClient }: { chain: KillChain; showClient: boolean
               <Ghost className="h-3 w-3" /> internal
             </span>
           )}
-          <span className="font-mono text-sm text-foreground">{chain.publicIp ?? "Unknown IP"}</span>
+          <span className="font-mono text-sm text-foreground">{chain.sourceIp ?? "Unknown IP"}</span>
           {chain.sessionId && (
             <Link
               href={`/sessions/${chain.sessionId}`}

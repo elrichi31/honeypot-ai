@@ -9,7 +9,7 @@ function row(overrides: Partial<KillChainStepRow>): KillChainStepRow {
   return {
     node_id: 'node-1', node_name: 'mysql-trap', protocol: 'mysql', dst_port: 3306,
     event_type: 'connection', username: null, password: null,
-    timestamp: new Date('2026-07-05T10:00:00Z'), public_ip: '203.0.113.5',
+    timestamp: new Date('2026-07-05T10:00:00Z'),
     session_id: 'sess-1', src_ip: '10.0.0.5', logdata: null,
     client_id: 'client-1', client_slug: 'acme', client_name: 'Acme Corp',
     ...overrides,
@@ -35,10 +35,26 @@ describe('buildKillchains', () => {
     expect(chains[0].nodesTouched).toBe(2)
   })
 
-  it('falls back to an internal:<ip> key with correlation none when session_id is null', () => {
-    const [chain] = buildKillchains([row({ session_id: null })])
+  it('uses the event internal source dynamically instead of a fixed attacker IP', () => {
+    const [chain] = buildKillchains([row({
+      session_id: null,
+      src_ip: '192.168.100.129',
+    })])
     expect(chain.correlation).toBe('none')
-    expect(chain.key).toBe('internal:10.0.0.5')
+    expect(chain.key).toBe('internal:192.168.100.129')
+    expect(chain.sourceIp).toBe('192.168.100.129')
+    expect(chain.sessionId).toBeNull()
+  })
+
+  it('keeps different internal attackers in separate chains', () => {
+    const chains = buildKillchains([
+      row({ session_id: null, src_ip: '192.168.100.129' }),
+      row({ session_id: null, src_ip: '192.168.100.130' }),
+    ])
+    expect(chains.map(chain => chain.sourceIp).sort()).toEqual([
+      '192.168.100.129',
+      '192.168.100.130',
+    ])
   })
 
   it('keeps client attribution independent per step within the same chain', () => {

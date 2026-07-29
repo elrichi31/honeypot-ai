@@ -58,7 +58,7 @@ export type KillChainStep = {
 
 export type KillChain = {
   key: string
-  publicIp: string | null
+  sourceIp: string | null
   sessionId: string | null
   correlation: "probable" | "none"
   firstSeen: string

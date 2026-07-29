@@ -219,3 +219,15 @@ expuesta y sin atribución de cliente/sensor.
 - La vista global agrega **todos** los clientes: la columna Cliente es la que le
   da sentido; sin ella la página global "no sirve" (queja original).
 - No romper el filtro `?clientSlug=` existente de la página global.
+
+## Follow-up 2026-07-29 — IP interna correcta por kill-chain
+
+- El kill-chain muestra el `src_ip` interno real de cada evento de deception;
+  esa IP identifica al host que alcanzó el trap dentro de la red.
+- Eliminada la correlación temporal con cualquier sesión activa. Para eventos
+  SSH internos, el enlace de sesión se resuelve únicamente mediante el
+  `cowrie_session` exacto emitido junto con el evento.
+- Añadida cobertura para comprobar que `.129` y `.130` producen cadenas
+  separadas y se muestran dinámicamente desde los eventos, sin valores fijos.
+- Pendiente: cubrir el SQL crudo con un harness de integración PostgreSQL cuando
+  exista infraestructura de tests de repository.

@@ -1,7 +1,6 @@
 import { Prisma, type PrismaClient } from '@prisma/client'
 
 const DECEPTION_FILTER = Prisma.sql`(data->>'layer' = 'internal' OR data->>'source' = 'opencanary')`
-const SESSION_FALLBACK_WINDOW = Prisma.sql`interval '2 hours'`
 
 export type Scope = { clientId: string; sensorIds: string[] } | null
 
@@ -23,7 +22,7 @@ export type DeceptionNetworkMetrics = {
 export type KillChainStepRow = {
   node_id: string | null; node_name: string | null; protocol: string; dst_port: number
   event_type: string; username: string | null; password: string | null
-  timestamp: Date; public_ip: string | null; session_id: string | null; src_ip: string | null; logdata: unknown
+  timestamp: Date; session_id: string | null; src_ip: string | null; logdata: unknown
   client_id: string | null; client_slug: string | null; client_name: string | null
 }
 
@@ -184,17 +183,14 @@ export class DeceptionRepository {
     return this.prismaRead.$queryRaw<KillChainStepRow[]>`
       SELECT COALESCE(ph.data->>'node_id', ph.sensor_id) AS node_id, sn.name AS node_name, ph.protocol, ph.dst_port,
              ph.event_type, ph.username, ph.password, ph.timestamp, ph.src_ip AS src_ip,
-             ph.data->'logdata' AS logdata, s.src_ip AS public_ip, s.id AS session_id,
+             ph.data->'logdata' AS logdata, s.id AS session_id,
              c.id AS client_id, c.slug AS client_slug, c.name AS client_name
       FROM protocol_hits ph
       LEFT JOIN sensors sn ON sn.sensor_id = COALESCE(ph.data->>'node_id', ph.sensor_id)
       LEFT JOIN clients c ON c.id = sn.client_id
-      LEFT JOIN LATERAL (
-        SELECT s.id, s.src_ip FROM sessions s
-        WHERE ph.timestamp >= s.started_at
-          AND ph.timestamp <= COALESCE(s.ended_at, s.started_at + ${SESSION_FALLBACK_WINDOW})
-        ORDER BY s.started_at DESC LIMIT 1
-      ) s ON true
+      LEFT JOIN sessions s
+        ON s.cowrie_session_id = ph.data->>'cowrie_session'
+       AND s.sensor_id = ph.sensor_id
       WHERE ${DECEPTION_FILTER}${hitScope}
       ORDER BY ph.timestamp DESC LIMIT ${limit}
     `
