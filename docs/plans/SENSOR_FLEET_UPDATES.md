@@ -34,6 +34,29 @@ verde/amarillo ("al día con master") se movió a Fase 1 — requiere conocer el
 último sha publicado (GHCR/GitHub API), que es exactamente la fuente de
 "versiones disponibles" que Fase 1 construye. Fase 0 muestra el sha crudo.
 
+**Semáforo implementado (2026-07-29, commit `b82a22e`).** No hizo falta esperar
+a Fase 1: la comparación se hace contra **el registry**, no contra el repo. El
+sha horneado en lo que `:latest` resuelve ahora mismo *es*, por definición, lo
+que un host recibiría si hiciera pull. Comparar contra HEAD de master marcaría
+como atrasados a todos los sensores en cualquier commit que no reconstruyó
+imágenes — o sea, la mayoría.
+
+- `lib/sensor-image-versions.ts`: GHCR responde anónimo para imágenes públicas
+  (token → índice de manifiestos → manifiesto amd64 → config blob → leer
+  `SENSOR_IMAGE_VERSION` de su `Env`). Caché de 10 min por imagen, timeout de
+  5 s, y **todo fallo resuelve `unknown`** — un hipo del registry no puede
+  pintar de ámbar una flota sana.
+- La tarjeta muestra `actualización pendiente` / `al día` junto al sha, con el
+  arreglo en el tooltip (`sensor-update` en ese host).
+- `web-honeypot` ahora **sí** reporta `imageVersion`: el plan lo daba por
+  imposible porque su heartbeat corre en un beacon de python stock, pero los
+  nodos internos laten in-process y ahí el env está disponible. `cowrie` sigue
+  sin poder reportarlo por ese mismo motivo y no muestra nada, en vez de
+  adivinar.
+
+Queda de Fase 1 lo demás: tabla `sensor_releases`, rollout controlado, y que la
+actualización se dispare desde el dashboard en vez de por SSH.
+
 **Para desplegar Fase 0:** aplicar la migración (`prisma migrate deploy`) y
 republicar imágenes (el próximo push a `sensors/**` lo hace solo). Los
 sensores ya desplegados muestran versión vacía hasta que su host haga pull
