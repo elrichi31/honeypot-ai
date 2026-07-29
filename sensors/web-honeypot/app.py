@@ -276,6 +276,12 @@ def _send_heartbeat():
         }
         if SENSOR_LOCAL_IP:
             payload["localIp"] = SENSOR_LOCAL_IP
+        # Baked into the image at build. The external http deploy heartbeats from
+        # a stock-python beacon that cannot see this, but internal nodes run their
+        # heartbeat in-process, so there it is the real running version.
+        image_version = os.environ.get("SENSOR_IMAGE_VERSION")
+        if image_version:
+            payload["imageVersion"] = image_version
         if SENSOR_LAYER == "internal":
             payload["layer"] = "internal"
             payload["realProtocol"] = "http"

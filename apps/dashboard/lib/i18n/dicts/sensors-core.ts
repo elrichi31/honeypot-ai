@@ -31,6 +31,9 @@ export const en = {
   // ── Sensor card ────────────────────────────────────────────────────────────
   "sensors.card.couldNotDelete": "Could not delete: {error}",
   "sensors.card.image": "image",
+  "sensors.card.updatePending": "update pending",
+  "sensors.card.upToDate": "up to date",
+  "sensors.card.updateHint": "Run sensor-update on this host",
   "sensors.card.error": "Error {status}",
   "sensors.card.couldNotConnect": "Could not connect",
   "sensors.card.configure": "Configure",
@@ -119,6 +122,9 @@ export const es: Record<keyof typeof en, string> = {
 
   "sensors.card.couldNotDelete": "No se pudo eliminar: {error}",
   "sensors.card.image": "imagen",
+  "sensors.card.updatePending": "actualización pendiente",
+  "sensors.card.upToDate": "al día",
+  "sensors.card.updateHint": "Corré sensor-update en ese host",
   "sensors.card.error": "Error {status}",
   "sensors.card.couldNotConnect": "No se pudo conectar",
   "sensors.card.configure": "Configurar",

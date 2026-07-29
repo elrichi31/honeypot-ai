@@ -11,6 +11,7 @@ import { DeceptionNetworkCard } from "@/components/sensors/deception-network-car
 import { SensorsLiveWrapper } from "@/components/sensors/sensors-live-wrapper"
 import { SensorLayerFilter } from "@/components/sensors/sensor-layer-filter"
 import { fetchSensors } from "@/lib/api"
+import { resolveVersionStatuses } from "@/lib/sensor-image-versions"
 import { readConfig } from "@/lib/server-config"
 import { getServerT } from "@/lib/i18n/server"
 import type { Sensor } from "@/lib/api"
@@ -81,6 +82,10 @@ export default async function SensorsPage({
     })
     honeypotPublicIp = externalSensor?.ip ?? ""
   }
+
+  // Registry lookup, cached and best-effort: a slow or unreachable ghcr.io
+  // yields "unknown" for everyone rather than holding up the page.
+  const versionStatuses = await resolveVersionStatuses(sensors)
 
   const online = filteredSensors.filter((sensor) => sensor.online).length
   const total = sensors.length
@@ -178,7 +183,7 @@ export default async function SensorsPage({
                         <DeceptionNetworkCard sensors={deception} clientSlug={group.slug} />
                       )}
                       {rest.map((sensor) => (
-                        <SensorCard key={sensor.sensorId} sensor={sensor} clientCode={sensor.clientCode} honeypotPublicIp={honeypotPublicIp} />
+                        <SensorCard key={sensor.sensorId} sensor={sensor} clientCode={sensor.clientCode} honeypotPublicIp={honeypotPublicIp} versionStatus={versionStatuses[sensor.sensorId]} />
                       ))}
                     </>
                   )

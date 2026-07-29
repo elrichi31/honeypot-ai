@@ -14,6 +14,7 @@ import { SensorConfigDialog } from "./sensor-config-dialog"
 import { SensorControlPanel } from "./sensor-control-panel"
 import type { ControlAction, ControlState } from "./sensor-actions"
 import type { Sensor } from "@/lib/api"
+import type { SensorVersionStatus } from "@/lib/sensor-image-versions"
 import { useT } from "@/components/locale-provider"
 import type { TranslationKey } from "@/lib/i18n/dictionaries"
 import { useViewer, canActOnSensor } from "@/hooks/use-viewer"
@@ -43,10 +44,14 @@ export function SensorCard({
   sensor,
   clientCode,
   honeypotPublicIp,
+  // Resolved on the server against the registry; "unknown" when the sensor
+  // reports no image version or the lookup failed, and then nothing is shown.
+  versionStatus = "unknown",
 }: {
   sensor: Sensor
   clientCode?: string
   honeypotPublicIp?: string
+  versionStatus?: SensorVersionStatus
 }) {
   const router = useRouter()
   const t = useT()
@@ -161,6 +166,17 @@ export function SensorCard({
             <p className="text-[10px] font-mono text-muted-foreground" title={sensor.imageVersion}>
               {t("sensors.card.image")} {sensor.imageVersion.slice(0, 7)}
             </p>
+          )}
+          {versionStatus === "outdated" && (
+            <span
+              className="ml-auto rounded px-1.5 py-0.5 text-[10px] font-medium text-amber-400 bg-amber-400/10"
+              title={t("sensors.card.updateHint")}
+            >
+              {t("sensors.card.updatePending")}
+            </span>
+          )}
+          {versionStatus === "current" && (
+            <span className="ml-auto text-[10px] text-emerald-400/80">{t("sensors.card.upToDate")}</span>
           )}
         </div>
       )}
