@@ -2,7 +2,6 @@ import type { FastifyInstance, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import { ensureIngestToken } from '../../lib/ingest-auth.js'
 import { DeceptionService, type Scope } from './deception.service.js'
-import { isInternalIp } from '../../lib/internal-ip.js'
 
 const pageQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -32,7 +31,7 @@ export async function deceptionRoutes(fastify: FastifyInstance) {
   fastify.post('/ingest/deception/portscan', async (request, reply) => {
     if (!ensureIngestToken(request, reply)) return reply
     const body = portscansIngestSchema.parse(request.body)
-    if (isInternalIp(body.srcIp)) return reply.status(202).send({ ignored: 'internal source IP' })
+    // Portscans against the internal trap network legitimately come from private IPs.
     await svc.ingestPortscan(body)
     return reply.status(201).send({ ok: true })
   })

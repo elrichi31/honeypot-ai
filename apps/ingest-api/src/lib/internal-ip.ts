@@ -32,3 +32,13 @@ function isInternalIpv6(ip: string): boolean {
     || ip.startsWith('fd')
     || /^fe[89ab][0-9a-f]:/.test(ip)
 }
+
+/** Whether an event's `data` payload marks it as internal-layer / deception
+ *  traffic. Deception nodes live inside the LAN, so their attackers reach them
+ *  from private IPs (lateral movement) — the ingest paths must NOT drop these as
+ *  internal noise the way they do for internet-facing honeypots. */
+export function isInternalLayerData(data: unknown): boolean {
+  if (!data || typeof data !== 'object') return false
+  const d = data as Record<string, unknown>
+  return d.layer === 'internal' || d.source === 'opencanary'
+}

@@ -7,9 +7,10 @@ import { scheduleThreatAlert, evaluateCanaryAlert } from '../../lib/threat-alert
 import { forwardClientEventBySensorId } from '../../lib/client-forward.js'
 import { lakeProducer, LAKE_TOPICS } from '../../lib/lake-producer.js'
 import { basePaginationSchema, getPagination } from '../../lib/pagination.js'
-import { webHitSchema, normalizeHeaders, parseWebHitBatch } from '../../lib/web-normalize.js'
+import { webHitSchema, normalizeHeaders, parseWebHitBatch, type WebHit } from '../../lib/web-normalize.js'
 import { WebService, resolveSensorScope } from './web.service.js'
 import { isInternalIp } from '../../lib/internal-ip.js'
+import { enqueueProtocolHit } from '../../lib/protocol-batch.js'
 import { parseSensorScope } from '../../lib/sensor-scope.js'
 
 const webHitsQuerySchema = z.object({
@@ -62,6 +63,20 @@ function emitAttackEvent(srcIp: string, timestamp: string, sensorId: string | nu
   if (geo) eventBus.emit('attack', { type: 'http', ip: srcIp, ...geo, timestamp, sensorId, dstPort: 80 })
 }
 
+// Internal web nodes store the hit in web_hits, but the deception views only read
+// protocol_hits. Mirror an internal web hit as an http protocol_hit (layer=internal)
+// so it counts toward the trap node in /deception. No-op for internet-facing nodes.
+function bridgeDeceptionWebHit(d: WebHit, sensorId: string | null) {
+  if (d.layer !== 'internal' || !sensorId) return
+  enqueueProtocolHit({
+    eventId: d.eventId, sensorId, protocol: 'http',
+    srcIp: d.srcIp, srcPort: null, dstPort: 80,
+    eventType: 'connect', username: null, password: null,
+    data: { layer: 'internal', source: 'web', node_id: sensorId, path: d.path, method: d.method },
+    timestamp: new Date(d.timestamp),
+  })
+}
+
 export async function webRoutes(fastify: FastifyInstance) {
   const svc = new WebService(fastify.prisma)
 
@@ -85,12 +100,13 @@ export async function webRoutes(fastify: FastifyInstance) {
 
     const d = { ...parsed.data, headers: normalizeHeaders(parsed.data.headers) }
     const sensorId = d.sensorId ?? null
-    if (isInternalIp(d.srcIp)) return reply.status(202).send({ ignored: 'internal source IP' })
+    if (isInternalIp(d.srcIp) && d.layer !== 'internal') return reply.status(202).send({ ignored: 'internal source IP' })
 
     try {
       const row = await svc.insertWebHit(d, sensorId)
       if (row) {
         lakeProducer.tee(LAKE_TOPICS.web, d.eventId, d)
+        bridgeDeceptionWebHit(d, sensorId)
         emitAttackEvent(d.srcIp, d.timestamp, sensorId)
         void forwardClientEventBySensorId(fastify.prisma, sensorId, {
           kind: 'web.event',
@@ -123,12 +139,13 @@ export async function webRoutes(fastify: FastifyInstance) {
 
     let inserted = 0
     for (const d of events) {
-      if (isInternalIp(d.srcIp)) continue
+      if (isInternalIp(d.srcIp) && d.layer !== 'internal') continue
       try {
         const row = await svc.insertWebHit(d, d.sensorId ?? null)
         if (row) {
           inserted++
           lakeProducer.tee(LAKE_TOPICS.web, d.eventId, d)
+          bridgeDeceptionWebHit(d, d.sensorId ?? null)
           emitAttackEvent(d.srcIp, d.timestamp, d.sensorId ?? null)
           void forwardClientEventBySensorId(fastify.prisma, d.sensorId ?? null, {
             kind: 'web.event',

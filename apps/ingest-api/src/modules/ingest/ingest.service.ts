@@ -7,8 +7,19 @@ import type { IngestSummary, CowrieRawEvent } from '../../types/index.js';
 import { sendDiscordAlert } from '../../lib/discord.js';
 import { forwardClientEventBySensorId } from '../../lib/client-forward.js';
 import { isInternalIp } from '../../lib/internal-ip.js';
+import { isDeceptionSensor } from '../../lib/deception-sensor.js';
+import { enqueueProtocolHit } from '../../lib/protocol-batch.js';
 import { recordProcessLineLatency } from '../../lib/ingest-metrics.js';
 import { lakeProducer, LAKE_TOPICS } from '../../lib/lake-producer.js';
+
+// Cowrie writes to sessions/session_events, but the deception views read
+// protocol_hits. For an internal SSH node, mirror connect/login events as ssh
+// protocol_hits (layer=internal) so they count toward the trap node in /deception.
+const COWRIE_DECEPTION_EVENT_TYPE: Record<string, 'connect' | 'auth'> = {
+  'cowrie.session.connect': 'connect',
+  'cowrie.login.success': 'auth',
+  'cowrie.login.failed': 'auth',
+};
 
 export class IngestService {
   private prisma: PrismaClient;
@@ -35,7 +46,14 @@ export class IngestService {
   }
 
   private async _processLine(raw: CowrieRawEvent): Promise<{ sessionCreated: boolean; eventCreated: boolean }> {
-    if (isInternalIp(raw.src_ip)) return { sessionCreated: false, eventCreated: false };
+    const sensorId = typeof raw.sensor === 'string' ? raw.sensor : null;
+    // Drop internal-source noise EXCEPT for internal deception nodes, which are
+    // reached from private IPs (lateral movement). Only pay for the lookup when
+    // the event would otherwise be dropped — internet-facing traffic is untouched.
+    const deception = isInternalIp(raw.src_ip)
+      ? (sensorId ? await isDeceptionSensor(this.prisma, sensorId) : false)
+      : false;
+    if (isInternalIp(raw.src_ip) && !deception) return { sessionCreated: false, eventCreated: false };
 
     const sessionData = extractSessionData(raw);
     const { id: sessionDbId, created: sessionCreated } = await this.sessionRepo.upsert(sessionData);
@@ -57,6 +75,19 @@ export class IngestService {
           { name: 'Session',  value: raw.session, inline: false },
         ],
       })
+    }
+
+    if (eventCreated && deception && sensorId) {
+      const eventType = COWRIE_DECEPTION_EVENT_TYPE[raw.eventid];
+      if (eventType) {
+        enqueueProtocolHit({
+          eventId: `${cowrieEventId}:${raw.timestamp}`, sensorId, protocol: 'ssh',
+          srcIp: raw.src_ip as string, srcPort: null, dstPort: 22,
+          eventType, username: raw.username ?? null, password: raw.password ?? null,
+          data: { layer: 'internal', source: 'ssh', node_id: sensorId, cowrie_session: raw.session },
+          timestamp: new Date(raw.timestamp),
+        });
+      }
     }
 
     if (eventCreated) {

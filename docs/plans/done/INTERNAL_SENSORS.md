@@ -503,6 +503,54 @@ Un archivo *nuevo* agregado al manifiesto también necesita una reinstalación,
 porque el `sensor-update` viejo no lo conoce — pero a partir de ahí se
 autoactualiza.
 
+### 2026-07-29 — el bug que dejaba `/deception` en 0 (isInternalIp + tablas separadas)
+
+Primer deploy real (IST AMERICAS: cowrie SSH + smb + web) mostraba **3/3 nodos
+online pero 0 interacciones / 0 auth** pese a que los honeypots capturaban y
+`vector` shippeaba. Dos causas encadenadas que el plan original nunca contempló:
+
+1. **`isInternalIp` descartaba TODO el tráfico interno.** Las tres rutas de
+   ingest (`ingest.service.ts:38` cowrie, `protocol.controller.ts:42`,
+   `web.controller.ts:88/126`) y el portscan (`deception.controller.ts:35`)
+   tiraban silenciosamente (202 "ignored") cualquier evento con IP de origen
+   privada. Correcto para honeypots externos (filtra ruido), **fatal para
+   deception**: el atacante interno *siempre* viene de una IP privada
+   (`10.x`/`192.168.x`/CGNAT). El 202 es 2xx → `vector` lo marca enviado y no
+   reintenta: los eventos se pierden sin dejar error en logs.
+2. **Web y SSH escriben a otras tablas.** `web-honeypot` → `web_hits`, cowrie →
+   `sessions`/`session_events`. Pero `getNodes`/`getOverview`/`getKillchain`
+   leen **solo `protocol_hits`** con `layer='internal'`. Aunque no se dropearan,
+   esos dos nodos nunca sumarían. Solo el path de protocolo (smb/mysql/ftp →
+   `protocol_hits`) alimentaba el panel.
+
+**Fix (ingest-api, sin cambios en sensores):**
+- `isInternalLayerData(data)` en [internal-ip.ts](../../apps/ingest-api/src/lib/internal-ip.ts):
+  `data.layer==='internal' || data.source==='opencanary'`. El drop por IP ahora
+  se saltea cuando el evento es de capa interna.
+  - `protocol.controller.ts`: `if (isInternalIp(d.srcIp) && !isInternalLayerData(d.data)) return null`.
+  - `web.controller.ts`: `layer` añadido a `webHitSchema`; drop se saltea con
+    `d.layer==='internal'` en single + batch.
+  - `deception.controller.ts`: portscan ya no dropea (endpoint deception-only).
+- **Puentes a `protocol_hits`** (`layer:internal`) para que Web y SSH cuenten:
+  - `bridgeDeceptionWebHit` (web.controller): mirror del web hit interno como
+    `protocol_hit` http/connect.
+  - Cowrie (`ingest.service.ts`): `connect`/`login.*` de un nodo interno se
+    espejan como `protocol_hit` ssh. La señal "es deception" sale de
+    [`isDeceptionSensor`](../../apps/ingest-api/src/lib/deception-sensor.ts)
+    (lookup cacheado `protocol='deception'`, 5 min) — cowrie no trae `layer`.
+    Solo se paga el lookup cuando el src es privado (el tráfico externo no se
+    toca).
+- Test: [internal-ip.test.ts](../../apps/ingest-api/src/lib/internal-ip.test.ts).
+  Suite ingest-api 195/195, `tsc` limpio.
+
+**Requiere:** **redeploy del `ingest-api` en pre-prod** (el fix es server-side;
+los sensores no cambian). Los eventos ya dropeados (202) se perdieron —
+`vector` no los reenvía —, así que hay que regenerar tráfico de prueba después
+del deploy.
+
+**Nota `port-honeypot`:** no tiene `SENSOR_LAYER` ni variante `int-port`; es
+external-only por diseño, así que el drop por IP es correcto ahí. Sin cambio.
+
 ## 8. Deuda técnica y fuera de alcance
 
 | Ítem | Descripción |

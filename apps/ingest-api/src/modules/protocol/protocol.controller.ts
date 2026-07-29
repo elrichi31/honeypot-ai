@@ -8,7 +8,7 @@ import { forwardClientEventBySensorId } from '../../lib/client-forward.js'
 import { lakeProducer, LAKE_TOPICS } from '../../lib/lake-producer.js'
 import { enqueueProtocolHit } from '../../lib/protocol-batch.js'
 import { ProtocolService } from './protocol.service.js'
-import { isInternalIp } from '../../lib/internal-ip.js'
+import { isInternalIp, isInternalLayerData } from '../../lib/internal-ip.js'
 import { parseSensorScope } from '../../lib/sensor-scope.js'
 
 const protocolEventSchema = z.object({
@@ -39,7 +39,8 @@ export async function protocolRoutes(fastify: FastifyInstance) {
   const svc = new ProtocolService(fastify.prismaRead)
 
   function processProtocolEvent(d: z.infer<typeof protocolEventSchema>): string | null {
-    if (isInternalIp(d.srcIp)) return null
+    // Deception nodes are reached from private IPs (lateral movement); keep those.
+    if (isInternalIp(d.srcIp) && !isInternalLayerData(d.data)) return null
     const sensorId = d.sensorId ?? (typeof d.data?.sensor === 'string' ? d.data.sensor : null)
 
     const id = enqueueProtocolHit({

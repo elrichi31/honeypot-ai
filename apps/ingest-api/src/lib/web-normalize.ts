@@ -13,6 +13,9 @@ export const webHitSchema = z.object({
   body: z.string().default(''),
   attackType: z.string().min(1),
   canaryTriggered: z.boolean().default(false),
+  // Set by internal deception web nodes (SENSOR_LAYER=internal). Keeps the event
+  // from being dropped as internal noise and bridges it into the deception views.
+  layer: z.string().optional(),
   // Session tracking fields — set by the honeypot sensor
   sessionHits: z.number().int().min(1).optional(),
   sessionElapsedS: z.number().min(0).optional(),
