@@ -362,4 +362,4 @@ Con la DB local (`honeypot_full`, puerto 55432) hay datos reales para probar.
 - [x] El paginador compartido admite navegación local controlada y puede
   ocultar el selector de tamaño. Las tablas con paginación por URL mantienen
   su comportamiento anterior.
-- Commit: pendiente.
+- Commit: [`c25382a`](../../commit/c25382a).
