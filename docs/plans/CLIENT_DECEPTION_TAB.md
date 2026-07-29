@@ -222,6 +222,7 @@ expuesta y sin atribución de cliente/sensor.
 
 ## Follow-up 2026-07-29 — IP interna correcta por kill-chain
 
+- Implementado en [`ed5b9b3`](https://github.com/elrichi31/honeypot-ai/commit/ed5b9b3).
 - El kill-chain muestra el `src_ip` interno real de cada evento de deception;
   esa IP identifica al host que alcanzó el trap dentro de la red.
 - Eliminada la correlación temporal con cualquier sesión activa. Para eventos
