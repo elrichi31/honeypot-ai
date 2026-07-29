@@ -456,4 +456,4 @@ reabrir este.
   en vez de `Unknown client`.
 - La migración `20260729140000_backfill_canary_alert_attribution` corrige las
   alertas canary existentes usando el web hit disparador más cercano.
-- Commit: pendiente.
+- Commit: [`00e0f7d`](../../../commit/00e0f7d).
