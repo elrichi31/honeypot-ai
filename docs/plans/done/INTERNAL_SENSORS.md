@@ -471,6 +471,38 @@ de prueba, rama por rama (nuevo / igual / inválido / inalcanzable / sin meta).
 Requiere `DASHBOARD_INTERNAL_URL` en el `ingest-api` (ya en
 `docker-compose.prod.platform.yml`, default `http://honeypot-dashboard:4000`).
 
+**Gotcha que costó una vuelta:** `proxy.ts` (el middleware de Next, renombrado)
+redirige a `/login` todo lo que no traiga cookie de sesión. La ruta nueva no
+estaba en `PUBLIC_PATHS`, el `fetch` del ingest-api siguió el redirect, y el
+sensor recibió la página de login como 200 y se la pasó a `docker compose
+config`. **Toda ruta nueva que consuman los sensores tiene que ir a esa lista.**
+Ahora el proxy no sigue redirects y un cuerpo que arranca con `<` se rechaza.
+
+### 2026-07-28 — `sensor-update` cubre la instalación entera
+
+El compose era solo una parte de lo que el instalador deja en el host. Los
+archivos que se montan dentro de los contenedores quedaban congelados en la
+versión instalada —incluido `heartbeat.py` de cowrie, que **es** el sensor
+`int-ssh`— y lo mismo los helpers, así que un `sensor-update` mejorado no podía
+instalarse a sí mismo.
+
+El servidor ahora sirve además un manifiesto (`kind=files`) de todo lo demás que
+la instalación posee, y cada helper bajo demanda (`kind=helper&name=`), por la
+misma ruta. `sensor-update` lo recorre: descarga a un staging, valida (`bash -n`
+para los helpers, no-vacío para el resto), reemplaza **con `mv`** y reinicia los
+contenedores solo si cambió un bind-mount — `up -d` no ve ese cambio. El `mv` no
+es cosmético: `sensor-update` está en esa lista y bash lee el script mientras lo
+ejecuta.
+
+Los configs siguen viniendo del host público y los helpers del ingest-api; el
+token se aplica por URL, así que el host público nunca lo ve (verificado).
+
+**Lo que todavía pide reinstalar:** cambiar qué servicios corren en un host
+(`SERVICES` es fijo en `.sensor-meta`), y los pasos de host (sshd, docker, ufw).
+Un archivo *nuevo* agregado al manifiesto también necesita una reinstalación,
+porque el `sensor-update` viejo no lo conoce — pero a partir de ahí se
+autoactualiza.
+
 ## 8. Deuda técnica y fuera de alcance
 
 | Ítem | Descripción |
