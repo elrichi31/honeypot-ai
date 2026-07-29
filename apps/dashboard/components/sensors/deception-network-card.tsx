@@ -13,9 +13,9 @@ import type { Sensor } from "@/lib/api"
  * A single collapsible card that stands in for the N loose OpenCanary trap-node
  * sensors of one deception network. Showing five bare sensor cards read as
  * clutter; this groups them as one "Deception Network" with its IPs and the
- * containers (nodes) that compose it. Expand to see each node's IP, ports, and
- * heartbeat. Links through to the per-client deception view when a client owns
- * the network.
+ * containers (nodes) that compose it. Expand to see each node as its own card —
+ * violet + dashed border marks them as decoys, distinct from real sensor cards.
+ * Links through to the per-client deception view when a client owns the network.
  */
 export function DeceptionNetworkCard({
   sensors,
@@ -35,7 +35,7 @@ export function DeceptionNetworkCard({
   )
 
   return (
-    <Surface className="sm:col-span-2 lg:col-span-3">
+    <Surface className="sm:col-span-2 lg:col-span-3 border-violet-500/25">
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-3 px-4 py-3 text-left"
@@ -71,29 +71,47 @@ export function DeceptionNetworkCard({
       </button>
 
       {open && (
-        <div className="border-t border-border/60 divide-y divide-border/40">
+        <div className="grid grid-cols-1 gap-3 border-t border-violet-500/20 p-4 sm:grid-cols-2 lg:grid-cols-3">
           {nodes.map((node) => {
             const meta = getMeta(node.realProtocol ?? node.protocol)
             return (
-              <div key={node.sensorId} className="flex items-center gap-3 px-4 py-2.5">
-                <span
-                  className={`h-2 w-2 shrink-0 rounded-full ${node.online ? "bg-emerald-400" : "bg-red-400"}`}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium text-foreground">{node.name}</p>
-                  <p className="font-mono text-[10px] text-muted-foreground">
-                    {node.ip} · {t("sensors.deception.ports", { ports: node.ports.join(", ") || "—" })}
-                  </p>
+              <div
+                key={node.sensorId}
+                className={`relative overflow-hidden rounded-lg border border-dashed border-violet-500/30 bg-violet-500/[0.04] p-3 ${node.online ? "" : "opacity-70"}`}
+              >
+                <Ghost className="pointer-events-none absolute -right-3 -bottom-3 h-16 w-16 text-violet-500/10" />
+                <div className="relative flex items-start gap-2">
+                  <span
+                    className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${node.online ? "bg-emerald-400" : "bg-red-400"}`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-medium text-foreground">{node.name}</p>
+                    <p className="font-mono text-[10px] text-muted-foreground">
+                      {node.ip} · {t("sensors.deception.ports", { ports: node.ports.join(", ") || "—" })}
+                    </p>
+                  </div>
+                  <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${meta.color} ${meta.bg}`}>
+                    {meta.label}
+                  </span>
                 </div>
-                <span className={`hidden shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium sm:inline ${meta.color} ${meta.bg}`}>
-                  {meta.label}
-                </span>
-                <span className="text-[11px] tabular-nums text-muted-foreground">
-                  {node.eventsTotal.toLocaleString()} ev.
-                </span>
-                <span className="w-16 text-right text-[10px] text-muted-foreground/70">
-                  {node.online ? t("sensors.deception.online") : formatRelative(node.lastSeen)}
-                </span>
+                <div className="relative mt-3 flex items-end justify-between gap-2">
+                  <div>
+                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground/70">
+                      {t("sensors.stats.events")}
+                    </p>
+                    <p className="text-sm font-semibold tabular-nums text-foreground">
+                      {node.eventsTotal.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground/70">
+                      {t("sensors.stats.lastSeen")}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {node.online ? t("sensors.deception.online") : formatRelative(node.lastSeen)}
+                    </p>
+                  </div>
+                </div>
               </div>
             )
           })}

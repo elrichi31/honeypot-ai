@@ -232,3 +232,12 @@ expuesta y sin atribución de cliente/sensor.
   separadas y se muestran dinámicamente desde los eventos, sin valores fijos.
 - Pendiente: cubrir el SQL crudo con un harness de integración PostgreSQL cuando
   exista infraestructura de tests de repository.
+
+## Follow-up 2026-07-29 — nodos de deception como cards
+
+- La lista expandida de `DeceptionNetworkCard` era lineal (filas) y se leía como
+  tabla suelta al lado de las cards de sensores reales.
+- Ahora cada nodo es una card en grid (1/2/3 col) dentro del mismo Surface.
+- Diferenciador visual de deception: borde **dashed** violeta, fondo violeta
+  tenue y watermark del icono `Ghost`. Ningún sensor real usa borde punteado.
+- Sin claves i18n nuevas: se reusan `sensors.stats.events` / `sensors.stats.lastSeen`.
