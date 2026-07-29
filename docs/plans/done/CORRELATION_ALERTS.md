@@ -443,3 +443,17 @@ se puede simular ni acelerar desde local. **Se cierra este plan como
 (el riesgo de `portScanFanout` con sensores multi-puerto ya está documentado
 en §5), abrir un plan nuevo y acotado de "calibración de umbrales" en vez de
 reabrir este.
+
+### Seguimiento de atribución — 2026-07-29
+
+- Las alertas por evento (`canary` y `deception`) pasan su `sensorId` real al
+  persistidor, que resuelve el cliente directamente desde `sensors`.
+- Las alertas correlacionadas por IP consideran actividad reciente de SSH,
+  web y protocolos. Se asignan a un cliente si todas las señales pertenecen al
+  mismo tenant; si cruzan clientes permanecen sin `clientId` de forma
+  intencional.
+- La UI identifica ese único caso sin cliente como `Cross-client correlation`
+  en vez de `Unknown client`.
+- La migración `20260729140000_backfill_canary_alert_attribution` corrige las
+  alertas canary existentes usando el web hit disparador más cercano.
+- Commit: pendiente.

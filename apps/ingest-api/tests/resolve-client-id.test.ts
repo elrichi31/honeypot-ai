@@ -15,9 +15,19 @@ describe('resolveClientId', () => {
     expect(await resolveClientId(prisma, 'sensor-offline:cowrie-ssh-01')).toBe('client-a')
   })
 
+  it('prefers the explicit sensor for a per-event alert', async () => {
+    const prisma = stubPrisma([{ client_id: 'web-client' }])
+    expect(await resolveClientId(prisma, 'canary:45.249.247.86', 'web-sensor-01')).toBe('web-client')
+  })
+
   it('resolves a client from an IP-bearing key (threat_score:<ip>)', async () => {
     const prisma = stubPrisma([{ client_id: 'client-b' }])
     expect(await resolveClientId(prisma, 'threat_score:45.249.247.86')).toBe('client-b')
+  })
+
+  it('keeps a cross-client correlation unscoped', async () => {
+    const prisma = stubPrisma([{ client_id: 'client-a' }, { client_id: 'client-b' }])
+    expect(await resolveClientId(prisma, 'sensor_sweep:45.249.247.86')).toBeNull()
   })
 
   it('returns null when the key carries no valid IP', async () => {

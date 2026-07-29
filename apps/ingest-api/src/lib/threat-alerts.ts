@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client'
+import { AlertRepository, type ClientCrowdStrikeConfig } from '../modules/alerts/alerts.repository.js'
 import { eventBus, type AlertEvent } from './event-bus.js'
 import { computeRiskScore } from './risk-score.js'
 import { sendDiscordAlert } from './discord.js'
@@ -208,99 +209,85 @@ async function shouldSendAlert(prisma: PrismaClient, key: string, cooldownMs: nu
   return rows.length > 0
 }
 
-const IPV4_RE = /(\d{1,3}\.){3}\d{1,3}/
+const IPV4_RE = /^(\d{1,3}\.){3}\d{1,3}$/
 
 interface ParsedAlertKey { keyValue: string | null; srcIp: string | null; sensorId: string | null }
 function parseAlertKey(key: string): ParsedAlertKey {
   const keyValue = key.split(':').slice(1).join(':') || null
-  const srcIp = keyValue && !key.startsWith('sensor-offline:') && IPV4_RE.test(keyValue) ? keyValue : null
+  const trailingValue = key.split(':').pop() || null
+  const srcIp = trailingValue && !key.startsWith('sensor-offline:') && IPV4_RE.test(trailingValue)
+    ? trailingValue
+    : null
   const sensorId = key.startsWith('sensor-offline:') ? keyValue : null
   return { keyValue, srcIp, sensorId }
-}
-
-interface ClientCrowdStrikeConfig {
-  crowdstrike_hec_url: string
-  crowdstrike_api_key: string
 }
 
 const csConfigCache = new Map<string, { value: ClientCrowdStrikeConfig | null; expiresAt: number }>()
 const CS_CONFIG_TTL_MS = 5 * 60 * 1000
 
-async function resolveClientCrowdStrike(prisma: PrismaClient, key: string): Promise<ClientCrowdStrikeConfig | null> {
-  const cached = csConfigCache.get(key)
+async function resolveClientCrowdStrike(prisma: PrismaClient, clientId: string | null): Promise<ClientCrowdStrikeConfig | null> {
+  if (!clientId) return null
+  const cached = csConfigCache.get(clientId)
   if (cached && cached.expiresAt > Date.now()) return cached.value
   const store = (value: ClientCrowdStrikeConfig | null) => {
-    csConfigCache.set(key, { value, expiresAt: Date.now() + CS_CONFIG_TTL_MS })
+    csConfigCache.set(clientId, { value, expiresAt: Date.now() + CS_CONFIG_TTL_MS })
     return value
   }
   try {
-    // sensor-offline:<sensorId> — direct sensor lookup
-    if (key.startsWith('sensor-offline:')) {
-      const sensorId = key.slice('sensor-offline:'.length)
-      const rows = await prisma.$queryRaw<Array<ClientCrowdStrikeConfig>>`
-        SELECT c.crowdstrike_hec_url, c.crowdstrike_api_key
-        FROM sensors s
-        JOIN clients c ON c.id = s.client_id
-        WHERE s.sensor_id = ${sensorId}
-          AND c.crowdstrike_hec_url <> '' AND c.crowdstrike_api_key <> ''
-        LIMIT 1
-      `
-      return store(rows[0] ?? null)
-    }
-    // All other keys carry an IP as the last colon-segment: threat_score:<ip>, canary:<ip>, etc.
-    const ip = key.split(':').pop() ?? ''
-    if (!IPV4_RE.test(ip)) return store(null)
-    const rows = await prisma.$queryRaw<Array<ClientCrowdStrikeConfig>>`
-      SELECT c.crowdstrike_hec_url, c.crowdstrike_api_key
-      FROM sessions s
-      JOIN sensors sen ON sen.sensor_id = s.sensor_id
-      JOIN clients c ON c.id = sen.client_id
-      WHERE s.src_ip = ${ip}
-        AND c.crowdstrike_hec_url <> '' AND c.crowdstrike_api_key <> ''
-      ORDER BY s.started_at DESC
-      LIMIT 1
-    `
-    return store(rows[0] ?? null)
+    return store(await new AlertRepository(prisma).findCrowdStrikeConfig(clientId))
   } catch {
     return null
   }
 }
 
-// Resolve which client an alert belongs to, by the same path the SIEM routing
-// uses: sensor-offline:<sensorId> → sensor.client_id; otherwise the trailing IP
-// → most recent session → sensor → client. Returns null when it can't resolve
-// (unknown / global). Desnormalizamos esto en la alerta para filtrar/aislar por
-// tenant sin JOINs en cada lectura.
-export async function resolveClientId(prisma: PrismaClient, key: string): Promise<string | null> {
+// Per-event alerts provide their sensor directly. Correlation alerts only carry
+// an IP, so they are assigned when all recent activity resolves to one client;
+// activity spanning multiple clients intentionally remains unscoped.
+export async function resolveClientId(
+  prisma: PrismaClient,
+  key: string,
+  explicitSensorId?: string | null,
+): Promise<string | null> {
   try {
-    if (key.startsWith('sensor-offline:')) {
-      const sensorId = key.slice('sensor-offline:'.length)
-      const rows = await prisma.$queryRaw<Array<{ client_id: string | null }>>`
-        SELECT client_id FROM sensors WHERE sensor_id = ${sensorId} LIMIT 1
-      `
-      return rows[0]?.client_id ?? null
+    const parsed = parseAlertKey(key)
+    const sensorId = explicitSensorId ?? parsed.sensorId
+    const repo = new AlertRepository(prisma)
+    if (sensorId) {
+      return repo.findClientIdBySensor(sensorId)
     }
-    const ip = key.split(':').pop() ?? ''
-    if (!IPV4_RE.test(ip)) return null
-    const rows = await prisma.$queryRaw<Array<{ client_id: string | null }>>`
-      SELECT sen.client_id
-      FROM sessions s
-      JOIN sensors sen ON sen.sensor_id = s.sensor_id
-      WHERE s.src_ip = ${ip} AND sen.client_id IS NOT NULL
-      ORDER BY s.started_at DESC
-      LIMIT 1
-    `
-    return rows[0]?.client_id ?? null
+    const ip = parsed.srcIp
+    if (!ip) return null
+    const clientIds = await repo.findRecentClientIdsByIp(ip)
+    return clientIds.length === 1 ? clientIds[0] : null
   } catch {
     return null
   }
 }
 
-async function persistAlert(prisma: PrismaClient, payload: AlertPayload): Promise<void> {
+type AlertAttribution = {
+  srcIp: string | null
+  sensorId: string | null
+  clientId: string | null
+}
+
+async function resolveAlertAttribution(
+  prisma: PrismaClient,
+  key: string,
+  explicitSensorId?: string | null,
+): Promise<AlertAttribution> {
+  const parsed = parseAlertKey(key)
+  const sensorId = explicitSensorId ?? parsed.sensorId
+  const clientId = await resolveClientId(prisma, key, sensorId)
+  return { srcIp: parsed.srcIp, sensorId, clientId }
+}
+
+async function persistAlert(
+  prisma: PrismaClient,
+  payload: AlertPayload,
+  attribution: AlertAttribution,
+): Promise<void> {
   // Best-effort context from the cooldown key: "threat_score:<ip>",
   // "sensor-offline:<sensorId>", etc. Persistence must never block the alert.
-  const { srcIp, sensorId } = parseAlertKey(payload.key)
-  const clientId = await resolveClientId(prisma, payload.key)
   try {
     await prisma.alert.create({
       data: {
@@ -309,17 +296,17 @@ async function persistAlert(prisma: PrismaClient, payload: AlertPayload): Promis
         title: payload.title,
         description: payload.description,
         fields: payload.fields,
-        srcIp,
-        sensorId,
-        clientId,
+        srcIp: attribution.srcIp,
+        sensorId: attribution.sensorId,
+        clientId: attribution.clientId,
       },
     })
     const ev: AlertEvent = {
       type: 'alert',
       level: payload.level,
       title: payload.title,
-      srcIp: srcIp ?? null,
-      sensorId: sensorId ?? null,
+      srcIp: attribution.srcIp,
+      sensorId: attribution.sensorId,
       timestamp: new Date().toISOString(),
     }
     eventBus.emit('alert', ev)
@@ -328,19 +315,23 @@ async function persistAlert(prisma: PrismaClient, payload: AlertPayload): Promis
   }
 }
 
-async function sendAlertOnce(prisma: PrismaClient, payload: AlertPayload): Promise<void> {
+async function sendAlertOnce(
+  prisma: PrismaClient,
+  payload: AlertPayload,
+  explicitSensorId?: string | null,
+): Promise<void> {
   if (!await shouldSendAlert(prisma, payload.key, payload.cooldownMs)) return
-  await persistAlert(prisma, payload)
-  const { srcIp, sensorId } = parseAlertKey(payload.key)
+  const attribution = await resolveAlertAttribution(prisma, payload.key, explicitSensorId)
+  await persistAlert(prisma, payload, attribution)
   await Promise.all([
     sendDiscordAlert({
       level: payload.level,
       title: payload.title,
       description: payload.description,
       fields: payload.fields,
-      srcIp: srcIp ?? undefined,
+      srcIp: attribution.srcIp ?? undefined,
     }),
-    resolveClientCrowdStrike(prisma, payload.key).then((cs) => {
+    resolveClientCrowdStrike(prisma, attribution.clientId).then((cs) => {
       if (!cs) return
       return sendCrowdStrikeAlert({
         hecUrl: cs.crowdstrike_hec_url,
@@ -349,8 +340,8 @@ async function sendAlertOnce(prisma: PrismaClient, payload: AlertPayload): Promi
         title: payload.title,
         description: payload.description,
         fields: payload.fields,
-        srcIp,
-        sensorId,
+        srcIp: attribution.srcIp,
+        sensorId: attribution.sensorId,
       })
     }),
   ])
@@ -391,7 +382,14 @@ const CANARY_ALERT_COOLDOWN_MS = 15 * 60 * 1000
  */
 export async function evaluateCanaryAlert(
   prisma: PrismaClient,
-  input: { ip: string; path: string; method?: string | null; userAgent?: string | null; timestamp?: Date | null },
+  input: {
+    ip: string
+    path: string
+    sensorId?: string | null
+    method?: string | null
+    userAgent?: string | null
+    timestamp?: Date | null
+  },
 ): Promise<void> {
   try {
     const geo = lookupGeo(input.ip)
@@ -401,7 +399,7 @@ export async function evaluateCanaryAlert(
       userAgent: input.userAgent ?? null,
       timestamp: input.timestamp ?? null,
     })
-    await sendAlertOnce(prisma, payload)
+    await sendAlertOnce(prisma, payload, input.sensorId)
   } catch (error) {
     console.warn(
       `[canary-alert] failed for ip=${input.ip}: ${error instanceof Error ? error.message : String(error)}`,
@@ -462,7 +460,7 @@ export async function evaluateDeceptionAlert(
         sessionId: sessionRow?.cowrie_session_id ?? null,
       },
     )
-    await sendAlertOnce(prisma, payload)
+    await sendAlertOnce(prisma, payload, input.nodeId)
   } catch (error) {
     console.warn(
       `[deception-alert] failed for node=${input.nodeId}: ${error instanceof Error ? error.message : String(error)}`,

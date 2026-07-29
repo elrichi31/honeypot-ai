@@ -201,8 +201,8 @@ export default function AlertsPage() {
         const labelKey = TYPE_LABEL_KEYS[type]
         label = labelKey ? t(labelKey) : type
       } else if (groupBy === "client") {
-        key = alert.clientId ?? "unknown"
-        label = alert.clientName ?? t("alerts.group.unknownClient")
+        key = alert.clientId ?? "correlated"
+        label = alert.clientName ?? t("alerts.group.correlatedActivity")
       } else {
         key = alert.srcIp ?? "unknown"
         label = alert.srcIp ?? t("alerts.group.unknownIp")
@@ -372,7 +372,7 @@ export default function AlertsPage() {
                           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
                             <span>{formatInTimezone(alert.createdAt, tz, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}</span>
                             <span className="inline-flex items-center rounded-full bg-secondary px-1.5 py-0.5 font-medium text-foreground">
-                              {alert.clientName ?? t("alerts.group.unknownClient")}
+                              {alert.clientName ?? t("alerts.group.correlatedActivity")}
                             </span>
                             {alert.srcIp && <span className="font-mono">IP: {alert.srcIp}</span>}
                             {alert.sensorId && <span className="font-mono">Sensor: {alert.sensorId}</span>}

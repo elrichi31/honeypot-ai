@@ -15,8 +15,51 @@ export type AlertRow = {
   created_at: Date
 }
 
+export type ClientCrowdStrikeConfig = {
+  crowdstrike_hec_url: string
+  crowdstrike_api_key: string
+}
+
 export class AlertRepository {
   constructor(private prisma: PrismaClient) {}
+
+  async findClientIdBySensor(sensorId: string): Promise<string | null> {
+    const rows = await this.prisma.$queryRaw<Array<{ client_id: string | null }>>`
+      SELECT client_id FROM sensors WHERE sensor_id = ${sensorId} LIMIT 1
+    `
+    return rows[0]?.client_id ?? null
+  }
+
+  async findRecentClientIdsByIp(ip: string): Promise<string[]> {
+    const rows = await this.prisma.$queryRaw<Array<{ client_id: string }>>`
+      SELECT DISTINCT sen.client_id
+      FROM (
+        SELECT sensor_id FROM sessions
+        WHERE src_ip = ${ip} AND started_at >= NOW() - INTERVAL '24 hours'
+        UNION
+        SELECT sensor_id FROM web_hits
+        WHERE src_ip = ${ip} AND timestamp >= NOW() - INTERVAL '24 hours'
+        UNION
+        SELECT sensor_id FROM protocol_hits
+        WHERE src_ip = ${ip} AND timestamp >= NOW() - INTERVAL '24 hours'
+      ) activity
+      JOIN sensors sen ON sen.sensor_id = activity.sensor_id
+      WHERE sen.client_id IS NOT NULL
+      LIMIT 2
+    `
+    return rows.map((row) => row.client_id)
+  }
+
+  async findCrowdStrikeConfig(clientId: string): Promise<ClientCrowdStrikeConfig | null> {
+    const rows = await this.prisma.$queryRaw<Array<ClientCrowdStrikeConfig>>`
+      SELECT crowdstrike_hec_url, crowdstrike_api_key
+      FROM clients
+      WHERE id = ${clientId}
+        AND crowdstrike_hec_url <> '' AND crowdstrike_api_key <> ''
+      LIMIT 1
+    `
+    return rows[0] ?? null
+  }
 
   async list(args: { limit: number; unreadOnly: boolean; clientId?: string; srcIp?: string }): Promise<AlertRow[]> {
     const { limit, unreadOnly, clientId, srcIp } = args

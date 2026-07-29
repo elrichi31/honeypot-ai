@@ -114,7 +114,14 @@ export async function webRoutes(fastify: FastifyInstance) {
         })
         scheduleThreatAlert(fastify.prisma, d.srcIp)
         if (d.canaryTriggered) {
-          void evaluateCanaryAlert(fastify.prisma, { ip: d.srcIp, path: d.path, method: d.method, userAgent: d.userAgent, timestamp: new Date(d.timestamp) })
+          void evaluateCanaryAlert(fastify.prisma, {
+            ip: d.srcIp,
+            path: d.path,
+            sensorId,
+            method: d.method,
+            userAgent: d.userAgent,
+            timestamp: new Date(d.timestamp),
+          })
         }
         return reply.status(201).send({ id: row.id, attackType: row.attack_type })
       }
@@ -153,7 +160,14 @@ export async function webRoutes(fastify: FastifyInstance) {
           })
           scheduleThreatAlert(fastify.prisma, d.srcIp)
           if (d.canaryTriggered) {
-            void evaluateCanaryAlert(fastify.prisma, { ip: d.srcIp, path: d.path, method: d.method, userAgent: d.userAgent, timestamp: new Date(d.timestamp) })
+            void evaluateCanaryAlert(fastify.prisma, {
+              ip: d.srcIp,
+              path: d.path,
+              sensorId: d.sensorId ?? null,
+              method: d.method,
+              userAgent: d.userAgent,
+              timestamp: new Date(d.timestamp),
+            })
           }
         }
       } catch {
