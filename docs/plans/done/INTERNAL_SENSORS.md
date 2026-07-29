@@ -551,6 +551,24 @@ del deploy.
 **Nota `port-honeypot`:** no tiene `SENSOR_LAYER` ni variante `int-port`; es
 external-only por diseño, así que el drop por IP es correcto ahí. Sin cambio.
 
+#### 2026-07-29 (bis) — ruido del beacon en el nodo SSH
+
+Con el fix arriba, el nodo SSH del kill-chain mostraba `172.18.0.4` (IP de la
+red docker) en vez del atacante real. Causa: `cowrie/heartbeat.py` sondea
+`cowrie:2222` cada 30 s (`_port_status` → `socket.create_connection`) para
+confirmar que el honeypot está vivo; cowrie loguea eso como una sesión desde la
+IP del beacon. Antes `isInternalIp` lo tiraba; al abrir el drop para deception,
+ese auto-probe empezó a espejarse como hits del nodo.
+
+Fix (`ingest.service.ts`): para un origen interno, descartar los eventos de puro
+ruido (`cowrie.session.connect/closed`, `cowrie.client.version/size/kex`) y
+quedarse solo con interacción real (login/command). El puente a `protocol_hits`
+ahora mapea `login.*→auth` y `command.input→command` (ya no `connect`). El
+atacante real (LAN, `192.168.100.x`) queda; el beacon (solo connect) desaparece
+del nodo, el kill-chain y la tabla `sessions`. Los hits/sesiones `172.18.0.4`
+ya persistidos hay que limpiarlos a mano si molestan (envejecen solos con la
+ventana de 24 h/7 d).
+
 ## 8. Deuda técnica y fuera de alcance
 
 | Ítem | Descripción |

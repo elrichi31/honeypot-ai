@@ -13,13 +13,27 @@ import { recordProcessLineLatency } from '../../lib/ingest-metrics.js';
 import { lakeProducer, LAKE_TOPICS } from '../../lib/lake-producer.js';
 
 // Cowrie writes to sessions/session_events, but the deception views read
-// protocol_hits. For an internal SSH node, mirror connect/login events as ssh
+// protocol_hits. For an internal SSH node, mirror real-interaction events as ssh
 // protocol_hits (layer=internal) so they count toward the trap node in /deception.
-const COWRIE_DECEPTION_EVENT_TYPE: Record<string, 'connect' | 'auth'> = {
-  'cowrie.session.connect': 'connect',
+const COWRIE_DECEPTION_EVENT_TYPE: Record<string, 'auth' | 'command'> = {
   'cowrie.login.success': 'auth',
   'cowrie.login.failed': 'auth',
+  'cowrie.command.input': 'command',
 };
+
+// Bare connect/close and client-hello events carry no attacker intent. On an
+// internal trap node they're dominated by the cowrie-beacon's 30s health-probe
+// to cowrie:2222 (logged from the beacon's own docker IP, e.g. 172.18.0.4),
+// which would otherwise pollute the node + kill chain with fake sessions. For an
+// internal source we keep only events that show real interaction; a real
+// attacker's session is (re)built from its login/command events.
+const COWRIE_NOISE_EVENTS = new Set([
+  'cowrie.session.connect',
+  'cowrie.session.closed',
+  'cowrie.client.version',
+  'cowrie.client.size',
+  'cowrie.client.kex',
+]);
 
 export class IngestService {
   private prisma: PrismaClient;
@@ -47,13 +61,15 @@ export class IngestService {
 
   private async _processLine(raw: CowrieRawEvent): Promise<{ sessionCreated: boolean; eventCreated: boolean }> {
     const sensorId = typeof raw.sensor === 'string' ? raw.sensor : null;
-    // Drop internal-source noise EXCEPT for internal deception nodes, which are
-    // reached from private IPs (lateral movement). Only pay for the lookup when
-    // the event would otherwise be dropped — internet-facing traffic is untouched.
-    const deception = isInternalIp(raw.src_ip)
-      ? (sensorId ? await isDeceptionSensor(this.prisma, sensorId) : false)
-      : false;
-    if (isInternalIp(raw.src_ip) && !deception) return { sessionCreated: false, eventCreated: false };
+    // Drop internal-source noise EXCEPT real interaction with an internal
+    // deception node (lateral movement legitimately comes from a private IP).
+    // Only pay for the lookup when the event would otherwise be dropped —
+    // internet-facing traffic is untouched.
+    const internalSrc = isInternalIp(raw.src_ip);
+    const deception = internalSrc && sensorId ? await isDeceptionSensor(this.prisma, sensorId) : false;
+    if (internalSrc && (!deception || COWRIE_NOISE_EVENTS.has(raw.eventid))) {
+      return { sessionCreated: false, eventCreated: false };
+    }
 
     const sessionData = extractSessionData(raw);
     const { id: sessionDbId, created: sessionCreated } = await this.sessionRepo.upsert(sessionData);
