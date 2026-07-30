@@ -93,6 +93,7 @@ export default async function ThreatDetailPage({
     { label: t("threats.detail.breakdown.services"),      value: threat.risk.breakdown.protocols,  color: "bg-emerald-500" },
     { label: t("threats.detail.breakdown.commands"),      value: threat.risk.breakdown.commands,   color: "bg-orange-500" },
     { label: t("threats.detail.breakdown.crossProtocol"),value: threat.risk.breakdown.crossProto, color: "bg-purple-500" },
+    { label: t("threats.detail.breakdown.evidence"),      value: threat.risk.breakdown.evidence,    color: "bg-red-500" },
   ]
 
   return (

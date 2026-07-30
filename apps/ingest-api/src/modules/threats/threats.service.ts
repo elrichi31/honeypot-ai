@@ -4,10 +4,12 @@ import { ThreatRepository, THREATS_WINDOW_DAYS, type ThreatSummaryRow, type Thre
 import {
   buildThreatAggregates,
   formatThreatResponse,
+  EMPTY_EVIDENCE,
   type ProtocolAggRow,
   type SshAggRow,
   type WebAggRow,
   type ThreatItem,
+  type ThreatEvidence,
 } from '../../lib/threat-format.js'
 import { computeRiskScore, classifyCommands } from '../../lib/risk-score.js'
 import { resolveClientSensors } from '../../lib/client-helpers.js'
@@ -79,25 +81,36 @@ export class ThreatService {
     )
   }
 
-  async getThreatByIp(ip: string, scope?: ThreatScope) {
-    const [sshRows, cmdRows, webRows, protocolRows, portscanRows, protocolCmdRows] = await Promise.all([
-      this.repo.querySshRow(ip, scope),
-      this.repo.queryCommandsByIp(ip, scope),
-      this.repo.queryWebRow(ip, scope),
-      this.repo.queryProtocolRowsByIp(ip, scope),
-      this.repo.queryPortscanByIp(ip, scope),
-      this.repo.queryProtocolCommandsByIp(ip, scope),
+  // windowDays must match the list view's period, otherwise the same IP scores
+  // differently in the table and on its own detail page.
+  async getThreatByIp(ip: string, scope?: ThreatScope, windowDays = THREATS_WINDOW_DAYS) {
+    const [sshRows, cmdRows, webRows, protocolRows, portscanRows, protocolCmdRows, malwareRows, suricataRows] = await Promise.all([
+      this.repo.querySshRow(ip, scope, windowDays),
+      this.repo.queryCommandsByIp(ip, scope, windowDays),
+      this.repo.queryWebRow(ip, scope, windowDays),
+      this.repo.queryProtocolRowsByIp(ip, scope, windowDays),
+      this.repo.queryPortscanByIp(ip, scope, windowDays),
+      this.repo.queryProtocolCommandsByIp(ip, scope, windowDays),
+      this.repo.queryMalwareByIp(ip, scope, windowDays),
+      this.repo.querySuricataByIp(ip, scope, windowDays),
     ])
     const cmds = cmdRows.flatMap((row) => row.command ? [row.command] : [])
     const ps = portscanRows[0]
     const portScanEvents = Number(ps?.scan_events ?? 0)
     const portScanUniquePorts = (ps?.scanned_ports ?? []).length
+    const evidence: ThreatEvidence = {
+      canaryHits: Number(webRows[0]?.canary_hits ?? 0),
+      malwareSamples: Number(malwareRows[0]?.samples ?? 0),
+      suricataAlerts: Number(suricataRows[0]?.alerts ?? 0),
+      suricataWorstSeverity: suricataRows[0]?.worst_severity ?? null,
+    }
     // Fail-closed: within a tenant scope, an IP with no telemetry on the
     // tenant's own sensors must read as "not found" rather than an empty shell.
     const hasData = sshRows.length > 0 || webRows.length > 0 || protocolRows.length > 0 || portScanEvents > 0
+      || evidence.malwareSamples > 0 || evidence.suricataAlerts > 0
     return {
       hasData,
-      threat: buildThreat(ip, sshRows[0], webRows[0], cmds, protocolRows, portScanEvents, portScanUniquePorts),
+      threat: buildThreat(ip, sshRows[0], webRows[0], cmds, protocolRows, portScanEvents, portScanUniquePorts, evidence),
       cmdRows,
       cmds,
       portScanEvents,
@@ -122,6 +135,12 @@ export class ThreatService {
         summaryRowToProtocolRows(row),
         Number(row.scan_events ?? 0),
         (row.scanned_ports ?? []).length,
+        {
+          canaryHits: Number(row.web_canary_hits ?? 0),
+          malwareSamples: Number(row.malware_samples ?? 0),
+          suricataAlerts: Number(row.suricata_alerts ?? 0),
+          suricataWorstSeverity: row.suricata_worst_severity ?? null,
+        },
       )
     )
   }
@@ -161,8 +180,9 @@ export function buildThreat(
   protocols: ProtocolAggRow[],
   portScanEvents = 0,
   portScanUniquePorts = 0,
+  evidence: ThreatEvidence = EMPTY_EVIDENCE,
 ): ThreatItem {
-  const agg = buildThreatAggregates(ip, ssh, web, cmds, protocols)
+  const agg = buildThreatAggregates(ip, ssh, web, cmds, protocols, evidence)
   const risk = computeRiskScore({
     sshSessions: Number(ssh?.sessions ?? 0),
     sshAuthAttempts: Number(ssh?.auth_attempts ?? 0),
@@ -179,6 +199,10 @@ export function buildThreat(
     timeWindowMinutes: agg.timeWindowMinutes,
     portScanEvents,
     portScanUniquePorts,
+    canaryHits: evidence.canaryHits,
+    malwareSamples: evidence.malwareSamples,
+    suricataAlerts: evidence.suricataAlerts,
+    suricataWorstSeverity: evidence.suricataWorstSeverity,
   })
   return formatThreatResponse(agg, risk)
 }

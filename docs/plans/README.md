@@ -9,6 +9,7 @@ Each plan is the source of truth for its feature. Keep it updated as work progre
 - [SENSOR_REMOTE_CONTROL.md](SENSOR_REMOTE_CONTROL.md) - WebSocket control plane for sensors: remote config, acknowledged commands, live status, fallback, security, audit trail, and rollout.
 - [KAFKA_LAKE.md](KAFKA_LAKE.md) - Streaming rework so ingestion behaves identically in single-host and multi-host: reroute cowrie/suricata Vector to HTTP, move Kafka behind the ingest-api as an internal fan-out tee, prerequisite for the data lake.
 - [ANALYTICS_MODULE.md](ANALYTICS_MODULE.md) - Historical analytics on ClickHouse (KAFKA_LAKE 3d/3e in detail): trends explorer, credential intelligence (retires the `credential_attempts` matview), cross-source attacker profile, Suricata signature trends, sensor/client comparison.
+- [THREAT_CORRELATION.md](THREAT_CORRELATION.md) - Risk scoring and threat correlation: evidence factors (canary/malware/IDS) and web volume shipped 2026-07-30; fingerprint-based actor correlation still open.
 - [MULTI_TENANT_ROADMAP.md](MULTI_TENANT_ROADMAP.md) - Complete multi-tenant rollout: endpoint inventory, scope pattern, implementation order, and verification data.
 - [CLIENT_REPORTS_PDF.md](CLIENT_REPORTS_PDF.md) - Client reporting. On-demand download, custom/preset date ranges, and (Phase 1.6) an on-page HTML report with real SSE progress and print-to-PDF are implemented; scheduled generation remains.
 - [IOCS_PAGE.md](IOCS_PAGE.md) - Global threat-intelligence page. E2E verification, malware `period`, and IP-hash-family correlation remain.

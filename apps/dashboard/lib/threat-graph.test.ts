@@ -22,7 +22,7 @@ function baseThreat(over: Partial<ThreatDetail> = {}): ThreatDetail {
     portScans: null,
     risk: {
       score: 85, level: "CRITICAL",
-      breakdown: { ssh: 25, web: 0, protocols: 0, commands: 40, crossProto: 0 },
+      breakdown: { ssh: 25, web: 0, protocols: 0, commands: 40, crossProto: 0, evidence: 0 },
       topFactors: ["SSH login success"],
       commandCategories: { crypto_mining: ["nproc"], recon: ["uname -a"] },
     },
@@ -123,7 +123,7 @@ test("no family node when commands are benign", () => {
       classifiedCommands: [{ command: "uname -a", ts: "2026-06-15T10:00:00Z", category: "recon" }],
       risk: {
         score: 20, level: "LOW",
-        breakdown: { ssh: 20, web: 0, protocols: 0, commands: 0, crossProto: 0 },
+        breakdown: { ssh: 20, web: 0, protocols: 0, commands: 0, crossProto: 0, evidence: 0 },
         topFactors: [], commandCategories: { recon: ["uname -a"] },
       },
     }),

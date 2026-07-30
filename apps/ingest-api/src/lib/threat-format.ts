@@ -1,10 +1,12 @@
 import type { RiskResult } from './risk-score.js'
-import type {
-  SshAggRow, WebAggRow, ProtocolAggRow,
-  ProtocolServiceSummary, ProtocolSummary, ThreatAggregates,
+import {
+  EMPTY_EVIDENCE,
+  type SshAggRow, type WebAggRow, type ProtocolAggRow,
+  type ProtocolServiceSummary, type ProtocolSummary, type ThreatAggregates, type ThreatEvidence,
 } from './threat-types.js'
 
-export type { SshAggRow, WebAggRow, ProtocolAggRow, ProtocolSummary, ThreatAggregates }
+export type { SshAggRow, WebAggRow, ProtocolAggRow, ProtocolSummary, ThreatAggregates, ThreatEvidence }
+export { EMPTY_EVIDENCE }
 export type ThreatItem = ReturnType<typeof formatThreatResponse>
 
 function uniqStrings(values: Array<string | null | undefined>): string[] {
@@ -86,6 +88,7 @@ export function buildProtocolSummary(rows: ProtocolAggRow[]): ProtocolSummary | 
 export function buildThreatAggregates(
   ip: string, ssh: SshAggRow | undefined, web: WebAggRow | undefined,
   cmds: string[], protocolRows: ProtocolAggRow[],
+  evidence: ThreatEvidence = EMPTY_EVIDENCE,
 ): ThreatAggregates {
   const protocolSummary = buildProtocolSummary(protocolRows)
   const protocolsSeen = [
@@ -100,21 +103,21 @@ export function buildThreatAggregates(
   )
   return {
     ip, ssh, web, cmds, protocolRows, protocolSummary,
-    protocolsSeen, crossProtocol: protocolsSeen.length > 1, timeWindowMinutes,
+    protocolsSeen, crossProtocol: protocolsSeen.length > 1, timeWindowMinutes, evidence,
   }
 }
 
 export function formatThreatResponse(agg: ThreatAggregates, risk: RiskResult) {
-  const { ip, ssh, web, cmds, protocolSummary, protocolsSeen, crossProtocol } = agg
+  const { ip, ssh, web, cmds, protocolSummary, protocolsSeen, crossProtocol, evidence } = agg
   return {
-    ip, protocolsSeen, crossProtocol,
+    ip, protocolsSeen, crossProtocol, evidence,
     ssh: ssh ? {
       sessions: Number(ssh.sessions), authAttempts: Number(ssh.auth_attempts),
       loginSuccess: ssh.had_success, commandCount: cmds.length,
     } : null,
     web: web ? {
       hits: Number(web.total_hits), attackTypes: web.attack_types,
-      topPaths: web.top_paths ?? [], userAgents: web.user_agents ?? [], canaryHits: web.canary_hits ?? 0,
+      topPaths: web.top_paths ?? [], userAgents: web.user_agents ?? [], canaryHits: evidence.canaryHits,
     } : null,
     protocols: protocolSummary,
     score: risk.score, level: risk.level, breakdown: risk.breakdown,

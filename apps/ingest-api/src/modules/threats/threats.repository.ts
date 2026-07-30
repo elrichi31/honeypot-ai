@@ -40,6 +40,14 @@ export type ThreatSummaryRow = {
   web_first_seen: Date | null
   web_last_seen: Date | null
   web_hits_24h: bigint
+  web_canary_hits: bigint
+  malware_samples: bigint
+  mw_first_seen: Date | null
+  mw_last_seen: Date | null
+  suricata_alerts: bigint
+  suricata_worst_severity: number | null
+  sur_first_seen: Date | null
+  sur_last_seen: Date | null
   protocols_seen: string[]
   proto_total_hits: bigint
   proto_auth_attempts: bigint
@@ -106,8 +114,24 @@ export class ThreatRepository {
           COUNT(*) AS web_total_hits,
           ARRAY_AGG(DISTINCT attack_type) AS web_attack_types,
           MIN(timestamp) AS web_first_seen, MAX(timestamp) AS web_last_seen,
-          COUNT(*) FILTER (WHERE timestamp >= NOW() - INTERVAL '24 hours') AS web_hits_24h
+          COUNT(*) FILTER (WHERE timestamp >= NOW() - INTERVAL '24 hours') AS web_hits_24h,
+          COUNT(*) FILTER (WHERE canary_triggered) AS web_canary_hits
         FROM web_hits WHERE sensor_id IN (${ids}) AND timestamp >= ${cut}
+        GROUP BY src_ip
+      ),
+      malware_agg AS (
+        SELECT src_ip, COUNT(*) AS malware_samples,
+          MIN(captured_at) AS mw_first_seen, MAX(captured_at) AS mw_last_seen
+        FROM malware_samples
+        WHERE src_ip IS NOT NULL AND sensor_id IN (${ids}) AND captured_at >= ${cut}
+        GROUP BY src_ip
+      ),
+      suricata_agg AS (
+        SELECT src_ip, COUNT(*) AS suricata_alerts,
+          MIN(severity) AS suricata_worst_severity,
+          MIN(timestamp) AS sur_first_seen, MAX(timestamp) AS sur_last_seen
+        FROM suricata_alerts
+        WHERE src_ip <> '' AND sensor_id IN (${ids}) AND timestamp >= ${cut}
         GROUP BY src_ip
       ),
       proto_agg AS (
@@ -147,6 +171,8 @@ export class ThreatRepository {
         UNION SELECT src_ip FROM web_agg
         UNION SELECT src_ip FROM proto_agg
         UNION SELECT src_ip FROM portscan_agg
+        UNION SELECT src_ip FROM malware_agg
+        UNION SELECT src_ip FROM suricata_agg
       ),
       summary AS (
         SELECT a.src_ip,
@@ -157,6 +183,10 @@ export class ThreatRepository {
           COALESCE(w.web_total_hits,0) AS web_total_hits,
           COALESCE(w.web_attack_types,'{}') AS web_attack_types,
           w.web_first_seen, w.web_last_seen, COALESCE(w.web_hits_24h,0) AS web_hits_24h,
+          COALESCE(w.web_canary_hits,0) AS web_canary_hits,
+          COALESCE(mw.malware_samples,0) AS malware_samples, mw.mw_first_seen, mw.mw_last_seen,
+          COALESCE(sur.suricata_alerts,0) AS suricata_alerts,
+          sur.suricata_worst_severity, sur.sur_first_seen, sur.sur_last_seen,
           COALESCE(p.protocols_seen,'{}') AS protocols_seen,
           COALESCE(p.proto_total_hits,0) AS proto_total_hits,
           COALESCE(p.proto_auth_attempts,0) AS proto_auth_attempts,
@@ -166,8 +196,8 @@ export class ThreatRepository {
           COALESCE(ps.scan_events,0) AS scan_events,
           COALESCE(ps.scanned_ports,'{}') AS scanned_ports,
           ps.ps_first_seen, ps.ps_last_seen, COALESCE(ps.scan_events_24h,0) AS scan_events_24h,
-          LEAST(s.ssh_first_seen, w.web_first_seen, p.proto_first_seen, ps.ps_first_seen) AS first_seen,
-          GREATEST(s.ssh_last_seen, w.web_last_seen, p.proto_last_seen, ps.ps_last_seen) AS last_seen,
+          LEAST(s.ssh_first_seen, w.web_first_seen, p.proto_first_seen, ps.ps_first_seen, mw.mw_first_seen, sur.sur_first_seen) AS first_seen,
+          GREATEST(s.ssh_last_seen, w.web_last_seen, p.proto_last_seen, ps.ps_last_seen, mw.mw_last_seen, sur.sur_last_seen) AS last_seen,
           CASE WHEN (COALESCE(w.web_total_hits,0)+COALESCE(p.proto_total_hits,0)+COALESCE(ps.scan_events,0))=0 THEN 0.0
             ELSE ROUND((COALESCE(w.web_hits_24h,0)+COALESCE(p.proto_hits_24h,0)+COALESCE(ps.scan_events_24h,0))::numeric
                      / (COALESCE(w.web_total_hits,0)+COALESCE(p.proto_total_hits,0)+COALESCE(ps.scan_events,0))::numeric, 4)
@@ -177,6 +207,8 @@ export class ThreatRepository {
         LEFT JOIN web_agg w ON w.src_ip = a.src_ip
         LEFT JOIN proto_agg p ON p.src_ip = a.src_ip
         LEFT JOIN portscan_agg ps ON ps.src_ip = a.src_ip
+        LEFT JOIN malware_agg mw ON mw.src_ip = a.src_ip
+        LEFT JOIN suricata_agg sur ON sur.src_ip = a.src_ip
       )
       SELECT * FROM summary
       ${ipClause}
@@ -191,16 +223,20 @@ export class ThreatRepository {
     const scopeClause = scopeCond ? Prisma.sql`AND ${scopeCond}` : Prisma.empty
     const where = Prisma.sql`WHERE e.event_type = 'command.input' AND e.command IS NOT NULL AND e.event_ts >= ${cutoff(windowDays)} ${ipClause} ${scopeClause}`
     const limit = ipFilter ? Prisma.sql`LIMIT 2000` : Prisma.sql`LIMIT 10000`
+    // ORDER BY is required for the LIMIT to be deterministic: without it Postgres
+    // truncates wherever the plan happens to land, so an IP could lose its
+    // commands between cache refreshes and silently score lower.
     return this.prismaRead.$queryRaw<CommandAggRow[]>`
       SELECT DISTINCT e.src_ip, e.command
       FROM events e
       ${scopeJoin}
       ${where}
+      ORDER BY e.src_ip, e.command
       ${limit}
     `
   }
 
-  async querySshRow(ip: string, scope?: ThreatScope): Promise<SshAggRow[]> {
+  async querySshRow(ip: string, scope?: ThreatScope, windowDays = THREATS_WINDOW_DAYS): Promise<SshAggRow[]> {
     const s = sensorScope(scope, Prisma.raw('s.sensor_id'))
     return this.prismaRead.$queryRaw<SshAggRow[]>`
       SELECT
@@ -212,12 +248,12 @@ export class ThreatRepository {
         MAX(COALESCE(s.ended_at, s.started_at))                                     AS last_seen
       FROM sessions s
       LEFT JOIN events e ON e.session_id = s.id
-      WHERE s.src_ip = ${ip} ${s ? Prisma.sql`AND ${s}` : Prisma.empty}
+      WHERE s.src_ip = ${ip} AND s.started_at >= ${cutoff(windowDays)} ${s ? Prisma.sql`AND ${s}` : Prisma.empty}
       GROUP BY s.src_ip
     `
   }
 
-  async queryWebRow(ip: string, scope?: ThreatScope): Promise<WebAggRow[]> {
+  async queryWebRow(ip: string, scope?: ThreatScope, windowDays = THREATS_WINDOW_DAYS): Promise<WebAggRow[]> {
     const s = sensorScope(scope, Prisma.raw('sensor_id'))
     return this.prismaRead.$queryRaw<WebAggRow[]>`
       SELECT
@@ -230,12 +266,12 @@ export class ThreatRepository {
         MIN(timestamp)                                                 AS first_seen,
         MAX(timestamp)                                                 AS last_seen
       FROM web_hits
-      WHERE src_ip = ${ip} ${s ? Prisma.sql`AND ${s}` : Prisma.empty}
+      WHERE src_ip = ${ip} AND timestamp >= ${cutoff(windowDays)} ${s ? Prisma.sql`AND ${s}` : Prisma.empty}
       GROUP BY src_ip
     `
   }
 
-  async queryProtocolRowsByIp(ip: string, scope?: ThreatScope): Promise<ProtocolAggRow[]> {
+  async queryProtocolRowsByIp(ip: string, scope?: ThreatScope, windowDays = THREATS_WINDOW_DAYS): Promise<ProtocolAggRow[]> {
     const s = sensorScope(scope, Prisma.raw('sensor_id'))
     return this.prismaRead.$queryRaw<ProtocolAggRow[]>`
       SELECT
@@ -251,35 +287,52 @@ export class ThreatRepository {
         MIN(timestamp)                                                                        AS first_seen,
         MAX(timestamp)                                                                        AS last_seen
       FROM protocol_hits
-      WHERE src_ip = ${ip} ${s ? Prisma.sql`AND ${s}` : Prisma.empty}
+      WHERE src_ip = ${ip} AND timestamp >= ${cutoff(windowDays)} ${s ? Prisma.sql`AND ${s}` : Prisma.empty}
       GROUP BY src_ip, protocol
     `
   }
 
-  async queryPortscanByIp(ip: string, scope?: ThreatScope): Promise<Array<{ scan_events: bigint; scanned_ports: number[] }>> {
+  async queryPortscanByIp(ip: string, scope?: ThreatScope, windowDays = THREATS_WINDOW_DAYS): Promise<Array<{ scan_events: bigint; scanned_ports: number[] }>> {
     const s = sensorScope(scope, Prisma.raw('sensor_id'))
     return this.prismaRead.$queryRaw<Array<{ scan_events: bigint; scanned_ports: number[] }>>`
       SELECT COUNT(DISTINCT id) AS scan_events, ARRAY_AGG(DISTINCT port) AS scanned_ports
-      FROM (SELECT id, UNNEST(dst_ports) AS port FROM deception_portscans WHERE src_ip = ${ip} ${s ? Prisma.sql`AND ${s}` : Prisma.empty}) flat
+      FROM (SELECT id, UNNEST(dst_ports) AS port FROM deception_portscans WHERE src_ip = ${ip} AND timestamp >= ${cutoff(windowDays)} ${s ? Prisma.sql`AND ${s}` : Prisma.empty}) flat
+    `
+  }
+
+  async queryMalwareByIp(ip: string, scope?: ThreatScope, windowDays = THREATS_WINDOW_DAYS): Promise<Array<{ samples: bigint }>> {
+    const s = sensorScope(scope, Prisma.raw('sensor_id'))
+    return this.prismaRead.$queryRaw<Array<{ samples: bigint }>>`
+      SELECT COUNT(*) AS samples FROM malware_samples
+      WHERE src_ip = ${ip} AND captured_at >= ${cutoff(windowDays)} ${s ? Prisma.sql`AND ${s}` : Prisma.empty}
+    `
+  }
+
+  async querySuricataByIp(ip: string, scope?: ThreatScope, windowDays = THREATS_WINDOW_DAYS): Promise<Array<{ alerts: bigint; worst_severity: number | null }>> {
+    const s = sensorScope(scope, Prisma.raw('sensor_id'))
+    return this.prismaRead.$queryRaw<Array<{ alerts: bigint; worst_severity: number | null }>>`
+      SELECT COUNT(*) AS alerts, MIN(severity) AS worst_severity FROM suricata_alerts
+      WHERE src_ip = ${ip} AND timestamp >= ${cutoff(windowDays)} ${s ? Prisma.sql`AND ${s}` : Prisma.empty}
     `
   }
 
   /** Raw commands/inputs typed against non-SSH honeypots (ftp, mysql, smb, etc via port-honeypot). */
-  async queryProtocolCommandsByIp(ip: string, scope?: ThreatScope): Promise<Array<{ protocol: string; command: string; timestamp: Date }>> {
+  async queryProtocolCommandsByIp(ip: string, scope?: ThreatScope, windowDays = THREATS_WINDOW_DAYS): Promise<Array<{ protocol: string; command: string; timestamp: Date }>> {
     const s = sensorScope(scope, Prisma.raw('sensor_id'))
     return this.prismaRead.$queryRaw<Array<{ protocol: string; command: string; timestamp: Date }>>`
       SELECT protocol, data->>'command' AS command, timestamp
       FROM protocol_hits
-      WHERE src_ip = ${ip} AND data ? 'command' AND data->>'command' <> '' ${s ? Prisma.sql`AND ${s}` : Prisma.empty}
+      WHERE src_ip = ${ip} AND timestamp >= ${cutoff(windowDays)} AND data ? 'command' AND data->>'command' <> '' ${s ? Prisma.sql`AND ${s}` : Prisma.empty}
       ORDER BY timestamp ASC
       LIMIT 200
     `
   }
 
-  async queryCommandsByIp(ip: string, scope?: ThreatScope): Promise<CommandDetailRow[]> {
+  async queryCommandsByIp(ip: string, scope?: ThreatScope, windowDays = THREATS_WINDOW_DAYS): Promise<CommandDetailRow[]> {
     return this.prismaRead.event.findMany({
       where: {
         srcIp: ip, eventType: 'command.input', command: { not: null },
+        eventTs: { gte: cutoff(windowDays) },
         ...(scope ? { session: { sensorId: { in: scope.sensorIds } } } : {}),
       },
       select: { command: true, eventTs: true },

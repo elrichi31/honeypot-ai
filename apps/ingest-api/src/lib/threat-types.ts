@@ -34,6 +34,18 @@ export type ProtocolAggRow = {
   last_seen: Date | null
 }
 
+/** Proof-of-intent signals correlated by src_ip, scored by scoreEvidenceFactor. */
+export type ThreatEvidence = {
+  canaryHits: number
+  malwareSamples: number
+  suricataAlerts: number
+  suricataWorstSeverity: number | null
+}
+
+export const EMPTY_EVIDENCE: ThreatEvidence = {
+  canaryHits: 0, malwareSamples: 0, suricataAlerts: 0, suricataWorstSeverity: null,
+}
+
 export type ProtocolServiceSummary = {
   hits: number
   authAttempts: number
@@ -65,4 +77,5 @@ export type ThreatAggregates = {
   protocolsSeen: string[]
   crossProtocol: boolean
   timeWindowMinutes: number | null
+  evidence: ThreatEvidence
 }

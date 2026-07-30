@@ -185,7 +185,7 @@ ${protocolCommandLines || "  ninguno"}
 ${threat.risk.topFactors.map((factor) => `  - ${factor}`).join("\n") || "  ninguno"}
 
 ## Score breakdown
-  SSH: ${threat.risk.breakdown.ssh} | Web: ${threat.risk.breakdown.web} | Services: ${threat.risk.breakdown.protocols} | Commands: ${threat.risk.breakdown.commands} | Cross-proto: ${threat.risk.breakdown.crossProto}
+  SSH: ${threat.risk.breakdown.ssh} | Web: ${threat.risk.breakdown.web} | Services: ${threat.risk.breakdown.protocols} | Commands: ${threat.risk.breakdown.commands} | Cross-proto: ${threat.risk.breakdown.crossProto} | Evidence: ${threat.risk.breakdown.evidence}
 
 Usa la reputacion externa y las otras alertas de correlacion para matizar tu analisis: una IP con alto score en VirusTotal/AbuseIPDB o que ya dispara sensor_sweep/cred_reuse en otros sensores es mas probablemente parte de una operacion organizada o botnet, no un script kiddie aislado. La secuencia cronologica de comandos importa: reconocimiento antes de persistencia sugiere un operador metodico.
 

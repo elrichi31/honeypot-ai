@@ -17,6 +17,12 @@ import {
   CMD_RECON_PTS,
   WEB_TYPE_POINTS,
   WEB_SERIOUS_TYPES,
+  WEB_VOLUME_PTS_PER_DECADE,
+  WEB_VOLUME_PTS_CAP,
+  CANARY_PTS,
+  MALWARE_SAMPLE_PTS,
+  SURICATA_SEVERITY_PTS,
+  SURICATA_FALLBACK_PTS,
   PORT_SCAN_PTS_MAX,
   PORT_SCAN_PTS_MIN,
   PORT_SCAN_PORTS_DIVISOR,
@@ -102,6 +108,49 @@ export function scoreWebFactor(input: RiskInput): FactorResult {
   const seriousTypes = uniqueWebTypes.filter((t) => (WEB_SERIOUS_TYPES as readonly string[]).includes(t))
   if (seriousTypes.length > 0) {
     factors.push(`Web attack: ${seriousTypes.join(", ")}`)
+  }
+
+  if (input.webHits > 1) {
+    const decades = Math.floor(Math.log10(input.webHits))
+    const volumePts = Math.min(WEB_VOLUME_PTS_CAP, decades * WEB_VOLUME_PTS_PER_DECADE)
+    if (volumePts > 0) {
+      points += volumePts
+      factors.push(`${input.webHits.toLocaleString("en-US")} web hits`)
+    }
+  }
+
+  return { points, factors }
+}
+
+/**
+ * Signals that are proof of intent rather than inference from volume: a
+ * triggered canary token, a captured binary, an IDS signature match. These
+ * live in the same Postgres as the telemetry but were never scored, which is
+ * why heavily-reported attackers could still read as MEDIUM.
+ */
+export function scoreEvidenceFactor(input: RiskInput): FactorResult {
+  const factors: string[] = []
+  let points = 0
+
+  const canaryHits = input.canaryHits ?? 0
+  if (canaryHits > 0) {
+    points += CANARY_PTS
+    factors.push(`Canary token triggered ×${canaryHits}`)
+  }
+
+  const malwareSamples = input.malwareSamples ?? 0
+  if (malwareSamples > 0) {
+    const plural = malwareSamples === 1 ? "" : "s"
+    points += MALWARE_SAMPLE_PTS
+    factors.push(`${malwareSamples} malware sample${plural} captured`)
+  }
+
+  const suricataAlerts = input.suricataAlerts ?? 0
+  if (suricataAlerts > 0) {
+    const worst = input.suricataWorstSeverity ?? null
+    points += (worst !== null ? SURICATA_SEVERITY_PTS[worst] : undefined) ?? SURICATA_FALLBACK_PTS
+    const plural = suricataAlerts === 1 ? "" : "s"
+    factors.push(`${suricataAlerts} IDS alert${plural}${worst !== null ? ` (severity ${worst})` : ""}`)
   }
 
   return { points, factors }

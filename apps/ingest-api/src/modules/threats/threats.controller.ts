@@ -27,6 +27,11 @@ function csvEnum<T extends string>(allowed: readonly T[]) {
 }
 
 const PERIOD_DAYS: Record<string, number> = { '24h': 1, '7d': 7, '30d': 30, '90d': 90 }
+const PERIOD = z.enum(['24h', '7d', '30d', '90d']).default('90d')
+
+// Detail shares the list's period so the same IP can't score differently in
+// the table and on its own page. Unknown params are ignored, not rejected.
+const threatDetailQuerySchema = z.object({ period: PERIOD }).passthrough()
 
 const threatListQuerySchema = basePaginationSchema.extend({
   q: z.string().trim().min(1).optional(),
@@ -38,7 +43,7 @@ const threatListQuerySchema = basePaginationSchema.extend({
   sortDir: z.enum(['asc', 'desc']).default('desc'),
   clientSlug: z.string().trim().min(1).optional(),
   sensorId: z.string().trim().min(1).optional(),
-  period: z.enum(['24h', '7d', '30d', '90d']).default('90d'),
+  period: PERIOD,
 })
 
 type ThreatListQuery = z.infer<typeof threatListQuerySchema>
@@ -98,7 +103,9 @@ export async function threatRoutes(fastify: FastifyInstance) {
     if (isInternalIp(ip)) return reply.status(404).send({ error: 'Threat not found' })
     const tenant = parseSensorScope(request.query as Record<string, unknown>)
     const { scope } = await svc.resolveScope(tenant, undefined, undefined, fastify.prismaRead)
-    const { hasData, threat, cmdRows, cmds, portScanEvents, portScanUniquePorts, scannedPorts, protocolCmdRows } = await svc.getThreatByIp(ip, scope)
+    const period = threatDetailQuerySchema.parse(request.query).period
+    const { hasData, threat, cmdRows, cmds, portScanEvents, portScanUniquePorts, scannedPorts, protocolCmdRows } =
+      await svc.getThreatByIp(ip, scope, PERIOD_DAYS[period])
     if (scope && !hasData) return reply.status(404).send({ error: 'Threat not found' })
     return reply.send({
       ip,

@@ -1,5 +1,5 @@
 import { CMD_PATTERNS, SCORE_MAX, TOP_FACTORS_LIMIT } from './risk-constants.js'
-import { scoreSshFactor, scoreCommandsFactor, scoreWebFactor, scoreProtocolsFactor, scoreCrossProtocolFactor } from './risk-factors.js'
+import { scoreSshFactor, scoreCommandsFactor, scoreWebFactor, scoreProtocolsFactor, scoreCrossProtocolFactor, scoreEvidenceFactor } from './risk-factors.js'
 
 export type { CommandCategory, RiskInput } from './risk-constants.js'
 import type { CommandCategory, RiskInput } from './risk-constants.js'
@@ -48,6 +48,7 @@ export interface RiskResult {
     protocols: number
     commands: number
     crossProto: number
+    evidence: number
   }
   commandCategories: Record<CommandCategory, string[]>
   topFactors: string[]
@@ -86,9 +87,12 @@ export function computeRiskScore(input: RiskInput): RiskResult {
   const webResult = scoreWebFactor(input)
   const protoResult = scoreProtocolsFactor(input, hasPortScan)
   const crossResult = scoreCrossProtocolFactor(uniqueProtocols.length)
+  const evidenceResult = scoreEvidenceFactor(input)
 
-  const allFactors = [...sshResult.factors, ...cmdResult.factors, ...webResult.factors, ...protoResult.factors, ...crossResult.factors]
-  const raw = sshResult.points + cmdResult.points + webResult.points + protoResult.points + crossResult.points
+  // Evidence first: with only TOP_FACTORS_LIMIT slots, a triggered canary must
+  // never be pushed out of the summary by generic auth-attempt noise.
+  const allFactors = [...evidenceResult.factors, ...sshResult.factors, ...cmdResult.factors, ...webResult.factors, ...protoResult.factors, ...crossResult.factors]
+  const raw = sshResult.points + cmdResult.points + webResult.points + protoResult.points + crossResult.points + evidenceResult.points
   const score = Math.min(SCORE_MAX, raw)
 
   const level =
@@ -107,6 +111,7 @@ export function computeRiskScore(input: RiskInput): RiskResult {
       protocols: protoResult.points,
       commands: cmdResult.points,
       crossProto: crossResult.points,
+      evidence: evidenceResult.points,
     },
     commandCategories: cats,
     topFactors: allFactors.slice(0, TOP_FACTORS_LIMIT),

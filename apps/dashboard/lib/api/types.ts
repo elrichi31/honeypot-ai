@@ -472,7 +472,7 @@ export interface ThreatSummary {
   protocolsSeen: string[]
   crossProtocol: boolean
   topFactors:   string[]
-  breakdown:    { ssh: number; web: number; protocols: number; commands: number; crossProto: number }
+  breakdown:    { ssh: number; web: number; protocols: number; commands: number; crossProto: number; evidence: number }
   commandCategories: Record<string, number>
   ssh: { sessions: number; authAttempts: number; loginSuccess: boolean; commandCount: number } | null
   web: ThreatWebSummary | null
@@ -524,7 +524,7 @@ export interface ThreatDetail {
   risk: {
     score:      number
     level:      RiskLevel
-    breakdown:  { ssh: number; web: number; protocols: number; commands: number; crossProto: number }
+    breakdown:  { ssh: number; web: number; protocols: number; commands: number; crossProto: number; evidence: number }
     topFactors: string[]
     commandCategories: Record<string, string[]>
   }

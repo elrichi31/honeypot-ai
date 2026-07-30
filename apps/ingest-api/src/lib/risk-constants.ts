@@ -27,6 +27,25 @@ export const WEB_TYPE_POINTS: Record<string, number> = {
 }
 export const WEB_SERIOUS_TYPES = ["cmdi", "sqli", "lfi", "rfi"] as const
 
+// Web volume scales by order of magnitude, not linearly: 10 hits and 10k hits
+// are different threats, but 10k and 20k are the same one. Without this the
+// type-only score made a single probe indistinguishable from a 26k-hit campaign.
+export const WEB_VOLUME_PTS_PER_DECADE = 4
+export const WEB_VOLUME_PTS_CAP = 12
+
+// Hard evidence: the attacker did something that only a real intruder does.
+// Weighted above any volume/enumeration signal — a triggered canary means they
+// read the planted credential and came back to use it.
+// Zero false-positive surface: catalog/shared.py#_check_canary only fires when
+// the attacker submits the exact planted credential, and the ip_specific variant
+// is an HMAC of their own IP they could only get by reading the leaked file.
+// Weighted so a bare canary trigger alone clears the MEDIUM floor.
+export const CANARY_PTS = 40
+export const MALWARE_SAMPLE_PTS = 25
+// Suricata severity is inverted: 1 is the most severe.
+export const SURICATA_SEVERITY_PTS: Record<number, number> = { 1: 15, 2: 8 }
+export const SURICATA_FALLBACK_PTS = 3
+
 export const PORT_SCAN_PTS_MAX = 10
 export const PORT_SCAN_PTS_MIN = 3
 export const PORT_SCAN_PORTS_DIVISOR = 2
@@ -85,6 +104,13 @@ export interface RiskInput {
   // Deception port scan events (from deception_portscans table, real attacker IPs)
   portScanEvents?: number
   portScanUniquePorts?: number
+  // Hard evidence signals. Optional so callers that only have telemetry
+  // (threat-alerts.ts) keep scoring exactly as before.
+  canaryHits?: number
+  malwareSamples?: number
+  suricataAlerts?: number
+  /** Numerically lowest severity seen — Suricata counts 1 as most severe. */
+  suricataWorstSeverity?: number | null
 }
 
 // Order matters: classifyCommands() assigns each command to the FIRST matching
