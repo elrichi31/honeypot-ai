@@ -40,9 +40,14 @@ export default async function WebAttackerDetailPage({
 
   const { sensorIds } = await effectiveSensorScope()
 
-  const [attackersPage, { hits }] = await Promise.all([
+  // `hits` is the most recent 500 hits overall — it drives the attacker-wide
+  // stats. A `?type=` filter needs its own server-side fetch: on a noisy IP the
+  // rarer attack types (cmdi, info_disclosure) fall outside that 500-hit window
+  // entirely, so filtering client-side would show an empty timeline.
+  const [attackersPage, { hits }, typeHits] = await Promise.all([
     fetchWebHitsByIpPage({ q: srcIp, pageSize: 10 }, sensorIds),
     fetchWebHits({ srcIp, limit: 500 }, sensorIds),
+    activeType ? fetchWebHits({ srcIp, attackType: activeType, limit: 500 }, sensorIds) : null,
   ])
 
   const attacker = attackersPage.items.find((a) => a.srcIp === srcIp)
@@ -112,7 +117,7 @@ export default async function WebAttackerDetailPage({
   // recent hit as a representative sample so its raw payload (body, headers) can
   // be inspected on expand. The `?type=` filter narrows the timeline to one
   // attack type without touching the attacker-wide stats.
-  const filteredHits = activeType ? hits.filter((h) => h.attackType === activeType) : hits
+  const filteredHits = typeHits?.hits ?? hits
   const groupMap = new Map<string, RequestGroup>()
   for (const hit of filteredHits) {
     const fullPath = hit.query ? `${hit.path}?${hit.query}` : hit.path
@@ -345,6 +350,7 @@ export default async function WebAttackerDetailPage({
             <Surface>
               <div className="border-b border-border p-4">
                 <h3 className="font-semibold text-foreground">Breakdown by type</h3>
+                <p className="text-xs text-muted-foreground">over the last {hits.length} hits</p>
               </div>
               <div className="max-h-48 overflow-y-auto divide-y divide-border">
                 {Object.entries(byType)
@@ -406,7 +412,7 @@ export default async function WebAttackerDetailPage({
                   </div>
                 </div>
                 <div className="mt-3">
-                  <AttackTypeFilter types={Object.keys(byType)} counts={byType} />
+                  <AttackTypeFilter types={attacker.attackTypes} counts={byType} />
                 </div>
               </div>
               <div className="overflow-auto max-h-[620px]">
