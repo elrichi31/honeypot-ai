@@ -153,6 +153,11 @@ export interface ReportSensorProfile {
 // section is then omitted rather than shown empty.
 export interface ReportHistory {
   range: AnalyticsRange
+  // Actual span the lake could answer for, not the span that was asked for:
+  // Postgres retention prunes what the backfill could copy, so a 1y request
+  // can come back holding weeks. The report must show what it really has.
+  firstBucket: string | null
+  lastBucket: string | null
   totalEvents: number
   byProtocol: { label: string; count: number }[]
   totalAttempts: number

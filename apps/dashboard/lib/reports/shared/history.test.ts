@@ -25,9 +25,28 @@ test("aggregates per protocol and ranks by volume", () => {
   const h = summarizeHistory("1y", summary)
   assert.equal(h.totalEvents, 55)
   assert.deepEqual(h.byProtocol, [
-    { label: "web", count: 40 },
-    { label: "cowrie", count: 15 },
+    { label: "WEB", count: 40 },
+    { label: "SSH", count: 15 },
   ])
+})
+
+// cowrie IS ssh; the lake stores the source name and the report must not show
+// the same protocol twice under two names.
+test("cowrie is labelled SSH and merges with a real ssh bucket", () => {
+  const h = summarizeHistory("1y", {
+    ...summary,
+    trends: [
+      { bucket: "2026-01-01", protocol: "cowrie", count: 10 },
+      { bucket: "2026-01-01", protocol: "ssh", count: 5 },
+    ],
+  })
+  assert.deepEqual(h.byProtocol, [{ label: "SSH", count: 15 }])
+})
+
+test("reports the span actually covered, not the span requested", () => {
+  const h = summarizeHistory("1y", summary)
+  assert.equal(h.firstBucket, "2026-01-01")
+  assert.equal(h.lastBucket, "2026-01-02")
 })
 
 test("success rate is successes over total attempts", () => {
@@ -41,4 +60,6 @@ test("empty lake yields zeros, not NaN", () => {
   assert.equal(h.totalEvents, 0)
   assert.equal(h.successRatePct, 0)
   assert.deepEqual(h.byProtocol, [])
+  assert.equal(h.firstBucket, null)
+  assert.equal(h.lastBucket, null)
 })

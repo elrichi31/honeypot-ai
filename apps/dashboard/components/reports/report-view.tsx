@@ -1,7 +1,7 @@
 "use client"
 
 import { useLocale } from "@/components/locale-provider"
-import { fmt, pct, deltaStr, sumBucket } from "@/lib/reports/shared/format"
+import { fmt, pct, deltaStr, sumBucket, buildPeriodLabel } from "@/lib/reports/shared/format"
 import type { ClientReportData } from "@/lib/reports/types"
 import type { MetricTrend } from "@/lib/api/types"
 
@@ -210,13 +210,18 @@ export function ReportView({ data }: { data: ClientReportData }) {
 
       {history && (
         <Section title={t("reports.section.history")}>
-          <p className="mb-4 text-xs text-muted-foreground">{t("reports.history.subtitle")}</p>
+          <p className="mb-4 text-xs text-muted-foreground">
+            {t("reports.history.subtitle")}
+            {history.firstBucket && history.lastBucket
+              ? ` ${buildPeriodLabel(history.firstBucket, history.lastBucket, meta.timezone)}.`
+              : ""}
+          </p>
           <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Kpi label={t("reports.kpi.events")} value={fmt(history.totalEvents)} />
-            <Kpi label={t("reports.creds.attempts")} value={fmt(history.totalAttempts)} />
+            <Kpi label={t("reports.history.sshAttempts")} value={fmt(history.totalAttempts)} />
             <Kpi label={t("reports.history.successRate")} value={pct(history.successRatePct)} />
           </div>
-          <Bars items={history.byProtocol.map((p) => ({ label: p.label.toUpperCase(), value: p.count }))} />
+          <Bars items={history.byProtocol.map((p) => ({ label: p.label, value: p.count }))} />
           <div className="mt-4">
             <p className="mb-2 text-xs font-medium text-muted-foreground">{t("reports.history.topCredentials")}</p>
             <Table
