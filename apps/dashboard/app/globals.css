@@ -197,14 +197,17 @@
   --success: #1f6f4a;
 }
 
+/* Dark keeps the app's own neutral black for every surface — a tinted
+   background reads as a red document, which is not what the burgundy is for.
+   The identity lives in the accents and type, never in the paper. */
 #report-print-root[data-report-theme="dark"] {
-  --background: #0d0709;       /* near-black, red-tinted, not charcoal */
+  --background: oklch(0.09 0 0);
   --foreground: #f7eef0;
-  --card: #170e11;
+  --card: oklch(0.12 0 0);
   --card-foreground: #f7eef0;
-  --muted: #2a1418;
-  --muted-foreground: #c4a6ab; /* warm light, not #a1a1aa grey */
-  --border: #3d2027;
+  --muted: oklch(0.18 0 0);
+  --muted-foreground: #c4a6ab;
+  --border: oklch(0.21 0 0);
   --primary: #c2394a;          /* burgundy lifted for contrast on near-black */
   --primary-foreground: #ffffff;
   --destructive: #d0475a;
@@ -257,7 +260,7 @@
   }
   html[data-report-theme="dark"],
   html[data-report-theme="dark"] body {
-    background: #0d0709 !important;
+    background: oklch(0.09 0 0) !important;
   }
   #report-print-root .report-section {
     break-inside: avoid;
