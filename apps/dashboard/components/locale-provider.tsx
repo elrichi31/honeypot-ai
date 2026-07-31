@@ -28,28 +28,42 @@ const LocaleContext = createContext<LocaleContextValue | null>(null)
  */
 export function LocaleProvider({
   initialLocale,
+  pinned = false,
   children,
 }: {
   initialLocale: Locale
+  /**
+   * Nested use: this subtree renders in `initialLocale` and nothing else.
+   * Skips the localStorage reconciliation and the cookie write, so a client
+   * report can be produced in Spanish while the operator's UI stays English
+   * without either one leaking into the other's preference.
+   */
+  pinned?: boolean
   children: React.ReactNode
 }) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale)
 
   useEffect(() => {
+    if (pinned) return
     const cached = typeof window !== "undefined" ? localStorage.getItem(LOCALE_STORAGE) : null
     if (isLocale(cached) && cached !== locale) setLocaleState(cached)
     // Only on mount: align state with the device's stored preference.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    if (pinned) setLocaleState(initialLocale)
+  }, [pinned, initialLocale])
+
   const setLocale = useCallback((next: Locale) => {
+    if (pinned) return
     setLocaleState(next)
     if (typeof window !== "undefined") {
       localStorage.setItem(LOCALE_STORAGE, next)
       // 1-year cookie so SSR renders in the chosen language on the next request.
       document.cookie = `${LOCALE_COOKIE}=${next};path=/;max-age=${60 * 60 * 24 * 365};samesite=lax`
     }
-  }, [])
+  }, [pinned])
 
   const t = useCallback(
     (key: TranslationKey, vars?: Record<string, string | number>) => translate(locale, key, vars),

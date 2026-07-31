@@ -11,7 +11,34 @@ const LOCALE_LANGUAGE: Record<string, string> = {
   es: "Spanish",
 }
 
-const MAX_TOKENS = 900
+// Four narrative blocks plus eight per-section observations.
+const MAX_TOKENS = 2000
+
+export const NARRATIVE_SECTIONS = [
+  "timeline",
+  "sources",
+  "mitre",
+  "credentials",
+  "reconnaissance",
+  "geo",
+  "classification",
+  "history",
+] as const
+
+export type NarrativeSection = (typeof NARRATIVE_SECTIONS)[number]
+
+/** Keeps only the known section keys with usable prose — the model can omit,
+ *  misspell or pad a key, and none of that should reach the report. */
+export function pickSections(raw: unknown): Partial<Record<NarrativeSection, string>> {
+  if (!raw || typeof raw !== "object") return {}
+  const source = raw as Record<string, unknown>
+  const out: Partial<Record<NarrativeSection, string>> = {}
+  for (const key of NARRATIVE_SECTIONS) {
+    const value = source[key]
+    if (typeof value === "string" && value.trim()) out[key] = value.trim()
+  }
+  return out
+}
 
 /**
  * Compact text digest of the report — this is what the model sees, not the
@@ -104,12 +131,24 @@ Rules:
 
 ${digest}
 
+For "sections", write ONE observation per section: the most interesting thing that section's own numbers reveal — a ratio, an outlier, a pattern, something a reader would miss by only looking at the table. Cite the figures you are reasoning from. If a section's data shows nothing noteworthy, return an empty string for it rather than padding.
+
 Return ONLY valid JSON (no markdown) with this exact structure:
 {
   "executiveSummary": "3-4 sentences: what happened this period, how it compares to before, and the single most important takeaway",
   "threatLandscape": "2-3 sentences on who attacked and how — services targeted, tactics, automation level, origin",
   "credentialFindings": "2-3 sentences on the credential attacks: what was tried, what patterns it reveals about the attackers' tooling",
-  "recommendations": ["3 to 4 concrete, actionable items grounded in what the data shows"]
+  "recommendations": ["3 to 4 concrete, actionable items grounded in what the data shows"],
+  "sections": {
+    "timeline": "1-2 sentences on the activity timeline: peaks, quiet periods, whether volume is steady or bursty",
+    "sources": "1-2 sentences on which services drew the most traffic and what that mix says about the attackers' targeting",
+    "mitre": "1-2 sentences on the tactic distribution and what stage of the attack chain the activity concentrates in",
+    "credentials": "1-2 sentences on the credential table: spray vs targeted, reused pairs, default-credential lists",
+    "reconnaissance": "1-2 sentences on the funnel drop-off: how many got in, how many did anything after",
+    "geo": "1-2 sentences on origin concentration, and the caveat that these are event counts and hosting/VPN ranges skew attribution",
+    "classification": "1-2 sentences on the bot vs human split and what it implies about automation",
+    "history": "1-2 sentences comparing this period against the longer history, or an empty string if no history data was provided"
+  }
 }`
 }
 
@@ -140,6 +179,7 @@ export async function generateReportNarrative(
     threatLandscape: typeof ai.threatLandscape === "string" ? ai.threatLandscape : "",
     credentialFindings: typeof ai.credentialFindings === "string" ? ai.credentialFindings : "",
     recommendations: Array.isArray(ai.recommendations) ? ai.recommendations.filter((r: unknown) => typeof r === "string") : [],
+    sections: pickSections(ai.sections),
     generatedAt: new Date().toISOString(),
   }
 }

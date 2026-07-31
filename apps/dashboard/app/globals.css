@@ -168,14 +168,61 @@
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Client report palette. The app itself is dark-only (:root == .dark), and a
+   report that inherits it comes out as a black sheet — wrong for a document
+   that gets emailed to a client and printed. So the report carries its OWN
+   palette, scoped to its root and switchable per render.
+
+   This works without touching a single component because `@theme inline`
+   (above) makes Tailwind utilities reference `var(--card)` directly rather
+   than a snapshot resolved at :root — so redefining the vars on a subtree
+   re-themes everything inside it. Same mechanism as [data-brand] above.
+   --------------------------------------------------------------------------- */
+#report-print-root[data-report-theme="light"] {
+  --background: #ffffff;
+  --foreground: #17171a;
+  --card: #ffffff;
+  --card-foreground: #17171a;
+  --muted: #f1f1f4;
+  --muted-foreground: #5c5c66;
+  --border: #dededf;
+  --primary: #7a1c2b;          /* burgundy — headings, bars, accents */
+  --primary-foreground: #ffffff;
+  --destructive: #a3232f;
+  --success: #1f6f4a;
+}
+
+#report-print-root[data-report-theme="dark"] {
+  --background: #131316;
+  --foreground: #f2f2f3;
+  --card: #1a1a1f;
+  --card-foreground: #f2f2f3;
+  --muted: #26262c;
+  --muted-foreground: #a1a1aa;
+  --border: #2e2e36;
+  --primary: #a82a3c;          /* burgundy, lifted for contrast on dark */
+  --primary-foreground: #ffffff;
+  --destructive: #d0475a;
+  --success: #3fa06e;
+}
+
+/* Burgundy identity that both themes share: section rules and headings. */
+#report-print-root .report-section {
+  border-top: 3px solid var(--primary);
+}
+
 /* Print: isolate the report so window.print() outputs only #report-print-root,
-   keeping its on-screen (dark) look so the PDF matches the page 1:1.
+   so the PDF matches the on-screen preview 1:1 in whichever theme was chosen.
    ponytail: visibility+absolute pattern; hidden nodes keep their layout box but
    the report is lifted to the top-left, which prints clean across browsers.
-   print-color-adjust:exact forces the browser to honor the dark backgrounds. */
+   print-color-adjust:exact forces the browser to honor the backgrounds. */
 @media print {
+  /* margin:0 + inner padding, deliberately: an @page margin leaves the sheet's
+     own white showing around the content, which reads as a white border on a
+     dark report. The report paints its own background edge to edge instead. */
   @page {
-    margin: 8mm;
+    margin: 0;
   }
   body * {
     visibility: hidden !important;
@@ -189,10 +236,24 @@
     left: 0;
     top: 0;
     width: 100%;
-    padding: 8mm;
+    padding: 12mm;
     background: var(--background);
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+  /* The sheet itself, not just the report block — otherwise a dark report sits
+     on a white page and every margin reads as a white border. The report's own
+     vars are scoped to its root, out of reach here, so the two backgrounds are
+     restated against the <html> attribute the report page mirrors onto it.
+     Print-only on purpose: re-theming <html> on screen would drag the whole app
+     (sidebar, chrome) along with it. */
+  html[data-report-theme="light"],
+  html[data-report-theme="light"] body {
+    background: #ffffff !important;
+  }
+  html[data-report-theme="dark"],
+  html[data-report-theme="dark"] body {
+    background: #131316 !important;
   }
   #report-print-root .report-section {
     break-inside: avoid;

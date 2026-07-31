@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react"
 import { useLocale } from "@/components/locale-provider"
 import { resolvePresetWindow, type ReportPreset } from "@/lib/reports/shared/format"
+import { LocaleProvider } from "@/components/locale-provider"
 import { ReportView } from "@/components/reports/report-view"
-import type { ClientReportData, ReportNarrative } from "@/lib/reports/types"
+import type { ClientReportData, ReportNarrative, ReportTheme } from "@/lib/reports/types"
+import type { Locale } from "@/lib/i18n/dictionaries"
 import type { Client } from "@/lib/api"
 
 interface Props {
@@ -34,7 +36,17 @@ export function ReportDownload({ canPickTenant, clients, scopedClientId }: Props
   const [data, setData] = useState<ClientReportData | null>(null)
   const [narrative, setNarrative] = useState<ReportNarrative | null>(null)
   const [narrativePending, setNarrativePending] = useState(false)
+  // Report language and palette are the deliverable's, not the operator's: an
+  // English-speaking analyst routinely sends a Spanish client a Spanish report.
+  const [reportLocale, setReportLocale] = useState<Locale>(locale)
+  const [theme, setTheme] = useState<ReportTheme>("light")
   const esRef = useRef<EventSource | null>(null)
+
+  // Mirrored onto <html> so the print stylesheet can paint the whole sheet;
+  // the report's own vars are scoped to its root and can't reach <body>.
+  useEffect(() => {
+    document.documentElement.dataset.reportTheme = theme
+  }, [theme])
 
   const effectiveClientId = canPickTenant ? clientId : (scopedClientId ?? "")
   const loading = progress !== null
@@ -60,7 +72,7 @@ export function ReportDownload({ canPickTenant, clients, scopedClientId }: Props
       startDate: window.startDate,
       endDate: window.endDate,
       timezone: tz,
-      locale,
+      locale: reportLocale,
     })
     if (canPickTenant && effectiveClientId) params.set("clientId", effectiveClientId)
 
@@ -153,6 +165,47 @@ export function ReportDownload({ canPickTenant, clients, scopedClientId }: Props
         )}
       </div>
 
+      {/* Deliverable options: what the client receives, not what the operator sees */}
+      <div className="flex flex-wrap gap-8">
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium text-foreground">{t("reports.language.label")}</label>
+          <div className="flex gap-2">
+            {(["en", "es"] as const).map((l) => (
+              <button
+                key={l}
+                onClick={() => setReportLocale(l)}
+                className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                  reportLocale === l
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                }`}
+              >
+                {t(`reports.language.${l}`)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium text-foreground">{t("reports.theme.label")}</label>
+          <div className="flex gap-2">
+            {(["light", "dark"] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setTheme(mode)}
+                className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                  theme === mode
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                }`}
+              >
+                {t(`reports.theme.${mode}`)}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Client selector (superadmin only) */}
       {canPickTenant && (
         <div className="flex flex-col gap-2">
@@ -212,7 +265,14 @@ export function ReportDownload({ canPickTenant, clients, scopedClientId }: Props
 
       {/* Report */}
       {data ? (
-        <ReportView data={data} narrative={narrative} narrativePending={narrativePending} />
+        <LocaleProvider initialLocale={reportLocale} pinned>
+          <ReportView
+            data={data}
+            narrative={narrative}
+            narrativePending={narrativePending}
+            theme={theme}
+          />
+        </LocaleProvider>
       ) : (
         !loading && (
           <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground print:hidden">

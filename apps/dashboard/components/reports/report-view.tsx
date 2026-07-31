@@ -2,14 +2,33 @@
 
 import { useLocale } from "@/components/locale-provider"
 import { fmt, pct, deltaStr, sumBucket, buildPeriodLabel } from "@/lib/reports/shared/format"
-import type { ClientReportData, ReportNarrative } from "@/lib/reports/types"
+import type { ClientReportData, ReportNarrative, ReportTheme } from "@/lib/reports/types"
 import type { MetricTrend } from "@/lib/api/types"
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  insight,
+  children,
+}: {
+  title: string
+  /** AI observation about this section's own numbers; omitted when the model
+   *  had nothing worth saying, so no empty note box is ever rendered. */
+  insight?: string
+  children: React.ReactNode
+}) {
+  const { t } = useLocale()
   return (
     <section className="report-section rounded-xl border border-border bg-card p-5">
-      <h2 className="mb-4 text-base font-semibold text-foreground">{title}</h2>
+      <h2 className="mb-4 text-base font-semibold text-primary">{title}</h2>
       {children}
+      {insight && (
+        <div className="mt-4 border-l-2 border-primary pl-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-primary">
+            {t("reports.insight.label")}
+          </p>
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{insight}</p>
+        </div>
+      )}
     </section>
   )
 }
@@ -143,12 +162,15 @@ export function ReportView({
   data,
   narrative = null,
   narrativePending = false,
+  theme = "light",
 }: {
   data: ClientReportData
   narrative?: ReportNarrative | null
   narrativePending?: boolean
+  theme?: ReportTheme
 }) {
   const { t } = useLocale()
+  const insight = (key: string) => narrative?.sections?.[key]
   const { meta, overview, kpiTrends, timeline, mitre, botRatio, insights, geo, topCredentials, credentialSummary, history } = data
 
   const generatedDate = new Date(meta.generatedAt).toLocaleString("en-US", {
@@ -186,9 +208,9 @@ export function ReportView({
   ].filter((r) => r.value > 0)
 
   return (
-    <div id="report-print-root" className="flex flex-col gap-5">
+    <div id="report-print-root" data-report-theme={theme} className="flex flex-col gap-5 bg-background text-foreground">
       <header className="report-section rounded-xl border border-border bg-card p-6">
-        <h1 className="text-2xl font-bold text-foreground">{meta.clientName}</h1>
+        <h1 className="text-2xl font-bold text-primary">{meta.clientName}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {t("reports.footer.period")}: {meta.periodLabel}
         </p>
@@ -211,15 +233,15 @@ export function ReportView({
       </Section>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Section title={t("reports.section.timeline")}>
+        <Section title={t("reports.section.timeline")} insight={insight("timeline")}>
           <Bars items={timelineItems} />
         </Section>
-        <Section title={t("reports.chart.activity")}>
+        <Section title={t("reports.chart.activity")} insight={insight("sources")}>
           <Bars items={sourceItems} />
         </Section>
       </div>
 
-      <Section title={t("reports.section.threats")}>
+      <Section title={t("reports.section.threats")} insight={insight("mitre")}>
         <Table
           headers={[t("reports.mitre.tactic"), t("reports.mitre.techniques"), t("reports.mitre.hits")]}
           rows={mitre.tactics.slice(0, 12).map((tactic) => [
@@ -230,7 +252,7 @@ export function ReportView({
         />
       </Section>
 
-      <Section title={t("reports.section.credentials")}>
+      <Section title={t("reports.section.credentials")} insight={insight("credentials")}>
         <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Kpi label={t("reports.creds.attempts")} value={fmt(credentialSummary.totalAttempts)} />
           <Kpi label={t("reports.creds.successes")} value={fmt(credentialSummary.successfulAttempts)} />
@@ -246,7 +268,7 @@ export function ReportView({
       </Section>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Section title={t("reports.section.reconnaissance")}>
+        <Section title={t("reports.section.reconnaissance")} insight={insight("reconnaissance")}>
           <Bars items={funnelItems} />
           <div className="mt-4">
             <p className="mb-2 text-xs font-medium text-muted-foreground">{t("reports.creds.recurringIps")}</p>
@@ -258,7 +280,7 @@ export function ReportView({
             />
           </div>
         </Section>
-        <Section title={t("reports.section.geo")}>
+        <Section title={t("reports.section.geo")} insight={insight("geo")}>
           <Table
             headers={["", t("reports.kpi.uniqueIps"), "%"]}
             rows={geo.slice(0, 12).map((g) => [
@@ -268,12 +290,12 @@ export function ReportView({
         </Section>
       </div>
 
-      <Section title={t("reports.section.classification")}>
+      <Section title={t("reports.section.classification")} insight={insight("classification")}>
         <Bars items={classificationItems} />
       </Section>
 
       {history && (
-        <Section title={t("reports.section.history")}>
+        <Section title={t("reports.section.history")} insight={insight("history")}>
           <p className="mb-4 text-xs text-muted-foreground">
             {t("reports.history.subtitle")}
             {history.firstBucket && history.lastBucket

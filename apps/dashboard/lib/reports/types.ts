@@ -165,6 +165,10 @@ export interface ReportHistory {
   topCredentials: AnalyticsCredentialCombo[]
 }
 
+/** Palette the report renders in, independent of the (dark-only) app chrome.
+ *  Drives both the on-screen preview and the printed PDF — they must match. */
+export type ReportTheme = "light" | "dark"
+
 // AI-written sections. Arrives after the report data (separate SSE event), so
 // the report is never blocked on an LLM call; absent when OpenAI is not
 // configured or the call failed.
@@ -173,6 +177,9 @@ export interface ReportNarrative {
   threatLandscape: string
   credentialFindings: string
   recommendations: string[]
+  /** One observation per report section, keyed by NARRATIVE_SECTIONS. Sparse:
+   *  a section with nothing noteworthy is omitted rather than padded. */
+  sections: Partial<Record<string, string>>
   generatedAt: string
 }
 

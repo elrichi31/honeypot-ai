@@ -3,7 +3,7 @@
  */
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { buildNarrativeDigest } from "./narrative.ts"
+import { buildNarrativeDigest, pickSections } from "./narrative.ts"
 import type { ClientReportData } from "./types.ts"
 
 // Only the fields the digest reads — a full ClientReportData fixture would be
@@ -64,4 +64,28 @@ test("empty collections render as 'none' rather than blank headings", () => {
   } as unknown as ClientReportData)
   assert.match(d, /## MITRE ATT&CK tactics observed\nnone/)
   assert.match(d, /none/)
+})
+
+// The model is free-form: it can omit a key, invent one, or return a blank
+// string. None of that should reach the report as an empty note box.
+test("pickSections keeps only known keys with real prose", () => {
+  const picked = pickSections({
+    timeline: "Traffic peaked on the 29th.",
+    mitre: "   ",
+    geo: "",
+    madeUpKey: "should not survive",
+    credentials: 42,
+    classification: "  Almost all automated.  ",
+  })
+  assert.deepEqual(picked, {
+    timeline: "Traffic peaked on the 29th.",
+    classification: "Almost all automated.",
+  })
+})
+
+test("pickSections tolerates the model returning nothing usable", () => {
+  assert.deepEqual(pickSections(undefined), {})
+  assert.deepEqual(pickSections(null), {})
+  assert.deepEqual(pickSections("not an object"), {})
+  assert.deepEqual(pickSections({}), {})
 })

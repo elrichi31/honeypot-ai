@@ -233,6 +233,42 @@ actividad, fuentes de tráfico, MITRE, credenciales (summary + top pares), funne
 reconocimiento + IPs recurrentes, geo, clasificación bot/humano. **Pendiente:** páginas
 de deep-dive por sensor (siguen el mismo patrón; página == PDF se mantiene a cada paso).
 
+### Fase 1.7 — Identidad visual empresarial + idioma y tema elegibles (2026-07-31)
+
+Feedback del primer PDF real entregado: salía **negro entero, sin color y con
+bordes blancos alrededor**, que no es un documento presentable a un cliente.
+
+- **Paleta propia del reporte, no la de la app.** La app es dark-only
+  (`:root` == `.dark`), así que el reporte heredaba el negro. Ahora
+  `#report-print-root[data-report-theme="light"|"dark"]` redefine las variables
+  de color en su subárbol. **Cero cambios en los componentes**: `@theme inline`
+  hace que las utilidades de Tailwind referencien `var(--card)` directo en vez
+  de un valor resuelto en `:root`, así que redefinir las vars más abajo
+  re-tematiza todo lo de adentro. Mismo mecanismo que el `[data-brand]` que ya
+  existía. Acento **borgoña** (`#7a1c2b` claro / `#a82a3c` oscuro) en títulos,
+  barras y el filete superior de cada sección.
+- **Los bordes blancos eran `@page { margin: 8mm }`** — el margen de la hoja
+  dejaba ver el papel alrededor del bloque oscuro. Ahora `margin: 0` con el
+  padding adentro del reporte, que pinta su fondo de borde a borde. Además el
+  print CSS pinta `html`/`body` según el tema, porque las vars del reporte
+  están scopeadas a su root y no llegan a `<body>`; por eso la página espeja
+  `data-report-theme` en `<html>` (solo en print — en pantalla re-tematizaría
+  la app entera).
+- **Selector de tema claro/oscuro**, default **claro**. Aplica igual a la
+  vista en pantalla y al PDF, manteniendo la invariante "página == PDF".
+- **Selector de idioma del reporte (EN/ES) independiente del idioma de la app.**
+  Un analista en inglés le manda a un cliente hispanohablante un reporte en
+  español sin cambiar su propia UI. Implementado con un `LocaleProvider`
+  anidado en modo `pinned` (prop nueva): no reconcilia con localStorage ni
+  escribe la cookie, así ninguna de las dos preferencias se filtra a la otra.
+  El mismo idioma se manda al stream, así que la narrativa de IA sale en el
+  idioma del reporte.
+- **Insights por sección.** Además del bloque "Analysis" de arriba, cada
+  sección lleva una observación de IA sobre sus propios números
+  ("Lo que destaca"). El modelo devuelve un objeto `sections` con 8 claves
+  conocidas; `pickSections()` (con tests) descarta claves inventadas, valores
+  no-string y prosa vacía — una sección sin nada interesante no renderiza nota.
+
 **Agregado 2026-07-31 — sección "Analysis" escrita por IA.** Párrafos generados
 con OpenAI (misma plomería que `app/api/ai/*`: key de Settings vía
 `getOpenAiKey()`, `gpt-4o-mini`, JSON mode, `temperature 0.2`) que abren el
