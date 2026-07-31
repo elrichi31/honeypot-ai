@@ -87,9 +87,13 @@ FROM postgresql('postgres-replica:5432', 'honeypot_prod', 'protocol_hits', 'hone
 -- suricata_alerts: no stable id upstream either (same as the live MV) — the
 -- event_id is derived identically to mv_suricata_alerts so backfilled and
 -- live rows dedupe against each other on overlap instead of double-counting.
+-- Every argument must be hashed in the SAME type as the MV does it:
+-- cityHash64 over UInt32 and over its String form give different digests, so
+-- dropping the toString() around signature_id silently breaks the dedup that
+-- is this expression's entire reason to exist (it did, on the 2026-07-31 run).
 INSERT INTO honeypot_lake.suricata_alerts
 SELECT
-    hex(cityHash64(sensor_id, toString(timestamp), src_ip, dest_ip, signature_id)) AS event_id,
+    hex(cityHash64(sensor_id, toString(timestamp), src_ip, dest_ip, toString(signature_id))) AS event_id,
     sensor_id,
     src_ip,
     CAST(src_port AS Nullable(UInt32))  AS src_port,

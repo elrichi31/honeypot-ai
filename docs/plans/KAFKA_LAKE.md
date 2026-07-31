@@ -517,10 +517,37 @@ flipear el dashboard. Verificar counts por ventana temporal contra Postgres.
 - **Re-corrible:** las 4 tablas son `ReplacingMergeTree` por `event_id`; un
   re-run (o el solape con lo que ya insertó el consumer en vivo) produce
   duplicados que el próximo merge en background colapsa solo.
-- **Pendiente:** correrlo en el server (`./scripts/backfill-clickhouse.sh`,
-  sin urgencia — el usuario priorizó el backfill sobre 3d por ahora) y mirar
-  `docker stats` durante la corrida por las dudas, dado el incidente de
-  memoria reciente.
+**Corrido en prod (2026-07-31). Resultado: 3 de 4 tablas OK, 1 bug real.**
+
+Counts inmediatos tras la corrida (ClickHouse vs Postgres): `cowrie` 380047 vs
+189695, `web` 72814 vs 36407, `protocol` 3182265 vs 1088097, `suricata` 448 vs
+206. El `count()` crudo **no es el número real** — `ReplacingMergeTree` cuenta
+partes sin mergear. Lectura correcta con `uniqExact`:
+
+- **`web` sano:** 36407 únicos = exacto el count de Postgres. Todo duplicado 2x
+  esperando merge.
+- **`protocol` sano y es el punto a favor del lake:** 1.354.728 únicos contra
+  1.088.097 en Postgres — ~266k filas que el `retentionPlugin` ya purgó de
+  Postgres y ClickHouse conserva. El lake haciendo exactamente su trabajo.
+- **`cowrie`: `uniqExact(event_id)` es la métrica equivocada acá.**
+  ReplacingMergeTree deduplica por la **sorting key completa**
+  (`ORDER BY (timestamp, src_ip, event_id)`), no por `event_id` solo. El
+  `event_id` de cowrie (`session:eventid`) se repite legítimamente dentro de
+  una sesión (varios `command.input`, varios `login.failed`), así que
+  `uniqExact(event_id)` = 171942 **subcuenta** y no significa pérdida de datos.
+  Para verificar cowrie hay que usar `uniqExact((timestamp, src_ip, event_id))`.
+  Anotado porque es una trampa que se va a repetir en cada verificación futura.
+- **`suricata`: bug real, corregido.** El backfill derivaba el `event_id` con
+  `cityHash64(..., signature_id)` y el MV en vivo con
+  `cityHash64(..., toString(signature_id))`. `cityHash64` sobre `UInt32` y sobre
+  su forma `String` dan digests distintos → la misma alerta backfilleada y en
+  vivo **nunca deduplicaba** (448 filas / 345 únicas). Fix: `toString()` también
+  en el backfill, con un comentario en el SQL explicando por qué el tipo importa.
+  Limpieza de las filas ya insertadas: `ALTER TABLE ... DELETE WHERE raw = ''`
+  (las backfilleadas son las únicas con `raw` vacío) + re-correr solo ese INSERT.
+  **Lección general:** cuando dos caminos derivan la misma id sintética, la
+  expresión tiene que ser idéntica *incluyendo los tipos* — un `toString` de más
+  o de menos rompe el dedup en silencio, sin error ni fila perdida.
 
 #### Sub-fase 3d — Lecturas del dashboard: split hot/cold
 
