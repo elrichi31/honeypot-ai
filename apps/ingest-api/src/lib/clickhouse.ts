@@ -21,6 +21,15 @@ export function createClickHouseClient(): ClickHouseClient | null {
     username: process.env.CLICKHOUSE_USER ?? 'default',
     password: process.env.CLICKHOUSE_PASSWORD ?? '',
     database: process.env.CLICKHOUSE_DATABASE ?? 'honeypot_lake',
+    clickhouse_settings: {
+      // Every analytics read uses FINAL (the lake tables are ReplacingMergeTree
+      // and Kafka delivery is at-least-once, so unmerged duplicates are the
+      // normal state, not an edge case). An event's dedup key starts with its
+      // timestamp and the tables partition by month, so duplicates of a row can
+      // only ever live in the same partition — merging across partitions to
+      // satisfy FINAL is pure cost with nothing to find.
+      do_not_merge_across_partitions_select_final: 1,
+    },
   })
   return client
 }

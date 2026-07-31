@@ -39,7 +39,7 @@ export class AnalyticsSuricataRepository {
         WITH top_groups AS
         (
           SELECT ${groupColumn} AS groupName
-          FROM suricata_alerts
+          FROM suricata_alerts FINAL
           WHERE timestamp >= now() - INTERVAL {rangeDays:UInt16} DAY
             ${scope.condition}
           GROUP BY groupName
@@ -51,7 +51,7 @@ export class AnalyticsSuricataRepository {
           ${groupColumn} AS name,
           count() AS count,
           min(severity) AS severity
-        FROM suricata_alerts
+        FROM suricata_alerts FINAL
         WHERE timestamp >= now() - INTERVAL {rangeDays:UInt16} DAY
           ${scope.condition}
           AND ${groupColumn} IN (SELECT groupName FROM top_groups)

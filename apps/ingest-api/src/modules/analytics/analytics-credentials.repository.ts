@@ -45,7 +45,7 @@ const CREDENTIAL_EVENTS = `
     sensor_id,
     'ssh' AS protocol,
     CAST(eventid = 'cowrie.login.success', 'Nullable(UInt8)') AS result
-  FROM cowrie_events
+  FROM cowrie_events FINAL
   WHERE eventid IN ('cowrie.login.success', 'cowrie.login.failed')
 
   UNION ALL
@@ -58,7 +58,7 @@ const CREDENTIAL_EVENTS = `
     sensor_id,
     protocol,
     CAST(NULL, 'Nullable(UInt8)') AS result
-  FROM protocol_events
+  FROM protocol_events FINAL
   WHERE event_type = 'auth'
 `
 
@@ -139,7 +139,7 @@ export class AnalyticsCredentialsRepository {
           countIf(eventid = 'cowrie.login.failed') AS failedCount,
           count() AS total,
           if(total = 0, 0, successCount / total) AS successRate
-        FROM cowrie_events
+        FROM cowrie_events FINAL
         WHERE timestamp >= now() - INTERVAL {rangeDays:UInt16} DAY
           AND eventid IN ('cowrie.login.success', 'cowrie.login.failed')
           ${scope.condition}

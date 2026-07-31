@@ -57,7 +57,7 @@ export class AnalyticsAttackerRepository {
         username,
         input,
         dst_port AS dstPort
-      FROM cowrie_events
+      FROM cowrie_events FINAL
       WHERE src_ip = {ip:String}
         ${query.scope.condition}
         ${this.beforeCondition(query.before)}
@@ -76,7 +76,7 @@ export class AnalyticsAttackerRepository {
         path,
         attack_type AS attackType,
         canary_triggered AS canaryTriggered
-      FROM web_events
+      FROM web_events FINAL
       WHERE src_ip = {ip:String}
         ${query.scope.condition}
         ${this.beforeCondition(query.before)}
@@ -95,7 +95,7 @@ export class AnalyticsAttackerRepository {
         event_type AS eventType,
         dst_port AS dstPort,
         username
-      FROM protocol_events
+      FROM protocol_events FINAL
       WHERE src_ip = {ip:String}
         ${query.scope.condition}
         ${this.beforeCondition(query.before)}
@@ -116,7 +116,7 @@ export class AnalyticsAttackerRepository {
         category,
         severity,
         dest_port AS destPort
-      FROM suricata_alerts
+      FROM suricata_alerts FINAL
       WHERE src_ip = {ip:String}
         ${query.scope.condition}
         ${this.beforeCondition(query.before)}

@@ -14,6 +14,33 @@ Confirmado visualmente por el usuario con datos reales del honeypot. Falta
 correr el backfill de 3c para que el rango cubra más que "desde que arrancó
 el consumer de Kafka".
 
+> **⚠️ BUG DE CORRECTITUD ENCONTRADO Y CORREGIDO (2026-07-31): faltaba `FINAL`
+> en TODAS las lecturas del lake.** Las 4 tablas son `ReplacingMergeTree` y el
+> consumo de Kafka es at-least-once, así que **tener duplicados sin mergear es
+> el estado normal, no un caso borde** — pero ninguna de las 13 lecturas de
+> `modules/analytics/*.repository.ts` usaba `FINAL`, con lo cual todo
+> `count()` contaba filas duplicadas. Lo detectó el usuario comparando el
+> reporte contra el dashboard: PORT-SCAN salía **2,473,002 en el reporte
+> contra 1,000,580 en el dashboard**, un 2.47x que coincide exactamente con la
+> proporción de duplicados de `protocol_events` (3,182,694 crudas /
+> 1,354,728 reales) que había dejado el backfill de 3c.
+>
+> Fix: `FINAL` en las 13 lecturas + `do_not_merge_across_partitions_select_final: 1`
+> en el cliente (`lib/clickhouse.ts`) — la clave de dedup arranca con
+> `timestamp` y las tablas particionan por mes, así que los duplicados de una
+> fila solo pueden vivir en la misma partición; mergear entre particiones es
+> costo puro sin nada que encontrar. Test de regresión
+> (`analytics-final.test.ts`) que recorre **todos** los `*.repository.ts` del
+> módulo y falla si alguna lectura de tabla del lake no lleva `FINAL` — el
+> fallo es silencioso (el número parece plausible, solo está mal), así que
+> vale un guard automático y no una nota en el plan.
+>
+> **Lección:** elegir `ReplacingMergeTree` no deduplica nada por sí solo. La
+> dedup ocurre en el merge en background, en un momento indeterminado, y una
+> query sin `FINAL` ve el estado intermedio. La decisión de diseño ("dedup por
+> event_id") estaba escrita en el plan desde 3a; lo que faltaba era la mitad
+> de lectura de esa decisión.
+
 **Backend de Fases B–F implementado (2026-07-27) + frontend de B–E ya cableado
 (2026-07-27, mismo día).** El backend quedó disponible (Credential
 Intelligence, timeline de atacante, tendencias Suricata, comparativa

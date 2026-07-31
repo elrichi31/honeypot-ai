@@ -300,8 +300,11 @@ export function ReportView({
         <Section title={t("reports.section.history")} insight={insight("history")}>
           <p className="mb-4 text-xs text-muted-foreground">
             {t("reports.history.subtitle")}
-            {history.firstBucket && history.lastBucket
-              ? ` ${buildPeriodLabel(history.firstBucket, history.lastBucket, meta.timezone)}.`
+            {/* End is generation time, not the last bucket: at 1y granularity
+                buckets are week starts, so printing the last one made coverage
+                look like it stopped six days before the report was run. */}
+            {history.firstBucket
+              ? ` ${buildPeriodLabel(history.firstBucket, meta.generatedAt, meta.timezone)}.`
               : ""}
           </p>
           <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
