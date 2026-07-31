@@ -178,15 +178,19 @@
    (above) makes Tailwind utilities reference `var(--card)` directly rather
    than a snapshot resolved at :root — so redefining the vars on a subtree
    re-themes everything inside it. Same mechanism as [data-brand] above.
+
+   No neutral greys in either palette, on purpose: every surface, hairline and
+   secondary text is tinted toward the burgundy, so the document reads as one
+   deliberate identity instead of a dimmed dashboard.
    --------------------------------------------------------------------------- */
 #report-print-root[data-report-theme="light"] {
   --background: #ffffff;
-  --foreground: #17171a;
+  --foreground: #1a1113;       /* warm near-black, never #333 grey */
   --card: #ffffff;
-  --card-foreground: #17171a;
-  --muted: #f1f1f4;
-  --muted-foreground: #5c5c66;
-  --border: #dededf;
+  --card-foreground: #1a1113;
+  --muted: #f8eef0;            /* faint burgundy wash — bar tracks */
+  --muted-foreground: #6d4a51; /* burgundy ink, 7:1 on white */
+  --border: #e8d5d9;           /* burgundy hairline */
   --primary: #7a1c2b;          /* burgundy — headings, bars, accents */
   --primary-foreground: #ffffff;
   --destructive: #a3232f;
@@ -194,14 +198,14 @@
 }
 
 #report-print-root[data-report-theme="dark"] {
-  --background: #131316;
-  --foreground: #f2f2f3;
-  --card: #1a1a1f;
-  --card-foreground: #f2f2f3;
-  --muted: #26262c;
-  --muted-foreground: #a1a1aa;
-  --border: #2e2e36;
-  --primary: #a82a3c;          /* burgundy, lifted for contrast on dark */
+  --background: #0d0709;       /* near-black, red-tinted, not charcoal */
+  --foreground: #f7eef0;
+  --card: #170e11;
+  --card-foreground: #f7eef0;
+  --muted: #2a1418;
+  --muted-foreground: #c4a6ab; /* warm light, not #a1a1aa grey */
+  --border: #3d2027;
+  --primary: #c2394a;          /* burgundy lifted for contrast on near-black */
   --primary-foreground: #ffffff;
   --destructive: #d0475a;
   --success: #3fa06e;
@@ -253,7 +257,7 @@
   }
   html[data-report-theme="dark"],
   html[data-report-theme="dark"] body {
-    background: #131316 !important;
+    background: #0d0709 !important;
   }
   #report-print-root .report-section {
     break-inside: avoid;

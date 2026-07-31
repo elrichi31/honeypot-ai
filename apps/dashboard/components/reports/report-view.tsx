@@ -57,9 +57,11 @@ function Bars({ items }: { items: { label: string; value: number; meta?: string 
           <div className="w-32 shrink-0 truncate text-xs text-muted-foreground" title={item.label}>
             {item.label}
           </div>
-          <div className="relative h-5 flex-1 overflow-hidden rounded bg-muted/40">
+          {/* Full-strength track: the palette's muted is already a faint
+              burgundy wash, and dropping it to 40% over white erases it. */}
+          <div className="relative h-5 flex-1 overflow-hidden rounded bg-muted">
             <div
-              className="h-full rounded bg-primary/70"
+              className="h-full rounded bg-primary"
               style={{ width: `${(item.value / max) * 100}%` }}
             />
           </div>
