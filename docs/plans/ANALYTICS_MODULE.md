@@ -18,9 +18,10 @@ el consumer de Kafka".
 (2026-07-27, mismo día).** El backend quedó disponible (Credential
 Intelligence, timeline de atacante, tendencias Suricata, comparativa
 superadmin sensor/cliente y el payload consolidado para reportes) y encima se
-construyó el frontend completo de B, C, D y E — **F (alimentar `/reports`)
-queda pendiente**, es integración con el sistema de PDF existente
-(`CLIENT_REPORTS_PDF.md`), no una página nueva, y no se tocó todavía.
+construyó el frontend completo de B, C, D y E. **F (alimentar `/reports`) quedó
+cerrada en código el 2026-07-31** — sección "12-Month History" en el reporte de
+cliente, integrada al HTML que ya produce el PDF por `window.print()`; detalle
+en "Estado por fase" abajo.
 Validación: `tsc --noEmit` limpio en los dos paquetes, suite completa de
 `ingest-api` en verde (183 tests). **Sin verificar contra datos reales en
 prod todavía** — falta desplegar y correr el backfill de 3c antes de darle
@@ -208,10 +209,36 @@ chart renderizando datos reales en el browser.
   contrato ejecuta A+B en paralelo y entrega volumen histórico, top credenciales
   y serie de éxito Cowrie con el mismo scope/cache de sus fuentes, sin SQL
   duplicado. Agregado test HTTP que fija el payload consolidado y la propagación
-  tenant a las tres consultas. Por decisión de alcance, no se modificó
-  `apps/dashboard`: el wiring del collector/render queda para la persona
-  responsable del frontend. Validación local incluida en el pase acumulado de
+  tenant a las tres consultas. Validación local incluida en el pase acumulado de
   183 tests.
+  **Frontend cableado (2026-07-31) — Fase F cerrada en código, falta QA con
+  datos reales.** El reporte de cliente (`/reports`) ahora incluye una sección
+  **"12-Month History"** alimentada por el lake:
+  - `lib/api/analytics.ts` (nuevo) — `fetchAnalyticsReportSummary({range,
+    credentialLimit, sensorIds})`, mismo patrón scopeado que los fetchers de
+    `lib/api/stats.ts`. **Normaliza los counts con `Number()` una sola vez acá**
+    — ClickHouse serializa `UInt64` como string y el `+` concatena en silencio
+    (es el bug que produjo el "170,142,..." de eventos totales en el overview).
+  - `lib/reports/shared/history.ts` (nuevo) — `summarizeHistory()` puro: agrega
+    trends por protocolo, deriva la tasa de éxito y ordena por volumen. Con test
+    (`history.test.ts`, 3 casos incluido el de lake vacío → 0, no `NaN`).
+  - `collect.ts` — décima tarea del `Promise.allSettled` (`REPORT_STEPS` 9→10,
+    la barra de progreso ya lo refleja). Rango **fijo en `1y`**, a propósito: el
+    resto del reporte está ventaneado al período pedido contra Postgres, y el
+    valor de esta sección es justo el contexto que queda **fuera** de esa
+    ventana. Si ClickHouse está caído/no configurado el fetch rechaza, el
+    `allSettled` lo degrada a `history: null` y la sección **no se renderiza**
+    (nada de mostrarla vacía y parecer "no hubo actividad en un año").
+  - `components/reports/report-view.tsx` — sección nueva con los primitivos que
+    ya existían (`Kpi`/`Bars`/`Table`), sin componentes ni charts nuevos. Como
+    el PDF sale del mismo HTML por `window.print()` (Fase 1.6), la sección entra
+    al PDF gratis, sin tocar nada del path de generación.
+  - 4 claves nuevas en `dicts/reports.ts` (`en` + `es`).
+  - Validación: `tsc --noEmit` limpio en dashboard e ingest-api; 102 tests del
+    dashboard en verde.
+  - **Pendiente:** verlo contra datos reales — hoy el lake solo tiene desde el
+    27/07, así que hasta que corra el backfill de 3c la sección "12 meses" va a
+    mostrar semanas, no meses.
 - Fase G (experiencia visual de Analytics) — **implementación completa,
   QA visual con datos pendiente (2026-07-27):**
   rediseño del frontend autorizado para convertir los endpoints A-E en una

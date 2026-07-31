@@ -8,8 +8,9 @@ export const dynamic = "force-dynamic"
 
 // Proxy to ingest-api's GET /analytics/report-summary (ANALYTICS_MODULE Fase
 // F) — same pattern as app/api/analytics/trends/route.ts. Powers the
-// "Overview" strip on the /analytics landing page (Fase H2); /reports PDF
-// integration is a separate, still-unowned piece of Fase F.
+// "Overview" strip on the /analytics landing page (Fase H2). The /reports
+// integration does not go through this proxy: it runs server-side and calls
+// ingest-api directly via lib/api/analytics.ts.
 export async function GET(req: NextRequest) {
   const auth_check = await requireRole("viewer")
   if (!auth_check.ok) return auth_check.response

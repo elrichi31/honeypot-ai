@@ -9,16 +9,19 @@ import {
   fetchDashboardInsights,
 } from "@/lib/api/stats"
 import { fetchCredentialsAnalytics } from "@/lib/api/credentials"
+import { fetchAnalyticsReportSummary } from "@/lib/api/analytics"
 import { db } from "@/lib/db"
 import { lookupIp } from "@/lib/geo"
 import type {
   ClientReportData,
   ClientReportMeta,
   ReportGeoEntry,
+  ReportHistory,
   ReportTopCredential,
 } from "./types"
 import type { KpiTrends } from "@/lib/api/types"
 import { buildPeriodLabel, timelineGranularity } from "./shared/format"
+import { summarizeHistory } from "./shared/history"
 import { collectSensorProfiles } from "./sensors/collect"
 
 function aggregateGeo(raw: { srcIp: string; loginSuccess: boolean | null }[]): ReportGeoEntry[] {
@@ -223,7 +226,12 @@ async function collectReportKpis(
 }
 
 // Number of parallel tasks below; drives the progress ratio. Keep in sync.
-const REPORT_STEPS = 9
+const REPORT_STEPS = 10
+
+// The rest of the report is windowed to the requested period out of Postgres.
+// This one section deliberately looks past it: a year of history is the query
+// ClickHouse exists for (ANALYTICS_MODULE Fase F).
+const HISTORY_RANGE = "1y" as const
 
 export async function collectClientReport(params: {
   sensorIds: string[] | undefined
@@ -240,7 +248,7 @@ export async function collectClientReport(params: {
   const track = <U>(p: Promise<U>): Promise<U> =>
     p.finally(() => onProgress?.(++done, REPORT_STEPS))
 
-  const [overview, kpiTrends, timeline, mitre, botRatio, geoRaw, insights, creds, sensorProfiles] =
+  const [overview, kpiTrends, timeline, mitre, botRatio, geoRaw, insights, creds, sensorProfiles, history] =
     await Promise.allSettled([
       track(fetchHoneypotOverview(sensorIds)),
       track(collectReportKpis(sensorIds, startDate, endDate)),
@@ -258,6 +266,7 @@ export async function collectClientReport(params: {
         endDate,
       })),
       track(collectSensorProfiles(sensorIds, startDate, endDate)),
+      track(fetchAnalyticsReportSummary({ range: HISTORY_RANGE, credentialLimit: 10, sensorIds })),
     ])
 
   function unwrap<T>(result: PromiseSettledResult<T>, fallback: T): T {
@@ -314,6 +323,11 @@ export async function collectClientReport(params: {
     successRate: 0,
   }
 
+  const rawHistory = unwrap(history, null)
+  const historySummary: ReportHistory | null = rawHistory
+    ? summarizeHistory(HISTORY_RANGE, rawHistory)
+    : null
+
   return {
     meta: {
       ...meta,
@@ -332,5 +346,6 @@ export async function collectClientReport(params: {
     diversifiedAttackers: rawCreds?.diversifiedAttackers?.slice(0, 8) ?? [],
     sensors: unwrap(sensorProfiles, []),
     malware: unwrap(sensorProfiles, []).flatMap((sensor) => sensor.recentMalware),
+    history: historySummary,
   }
 }

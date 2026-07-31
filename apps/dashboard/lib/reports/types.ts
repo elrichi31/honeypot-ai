@@ -8,6 +8,7 @@ import type {
   CredentialsSummary,
   DiversifiedAttackerStat,
 } from "@/lib/api/types"
+import type { AnalyticsCredentialCombo, AnalyticsRange } from "@/lib/api/analytics"
 import type { Sensor } from "@/lib/api/services"
 import type { MalwareArtifact } from "@/lib/api/malware"
 
@@ -147,6 +148,18 @@ export interface ReportSensorProfile {
   web?: ReportWebProfile
 }
 
+// Long-range context from the ClickHouse lake, deliberately outside the
+// report's Postgres window. `null` when the lake is unavailable (503) — the
+// section is then omitted rather than shown empty.
+export interface ReportHistory {
+  range: AnalyticsRange
+  totalEvents: number
+  byProtocol: { label: string; count: number }[]
+  totalAttempts: number
+  successRatePct: number
+  topCredentials: AnalyticsCredentialCombo[]
+}
+
 export interface ClientReportMeta {
   clientName: string
   clientSlug: string
@@ -171,4 +184,5 @@ export interface ClientReportData {
   diversifiedAttackers: DiversifiedAttackerStat[]
   sensors: ReportSensorProfile[]
   malware: MalwareArtifact[]
+  history: ReportHistory | null
 }

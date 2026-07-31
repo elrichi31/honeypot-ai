@@ -233,6 +233,12 @@ actividad, fuentes de tráfico, MITRE, credenciales (summary + top pares), funne
 reconocimiento + IPs recurrentes, geo, clasificación bot/humano. **Pendiente:** páginas
 de deep-dive por sensor (siguen el mismo patrón; página == PDF se mantiene a cada paso).
 
+**Agregado 2026-07-31 — "12-Month History" (ClickHouse).** Sección final opcional
+alimentada por `/analytics/report-summary` del lake, con rango fijo de 1 año: da el
+contexto de largo plazo que las demás secciones (ventaneadas a Postgres) no pueden
+dar barato. Se omite entera si ClickHouse no está disponible. Detalle e implementación
+en [ANALYTICS_MODULE.md → Fase F](ANALYTICS_MODULE.md).
+
 ### Archivos
 **Nuevos:** `lib/reports/resolve-request.ts`, `app/api/reports/stream/route.ts`,
 `components/reports/report-view.tsx`. **Modificados:** `lib/reports/collect.ts`

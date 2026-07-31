@@ -87,7 +87,7 @@ function EmptyRow() {
 
 export function ReportView({ data }: { data: ClientReportData }) {
   const { t } = useLocale()
-  const { meta, overview, kpiTrends, timeline, mitre, botRatio, insights, geo, topCredentials, credentialSummary } = data
+  const { meta, overview, kpiTrends, timeline, mitre, botRatio, insights, geo, topCredentials, credentialSummary, history } = data
 
   const generatedDate = new Date(meta.generatedAt).toLocaleString("en-US", {
     year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit",
@@ -207,6 +207,25 @@ export function ReportView({ data }: { data: ClientReportData }) {
       <Section title={t("reports.section.classification")}>
         <Bars items={classificationItems} />
       </Section>
+
+      {history && (
+        <Section title={t("reports.section.history")}>
+          <p className="mb-4 text-xs text-muted-foreground">{t("reports.history.subtitle")}</p>
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <Kpi label={t("reports.kpi.events")} value={fmt(history.totalEvents)} />
+            <Kpi label={t("reports.creds.attempts")} value={fmt(history.totalAttempts)} />
+            <Kpi label={t("reports.history.successRate")} value={pct(history.successRatePct)} />
+          </div>
+          <Bars items={history.byProtocol.map((p) => ({ label: p.label.toUpperCase(), value: p.count }))} />
+          <div className="mt-4">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">{t("reports.history.topCredentials")}</p>
+            <Table
+              headers={[t("reports.creds.username"), t("reports.creds.password"), t("reports.creds.attempts")]}
+              rows={history.topCredentials.map((c) => [c.username ?? "-", c.password ?? "-", fmt(c.count)])}
+            />
+          </div>
+        </Section>
+      )}
 
       <p className="text-center text-xs text-muted-foreground">{t("reports.footer.confidential")}</p>
     </div>
