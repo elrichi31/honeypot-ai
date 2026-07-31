@@ -1,0 +1,145 @@
+// Server-only: turns a collected report into the written analysis a client
+// actually reads. Same OpenAI wiring as app/api/ai/* (key from settings,
+// gpt-4o-mini, JSON mode) — see app/api/ai/threat-analysis/route.ts.
+import OpenAI from "openai"
+import { getOpenAiKey } from "@/lib/server-config"
+import type { Locale } from "@/lib/i18n/dictionaries"
+import type { ClientReportData, ReportNarrative } from "./types"
+
+const LOCALE_LANGUAGE: Record<string, string> = {
+  en: "English",
+  es: "Spanish",
+}
+
+const MAX_TOKENS = 900
+
+/**
+ * Compact text digest of the report — this is what the model sees, not the
+ * full ClientReportData (sensor profiles and malware blobs would blow the
+ * context for no gain). Pure so it can be asserted on without a network call.
+ */
+export function buildNarrativeDigest(data: ClientReportData): string {
+  const { meta, overview, kpiTrends, mitre, botRatio, insights, geo, topCredentials, credentialSummary, history } = data
+
+  const delta = (d: number | null) => (d == null ? "no prior data" : `${d > 0 ? "+" : ""}${d}% vs previous period`)
+
+  const protocols = [
+    `SSH sessions: ${overview.ssh.sessions} from ${overview.ssh.uniqueIps} IPs`,
+    `Web hits: ${overview.web.hits} from ${overview.web.uniqueIps} IPs`,
+    ...overview.protocols.map((p) => `${p.protocol}: ${p.count} from ${p.uniqueIps} IPs`),
+  ].join("\n")
+
+  const tactics = mitre.tactics
+    .map((t) => `${t.tactic}: ${t.techniques.reduce((sum, tech) => sum + tech.count, 0)} hits (${t.techniques.map((tech) => tech.name).slice(0, 3).join(", ")})`)
+    .join("\n")
+
+  const creds = topCredentials
+    .slice(0, 10)
+    .map((c) => `${c.username ?? "-"} / ${c.password ?? "-"} — ${c.attempts} attempts, ${c.successCount} accepted`)
+    .join("\n")
+
+  const countries = geo.slice(0, 8).map((g) => `${g.country}: ${g.count} events (${g.share.toFixed(1)}%)`).join("\n")
+
+  const historyBlock = history
+    ? `Lake coverage: ${history.firstBucket ?? "?"} to ${history.lastBucket ?? "?"}
+Total events over that span: ${history.totalEvents}
+SSH login attempts: ${history.totalAttempts}, success rate ${history.successRatePct.toFixed(1)}%
+By protocol: ${history.byProtocol.map((p) => `${p.label} ${p.count}`).join(", ")}`
+    : "not available"
+
+  return `## Client and period
+Client: ${meta.clientName}
+Reporting period: ${meta.periodLabel} (timezone ${meta.timezone})
+
+## Volume this period
+Total events: ${kpiTrends.events.current} (${delta(kpiTrends.events.deltaPct)})
+SSH sessions: ${kpiTrends.sshSessions.current} (${delta(kpiTrends.sshSessions.deltaPct)})
+Web hits: ${kpiTrends.webHits.current} (${delta(kpiTrends.webHits.deltaPct)})
+Unique attacking IPs: ${kpiTrends.uniqueIps.current} (${delta(kpiTrends.uniqueIps.deltaPct)})
+Successful logins into the decoy: ${overview.ssh.successfulLogins}
+
+## Activity by service
+${protocols || "none"}
+
+## MITRE ATT&CK tactics observed
+${tactics || "none"}
+
+## Credential attacks
+Total attempts: ${credentialSummary.totalAttempts}, accepted: ${credentialSummary.successfulAttempts}
+Distinct usernames: ${credentialSummary.uniqueUsernames}, distinct passwords: ${credentialSummary.uniquePasswords}
+Password-spray passwords: ${credentialSummary.sprayPasswords}, targeted usernames: ${credentialSummary.targetedUsernames}
+Top attempted pairs:
+${creds || "none"}
+
+## Attacker behaviour funnel
+Connections: ${insights.funnel.connections}
+Auth attempts: ${insights.funnel.authAttempts}
+Successful logins: ${insights.funnel.loginSuccess}
+Commands executed after login: ${insights.funnel.commands}
+High-signal compromise activity: ${insights.funnel.highSignalCompromise}
+
+## Automation
+Bot sessions: ${botRatio.bot}, human-like: ${botRatio.human}, unclassified: ${botRatio.unknown}
+
+## Geographic origin (by event volume, not distinct IPs)
+${countries || "none"}
+
+## Long-range history from the analytics lake
+${historyBlock}`
+}
+
+function buildPrompt(digest: string, language: string): string {
+  return `You are a security analyst writing the narrative sections of a honeypot activity report delivered to a client.
+
+Write in ${language}. Every string in the JSON output must be in ${language}.
+
+The client operates decoy systems (honeypots). Every "successful login" happened on a decoy, NOT on a production system — never describe it as a breach of the client's real infrastructure. Frame it as intelligence about who is attacking and how.
+
+Rules:
+- Use only the figures below. Never invent a number, a country, a CVE, or an actor name.
+- Write for a business reader: plain language, no unexplained jargon.
+- Be specific — cite the actual numbers that matter instead of saying "significant activity".
+- If a figure looks anomalous (a huge percentage swing, a near-100% login success rate), explain WHY it is expected on a honeypot rather than presenting it as alarming.
+- No filler, no restating the whole table in prose.
+
+${digest}
+
+Return ONLY valid JSON (no markdown) with this exact structure:
+{
+  "executiveSummary": "3-4 sentences: what happened this period, how it compares to before, and the single most important takeaway",
+  "threatLandscape": "2-3 sentences on who attacked and how — services targeted, tactics, automation level, origin",
+  "credentialFindings": "2-3 sentences on the credential attacks: what was tried, what patterns it reveals about the attackers' tooling",
+  "recommendations": ["3 to 4 concrete, actionable items grounded in what the data shows"]
+}`
+}
+
+/**
+ * Returns null when AI is simply not configured — that is a normal state, not
+ * an error: the report renders exactly as before without the narrative.
+ * Throws only on a real API failure, so the caller can log it.
+ */
+export async function generateReportNarrative(
+  data: ClientReportData,
+  locale: Locale,
+): Promise<ReportNarrative | null> {
+  const apiKey = getOpenAiKey()
+  if (!apiKey) return null
+
+  const client = new OpenAI({ apiKey })
+  const response = await client.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{ role: "user", content: buildPrompt(buildNarrativeDigest(data), LOCALE_LANGUAGE[locale] ?? "English") }],
+    max_tokens: MAX_TOKENS,
+    temperature: 0.2,
+    response_format: { type: "json_object" },
+  })
+
+  const ai = JSON.parse(response.choices[0]?.message?.content ?? "{}")
+  return {
+    executiveSummary: typeof ai.executiveSummary === "string" ? ai.executiveSummary : "",
+    threatLandscape: typeof ai.threatLandscape === "string" ? ai.threatLandscape : "",
+    credentialFindings: typeof ai.credentialFindings === "string" ? ai.credentialFindings : "",
+    recommendations: Array.isArray(ai.recommendations) ? ai.recommendations.filter((r: unknown) => typeof r === "string") : [],
+    generatedAt: new Date().toISOString(),
+  }
+}

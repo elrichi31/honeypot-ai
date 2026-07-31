@@ -233,6 +233,29 @@ actividad, fuentes de tráfico, MITRE, credenciales (summary + top pares), funne
 reconocimiento + IPs recurrentes, geo, clasificación bot/humano. **Pendiente:** páginas
 de deep-dive por sensor (siguen el mismo patrón; página == PDF se mantiene a cada paso).
 
+**Agregado 2026-07-31 — sección "Analysis" escrita por IA.** Párrafos generados
+con OpenAI (misma plomería que `app/api/ai/*`: key de Settings vía
+`getOpenAiKey()`, `gpt-4o-mini`, JSON mode, `temperature 0.2`) que abren el
+reporte antes de los números: resumen ejecutivo, panorama de amenazas,
+hallazgos de credenciales y recomendaciones.
+
+- **`lib/reports/narrative.ts`** — `buildNarrativeDigest()` (puro, con tests)
+  arma un resumen de texto compacto con las cifras del reporte; el modelo
+  **nunca** ve el `ClientReportData` completo (los perfiles por sensor y los
+  blobs de malware llenarían el contexto sin aportar nada).
+  `generateReportNarrative()` hace la llamada y devuelve `null` si no hay key
+  configurada — no tener IA es un estado válido, no un error.
+- **Se emite como un evento SSE `narrative` *después* de `result`**, en el
+  mismo stream de `/api/reports/stream`. Consecuencias buscadas: el reporte se
+  pinta apenas están los datos, el texto llega después, los datos nunca salen
+  del server en un POST extra, y una caída/lentitud de OpenAI cuesta la prosa
+  pero jamás el reporte. `maxDuration` subió a 60 por la llamada al modelo.
+- El prompt le prohíbe inventar cifras y le exige encuadrar los logins exitosos
+  como lo que son —**accesos a un señuelo, no una brecha del cliente**— y
+  explicar por qué una tasa de éxito cercana al 100% es esperable en un
+  honeypot en vez de presentarla como alarma.
+- La sección lleva un disclaimer visible de que el texto es generado por IA.
+
 **Agregado 2026-07-31 — "12-Month History" (ClickHouse).** Sección final opcional
 alimentada por `/analytics/report-summary` del lake, con rango fijo de 1 año: da el
 contexto de largo plazo que las demás secciones (ventaneadas a Postgres) no pueden

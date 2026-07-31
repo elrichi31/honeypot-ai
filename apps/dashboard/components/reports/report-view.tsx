@@ -2,7 +2,7 @@
 
 import { useLocale } from "@/components/locale-provider"
 import { fmt, pct, deltaStr, sumBucket, buildPeriodLabel } from "@/lib/reports/shared/format"
-import type { ClientReportData } from "@/lib/reports/types"
+import type { ClientReportData, ReportNarrative } from "@/lib/reports/types"
 import type { MetricTrend } from "@/lib/api/types"
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -85,7 +85,69 @@ function EmptyRow() {
   return <p className="text-sm text-muted-foreground">{t("reports.noActivity")}</p>
 }
 
-export function ReportView({ data }: { data: ClientReportData }) {
+function Narrative({
+  narrative,
+  pending,
+}: {
+  narrative: ReportNarrative | null
+  pending: boolean
+}) {
+  const { t } = useLocale()
+
+  // Nothing written and nothing coming (AI not configured) — the report simply
+  // has no narrative, which is a valid report, not an error worth a placeholder.
+  if (!narrative && !pending) return null
+
+  if (!narrative) {
+    return (
+      <section className="report-section rounded-xl border border-border bg-card p-5 print:hidden">
+        <p className="text-sm text-muted-foreground">{t("reports.narrative.pending")}</p>
+      </section>
+    )
+  }
+
+  const blocks = [
+    { title: t("reports.narrative.summary"), body: narrative.executiveSummary },
+    { title: t("reports.narrative.landscape"), body: narrative.threatLandscape },
+    { title: t("reports.narrative.credentials"), body: narrative.credentialFindings },
+  ].filter((b) => b.body)
+
+  return (
+    <Section title={t("reports.narrative.title")}>
+      <div className="flex flex-col gap-4">
+        {blocks.map((b) => (
+          <div key={b.title}>
+            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">{b.title}</p>
+            <p className="text-sm leading-relaxed text-foreground">{b.body}</p>
+          </div>
+        ))}
+        {narrative.recommendations.length > 0 && (
+          <div>
+            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {t("reports.narrative.recommendations")}
+            </p>
+            <ul className="list-disc pl-5 text-sm leading-relaxed text-foreground">
+              {narrative.recommendations.map((r, i) => (
+                <li key={i}>{r}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground">{t("reports.narrative.disclaimer")}</p>
+      </div>
+    </Section>
+  )
+}
+
+export function ReportView({
+  data,
+  narrative = null,
+  narrativePending = false,
+}: {
+  data: ClientReportData
+  narrative?: ReportNarrative | null
+  narrativePending?: boolean
+}) {
   const { t } = useLocale()
   const { meta, overview, kpiTrends, timeline, mitre, botRatio, insights, geo, topCredentials, credentialSummary, history } = data
 
@@ -134,6 +196,8 @@ export function ReportView({ data }: { data: ClientReportData }) {
           {t("reports.footer.generated")}: {generatedDate}
         </p>
       </header>
+
+      <Narrative narrative={narrative} pending={narrativePending} />
 
       <Section title={t("reports.section.executive")}>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">

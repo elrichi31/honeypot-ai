@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { useLocale } from "@/components/locale-provider"
 import { resolvePresetWindow, type ReportPreset } from "@/lib/reports/shared/format"
 import { ReportView } from "@/components/reports/report-view"
-import type { ClientReportData } from "@/lib/reports/types"
+import type { ClientReportData, ReportNarrative } from "@/lib/reports/types"
 import type { Client } from "@/lib/api"
 
 interface Props {
@@ -32,6 +32,8 @@ export function ReportDownload({ canPickTenant, clients, scopedClientId }: Props
   const [progress, setProgress] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<ClientReportData | null>(null)
+  const [narrative, setNarrative] = useState<ReportNarrative | null>(null)
+  const [narrativePending, setNarrativePending] = useState(false)
   const esRef = useRef<EventSource | null>(null)
 
   const effectiveClientId = canPickTenant ? clientId : (scopedClientId ?? "")
@@ -49,6 +51,8 @@ export function ReportDownload({ canPickTenant, clients, scopedClientId }: Props
     esRef.current?.close()
     setError(null)
     setData(null)
+    setNarrative(null)
+    setNarrativePending(false)
     setProgress(0)
 
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -68,10 +72,17 @@ export function ReportDownload({ canPickTenant, clients, scopedClientId }: Props
       const { completed, total } = JSON.parse(e.data) as { completed: number; total: number }
       setProgress(total > 0 ? completed / total : 0)
     })
+    // The stream stays open past `result` to deliver the AI narrative, so the
+    // report renders while the prose is still being written.
     es.addEventListener("result", (e) => {
       settled = true
       setData(JSON.parse(e.data) as ClientReportData)
       setProgress(null)
+      setNarrativePending(true)
+    })
+    es.addEventListener("narrative", (e) => {
+      setNarrative(JSON.parse((e as MessageEvent).data) as ReportNarrative)
+      setNarrativePending(false)
       es.close()
     })
     es.addEventListener("failed", (e) => {
@@ -81,7 +92,13 @@ export function ReportDownload({ canPickTenant, clients, scopedClientId }: Props
       es.close()
     })
     es.onerror = () => {
-      if (settled) return
+      // Also fires when the server closes the stream normally — after a result
+      // that never got a narrative (AI unconfigured or failed). Not an error.
+      setNarrativePending(false)
+      if (settled) {
+        es.close()
+        return
+      }
       settled = true
       setError(t("reports.download.error"))
       setProgress(null)
@@ -195,7 +212,7 @@ export function ReportDownload({ canPickTenant, clients, scopedClientId }: Props
 
       {/* Report */}
       {data ? (
-        <ReportView data={data} />
+        <ReportView data={data} narrative={narrative} narrativePending={narrativePending} />
       ) : (
         !loading && (
           <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground print:hidden">

@@ -165,6 +165,17 @@ export interface ReportHistory {
   topCredentials: AnalyticsCredentialCombo[]
 }
 
+// AI-written sections. Arrives after the report data (separate SSE event), so
+// the report is never blocked on an LLM call; absent when OpenAI is not
+// configured or the call failed.
+export interface ReportNarrative {
+  executiveSummary: string
+  threatLandscape: string
+  credentialFindings: string
+  recommendations: string[]
+  generatedAt: string
+}
+
 export interface ClientReportMeta {
   clientName: string
   clientSlug: string
