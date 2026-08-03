@@ -63,15 +63,40 @@ sensores ya desplegados muestran versión vacía hasta que su host haga pull
 de la imagen nueva — hoy eso sigue siendo manual, es justo lo que Fase 1
 automatiza.
 
-**Comando `sensor-update` en el host (2026-07-28):** el instalador ahora deja
-un helper `sensor-update` junto a `sensor-status`/`sensor-test`/`sensor-uninstall`
-(`lib/sensor-install-script.ts`): `docker compose pull` + `up -d` (solo recrea
-lo que cambió) + verificación de contenedores caídos con logs + `image prune`.
-Es el puente manual hasta el updater de Fase 1 — mismo mecanismo, sin rollout
-controlado ni digests. Solo lo reciben instalaciones nuevas (el helper se
-escribe en el install); a los hosts ya desplegados se les puede copiar a mano
-o esperar a Fase 1. De paso se corrigió que el desinstalador no borraba los
-symlinks `sensor-test` (gap preexistente) ni `sensor-update`.
+**Comando `sensor-update` en el host (2026-07-28):** el instalador deja un helper
+`sensor-update` junto a `sensor-status`/`sensor-test`/`sensor-uninstall`
+(`lib/sensor-install-script.ts`). Es el puente manual hasta el updater de Fase 1
+— mismo mecanismo, sin rollout controlado ni digests. De paso se corrigió que el
+desinstalador no borraba los symlinks `sensor-test` (gap preexistente) ni
+`sensor-update`.
+
+Es **agnóstico de servicio**: no lleva lista de sensores, opera sobre el
+`docker-compose.yml` completo, así que cubre cualquier servicio del deploy
+(actual o futuro). Refresca **las tres capas de una instalación**, no solo las
+imágenes:
+
+1. **El compose**, regenerado por el server con el `DEPLOY_ID` de `.sensor-meta`
+   (`GET /sensor/compose`). Un arreglo en el template llega por update, sin
+   reinstalar. Valida con `compose config -q` y guarda `.bak`; si el server no
+   responde, sigue con el compose actual.
+2. **Los archivos montados**, vía manifiesto `kind=files` (`refreshManifest()`):
+   `heartbeat.py`, `control_agent.py`, `persisted_config.py`, los `.toml` de
+   vector, configs de opencanary — y los propios helpers, que se auto-actualizan
+   (`bash -n` antes de instalarlos, para no romper el update siguiente). Como un
+   bind-mount cambiado es invisible para `up -d`, dispara un `docker compose
+   restart` extra si tocó alguno.
+3. **Las imágenes**: `docker compose pull` + `up -d` + verificación de
+   contenedores caídos con logs + `image prune`.
+
+Límites conocidos:
+
+- `cowrie.cfg` y `userdb.txt` **no** están en el manifiesto (decisión, ver
+  `cowrieDownloadLines()`): vienen horneados en la imagen y los reescribe el
+  beacon desde la config del dashboard. Cambiarlos exige republicar la imagen.
+- Requiere `.sensor-meta`; sin él solo hace pull de imágenes y avisa.
+- Los hosts anteriores al helper no lo tienen. Una vez instalado se mantiene
+  solo (punto 2); antes de eso hay que copiarlo a mano o reinstalar.
+
 Verificado: script generado con `buildScript` real y `bash -n` sobre el
 instalador completo y sobre el `sensor-update` extraído; `tsc` limpio.
 
@@ -213,11 +238,17 @@ vía heartbeat.
 
 ## Fuera de alcance
 
-- Actualizar el `docker-compose.yml` en sí (puertos nuevos, servicios nuevos,
-  env vars nuevas). Eso sigue siendo re-correr el instalador. El updater solo
-  cambia **imágenes** de servicios ya desplegados. Si una feature necesita
-  compose nuevo, se documenta como "requiere reinstalación" — aceptable y
-  mucho más simple que un motor de migración de composes.
+- ~~Actualizar el `docker-compose.yml` en sí (puertos nuevos, servicios nuevos,
+  env vars nuevas). Eso sigue siendo re-correr el instalador.~~
+  **Superado 2026-08-03:** `sensor-update` ya regenera el compose desde el
+  server (ver arriba), así que un puerto nuevo o una env var nueva llegan por
+  update. Ejemplo real: el rango PASV del FTP (`50000-50019`) nunca se publicó
+  — sin él ningún `LIST`/`STOR`/`RETR` podía completarse desde internet y el
+  sensor solo registraba `connect` + `auth`. El arreglo vive en el template
+  (`sensor-compose-blocks.ts` + `docker-compose.prod.honeypot.yml`) y se
+  propaga con `sensor-update`, no con reinstalación. Lo que sigue fuera de
+  alcance es **agregar o quitar servicios** del deploy: eso cambia la identidad
+  del host y se re-corre el instalador.
 - Hosts sin Docker / la OVA (`build-sensor-ova.yml`): la OVA corre compose
   igual, el updater aplica; cualquier otra topología queda fuera.
 - Push/SSH desde el servidor hacia clientes: nunca.

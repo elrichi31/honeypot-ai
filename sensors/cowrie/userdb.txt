@@ -1,12 +1,130 @@
 # Cowrie credential database
 # Format: username:x:password
 #
-# Wildcard catch-all: any username with any password >= 4 chars gets in.
-# The length floor filters trivial 1-3 char noise but lets real botnet
-# wordlists (Admin@12345, Google@123, developer123, etc.) succeed and
-# proceed to the post-auth shell where commands + malware are captured.
+# Baked-in defaults, mirroring the dashboard's default sensor config
+# (apps/ingest-api/.../sensors.controller.ts). The beacon overwrites this file
+# with whatever is configured in the UI; this is only what a fresh sensor
+# accepts before its first config poll.
 #
-# *:x:* would accept everything including 1-char passwords -- use the
-# explicit wildcards below to enforce a minimal floor via patch_auth.py.
+# Only these exact pairs get in - no wildcards.
 
-*:x:*
+root:x:HoneyTrap2026!
+root:x:AtlasNode91
+root:x:CedarRoot88
+root:x:DeltaForge73
+root:x:EmberStack64
+root:x:FalconMesh52
+root:x:GraniteKey47
+root:x:HarborPulse39
+root:x:IronVector28
+root:x:JadeMatrix84
+ubuntu:x:HoneyTrap2026!
+ubuntu:x:AtlasNode91
+ubuntu:x:CedarRoot88
+ubuntu:x:DeltaForge73
+ubuntu:x:EmberStack64
+ubuntu:x:FalconMesh52
+ubuntu:x:GraniteKey47
+ubuntu:x:HarborPulse39
+ubuntu:x:IronVector28
+ubuntu:x:JadeMatrix84
+admin:x:HoneyTrap2026!
+admin:x:AtlasNode91
+admin:x:CedarRoot88
+admin:x:DeltaForge73
+admin:x:EmberStack64
+admin:x:FalconMesh52
+admin:x:GraniteKey47
+admin:x:HarborPulse39
+admin:x:IronVector28
+admin:x:JadeMatrix84
+oracle:x:HoneyTrap2026!
+oracle:x:AtlasNode91
+oracle:x:CedarRoot88
+oracle:x:DeltaForge73
+oracle:x:EmberStack64
+oracle:x:FalconMesh52
+oracle:x:GraniteKey47
+oracle:x:HarborPulse39
+oracle:x:IronVector28
+oracle:x:JadeMatrix84
+postgres:x:HoneyTrap2026!
+postgres:x:AtlasNode91
+postgres:x:CedarRoot88
+postgres:x:DeltaForge73
+postgres:x:EmberStack64
+postgres:x:FalconMesh52
+postgres:x:GraniteKey47
+postgres:x:HarborPulse39
+postgres:x:IronVector28
+postgres:x:JadeMatrix84
+git:x:HoneyTrap2026!
+git:x:AtlasNode91
+git:x:CedarRoot88
+git:x:DeltaForge73
+git:x:EmberStack64
+git:x:FalconMesh52
+git:x:GraniteKey47
+git:x:HarborPulse39
+git:x:IronVector28
+git:x:JadeMatrix84
+deploy:x:HoneyTrap2026!
+deploy:x:AtlasNode91
+deploy:x:CedarRoot88
+deploy:x:DeltaForge73
+deploy:x:EmberStack64
+deploy:x:FalconMesh52
+deploy:x:GraniteKey47
+deploy:x:HarborPulse39
+deploy:x:IronVector28
+deploy:x:JadeMatrix84
+centos:x:HoneyTrap2026!
+centos:x:AtlasNode91
+centos:x:CedarRoot88
+centos:x:DeltaForge73
+centos:x:EmberStack64
+centos:x:FalconMesh52
+centos:x:GraniteKey47
+centos:x:HarborPulse39
+centos:x:IronVector28
+centos:x:JadeMatrix84
+ansible:x:HoneyTrap2026!
+ansible:x:AtlasNode91
+ansible:x:CedarRoot88
+ansible:x:DeltaForge73
+ansible:x:EmberStack64
+ansible:x:FalconMesh52
+ansible:x:GraniteKey47
+ansible:x:HarborPulse39
+ansible:x:IronVector28
+ansible:x:JadeMatrix84
+ec2-user:x:HoneyTrap2026!
+ec2-user:x:AtlasNode91
+ec2-user:x:CedarRoot88
+ec2-user:x:DeltaForge73
+ec2-user:x:EmberStack64
+ec2-user:x:FalconMesh52
+ec2-user:x:GraniteKey47
+ec2-user:x:HarborPulse39
+ec2-user:x:IronVector28
+ec2-user:x:JadeMatrix84
+pi:x:HoneyTrap2026!
+pi:x:AtlasNode91
+pi:x:CedarRoot88
+pi:x:DeltaForge73
+pi:x:EmberStack64
+pi:x:FalconMesh52
+pi:x:GraniteKey47
+pi:x:HarborPulse39
+pi:x:IronVector28
+pi:x:JadeMatrix84
+user:x:HoneyTrap2026!
+user:x:AtlasNode91
+user:x:CedarRoot88
+user:x:DeltaForge73
+user:x:EmberStack64
+user:x:FalconMesh52
+user:x:GraniteKey47
+user:x:HarborPulse39
+user:x:IronVector28
+user:x:JadeMatrix84

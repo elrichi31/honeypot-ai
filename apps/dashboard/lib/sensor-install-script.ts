@@ -145,9 +145,9 @@ function deceptionDownloadLines(services: ServiceKey[]) {
 function cowrieDownloadLines(services: ServiceKey[]) {
   if (!services.includes("ssh")) return []
   return [
+    // No cowrie.cfg / userdb.txt: both come from the image defaults and are then
+    // replaced at runtime by whatever the dashboard config says (beacon -> /signal).
     `curl -fsSL "$RAW/sensors/cowrie/heartbeat.py" -o heartbeat.py`,
-    `curl -fsSL "$RAW/sensors/cowrie/cowrie.cfg"   -o cowrie.cfg`,
-    `curl -fsSL "$RAW/sensors/cowrie/userdb.txt"   -o userdb.txt`,
     `curl -fsSL "$RAW/vector/cowrie.toml"          -o cowrie.toml`,
   ]
 }

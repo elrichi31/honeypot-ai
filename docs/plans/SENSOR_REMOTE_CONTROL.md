@@ -2216,7 +2216,31 @@ La implementacion se considera lista cuando:
 
 ## Deuda tecnica conocida
 
-- Cowrie ya tiene config remota, pero su userdb actual acepta wildcard. Hay que decidir si la UI realmente controla credenciales o si el modo `accept-all` debe mostrarse explicitamente.
+- ~~Cowrie ya tiene config remota, pero su userdb actual acepta wildcard. Hay que decidir si la UI realmente controla credenciales o si el modo `accept-all` debe mostrarse explicitamente.~~
+  **Resuelto 2026-07-31:** decidido que la UI manda. `_generate_userdb()`
+  (`sensors/cowrie/heartbeat.py`) ignoraba el config y escribia `*:x:*`, asi que
+  la pantalla "Accepted credentials" era decorativa y entraba cualquiera. Ahora
+  emite una linea `user:x:pass` por combinacion configurada, descarta valores con
+  `:` (romperian el separador) y cae a los defaults del schema Zod si la lista
+  llega vacia. `sensors/cowrie/userdb.txt` (el bind-mount de instalaciones
+  nuevas) se regenero con esos mismos defaults, sin wildcard. Check:
+  `python sensors/cowrie/test_userdb.py`.
+  Efecto esperado: caen mucho los logins exitosos y por tanto las sesiones
+  post-auth con comandos/malware. Si se quiere volver al cebo abierto, deberia
+  ser un toggle explicito en la UI, no un wildcard silencioso.
+  **Segundo hallazgo, mismo dia:** ningun compose montaba `cowrie_signal` en el
+  servicio `cowrie` — solo en el beacon — y ademas bind-monteaba `cowrie.cfg` y
+  `userdb.txt` como `:ro` sobre `etc/`. El beacon escribia en `/signal`, cowrie no
+  veia ese volumen, y aunque lo viera `safe_copy()` no puede escribir sobre un
+  bind mount read-only (falla en silencio, ver `entrypoint.py`). O sea: **ningun**
+  campo del dialogo de config (hostname, timeouts, version de SSH, kernel,
+  credenciales) llegaba nunca a un sensor real. Corregido en
+  `sensor-compose-blocks.ts` (SSH_TEMPLATE), `docker-compose.prod.honeypot.yml` y
+  `deploy/local/sensor-{cowrie,ssh-web}.yml`: fuera los dos bind mounts, dentro
+  `cowrie_signal:/signal`. Los defaults iniciales ya vienen horneados en la imagen
+  (`/cowrie-defaults`), asi que el instalador dejo de descargar esos dos archivos.
+  Pendiente: la Internal Canary (`ic-cowrie`) sigue sin ruta de config remota
+  — su beacon no tiene `SIGNAL_DIR` ni volumen de signal. Es deliberado por ahora.
 - `dashboard` y `ingest-api` tienen rutas de control locales por Docker socket. Este plan no las elimina; las complementa para sensores remotos.
 - El plan no migra ataques/eventos a WebSocket. Los eventos de ataque siguen por pipeline actual y SSE al dashboard.
 

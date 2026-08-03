@@ -174,8 +174,11 @@ const SSH_TEMPLATE = `  cowrie:
       - "2222:2222"
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var
-      - ./cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
-      - ./userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
+      # Shared with the beacon: it writes cowrie.cfg / userdb.txt here from the
+      # dashboard config and entrypoint.py applies them. Do NOT bind-mount those
+      # two files read-only over etc/ — the copy then fails and the sensor is
+      # stuck with whatever the image baked in.
+      - cowrie_signal:/signal
     networks:
       - edge
     pids_limit: 256
@@ -277,6 +280,9 @@ const FTP_TEMPLATE = `  ftp-honeypot:
       SENSOR_CONTROL_SECRET: ""
     ports:
       - "21:21"
+      # Without the PASV range published, every LIST/STOR/RETR data connection
+      # is refused from outside — the honeypot only ever sees connect + auth.
+      - "50000-50019:50000-50019"
     volumes:
       - ./control_agent.py:/app/control_agent.py:ro
       - ./persisted_config.py:/app/persisted_config.py:ro
