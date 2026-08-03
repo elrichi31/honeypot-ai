@@ -96,13 +96,24 @@ export async function POST(req: NextRequest) {
       model: MODEL,
       input: prompt,
       tools: [{ type: "web_search" }],
-      max_output_tokens: 6000,
+      // Reasoning tokens count against max_output_tokens: too low a budget and
+      // the model thinks itself out of an answer, returning incomplete + empty
+      // output_text. Low effort keeps the searching-and-summarising cheap.
+      reasoning: { effort: "low" },
+      max_output_tokens: 16000,
     })
 
     const text = response.output_text ?? ""
     // The search tool can push the model into fenced output despite the prompt.
     const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)
-    const ai = JSON.parse(json || "{}")
+    if (!json) {
+      throw new Error(
+        `El modelo ${MODEL} no devolvio analisis (status: ${response.status ?? "?"}${
+          response.incomplete_details?.reason ? `, ${response.incomplete_details.reason}` : ""
+        }).`,
+      )
+    }
+    const ai = JSON.parse(json)
     const analyzedAt = new Date()
 
     const result: ThreatAnalysis = {
