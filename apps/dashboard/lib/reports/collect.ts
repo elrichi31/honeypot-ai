@@ -24,6 +24,7 @@ import { buildPeriodLabel, timelineGranularity } from "./shared/format"
 import { summarizeHistory } from "./shared/history"
 import { collectSensorProfiles } from "./sensors/collect"
 import { collectThreatIntel } from "./threat-intel"
+import { collectPersistentAttackers } from "./persistent-attackers"
 
 function aggregateGeo(raw: { srcIp: string; loginSuccess: boolean | null }[]): ReportGeoEntry[] {
   const countries = new Map<string, { countryCode: string; count: number; successCount: number }>()
@@ -227,7 +228,7 @@ async function collectReportKpis(
 }
 
 // Number of parallel tasks below; drives the progress ratio. Keep in sync.
-const REPORT_STEPS = 11
+const REPORT_STEPS = 12
 
 // The rest of the report is windowed to the requested period out of Postgres.
 // This one section deliberately looks past it: a year of history is the query
@@ -249,7 +250,7 @@ export async function collectClientReport(params: {
   const track = <U>(p: Promise<U>): Promise<U> =>
     p.finally(() => onProgress?.(++done, REPORT_STEPS))
 
-  const [overview, kpiTrends, timeline, mitre, botRatio, geoRaw, insights, creds, sensorProfiles, history, threatIntel] =
+  const [overview, kpiTrends, timeline, mitre, botRatio, geoRaw, insights, creds, sensorProfiles, history, threatIntel, persistent] =
     await Promise.allSettled([
       track(fetchHoneypotOverview(sensorIds)),
       track(collectReportKpis(sensorIds, startDate, endDate)),
@@ -269,6 +270,7 @@ export async function collectClientReport(params: {
       track(collectSensorProfiles(sensorIds, startDate, endDate)),
       track(fetchAnalyticsReportSummary({ range: HISTORY_RANGE, credentialLimit: 10, sensorIds })),
       track(collectThreatIntel({ sensorIds, startDate, endDate })),
+      track(collectPersistentAttackers(sensorIds, startDate, endDate)),
     ])
 
   function unwrap<T>(result: PromiseSettledResult<T>, fallback: T): T {
@@ -350,5 +352,6 @@ export async function collectClientReport(params: {
     malware: unwrap(sensorProfiles, []).flatMap((sensor) => sensor.recentMalware),
     history: historySummary,
     threatIntel: unwrap(threatIntel, null),
+    persistentAttackers: unwrap(persistent, []),
   }
 }

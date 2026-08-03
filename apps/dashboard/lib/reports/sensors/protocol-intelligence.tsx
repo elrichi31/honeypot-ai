@@ -18,11 +18,8 @@ export function ProtocolIntelligence({ profile }: { profile: ClientReportData["s
   const hasDatabases = profile.databases.length > 0
   const hasSuricata = profile.suricataAlerts.length > 0
   const hasFingerprints = profile.sshFingerprints.length > 0
-  const hasCreds = profile.credentialCampaigns.length > 0
-  const hasPersistent = profile.persistentAttackers.length > 0
-
   const hasAny = hasSmb || hasFtp || hasScans || hasSourcePorts || hasSourceServices
-    || hasDatabases || hasSuricata || hasFingerprints || hasCreds || hasPersistent
+    || hasDatabases || hasSuricata || hasFingerprints
   if (!hasAny) return null
 
   type Block =
@@ -113,35 +110,6 @@ export function ProtocolIntelligence({ profile }: { profile: ClientReportData["s
   // ── Databases ─────────────────────────────────────────────────────────────
   if (hasDatabases) {
     blocks.push({ kind: "bar", title: "Targeted Databases", data: profile.databases.slice(0, 5).map((r) => ({ label: trunc(r.label, 20), count: r.count })) })
-  }
-
-  // ── Credential campaigns ──────────────────────────────────────────────────
-  if (hasCreds) {
-    blocks.push({
-      kind: "table", title: "Active Credential Campaigns",
-      headers: ["Username", "Password", "Attempts", "IPs"],
-      rows: profile.credentialCampaigns.slice(0, 5).map((r) => [
-        trunc(r.username ?? "-", 16),
-        trunc(r.password ?? "-", 14),
-        fmt(r.attempts),
-        fmt(r.ips),
-      ]),
-      widths: ["30%", "28%", "22%", "20%"],
-    })
-  }
-
-  // ── Persistent attackers ──────────────────────────────────────────────────
-  if (hasPersistent) {
-    blocks.push({
-      kind: "table", title: "Persistent Attackers",
-      headers: ["IP", "Days Active", "Total Hits"],
-      rows: profile.persistentAttackers.slice(0, 5).map((r) => [
-        r.ip,
-        String(r.activeDays),
-        fmt(r.totalHits),
-      ]),
-      widths: ["44%", "28%", "28%"],
-    })
   }
 
   // Cap at 6 blocks = 3 rows of 2

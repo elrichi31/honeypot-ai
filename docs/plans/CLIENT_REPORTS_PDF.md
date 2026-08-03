@@ -1,6 +1,6 @@
 # Reportería por Cliente (PDF)
 
-Estado: **Fase 1.8 completa** (2026-08-03). Fase 1 completa desde 2026-06-30. Todos los archivos implementados; `tsc --noEmit` pasa limpio.
+Estado: **Fase 1.9 completa** (2026-08-03). Fase 1 completa desde 2026-06-30. Todos los archivos implementados; `tsc --noEmit` pasa limpio.
 
 ## Contexto
 
@@ -363,6 +363,63 @@ template,narrative}.ts(x)`, `lib/reports/shared/format.ts` (`threatPeriod`),
 **Límite conocido:** los actores salen de `/threats` con `period` en presets fijos
 (24h/7d/30d/90d); un rango custom se redondea al preset que lo cubra, igual que ya pasa
 con overview/mitre/bot. Mismo límite pre-existente de la fase 1.5.
+
+---
+
+### Fase 1.9 — Sensores, web y aislamiento por cliente en el entregable (2026-08-03)
+
+Estado: **implementada**. `tsc --noEmit` limpio; `npm test` 124/124 en verde.
+
+**El hallazgo que ordenó la fase.** Desde la 1.6 el entregable es `window.print()`
+del `ReportView` (HTML), no el documento react-pdf. Toda la riqueza por sensor que
+vive en `lib/reports/sensors/*.tsx` (páginas por sensor, web intelligence, protocol
+intelligence, charts) **nunca llegaba al cliente**: el `ReportView` no tenía ni una
+sección de sensores. La data ya se recolectaba y viajaba por el SSE; sólo faltaba
+renderizarla en el HTML.
+
+**Fuga entre tenants, corregida.** `credentialCampaigns` y `persistentAttackers` se
+leían de `daily_credential_stats` / `daily_attacker_stats`, rollups que **no tienen
+dimensión de sensor ni de cliente** — el reporte de un cliente mostraba credenciales
+e IPs de las honeypots de otros. `credentialCampaigns` se eliminó (la sección de
+credenciales del reporte ya trae lo mismo, y esa sí está scopeada);
+`persistentAttackers` se reescribió en `lib/reports/persistent-attackers.ts` contando
+días activos sobre `sessions`/`web_hits`/`protocol_hits` con `sensor_id = ANY(scope)`,
+y pasó de repetirse en cada sensor a ser un dato de nivel cliente.
+
+**Qué entra en el entregable**
+- *Sensor Fleet*: KPIs (sensores desplegados, en línea, servicios emulados, eventos),
+  barra de participación por sensor, tabla de **todos** los sensores del cliente —
+  incluidos los que no vieron nada, marcados "sin eventos en este período", porque el
+  silencio también es un resultado — y los atacantes que volvieron en varios días.
+- *Web Attack Intelligence*: KPIs, mezcla de tipos de ataque como barra apilada,
+  bloque "cómo leer esto" con canary hits, peticiones encadenadas, sesiones que rotan
+  IP y profundidad media por sesión; tablas de rutas, métodos, canary tokens, sesiones
+  dominantes y user agents. Los perfiles web de todos los sensores HTTP se suman en
+  `lib/reports/shared/web-merge.ts` (los tipos de ataque se deduplican por etiqueta,
+  no se suman dos veces).
+- *Detalle por sensor* al cierre del reporte: KPIs, actividad diaria (barras) y por
+  hora del día (heatmap), top de IPs atacantes con país/red/abuso, tipos de evento,
+  credenciales, inteligencia de protocolo (Suricata, fingerprints SSH, SMB, FTP,
+  bases de datos, puertos) y malware capturado. Los bloques vacíos no se renderizan.
+- La narrativa IA recibe la flota completa y el bloque web, y gana tres observaciones
+  nuevas por sección: `sensors`, `actors`, `web`.
+
+**Charts sin dependencias.** El entregable se imprime; una librería de charts sobre
+canvas sale en blanco o cortada. `components/reports/report-charts.tsx` son CSS/flex
+puros: barras verticales diarias, heatmap de 24 celdas por opacidad (legible también
+en escala de grises) y barra apilada de participación.
+
+**Archivos.** Nuevos: `components/reports/{report-ui,report-charts,report-sensors,
+report-web,report-threat-intel}.tsx`, `lib/reports/persistent-attackers.ts`,
+`lib/reports/shared/web-merge.ts` (+ `.test.ts`), `lib/i18n/dicts/reports-sensors.ts`.
+Modificados: `components/reports/report-view.tsx` (adelgazado a composición),
+`lib/reports/{collect,types,narrative}.ts` (+ tests), `lib/reports/sensors/collect.ts`,
+`lib/reports/sensors/protocols/collect.ts` (queries cross-tenant fuera),
+`lib/reports/sensors/protocol-intelligence.tsx`, `lib/i18n/dictionaries.ts`.
+
+**Deuda que queda:** el documento react-pdf (`lib/reports/template.tsx` + `sensors/`)
+sigue existiendo en paralelo al HTML y ya divergen. O se borra, o se declara el
+camino de PDF server-side; hoy nadie lo descarga.
 
 ---
 

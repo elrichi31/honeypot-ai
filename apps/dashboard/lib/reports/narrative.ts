@@ -12,13 +12,16 @@ const LOCALE_LANGUAGE: Record<string, string> = {
   es: "Spanish",
 }
 
-// Four narrative blocks plus eight per-section observations.
-const MAX_TOKENS = 2000
+// Four narrative blocks plus one observation per report section.
+const MAX_TOKENS = 2600
 
 export const NARRATIVE_SECTIONS = [
   "timeline",
   "sources",
+  "sensors",
   "mitre",
+  "actors",
+  "web",
   "credentials",
   "reconnaissance",
   "geo",
@@ -90,6 +93,27 @@ By protocol: ${history.byProtocol.map((p) => `${p.label} ${p.count}`).join(", ")
     })
     .join("\n")
 
+  // Every sensor, including the silent ones — "nothing hit this decoy" is a
+  // finding the model should be able to point at.
+  const fleet = data.sensors
+    .map((p) => `${p.sensor.name} (${p.sensor.protocol}, ${p.sensor.online ? "online" : "offline"}): ${p.sensor.eventsTotal} events (${p.eventShare.toFixed(1)}% of client), ${p.uniqueIps} unique IPs, ${p.authAttempts} auth attempts, ${p.successCount} accepted, ${p.malwareCount} malware`)
+    .join("\n")
+
+  const webProfiles = data.sensors.map((p) => p.web).filter(Boolean)
+  const webBlock = webProfiles.length > 0
+    ? (() => {
+        const sum = (pick: (w: NonNullable<typeof webProfiles[number]>) => number) =>
+          webProfiles.reduce((acc, w) => acc + pick(w!), 0)
+        const types = new Map<string, number>()
+        for (const w of webProfiles) for (const a of w!.topAttackTypes) types.set(a.label, (types.get(a.label) ?? 0) + a.count)
+        const top = [...types.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6)
+        return `HTTP hits: ${sum((w) => w.hits)} across ${sum((w) => w.sessionCount)} observed sessions (${sum((w) => w.fingerprintedSessions)} fingerprinted)
+Unique paths: ${sum((w) => w.uniquePaths)}
+Canary hits: ${sum((w) => w.canaryHits)}, chained requests: ${sum((w) => w.chainHits)}, sessions rotating IPs: ${sum((w) => w.multiIpSessions)}
+Attack types: ${top.map(([label, count]) => `${label} ${count}`).join(", ") || "none"}`
+      })()
+    : "no HTTP decoy activity"
+
   const iocCounts = threatIntel
     ? `C2/payload URLs: ${threatIntel.iocs.c2.length}, planted SSH keys: ${threatIntel.iocs.sshKeys.length}, credential indicators: ${threatIntel.iocs.credentials.length}, HASSH fingerprints: ${threatIntel.iocs.hassh.length}`
     : "none collected"
@@ -137,6 +161,12 @@ ${actors || "none scored"}
 ## Indicators of compromise collected
 ${iocCounts}
 
+## Decoy fleet deployed for this client
+${fleet || "none"}
+
+## HTTP decoy activity
+${webBlock}
+
 ## Long-range history from the analytics lake
 ${historyBlock}`
 }
@@ -168,6 +198,9 @@ Return ONLY valid JSON (no markdown) with this exact structure:
   "sections": {
     "timeline": "1-2 sentences on the activity timeline: peaks, quiet periods, whether volume is steady or bursty",
     "sources": "1-2 sentences on which services drew the most traffic and what that mix says about the attackers' targeting",
+    "sensors": "1-2 sentences on the decoy fleet: which sensor absorbed most of the activity, and what a quiet sensor tells the client",
+    "actors": "1-2 sentences on the highest-risk individual sources: what separates the worst one from the rest",
+    "web": "1-2 sentences on the HTTP decoys: what the attack mix and the canary/chained requests say about whether this was targeted or background scanning",
     "mitre": "1-2 sentences on the tactic distribution and what stage of the attack chain the activity concentrates in",
     "credentials": "1-2 sentences on the credential table: spray vs targeted, reused pairs, default-credential lists",
     "reconnaissance": "1-2 sentences on the funnel drop-off: how many got in, how many did anything after",

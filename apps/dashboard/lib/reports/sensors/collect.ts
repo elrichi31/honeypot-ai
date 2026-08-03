@@ -205,8 +205,6 @@ export async function collectSensorProfiles(
       suricataAlerts: protocolIntel.suricataMap.get(sensor.sensorId) ?? [],
       topEnrichedAttackers: protocolIntel.enrichedMap.get(sensor.sensorId) ?? [],
       sshFingerprints: protocolIntel.fingerprintMap.get(sensor.sensorId) ?? [],
-      credentialCampaigns: protocolIntel.credentialCampaigns,
-      persistentAttackers: protocolIntel.persistentAttackers,
       dailyActivity: dailyActivity.get(sensor.sensorId) ?? [],
       hourlyActivity: hourlyActivity.get(sensor.sensorId) ?? [],
       web: web

@@ -4,8 +4,6 @@ import type {
   ReportEnrichedAttacker,
   ReportSuricataAlert,
   ReportSshFingerprint,
-  ReportCredentialCampaign,
-  ReportPersistentAttacker,
 } from "../../types"
 
 type LabelRow = { sensor_id: string; label: string; count: string }
@@ -32,8 +30,6 @@ export async function collectProtocolSensorIntel(
     suricataRows,
     enrichedRows,
     fingerprintRows,
-    credentialRows,
-    persistentRows,
   ] = await Promise.all([
     db.query<LabelRow>(
       `WITH ranked AS (
@@ -336,32 +332,6 @@ export async function collectProtocolSensorIntel(
        SELECT sensor_id, client_version, sessions::text, successes::text FROM ranked WHERE rn <= 6`,
       [sensorIdSet, startDate, endDate],
     ),
-    // Credential campaigns (global, not per-sensor — filtered to period)
-    db.query<{ username: string; password: string; attempts: string; ips: string }>(
-      `SELECT username, password,
-              SUM(attempts)::bigint::text AS attempts,
-              SUM(unique_ips)::bigint::text AS ips
-       FROM daily_credential_stats
-       WHERE day >= $1::date AND day <= $2::date
-         AND username IS NOT NULL
-       GROUP BY username, password
-       ORDER BY SUM(attempts) DESC
-       LIMIT 6`,
-      [startDate, endDate],
-    ),
-    // Persistent attackers (global — most days active in period)
-    db.query<{ src_ip: string; active_days: string; total_hits: string }>(
-      `SELECT src_ip,
-              COUNT(DISTINCT day)::text AS active_days,
-              SUM(events)::bigint::text AS total_hits
-       FROM daily_attacker_stats
-       WHERE day >= $1::date AND day <= $2::date
-       GROUP BY src_ip
-       HAVING COUNT(DISTINCT day) >= 3
-       ORDER BY COUNT(DISTINCT day) DESC, SUM(events) DESC
-       LIMIT 6`,
-      [startDate, endDate],
-    ),
   ])
 
   const eventBreakdown = groupLabelCounts(eventBreakdownRows.rows)
@@ -400,20 +370,6 @@ export async function collectProtocolSensorIntel(
     fingerprintMap.set(row.sensor_id, list)
   }
 
-  // Global: shared across all sensors in the report
-  const credentialCampaigns: ReportCredentialCampaign[] = credentialRows.rows.map((r) => ({
-    username: r.username,
-    password: r.password,
-    attempts: Number(r.attempts),
-    ips: Number(r.ips),
-  }))
-
-  const persistentAttackers: ReportPersistentAttacker[] = persistentRows.rows.map((r) => ({
-    ip: r.src_ip,
-    activeDays: Number(r.active_days),
-    totalHits: Number(r.total_hits),
-  }))
-
   return {
     eventBreakdown,
     sourcePorts,
@@ -429,7 +385,5 @@ export async function collectProtocolSensorIntel(
     suricataMap,
     enrichedMap,
     fingerprintMap,
-    credentialCampaigns,
-    persistentAttackers,
   }
 }

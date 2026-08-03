@@ -30,6 +30,21 @@ const data = {
     totalAttempts: 90, successfulAttempts: 7, uniqueUsernames: 12,
     uniquePasswords: 60, sprayPasswords: 4, targetedUsernames: 2,
   },
+  sensors: [
+    {
+      sensor: { sensorId: "s-ssh-1", name: "edge-ssh", protocol: "ssh", online: true, eventsTotal: 120 },
+      eventShare: 60, uniqueIps: 30, authAttempts: 90, successCount: 7, malwareCount: 2,
+    },
+    {
+      sensor: { sensorId: "s-web-1", name: "portal-web", protocol: "http", online: false, eventsTotal: 400 },
+      eventShare: 40, uniqueIps: 50, authAttempts: 0, successCount: 0, malwareCount: 0,
+      web: {
+        hits: 400, uniquePaths: 88, sessionCount: 40, fingerprintedSessions: 31,
+        multiIpSessions: 4, canaryHits: 12, chainHits: 26,
+        topAttackTypes: [{ label: "sqli", count: 90 }, { label: "path-traversal", count: 40 }],
+      },
+    },
+  ],
   history: {
     firstBucket: "2026-01-01", lastBucket: "2026-07-08", totalEvents: 9000,
     totalAttempts: 800, successRatePct: 99.9, byProtocol: [{ label: "SSH", count: 9000 }],
@@ -53,6 +68,20 @@ test("a null delta reads as 'no prior data', never as 0%", () => {
   assert.match(d, /Web hits: 400 \(-10% vs previous period\)/)
 })
 
+test("the digest names every decoy, including one that saw nothing worth reporting", () => {
+  const d = buildNarrativeDigest(data)
+  assert.match(d, /edge-ssh \(ssh, online\): 120 events \(60.0% of client\)/)
+  assert.match(d, /portal-web \(http, offline\)/)
+  assert.match(d, /HTTP hits: 400 across 40 observed sessions \(31 fingerprinted\)/)
+  assert.match(d, /Canary hits: 12, chained requests: 26/)
+  assert.match(d, /Attack types: sqli 90, path-traversal 40/)
+})
+
+test("a client with no HTTP decoy says so instead of printing zeros", () => {
+  const d = buildNarrativeDigest({ ...data, sensors: [] } as unknown as ClientReportData)
+  assert.match(d, /## HTTP decoy activity\nno HTTP decoy activity/)
+})
+
 test("a missing lake section degrades to a marker, not a crash", () => {
   const d = buildNarrativeDigest({ ...data, history: null })
   assert.match(d, /Long-range history from the analytics lake\nnot available/)
@@ -60,7 +89,7 @@ test("a missing lake section degrades to a marker, not a crash", () => {
 
 test("empty collections render as 'none' rather than blank headings", () => {
   const d = buildNarrativeDigest({
-    ...data, mitre: { tactics: [], total: 0 }, geo: [], topCredentials: [],
+    ...data, mitre: { tactics: [], total: 0 }, geo: [], topCredentials: [], sensors: [],
   } as unknown as ClientReportData)
   assert.match(d, /## MITRE ATT&CK tactics observed\nnone/)
   assert.match(d, /none/)

@@ -1,116 +1,13 @@
 "use client"
 
 import { useLocale } from "@/components/locale-provider"
-import { fmt, pct, deltaStr, sumBucket, buildPeriodLabel } from "@/lib/reports/shared/format"
-import type { ClientReportData, ReportActorIntel, ReportNarrative, ReportTheme } from "@/lib/reports/types"
-import type { MetricTrend } from "@/lib/api/types"
-import {
-  actorTableRows,
-  iocTables,
-  originLine,
-  reputationLine,
-} from "@/lib/reports/shared/threat-intel-view"
-
-function Section({
-  title,
-  insight,
-  children,
-}: {
-  title: string
-  /** AI observation about this section's own numbers; omitted when the model
-   *  had nothing worth saying, so no empty note box is ever rendered. */
-  insight?: string
-  children: React.ReactNode
-}) {
-  const { t } = useLocale()
-  return (
-    <section className="report-section rounded-xl border border-border bg-card p-5">
-      <h2 className="mb-4 text-base font-semibold text-primary">{title}</h2>
-      {children}
-      {insight && (
-        <div className="mt-4 border-l-2 border-primary pl-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-primary">
-            {t("reports.insight.label")}
-          </p>
-          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{insight}</p>
-        </div>
-      )}
-    </section>
-  )
-}
-
-function Kpi({ label, value, trend }: { label: string; value: string; trend?: MetricTrend }) {
-  const delta = trend ? deltaStr(trend.deltaPct) : null
-  const up = (trend?.deltaPct ?? 0) >= 0
-  return (
-    <div className="rounded-lg border border-border bg-background px-4 py-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{value}</p>
-      {delta && (
-        <p className={`text-xs font-medium ${up ? "text-emerald-500" : "text-rose-500"}`}>{delta}</p>
-      )}
-    </div>
-  )
-}
-
-function Bars({ items }: { items: { label: string; value: number; meta?: string }[] }) {
-  const max = Math.max(1, ...items.map((i) => i.value))
-  if (!items.length) return <EmptyRow />
-  return (
-    <div className="flex flex-col gap-2">
-      {items.map((item, i) => (
-        <div key={`${item.label}-${i}`} className="flex items-center gap-3">
-          <div className="w-32 shrink-0 truncate text-xs text-muted-foreground" title={item.label}>
-            {item.label}
-          </div>
-          {/* Full-strength track: the palette's muted is already a faint
-              burgundy wash, and dropping it to 40% over white erases it. */}
-          <div className="relative h-5 flex-1 overflow-hidden rounded bg-muted">
-            <div
-              className="h-full rounded bg-primary"
-              style={{ width: `${(item.value / max) * 100}%` }}
-            />
-          </div>
-          <div className="w-24 shrink-0 text-right text-xs tabular-nums text-foreground">
-            {fmt(item.value)}
-            {item.meta ? <span className="ml-1 text-muted-foreground">{item.meta}</span> : null}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function Table({ headers, rows }: { headers: string[]; rows: (string | number)[][] }) {
-  if (!rows.length) return <EmptyRow />
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border text-left text-xs text-muted-foreground">
-            {headers.map((h) => (
-              <th key={h} className="py-2 pr-4 font-medium">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr key={i} className="border-b border-border/50">
-              {row.map((cell, j) => (
-                <td key={j} className="py-2 pr-4 tabular-nums text-foreground">{cell}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-function EmptyRow() {
-  const { t } = useLocale()
-  return <p className="text-sm text-muted-foreground">{t("reports.noActivity")}</p>
-}
+import { fmt, pct, sumBucket, buildPeriodLabel } from "@/lib/reports/shared/format"
+import type { ClientReportData, ReportNarrative, ReportTheme } from "@/lib/reports/types"
+import { Bars, Kpi, Section, Table } from "./report-ui"
+import { ThreatIntelSection } from "./report-threat-intel"
+import { SensorDetailSection, SensorFleetSection } from "./report-sensors"
+import { WebIntelSection } from "./report-web"
+import { mergeWebProfiles } from "@/lib/reports/shared/web-merge"
 
 function Narrative({
   narrative,
@@ -166,117 +63,6 @@ function Narrative({
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <div className="mt-0.5 text-sm leading-relaxed text-foreground">{children}</div>
-    </div>
-  )
-}
-
-function ActorCard({ actor }: { actor: ReportActorIntel }) {
-  const { t } = useLocale()
-  const ai = actor.analysis
-
-  return (
-    <div className="rounded-lg border border-border bg-background p-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="font-mono text-sm font-semibold text-foreground">{actor.ip}</p>
-        <p className="text-xs font-semibold text-primary">{actor.score}/100 · {actor.level}</p>
-      </div>
-      <p className="mt-1 text-xs text-muted-foreground">
-        {originLine(actor)} — {reputationLine(actor)}
-        {actor.lastReportedAt ? ` — ${t("reports.ti.lastReported")} ${actor.lastReportedAt.slice(0, 10)}` : ""}
-      </p>
-
-      <div className="mt-3 flex flex-col gap-3">
-        {actor.topFactors.length > 0 && (
-          <Field label={t("reports.ti.factors")}>{actor.topFactors.join(" · ")}</Field>
-        )}
-        {actor.vtFlaggedBy.length > 0 && (
-          <Field label={t("reports.ti.flaggedBy")}>{actor.vtFlaggedBy.join(", ")}</Field>
-        )}
-        {ai ? (
-          <>
-            <Field label={t("reports.ti.profile")}>{ai.actorProfile}</Field>
-            {ai.intent && <Field label={t("reports.ti.intent")}>{ai.intent}</Field>}
-            <Field label={t("reports.ti.sophistication")}>{ai.sophistication}</Field>
-            {ai.keyTactics.length > 0 && (
-              <Field label={t("reports.ti.tactics")}>
-                <ul className="list-disc pl-5">
-                  {ai.keyTactics.map((tactic, i) => <li key={i}>{tactic}</li>)}
-                </ul>
-              </Field>
-            )}
-            {ai.webFindings && <Field label={t("reports.ti.webFindings")}>{ai.webFindings}</Field>}
-            {ai.iocs.length > 0 && (
-              <Field label={t("reports.ti.iocs")}>
-                <span className="font-mono text-xs break-all">{ai.iocs.join(", ")}</span>
-              </Field>
-            )}
-            {ai.recommendation && <Field label={t("reports.ti.recommendation")}>{ai.recommendation}</Field>}
-            {ai.sources.length > 0 && (
-              <Field label={t("reports.ti.sources")}>
-                <ul className="list-disc pl-5 text-xs">
-                  {ai.sources.map((src) => (
-                    <li key={src.url} className="break-all">{src.title} — {src.url}</li>
-                  ))}
-                </ul>
-              </Field>
-            )}
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground">{t("reports.ti.noAnalysis")}</p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function ThreatIntelSection({ intel }: { intel: NonNullable<ClientReportData["threatIntel"]> }) {
-  const { t } = useLocale()
-  const tables = iocTables(intel.iocs, t)
-  const analyzed = intel.actors.filter((actor) => actor.analysis || actor.topFactors.length > 0)
-
-  return (
-    <Section title={t("reports.ti.title")}>
-      <p className="mb-4 text-xs text-muted-foreground">{t("reports.ti.subtitle")}</p>
-      <Table
-        headers={[
-          t("reports.ti.actor"),
-          t("reports.ti.risk"),
-          t("reports.mitre.techniques"),
-          t("reports.ti.activity"),
-          t("reports.ti.origin"),
-          t("reports.ti.reputation"),
-        ]}
-        rows={actorTableRows(intel.actors)}
-      />
-
-      {analyzed.length > 0 && (
-        <div className="mt-5 flex flex-col gap-4">
-          {analyzed.map((actor) => <ActorCard key={actor.ip} actor={actor} />)}
-        </div>
-      )}
-
-      {tables.length > 0 && (
-        <div className="mt-5 flex flex-col gap-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            {t("reports.ti.iocsTitle")}
-          </p>
-          {tables.map((table) => (
-            <div key={table.title}>
-              <p className="mb-2 text-xs text-muted-foreground">{table.title}</p>
-              <Table headers={table.headers} rows={table.rows} />
-            </div>
-          ))}
-        </div>
-      )}
-    </Section>
-  )
-}
-
 export function ReportView({
   data,
   narrative = null,
@@ -326,6 +112,8 @@ export function ReportView({
     { label: t("reports.chart.unknown"), value: botRatio.unknown },
   ].filter((r) => r.value > 0)
 
+  const web = mergeWebProfiles(data.sensors)
+
   return (
     <div id="report-print-root" data-report-theme={theme} className="flex flex-col gap-5 bg-background text-foreground">
       <header className="report-section rounded-xl border border-border bg-card p-6">
@@ -360,6 +148,8 @@ export function ReportView({
         </Section>
       </div>
 
+      <SensorFleetSection data={data} insight={insight("sensors")} />
+
       <Section title={t("reports.section.threats")} insight={insight("mitre")}>
         <Table
           headers={[t("reports.mitre.tactic"), t("reports.mitre.techniques"), t("reports.mitre.hits")]}
@@ -371,7 +161,9 @@ export function ReportView({
         />
       </Section>
 
-      {data.threatIntel && <ThreatIntelSection intel={data.threatIntel} />}
+      {data.threatIntel && <ThreatIntelSection intel={data.threatIntel} insight={insight("actors")} />}
+
+      {web && <WebIntelSection web={web} insight={insight("web")} />}
 
       <Section title={t("reports.section.credentials")} insight={insight("credentials")}>
         <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -441,6 +233,12 @@ export function ReportView({
           </div>
         </Section>
       )}
+
+      {/* Per-sensor detail closes the report: the fleet table above says which
+          decoy mattered, these say exactly what each one saw. */}
+      {data.sensors.map((profile) => (
+        <SensorDetailSection key={profile.sensor.sensorId} profile={profile} />
+      ))}
 
       <p className="text-center text-xs text-muted-foreground">{t("reports.footer.confidential")}</p>
     </div>

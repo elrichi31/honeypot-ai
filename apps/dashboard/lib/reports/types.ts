@@ -104,13 +104,6 @@ export interface ReportSshFingerprint {
   successes: number
 }
 
-export interface ReportCredentialCampaign {
-  username: string
-  password: string
-  attempts: number
-  ips: number
-}
-
 export interface ReportPersistentAttacker {
   ip: string
   activeDays: number
@@ -146,8 +139,6 @@ export interface ReportSensorProfile {
   scannedPorts: ReportLabelCount[]
   suricataAlerts: ReportSuricataAlert[]
   sshFingerprints: ReportSshFingerprint[]
-  credentialCampaigns: ReportCredentialCampaign[]
-  persistentAttackers: ReportPersistentAttacker[]
   web?: ReportWebProfile
 }
 
@@ -243,6 +234,8 @@ export interface ClientReportData {
   credentialSummary: CredentialsSummary
   diversifiedAttackers: DiversifiedAttackerStat[]
   sensors: ReportSensorProfile[]
+  /** Client-level, not per-sensor: IPs that returned on several days. */
+  persistentAttackers: ReportPersistentAttacker[]
   malware: MalwareArtifact[]
   history: ReportHistory | null
   /** `null` when the tenant has no scoped sensors or the threats endpoint failed. */
