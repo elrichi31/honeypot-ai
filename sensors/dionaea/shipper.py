@@ -436,7 +436,7 @@ def _ingest_sample(md5, file_type, size, source_type, source_url, source_name, s
         req = Request(
             f"{INGEST_URL}/ingest/malware",
             data=payload,
-            headers={"Content-Type": "application/json", "x-shared-secret": SECRET},
+            headers={"Content-Type": "application/json", "X-Ingest-Token": SECRET},
             method="POST",
         )
         with urlopen(req, timeout=10) as resp:

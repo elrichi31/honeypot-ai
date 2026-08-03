@@ -36,7 +36,7 @@ def detect_ip() -> str:
     return ""
 
 
-def _post(path: str, payload: dict):
+def _post(path: str, payload: dict) -> dict | None:
     body = json.dumps(payload).encode()
     req = Request(
         f"{INGEST_API_URL}{path}",
@@ -49,8 +49,34 @@ def _post(path: str, payload: dict):
             status = resp.status
             if status >= 400:
                 log.warning("ingest %s returned %s: %s", path, status, resp.read().decode()[:200])
+                return None
+            raw = resp.read()
+            return json.loads(raw) if raw else {}
     except Exception as exc:
         log.warning("ingest %s error: %s", path, exc)
+        return None
+
+
+def _put_sample(md5: str, content: bytes) -> bool:
+    """Ship the captured bytes so the dashboard can serve them. A sensor on a
+    client network shares no volume with the platform, so without this the
+    sample exists only here and every download 404s."""
+    req = Request(
+        f"{INGEST_API_URL}/ingest/malware/{md5}/content",
+        data=content,
+        headers={
+            "Content-Type": "application/octet-stream",
+            "X-Ingest-Token": INGEST_SHARED_SECRET,
+        },
+        method="PUT",
+    )
+    try:
+        # Generous timeout: this is the one call whose size is attacker-chosen.
+        with urlopen(req, timeout=120) as resp:
+            return 200 <= resp.status < 300
+    except Exception as exc:
+        log.warning("sample upload %s failed: %s", md5, exc)
+        return False
 
 
 def _emit(event: dict):
@@ -121,7 +147,7 @@ def save_upload(content: bytes, filename: str, src_ip: str, src_port: int) -> di
     except Exception as exc:
         log.error("could not save upload from %s: %s", src_ip, exc)
 
-    _post("/ingest/malware", {
+    resp = _post("/ingest/malware", {
         "md5": md5,
         "fileType": file_type,
         "size": len(content),
@@ -134,6 +160,8 @@ def save_upload(content: bytes, filename: str, src_ip: str, src_port: int) -> di
         "sensorId": SENSOR_ID,
         "capturedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
     })
+    if resp and resp.get("needsContent"):
+        _put_sample(md5, content)
 
     return {"fileName": filename, "md5": md5, "sha256": sha256, "size": len(content)}
 

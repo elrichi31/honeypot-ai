@@ -422,6 +422,9 @@ services:
       # Our FTP honeypot saves uploads (MD5-named + .meta.json) here; expose them
       # to the malware view alongside Dionaea/Cowrie artifacts.
       FTP_CAPTURES_PATH: /ftp-captures
+      # Samples PUT by remote sensors. Local honeypots here fill the mounts
+      # above; anything on a client network can only arrive over HTTP.
+      MALWARE_STORE_PATH: /malware-store
       SURICATA_OWN_IPS: ${SURICATA_OWN_IPS:-}
       KAFKA_BROKERS: kafka:9092
       # ANALYTICS_MODULE (docs/plans/ANALYTICS_MODULE.md): only the analytics
@@ -449,6 +452,7 @@ services:
       - dionaea_var:/dionaea:ro
       - cowrie_var:/cowrie:ro
       - ftp_captures:/ftp-captures:ro
+      - malware_store:/malware-store
       - geoip_data:/app/geodata
       - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
@@ -872,6 +876,7 @@ volumes:
   smb_share:
   smb_captures:
   ftp_captures:
+  malware_store:
   geoip_data:
   ftp_config:
   mysql_config:

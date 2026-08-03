@@ -301,10 +301,14 @@ services:
       DIONAEA_BINARIES_PATH: /dev/null/no-local-sensors
       COWRIE_DOWNLOADS_PATH: /dev/null/no-local-sensors
       FTP_CAPTURES_PATH: /dev/null/no-local-sensors
+      # The one sample dir that works here: remote sensors PUT their captures
+      # to /ingest/malware/:md5/content and they land in this volume.
+      MALWARE_STORE_PATH: /malware-store
     group_add:
       - "${DOCKER_GID:-110}"
     volumes:
       - dashboard_data:/app/data
+      - malware_store:/malware-store
       - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
       test:
@@ -386,6 +390,7 @@ volumes:
   pg_data:
   pg_replica_data:
   dashboard_data:
+  malware_store:
   kafka_data:
   clickhouse_data:
 

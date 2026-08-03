@@ -6,6 +6,7 @@ Each plan is the source of truth for its feature. Keep it updated as work progre
 ## Active plans
 
 - [SENSOR_FLEET_UPDATES.md](SENSOR_FLEET_UPDATES.md) - Remote software updates for the sensor fleet: pull-based host updater, digest-pinned release manifest, canary rollout, auto-rollback, image signing.
+- [MALWARE_SAMPLE_TRANSFER.md](MALWARE_SAMPLE_TRANSFER.md) - Getting captured sample bytes from a remote sensor to the platform so downloads work off single-host. Phase 1 shipped; backfill of pre-existing samples, cowrie's disk-read path, and a disk quota remain.
 - [SENSOR_REMOTE_CONTROL.md](SENSOR_REMOTE_CONTROL.md) - WebSocket control plane for sensors: remote config, acknowledged commands, live status, fallback, security, audit trail, and rollout.
 - [KAFKA_LAKE.md](KAFKA_LAKE.md) - Streaming rework so ingestion behaves identically in single-host and multi-host: reroute cowrie/suricata Vector to HTTP, move Kafka behind the ingest-api as an internal fan-out tee, prerequisite for the data lake.
 - [ANALYTICS_MODULE.md](ANALYTICS_MODULE.md) - Historical analytics on ClickHouse (KAFKA_LAKE 3d/3e in detail): trends explorer, credential intelligence (retires the `credential_attempts` matview), cross-source attacker profile, Suricata signature trends, sensor/client comparison.

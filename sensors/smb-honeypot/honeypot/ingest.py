@@ -37,7 +37,7 @@ def detect_ip() -> str:
     return ""
 
 
-def _post(path: str, payload: dict) -> tuple[bool, int | None, str | None]:
+def _post(path: str, payload: dict) -> tuple[bool, int | None, str | None, dict | None]:
     body = json.dumps(payload, default=str).encode()
     req = Request(
         f"{INGEST_API_URL}{path}",
@@ -47,15 +47,43 @@ def _post(path: str, payload: dict) -> tuple[bool, int | None, str | None]:
     )
     try:
         with urlopen(req, timeout=5) as resp:
-            return 200 <= getattr(resp, "status", 200) < 300, getattr(resp, "status", 200), None
+            status = getattr(resp, "status", 200)
+            raw = resp.read()
+            doc = json.loads(raw) if raw else {}
+            return 200 <= status < 300, status, None, doc
     except Exception as exc:
-        return False, None, str(exc)
+        return False, None, str(exc), None
 
 
-def post_malware(payload: dict):
-    ok, status, err = _post("/ingest/malware", payload)
+def _put_sample(md5: str, content: bytes) -> bool:
+    """Ship the captured bytes so the dashboard can serve them. A sensor on a
+    client network shares no volume with the platform, so without this the
+    sample exists only here and every download 404s."""
+    req = Request(
+        f"{INGEST_API_URL}/ingest/malware/{md5}/content",
+        data=content,
+        headers={
+            "Content-Type": "application/octet-stream",
+            "X-Ingest-Token": INGEST_SHARED_SECRET,
+        },
+        method="PUT",
+    )
+    try:
+        # Generous timeout: this is the one call whose size is attacker-chosen.
+        with urlopen(req, timeout=120) as resp:
+            return 200 <= resp.status < 300
+    except Exception as exc:
+        log.warning("sample upload %s failed: %s", md5, exc)
+        return False
+
+
+def post_malware(payload: dict, content: bytes | None = None):
+    ok, status, err, doc = _post("/ingest/malware", payload)
     if not ok:
         log.warning("post_malware failed status=%s err=%s", status, err)
+        return
+    if content and doc and doc.get("needsContent"):
+        _put_sample(payload["md5"], content)
 
 
 def _emit(event: dict):
@@ -115,4 +143,5 @@ def send_heartbeat(sensor_ip: str) -> tuple[bool, int | None, str | None]:
     image_version = os.getenv("SENSOR_IMAGE_VERSION")
     if image_version:
         payload["imageVersion"] = image_version
-    return _post("/sensors/heartbeat", payload)
+    ok, status, err, _doc = _post("/sensors/heartbeat", payload)
+    return ok, status, err

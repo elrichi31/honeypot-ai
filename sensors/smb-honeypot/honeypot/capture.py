@@ -60,7 +60,7 @@ def _capture_file(local_path: str, share: str, requested_path: str, src_ip: str)
             "dstPort": DST_PORT,
             "sensorId": SENSOR_ID,
             "capturedAt": captured_at,
-        })
+        }, content=data)
         log.info("captured file sha256=%s size=%d from %s", sha256[:16], size, src_ip)
         return {"sha256": sha256, "md5": md5, "fileSize": size}
     except Exception as exc:
