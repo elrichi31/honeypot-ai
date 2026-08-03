@@ -140,7 +140,14 @@ def main():
         server.setSMB2Support(True)
         server.setSMBChallenge("")
         server.setLogFile("/dev/null")
-        server.addCredential("__honeypot__", 0, "aad3b435b51404eeaad3b435b51404ee", "31d6cfe0d16ae931b73c59d7e0c089c0")
+        # NEVER register a credential here. impacket only validates NTLM when
+        # its credentials dict is non-empty ("if len(smbServer.getCredentials())
+        # > 0" in smbserver.py, both the SMB1 and SMB2 session setup); empty, it
+        # grants access to anyone, which is what a honeypot wants. A single
+        # placeholder credential switched real validation on and every attacker
+        # got STATUS_LOGON_FAILURE — nobody ever reached the share, so the whole
+        # file-capture path below never ran once. Verified against the live
+        # sensor: 88k SMB events, zero captures.
         server.setAuthCallback(_auth_callback)
 
         log.info(
