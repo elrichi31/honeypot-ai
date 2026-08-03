@@ -1,6 +1,6 @@
 import { db } from "@/lib/db"
 import type { IpEnrichment } from "@/lib/ip-enrichment"
-import type { ThreatAnalysis } from "@/app/api/ai/threat-analysis/route"
+import type { ThreatAnalysis } from "@/lib/ai/threat-analyze"
 
 export async function readEnrichmentCache(ip: string): Promise<IpEnrichment | null> {
   try {

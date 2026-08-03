@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Bot, Cpu, ShieldAlert, Sparkles, RefreshCw, Loader2, Globe, Link as LinkIcon } from "lucide-react"
 import { TimeAgo } from "@/components/time-ago"
 import type { ThreatDetail } from "@/lib/api"
-import type { ThreatAnalysis } from "@/app/api/ai/threat-analysis/route"
+import type { ThreatAnalysis } from "@/lib/ai/threat-analyze"
 import { Surface } from "@/components/ui/surface"
 
 const SOPHISTICATION_LABELS: Record<string, { label: string; color: string }> = {

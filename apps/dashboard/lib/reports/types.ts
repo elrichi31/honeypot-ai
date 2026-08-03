@@ -7,7 +7,10 @@ import type {
   DashboardInsights,
   CredentialsSummary,
   DiversifiedAttackerStat,
+  RiskLevel,
 } from "@/lib/api/types"
+import type { AggregatedIocsResponse } from "@/lib/api/iocs"
+import type { ThreatAnalysis } from "@/lib/ai/threat-analyze"
 import type { AnalyticsCredentialCombo, AnalyticsRange } from "@/lib/api/analytics"
 import type { Sensor } from "@/lib/api/services"
 import type { MalwareArtifact } from "@/lib/api/malware"
@@ -165,6 +168,40 @@ export interface ReportHistory {
   topCredentials: AnalyticsCredentialCombo[]
 }
 
+/** One high-risk actor as the report shows it: honeypot evidence, external
+ *  reputation from the enrichment cache, and the deep AI analysis when one is
+ *  available (cached from the threats page, or generated for this report). */
+export interface ReportActorIntel {
+  ip: string
+  score: number
+  level: RiskLevel
+  protocols: string[]
+  crossProtocol: boolean
+  topFactors: string[]
+  sshSessions: number
+  loginSuccess: boolean
+  commandCount: number
+  webHits: number
+  protocolHits: number
+  ports: number[]
+  country: string | null
+  org: string | null
+  usageType: string | null
+  hosting: boolean
+  abuseScore: number | null
+  abuseReports: number | null
+  lastReportedAt: string | null
+  vtMalicious: number | null
+  vtEngineCount: number | null
+  vtFlaggedBy: string[]
+  analysis: ThreatAnalysis | null
+}
+
+export interface ReportThreatIntel {
+  actors: ReportActorIntel[]
+  iocs: AggregatedIocsResponse
+}
+
 /** Palette the report renders in, independent of the (dark-only) app chrome.
  *  Drives both the on-screen preview and the printed PDF — they must match. */
 export type ReportTheme = "light" | "dark"
@@ -208,4 +245,6 @@ export interface ClientReportData {
   sensors: ReportSensorProfile[]
   malware: MalwareArtifact[]
   history: ReportHistory | null
+  /** `null` when the tenant has no scoped sensors or the threats endpoint failed. */
+  threatIntel: ReportThreatIntel | null
 }

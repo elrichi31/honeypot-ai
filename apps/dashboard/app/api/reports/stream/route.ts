@@ -6,7 +6,7 @@ import { generateReportNarrative } from "@/lib/reports/narrative"
 export const dynamic = "force-dynamic"
 // Collection plus the narrative LLM call. The narrative is emitted after the
 // report data, so hitting this ceiling costs the prose, never the report.
-export const maxDuration = 60
+export const maxDuration = 300
 
 // SSE: streams real per-stage collection progress, then the full report data,
 // then the AI narrative. Consumed by the client with EventSource to drive a

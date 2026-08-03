@@ -9,6 +9,16 @@ export function timelineGranularity(startDate: string, endDate: string): "day" |
   return "month"
 }
 
+/** The threats/IoCs endpoints only window by fixed presets; pick the smallest
+ *  one that still covers the report period so nothing printed is missing. */
+export function threatPeriod(startDate: string, endDate: string): "24h" | "7d" | "30d" | "90d" {
+  const spanDays = (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000
+  if (spanDays <= 1) return "24h"
+  if (spanDays <= 7) return "7d"
+  if (spanDays <= 30) return "30d"
+  return "90d"
+}
+
 export type ReportPreset = "last7" | "last30" | "thisMonth" | "lastMonth" | "custom"
 
 // Resolves a preset (or custom YYYY-MM-DD dates) to an ISO window, or null if

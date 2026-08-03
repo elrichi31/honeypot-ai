@@ -5,6 +5,7 @@ import OpenAI from "openai"
 import { getOpenAiKey } from "@/lib/server-config"
 import type { Locale } from "@/lib/i18n/dictionaries"
 import type { ClientReportData, ReportNarrative } from "./types"
+import { originLine } from "./shared/threat-intel-view"
 
 const LOCALE_LANGUAGE: Record<string, string> = {
   en: "English",
@@ -46,7 +47,7 @@ export function pickSections(raw: unknown): Partial<Record<NarrativeSection, str
  * context for no gain). Pure so it can be asserted on without a network call.
  */
 export function buildNarrativeDigest(data: ClientReportData): string {
-  const { meta, overview, kpiTrends, mitre, botRatio, insights, geo, topCredentials, credentialSummary, history } = data
+  const { meta, overview, kpiTrends, mitre, botRatio, insights, geo, topCredentials, credentialSummary, history, threatIntel } = data
 
   const delta = (d: number | null) => (d == null ? "no prior data" : `${d > 0 ? "+" : ""}${d}% vs previous period`)
 
@@ -73,6 +74,25 @@ Total events over that span: ${history.totalEvents}
 SSH login attempts: ${history.totalAttempts}, success rate ${history.successRatePct.toFixed(1)}%
 By protocol: ${history.byProtocol.map((p) => `${p.label} ${p.count}`).join(", ")}`
     : "not available"
+
+  // The per-actor block the report already prints — the summary should be able
+  // to name the worst actor instead of talking about "attackers" in the abstract.
+  const actors = (threatIntel?.actors ?? [])
+    .slice(0, 5)
+    .map((a) => {
+      const rep = [
+        a.abuseScore != null && `AbuseIPDB ${a.abuseScore}%`,
+        a.vtMalicious != null && `VirusTotal ${a.vtMalicious}/${a.vtEngineCount ?? 0}`,
+      ].filter(Boolean).join(", ")
+      return `${a.ip} — risk ${a.score}/100 (${a.level}), ${a.protocols.join("+") || "no protocol"}, ${originLine(a)}${rep ? `, ${rep}` : ""}${
+        a.analysis ? `\n  Analysis: ${a.analysis.sophistication} — ${a.analysis.intent || a.analysis.actorProfile}` : ""
+      }`
+    })
+    .join("\n")
+
+  const iocCounts = threatIntel
+    ? `C2/payload URLs: ${threatIntel.iocs.c2.length}, planted SSH keys: ${threatIntel.iocs.sshKeys.length}, credential indicators: ${threatIntel.iocs.credentials.length}, HASSH fingerprints: ${threatIntel.iocs.hassh.length}`
+    : "none collected"
 
   return `## Client and period
 Client: ${meta.clientName}
@@ -110,6 +130,12 @@ Bot sessions: ${botRatio.bot}, human-like: ${botRatio.human}, unclassified: ${bo
 
 ## Geographic origin (by event volume, not distinct IPs)
 ${countries || "none"}
+
+## Highest-risk individual actors this period
+${actors || "none scored"}
+
+## Indicators of compromise collected
+${iocCounts}
 
 ## Long-range history from the analytics lake
 ${historyBlock}`

@@ -39,6 +39,7 @@ import * as users from "./dicts/users"
 import * as threatIntel from "./dicts/threat-intel"
 import * as webAttacks from "./dicts/web-attacks"
 import * as reports from "./dicts/reports"
+import * as reportsThreatIntel from "./dicts/reports-threat-intel"
 import * as alerts from "./dicts/alerts"
 import * as analytics from "./dicts/analytics"
 import * as analyticsCredentials from "./dicts/analytics-credentials"
@@ -83,6 +84,7 @@ const en = {
   ...threatIntel.en,
   ...webAttacks.en,
   ...reports.en,
+  ...reportsThreatIntel.en,
   ...alerts.en,
   ...analytics.en,
   ...analyticsCredentials.en,
@@ -121,6 +123,7 @@ const es: Record<TranslationKey, string> = {
   ...threatIntel.es,
   ...webAttacks.es,
   ...reports.es,
+  ...reportsThreatIntel.es,
   ...alerts.es,
   ...analytics.es,
   ...analyticsCredentials.es,

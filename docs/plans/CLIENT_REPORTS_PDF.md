@@ -1,6 +1,6 @@
 # Reportería por Cliente (PDF)
 
-Estado: **Fase 1 completa** (2026-06-30). Todos los archivos implementados; `tsc --noEmit` pasa limpio.
+Estado: **Fase 1.8 completa** (2026-08-03). Fase 1 completa desde 2026-06-30. Todos los archivos implementados; `tsc --noEmit` pasa limpio.
 
 ## Contexto
 
@@ -314,6 +314,57 @@ en [ANALYTICS_MODULE.md → Fase F](ANALYTICS_MODULE.md).
    conocido).
 4. Isolation: superadmin dos clientes → números distintos; scoped pidiendo otro
    `clientId` → sus datos o 403.
+
+### Fase 1.8 — Inteligencia de actores en el reporte (2026-08-03)
+
+Estado: **implementada**. `tsc --noEmit` limpio; `npm test` 118/118 en verde.
+
+Hasta aquí el reporte hablaba de agregados (MITRE, credenciales, geo) pero nunca de
+**quién** atacó. Esta fase mete en el reporte la misma inteligencia que ya vive en
+`/threats/[ip]`: score de riesgo, reputación externa cacheada y el análisis profundo
+por actor del commit `f17e809` (modelo con búsqueda web, evidencia cruda en el prompt).
+
+**Qué entra en el reporte**
+- Tabla de los 6 actores de mayor score del período: IP, score/nivel, protocolos,
+  actividad (sesiones SSH, comandos, hits web/servicio, si obtuvo shell), origen
+  (país · org/ASN · usage type · hosting/VPN) y reputación (AbuseIPDB %, VT n/m).
+- Ficha por actor con los factores del score, puertos sondeados, motores de VT que la
+  marcan y —cuando hay análisis— perfil del actor, intención, sofisticación, tácticas
+  clave, hallazgos de internet, IoCs extraídos, recomendación y fuentes citadas.
+- Sección de IoCs agregados del período (`/iocs`): URLs de C2/payload, llaves SSH
+  plantadas, indicadores de credenciales y fingerprints HASSH. Las familias vacías no
+  se renderizan.
+- El digest de la narrativa también recibe los actores y el conteo de IoCs, para que el
+  resumen ejecutivo pueda nombrar la peor IP en vez de hablar de "los atacantes".
+
+**Costo, que es la decisión de diseño real.** El análisis profundo es una llamada de
+razonamiento + búsqueda web por IP. El colector lee primero `ai_threat_cache` (el mismo
+que escribe la página de threats) y sólo genera los que falten, con presupuesto
+`REPORT_AI_THREAT_LIMIT` (default 3, `0` lo desactiva). La reputación se lee **sólo de
+`ip_enrichment_cache`**: el reporte nunca gasta cuota de AbuseIPDB/VT. Como preview y
+descarga comparten caché, el PDF casi siempre lee lo que el preview ya generó; aun así
+`maxDuration` de ambas rutas subió a 300.
+
+**DRY:** la llamada al modelo salió del route handler a `lib/ai/threat-analyze.ts`
+(`analyzeThreat`), que ahora usan tanto `/api/ai/threat-analysis` como el reporte —
+una sola definición del prompt, del parseo y del write a caché. El formateo de
+actores/IoCs vive en `lib/reports/shared/threat-intel-view.ts` y lo comparten el PDF y
+la vista on-page, así no divergen.
+
+**Archivos.** Nuevos: `lib/ai/threat-analyze.ts`, `lib/reports/threat-intel.ts`,
+`lib/reports/shared/threat-intel-view.ts` (+ `.test.ts`),
+`lib/reports/sections/threat-intel.tsx`, `lib/i18n/dicts/reports-threat-intel.ts`.
+Modificados: `app/api/ai/threat-analysis/route.ts` (adelgazado), `lib/ai/threat-cache.ts`,
+`components/ai-threat-summary.tsx` (import del tipo), `lib/reports/{collect,types,
+template,narrative}.ts(x)`, `lib/reports/shared/format.ts` (`threatPeriod`),
+`components/reports/report-view.tsx`, `app/api/reports/{route,stream/route}.ts`,
+`lib/i18n/dictionaries.ts`.
+
+**Límite conocido:** los actores salen de `/threats` con `period` en presets fijos
+(24h/7d/30d/90d); un rango custom se redondea al preset que lo cubra, igual que ya pasa
+con overview/mitre/bot. Mismo límite pre-existente de la fase 1.5.
+
+---
 
 ---
 

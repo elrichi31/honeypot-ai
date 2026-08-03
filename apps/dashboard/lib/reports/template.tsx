@@ -9,6 +9,7 @@ import { ThreatSummarySection } from "./sections/threat-summary"
 import { CredentialsSummarySection } from "./sections/credentials-summary"
 import { SshSummarySection } from "./sections/ssh-summary"
 import { WebSummarySection } from "./sections/web-summary"
+import { ThreatIntelPages } from "./sections/threat-intel"
 
 export function ReportDocument({ data, t }: { data: ClientReportData; t: T }) {
   return (
@@ -24,6 +25,8 @@ export function ReportDocument({ data, t }: { data: ClientReportData; t: T }) {
         <WebSummarySection data={data} title={t("reports.section.web")} />
         <Footer data={data} t={t} />
       </Page>
+
+      <ThreatIntelPages data={data} t={t} />
 
       {data.sensors.map((profile) => (
         <Page key={profile.sensor.sensorId} size="A4" style={s.page}>

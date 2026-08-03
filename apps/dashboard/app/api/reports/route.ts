@@ -6,7 +6,9 @@ import { translate } from "@/lib/i18n/dictionaries"
 import type { TranslationKey } from "@/lib/i18n/dictionaries"
 
 export const dynamic = "force-dynamic"
-export const maxDuration = 30
+// Collection can now include fresh per-actor AI analyses (web search + reasoning).
+// The preview normally warms that cache first, so the PDF path usually reads it.
+export const maxDuration = 300
 
 export async function GET(request: NextRequest) {
   const resolved = await resolveReportRequest(request.nextUrl.searchParams)
