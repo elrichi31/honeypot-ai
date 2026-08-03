@@ -34,10 +34,9 @@ export function buildCompose(
   registry = DEFAULT_REGISTRY,
   clientSlug = "",
   clientName = "",
-  rawBase = "",
 ): string {
   const isInternalCanary = services.includes("internal-canary")
-  const blocks = selectedServiceBlocks(services, deployId, registry, rawBase)
+  const blocks = selectedServiceBlocks(services, deployId, registry)
   const volumeLines = buildVolumeLines(services)
   // Internal deploys (canary and int-* nodes) are standalone LAN composes — no
   // Suricata (no internet iface to sniff) and no edge network. int-* still needs
@@ -56,7 +55,7 @@ export function buildCompose(
   ].join("\n\n")
 }
 
-function selectedServiceBlocks(services: ServiceKey[], deployId: string, registry: string, rawBase: string) {
+function selectedServiceBlocks(services: ServiceKey[], deployId: string, registry: string) {
   // Internal canary is a fully standalone compose — mutually exclusive with all
   // other services which are internet-facing DMZ sensors.
   if (services.includes("internal-canary")) {
@@ -80,7 +79,7 @@ function selectedServiceBlocks(services: ServiceKey[], deployId: string, registr
   if (services.includes("ftp")) blocks.push(ftpBlock(deployId, registry))
   if (services.includes("mysql")) blocks.push(mysqlBlock(deployId, registry))
   if (services.includes("port")) blocks.push(portBlock(deployId, registry))
-  if (services.includes("smb")) blocks.push(smbBlock(deployId, rawBase))
+  if (services.includes("smb")) blocks.push(smbBlock(deployId, registry))
   if (withDeception) blocks.push(deceptionBlock(deployId, registry))
   return blocks
 }
@@ -132,7 +131,7 @@ function buildVolumeLines(services: ServiceKey[]) {
   volumes.push("  vector_data:", "  suricata_logs:")
   if (services.includes("smb")) volumes.push("  smb_share:", "  smb_captures:", "  smb_config:", "  smb_events:")
   if (services.includes("port")) volumes.push("  port_config:", "  port_events:")
-  if (services.includes("ftp")) volumes.push("  ftp_config:", "  ftp_events:")
+  if (services.includes("ftp")) volumes.push("  ftp_config:", "  ftp_events:", "  ftp_captures:")
   if (services.includes("mysql")) volumes.push("  mysql_config:", "  mysql_events:")
   if (services.includes("deception")) volumes.push("  opencanary_logs:", "  opencanary_shipper_state:")
   return volumes.join("\n")

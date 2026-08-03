@@ -100,6 +100,29 @@ Límites conocidos:
 Verificado: script generado con `buildScript` real y `bash -n` sobre el
 instalador completo y sobre el `sensor-update` extraído; `tsc` limpio.
 
+**SMB dejó de construirse en el host (2026-08-03).** Verificado en el sensor de
+istamericas: `sensor-update` imprimía `smb-honeypot Skipped - No image to be
+pulled`. `SMB_TEMPLATE` traía un `build.dockerfile_inline` que bajaba los
+fuentes por `ADD` desde raw — invisible para `docker compose pull`, así que el
+sensor quedaba congelado en el build del día de la instalación (meses, en la
+práctica). El motivo original desapareció en Fase 0, cuando `smb-honeypot`
+entró a la matriz de publicación; `INT_SMB_TEMPLATE` ya usaba la imagen del
+registry. Ahora `SMB_TEMPLATE` también, así que se actualiza como los demás y
+de paso reporta `imageVersion` (el build local nunca horneó `GIT_SHA`). Con eso
+`rawBase` dejó de usarse en `buildCompose()` y se quitó de su firma; el
+instalador lo sigue usando para `$RAW`. Check: test *"every sensor comes from
+the registry, never a local build"*.
+
+**Capturas de FTP persistidas (2026-08-03).** El bloque FTP no montaba nada en
+`/captures`, así que las muestras subidas vivían en la capa del contenedor y
+cada `sensor-update` que lo recreaba las borraba; sobrevivía solo la metadata
+que va por `/ingest/malware`. Añadido `ftp_captures:/captures`, como ya hacía
+`smb_captures` y como el single-host ya tenía cableado. Pendiente aparte: en un
+sensor remoto los bytes nunca llegan a la plataforma, y la descarga de muestras
+lee de `FTP_CAPTURES_PATH` local (`malware.service.ts`), así que para clientes
+sigue siendo metadata-only. Eso necesita subir el binario a ingest-api y merece
+su propio plan.
+
 **Siguiente paso:** Fase 1 (tabla `sensor_releases`, `GET /fleet/manifest`,
 updater de host, endpoints de promoción, página Fleet updates).
 

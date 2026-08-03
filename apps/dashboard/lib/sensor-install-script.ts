@@ -10,7 +10,7 @@ export function buildScript(
   clientSlug = "",
   clientName = "",
 ): string {
-  const compose = buildCompose(deployId, ingestUrl, secret, services, registry, clientSlug, clientName, rawBase)
+  const compose = buildCompose(deployId, ingestUrl, secret, services, registry, clientSlug, clientName)
   return SCRIPT_TEMPLATE
     .replaceAll("{{services}}", services.join(", "))
     .replaceAll("{{idsNote}}", hasSuricata(services) ? " + Suricata IDS" : "")

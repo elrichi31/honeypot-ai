@@ -206,6 +206,9 @@ services:
       - ./sensors/_shared/control_agent.py:/app/control_agent.py:ro
       - ./sensors/_shared/persisted_config.py:/app/persisted_config.py:ro
       - ftp_config:/config
+      # Uploaded samples. Without this they live in the container layer and every
+      # sensor-update wipes them — only the /ingest/malware metadata survives.
+      - ftp_captures:/captures
     networks:
       - edge
     pids_limit: 128
@@ -333,6 +336,7 @@ volumes:
   port_events:
   smb_events:
   ftp_config:
+  ftp_captures:
   mysql_config:
   port_config:
   smb_config:

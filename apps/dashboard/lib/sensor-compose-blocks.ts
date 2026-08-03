@@ -132,8 +132,8 @@ export function internalCanaryBlock(deployId: string, registry: string) {
   return fill(INTERNAL_CANARY_TEMPLATE, { deployId, registry })
 }
 
-export function smbBlock(deployId: string, rawBase: string) {
-  return fill(SMB_TEMPLATE, { deployId, rawBase })
+export function smbBlock(deployId: string, registry: string) {
+  return fill(SMB_TEMPLATE, { deployId, registry })
 }
 
 const HEADER_TEMPLATE = `x-service-defaults: &service-defaults
@@ -288,6 +288,9 @@ const FTP_TEMPLATE = `  ftp-honeypot:
       - ./persisted_config.py:/app/persisted_config.py:ro
       - ftp_config:/config
       - ftp_events:/var/log/ftp-honeypot
+      # Uploaded samples. Without this they live in the container layer and every
+      # sensor-update wipes them — only the /ingest/malware metadata survives.
+      - ftp_captures:/captures
     networks:
       - edge
     pids_limit: 128`
@@ -609,26 +612,12 @@ const INTERNAL_CANARY_TEMPLATE = `  ic-cowrie:
 const SMB_TEMPLATE = `  smb-honeypot:
     <<: *service-defaults
     logging: *json-logging
-    # SMB Honeypot uses Impacket — built from source, not a registry image.
-    # Pull the latest app.py from the repo and build locally.
-    build:
-      context: .
-      dockerfile_inline: |
-        FROM python:3.12-alpine
-        RUN apk add --no-cache gcc musl-dev libffi-dev openssl-dev && \\
-            pip install --no-cache-dir impacket==0.12.0 websockets==13.1 && \\
-            apk del gcc musl-dev libffi-dev
-        WORKDIR /app
-        ADD {{rawBase}}/sensors/smb-honeypot/app.py /app/app.py
-        ADD {{rawBase}}/sensors/_shared/control_agent.py /app/control_agent.py
-        ADD {{rawBase}}/sensors/_shared/persisted_config.py /app/persisted_config.py
-        ADD {{rawBase}}/sensors/smb-honeypot/honeypot/__init__.py         /app/honeypot/__init__.py
-        ADD {{rawBase}}/sensors/smb-honeypot/honeypot/config.py           /app/honeypot/config.py
-        ADD {{rawBase}}/sensors/smb-honeypot/honeypot/capture.py          /app/honeypot/capture.py
-        ADD {{rawBase}}/sensors/smb-honeypot/honeypot/identity.py         /app/honeypot/identity.py
-        ADD {{rawBase}}/sensors/smb-honeypot/honeypot/impacket_patches.py /app/honeypot/impacket_patches.py
-        ADD {{rawBase}}/sensors/smb-honeypot/honeypot/ingest.py           /app/honeypot/ingest.py
-        CMD ["python", "-u", "app.py"]
+    # Registry image, same as every other sensor. It used to build locally from
+    # raw URLs because the workflow did not publish smb-honeypot; it does since
+    # SENSOR_FLEET_UPDATES Fase 0. A local build is invisible to docker compose
+    # pull, so sensor-update silently skipped it ("No image to be pulled") and
+    # the sensor stayed frozen at whatever it was built with on install day.
+    image: {{registry}}/smb-honeypot:latest
     container_name: smb-honeypot
     cap_add:
       - NET_BIND_SERVICE

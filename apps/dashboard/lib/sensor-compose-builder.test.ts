@@ -130,3 +130,19 @@ for (const svc of ["http", "int-http"] as ServiceKey[]) {
     }
   })
 }
+
+// sensor-update only ever runs `docker compose pull`. A service that builds
+// locally is skipped ("No image to be pulled") and stays frozen at whatever it
+// was built with on install day — smb-honeypot did exactly that for months.
+test("every sensor comes from the registry, never a local build", () => {
+  const yaml = buildCompose("test01", "https://ingest.example", "secret")
+  assert.ok(!/^\s*build:/m.test(yaml), "no service may declare build: — pull cannot update it")
+})
+
+// FTP uploads land in /captures. Without a volume they live in the container
+// layer, so the next update that recreates it destroys every captured sample.
+test("ftp: captured uploads survive a container recreate", () => {
+  const yaml = compose(["ftp"])
+  assert.ok(yaml.includes("- ftp_captures:/captures"), "ftp-honeypot must mount a captures volume")
+  assert.match(yaml, /^  ftp_captures:$/m, "captures volume must be declared")
+})

@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
   switch (params.get("kind") ?? "compose") {
     case "compose":
       return new NextResponse(
-        buildCompose(deployId, ingestUrl, secret, services, REGISTRY, clientSlug, clientName, RAW_BASE),
+        buildCompose(deployId, ingestUrl, secret, services, REGISTRY, clientSlug, clientName),
         { headers: { "Content-Type": "text/yaml; charset=utf-8" } },
       )
 
