@@ -120,3 +120,36 @@ without a population.
 - Enrichment (AbuseIPDB/VirusTotal) as a score input. Keeping third-party
   reputation out of a score built from own telemetry is a deliberate line; a
   "known abuser" tag in the list is the cheaper answer if it's wanted.
+
+---
+
+## Done — 2026-08-03 — AI threat analysis: full evidence + live web search
+
+The `/threats/[ip]` AI card read as generic boilerplate because the prompt was
+fed a summary, not the evidence. Two changes:
+
+**Prompt now carries the whole actor** (`lib/ai/threat-prompt.ts`, extracted out
+of the route). Previously dropped and now included: AbuseIPDB reporter comments
+and decoded categories, hostnames/domain/usage type, the *names* of the VT
+engines flagging the IP with their verdicts, VT network range, JARM and the TLS
+cert it serves, ipinfo geo + hosting/VPN/proxy flags, Spectra Analyze detections
+and associated malware families, the port-scan block (was missing entirely), the
+correlation-alert keys and timestamps, and the observed activity window. Command
+samples went 60 → 120 per source, credentials 20 → 40, web paths 8 → 40.
+
+**The model searches the internet** — `client.responses.create` with
+`tools: [{ type: "web_search" }]` on `gpt-5-mini` (override with
+`OPENAI_THREAT_MODEL`), replacing the `chat.completions` + `gpt-4o-mini` call.
+Two new output fields render on the card: `webFindings` (what OSINT says about
+the IP/ASN/campaign) and `iocs`. Source links come from the search tool's own
+`url_citation` annotations, never from model prose, so a hallucinated URL cannot
+reach the UI.
+
+**Bug fixed in passing:** `app/threats/[ip]/page.tsx` was reading the AI cache
+from a `data/ai-threat-cache.json` file that the route stopped writing long ago
+— every page load re-ran the analysis and paid for it. Both cache readers now
+live in `lib/ai/threat-cache.ts` and hit `ai_threat_cache` in Postgres.
+
+Check: `npx tsx lib/ai/threat-prompt.test.ts` asserts the evidence actually
+lands in the prompt and that a bare threat with no enrichment emits no
+`undefined`.

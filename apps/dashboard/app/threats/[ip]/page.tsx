@@ -14,46 +14,10 @@ import { ThreatGraphView } from "@/components/threat-graph-view"
 import { IntelTimeline } from "@/components/intel-timeline"
 import { AttackerTimeline } from "@/components/analytics/attacker-timeline"
 import { buildThreatGraph } from "@/lib/threat-graph"
-import { db } from "@/lib/db"
-import type { IpEnrichment as IpEnrichmentData } from "@/lib/ip-enrichment"
 import { Surface } from "@/components/ui/surface"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { getServerT } from "@/lib/i18n/server"
-import fs from "fs"
-import path from "path"
-import type { ThreatAnalysis } from "@/app/api/ai/threat-analysis/route"
-
-// Reads the cached IP enrichment straight from the DB (same pattern as the
-// session detail page) so the graph/timeline never spend external API quota.
-async function readEnrichmentCache(ip: string): Promise<IpEnrichmentData | null> {
-  try {
-    const { rows } = await db.query(
-      `SELECT abuseipdb_data, ipinfo_data, spectra_analyze_data, virustotal_data, cached_at FROM ip_enrichment_cache WHERE ip = $1`,
-      [ip]
-    )
-    const row = rows[0]
-    if (!row || (!row.abuseipdb_data && !row.ipinfo_data && !row.spectra_analyze_data && !row.virustotal_data)) return null
-    return {
-      ip,
-      abuseipdb: row.abuseipdb_data,
-      ipinfo: row.ipinfo_data,
-      spectraAnalyze: row.spectra_analyze_data,
-      virustotal: row.virustotal_data ?? null,
-      cachedAt: row.cached_at.toISOString(),
-    }
-  } catch { return null }
-}
-
-function readThreatCache(ip: string): ThreatAnalysis | null {
-  try {
-    const cachePath = path.join(process.cwd(), "data", "ai-threat-cache.json")
-    if (!fs.existsSync(cachePath)) return null
-    const cache = JSON.parse(fs.readFileSync(cachePath, "utf-8"))
-    return cache[ip] ?? null
-  } catch {
-    return null
-  }
-}
+import { readAiThreatCache, readEnrichmentCache } from "@/lib/ai/threat-cache"
 
 export async function generateMetadata({ params }: { params: Promise<{ ip: string }> }): Promise<Metadata> {
   const { ip } = await params
@@ -79,8 +43,10 @@ export default async function ThreatDetailPage({
     notFound()
   }
 
-  const cachedAnalysis = readThreatCache(srcIp)
-  const enrichmentCache = await readEnrichmentCache(srcIp)
+  const [cachedAnalysis, enrichmentCache] = await Promise.all([
+    readAiThreatCache(srcIp),
+    readEnrichmentCache(srcIp),
+  ])
   const graph = buildThreatGraph(threat, enrichmentCache)
 
   const s = LEVEL_STYLES[threat.risk.level]

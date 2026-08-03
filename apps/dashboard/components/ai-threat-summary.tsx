@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Bot, Cpu, ShieldAlert, Sparkles, RefreshCw, Loader2 } from "lucide-react"
-import { formatDistanceToNow } from "date-fns"
+import { Bot, Cpu, ShieldAlert, Sparkles, RefreshCw, Loader2, Globe, Link as LinkIcon } from "lucide-react"
 import { TimeAgo } from "@/components/time-ago"
 import type { ThreatDetail } from "@/lib/api"
 import type { ThreatAnalysis } from "@/app/api/ai/threat-analysis/route"
@@ -138,6 +137,48 @@ export function AiThreatSummary({ ip, threat, initialAnalysis, autoTrigger }: Pr
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {/* Web findings + sources from the model's live search */}
+          {analysis.webFindings && (
+            <div className="px-4 py-3">
+              <p className="mb-1 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+                <Globe className="h-3 w-3" /> Open-source intel
+              </p>
+              <p className="text-sm text-foreground">{analysis.webFindings}</p>
+              {analysis.sources.length > 0 && (
+                <ul className="mt-2 flex flex-wrap gap-1.5">
+                  {analysis.sources.map((s) => (
+                    <li key={s.url}>
+                      <a
+                        href={s.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={s.url}
+                        className="inline-flex max-w-[24rem] items-center gap-1 truncate rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
+                      >
+                        <LinkIcon className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{s.title}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {/* IoCs */}
+          {analysis.iocs.length > 0 && (
+            <div className="px-4 py-3">
+              <p className="mb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Indicators</p>
+              <div className="flex flex-wrap gap-1.5">
+                {analysis.iocs.map((ioc, i) => (
+                  <code key={i} className="rounded border border-border bg-secondary px-1.5 py-0.5 font-mono text-[11px] text-foreground break-all">
+                    {ioc}
+                  </code>
+                ))}
+              </div>
             </div>
           )}
 

@@ -5,29 +5,13 @@ import { getOpenAiKey } from "@/lib/server-config"
 import type { ThreatDetail } from "@/lib/api"
 import { getApiUrl } from "@/lib/api/client"
 import { requireRole } from "@/lib/roles"
-import type { IpEnrichment } from "@/lib/ip-enrichment"
 import { logAndRespond } from "@/lib/api-error"
+import { buildThreatPrompt, type CorrelationAlert } from "@/lib/ai/threat-prompt"
+import { readAiThreatCache, readEnrichmentCache } from "@/lib/ai/threat-cache"
 
-type CorrelationAlert = { alertKey: string; level: string; title: string; description: string; createdAt: string }
-
-async function readEnrichmentCache(ip: string): Promise<IpEnrichment | null> {
-  try {
-    const { rows } = await db.query(
-      `SELECT abuseipdb_data, ipinfo_data, spectra_analyze_data, virustotal_data, cached_at FROM ip_enrichment_cache WHERE ip = $1`,
-      [ip],
-    )
-    const row = rows[0]
-    if (!row || (!row.abuseipdb_data && !row.ipinfo_data && !row.spectra_analyze_data && !row.virustotal_data)) return null
-    return {
-      ip,
-      abuseipdb: row.abuseipdb_data,
-      ipinfo: row.ipinfo_data,
-      spectraAnalyze: row.spectra_analyze_data,
-      virustotal: row.virustotal_data ?? null,
-      cachedAt: row.cached_at.toISOString(),
-    }
-  } catch { return null }
-}
+// Web search only exists on the Responses API and the gpt-5 family; override
+// with OPENAI_THREAT_MODEL if the account is gated to something else.
+const MODEL = process.env.OPENAI_THREAT_MODEL ?? "gpt-5-mini"
 
 async function fetchCorrelationAlerts(ip: string): Promise<CorrelationAlert[]> {
   try {
@@ -41,13 +25,38 @@ async function fetchCorrelationAlerts(ip: string): Promise<CorrelationAlert[]> {
   } catch { return [] }
 }
 
+export interface ThreatSource {
+  title: string
+  url: string
+}
+
 export interface ThreatAnalysis {
   actorProfile: string
   intent: string
   sophistication: "script-kiddie" | "organized-crime" | "apt-like"
   keyTactics: string[]
+  webFindings: string
+  iocs: string[]
+  sources: ThreatSource[]
   recommendation: string
   analyzedAt: string
+}
+
+// The model returns prose; the URLs come from the search tool's own annotations
+// so a hallucinated link can never reach the UI.
+function extractSources(response: { output?: unknown }): ThreatSource[] {
+  const seen = new Map<string, ThreatSource>()
+  const output = Array.isArray(response.output) ? response.output : []
+  for (const item of output as any[]) {
+    for (const part of item?.content ?? []) {
+      for (const ann of part?.annotations ?? []) {
+        if (ann?.type === "url_citation" && ann.url && !seen.has(ann.url)) {
+          seen.set(ann.url, { url: ann.url, title: ann.title || ann.url })
+        }
+      }
+    }
+  }
+  return [...seen.values()].slice(0, 8)
 }
 
 export async function GET(req: NextRequest) {
@@ -57,16 +66,7 @@ export async function GET(req: NextRequest) {
   const ip = req.nextUrl.searchParams.get("ip")
   if (!ip) return NextResponse.json(null)
 
-  const { rows } = await db.query(
-    `SELECT analysis, analyzed_at FROM ai_threat_cache WHERE ip = $1`,
-    [ip],
-  )
-  if (!rows[0]) return NextResponse.json(null)
-
-  return NextResponse.json({
-    ...rows[0].analysis,
-    analyzedAt: rows[0].analyzed_at.toISOString(),
-  } as ThreatAnalysis)
+  return NextResponse.json(await readAiThreatCache(ip))
 }
 
 export async function POST(req: NextRequest) {
@@ -88,128 +88,21 @@ export async function POST(req: NextRequest) {
     fetchCorrelationAlerts(ip),
   ])
 
-  const activeCats = Object.entries(threat.risk.commandCategories)
-    .filter(([, commands]) => commands.length > 0)
-    .map(([category, commands]) => `  ${category}: ${commands.slice(0, 6).join(", ")}`)
-    .join("\n")
-
-  const serviceLines = threat.protocols
-    ? Object.entries(threat.protocols.byService)
-        .map(([protocol, stats]) => {
-          const ports = stats.ports.length > 0 ? stats.ports.join(", ") : "n/a"
-          return `- ${protocol.toUpperCase()}: ${stats.hits} eventos, ${stats.authAttempts} auth, ${stats.commandEvents} commands, puertos ${ports}`
-        })
-        .join("\n")
-    : ""
-
-  // Raw command sequence with timing, not just a sample — lets the model reason
-  // about order/intent (e.g. recon before backdoor) instead of a bag of words.
-  const rawCommandLines = threat.classifiedCommands
-    .slice(0, 60)
-    .map((c) => `  [${c.ts}] (${c.category}) ${c.command}`)
-    .join("\n")
-
-  // Same idea for non-SSH honeypots (ftp/mysql/smb/etc via port-honeypot) — raw
-  // input typed against those services, not just aggregate hit counts.
-  const protocolCommandLines = threat.protocolCommands
-    .slice(0, 60)
-    .map((c) => `  [${c.ts}] (${c.protocol}) ${c.command}`)
-    .join("\n")
-
-  const credentialsBlock = threat.protocols && (threat.protocols.usernames.length > 0 || threat.protocols.passwords.length > 0)
-    ? [
-        threat.protocols.usernames.length > 0 ? `- Usuarios probados: ${threat.protocols.usernames.slice(0, 20).join(", ")}` : null,
-        threat.protocols.passwords.length > 0 ? `- Contrasenas probadas: ${threat.protocols.passwords.slice(0, 20).join(", ")}` : null,
-      ].filter(Boolean).join("\n")
-    : "  ninguna"
-
-  const vt = enrichment?.virustotal
-  const ab = enrichment?.abuseipdb
-  const threatIntelBlock = (vt || ab)
-    ? [
-        ab ? `- AbuseIPDB: ${ab.abuseConfidenceScore}% confidence, ${ab.totalReports} reports, ISP ${ab.isp || "n/a"}, pais ${ab.countryName || ab.countryCode || "n/a"}${ab.isVpn ? ", VPN" : ""}${ab.isTor ? ", Tor" : ""}` : "- AbuseIPDB: sin datos",
-        vt ? `- VirusTotal: ${vt.last_analysis_stats.malicious} malicious / ${vt.last_analysis_stats.suspicious} suspicious / ${vt.last_analysis_stats.harmless} harmless de ${Object.keys(vt.last_analysis_results).length} motores, AS${vt.asn ?? "?"} ${vt.as_owner || ""}, reputation ${vt.reputation}${vt.tags.length ? `, tags: ${vt.tags.join(", ")}` : ""}` : "- VirusTotal: sin datos",
-      ].join("\n")
-    : "  ninguno disponible"
-
-  const alertsBlock = correlationAlerts.length > 0
-    ? correlationAlerts.slice(0, 15).map((a) => `  - [${a.level.toUpperCase()}] ${a.title} — ${a.description}`).join("\n")
-    : "  ninguna otra alerta de correlacion para esta IP"
-
-  const prompt = `Eres un analista de threat intelligence revisando un actor malicioso detectado en un honeypot.
-
-## IP: ${ip}
-- Risk score: ${threat.risk.score}/100 (${threat.risk.level})
-- Protocolos: ${threat.protocolsSeen.map((protocol) => protocol.toUpperCase()).join(" + ") || "ninguno"}
-- Multi-service: ${threat.crossProtocol ? "Si" : "No"}
-
-## Reputacion externa (VirusTotal / AbuseIPDB)
-${threatIntelBlock}
-
-## Otras alertas de correlacion disparadas por esta IP
-${alertsBlock}
-
-## SSH${threat.ssh ? `
-- Sesiones: ${threat.ssh.sessions}
-- Auth attempts: ${threat.ssh.authAttempts}
-- Login exitoso: ${threat.ssh.loginSuccess ? "SI" : "NO"}` : ": no aplica"}
-
-## HTTP${threat.web ? `
-- Hits: ${threat.web.hits}
-- Tipos de ataque: ${threat.web.attackTypes.join(", ")}
-- Canary tokens disparados: ${threat.web.canaryHits}
-- User agents: ${threat.web.userAgents.slice(0, 10).join(" | ") || "n/a"}
-- Rutas solicitadas (mas recientes primero): ${threat.web.topPaths.slice(0, 8).join(" | ") || "n/a"}` : ": no aplica"}
-
-## Servicios adicionales${threat.protocols ? `
-- Total eventos: ${threat.protocols.totalHits}
-- Auth attempts: ${threat.protocols.authAttempts}
-- Command events: ${threat.protocols.commandEvents}
-- Unique ports: ${threat.protocols.uniquePorts}
-- Credential reuse: ${threat.protocols.credentialReuse ? "SI" : "NO"}
-${serviceLines}` : ": no aplica"}
-
-## Credenciales probadas (todos los servicios)
-${credentialsBlock}
-
-## Categorias de comportamiento detectadas
-${activeCats || "  ninguna"}
-
-## Secuencia de comandos ejecutados via SSH (orden cronologico, hasta 60)
-${rawCommandLines || "  ninguno"}
-
-## Comandos/input crudo contra otros servicios (ftp, mysql, smb, etc — hasta 60)
-${protocolCommandLines || "  ninguno"}
-
-## Factores principales
-${threat.risk.topFactors.map((factor) => `  - ${factor}`).join("\n") || "  ninguno"}
-
-## Score breakdown
-  SSH: ${threat.risk.breakdown.ssh} | Web: ${threat.risk.breakdown.web} | Services: ${threat.risk.breakdown.protocols} | Commands: ${threat.risk.breakdown.commands} | Cross-proto: ${threat.risk.breakdown.crossProto} | Evidence: ${threat.risk.breakdown.evidence}
-
-Usa la reputacion externa y las otras alertas de correlacion para matizar tu analisis: una IP con alto score en VirusTotal/AbuseIPDB o que ya dispara sensor_sweep/cred_reuse en otros sensores es mas probablemente parte de una operacion organizada o botnet, no un script kiddie aislado. La secuencia cronologica de comandos importa: reconocimiento antes de persistencia sugiere un operador metodico.
-
-Devuelve UNICAMENTE un JSON valido (sin markdown):
-{
-  "actorProfile": "descripcion en espanol de 2-3 oraciones sobre quien es este actor y su comportamiento observado",
-  "intent": "que estaba intentando lograr, en espanol, 1-2 oraciones",
-  "sophistication": "script-kiddie | organized-crime | apt-like",
-  "keyTactics": ["tactica 1", "tactica 2", "tactica 3"],
-  "recommendation": "que vigilar o hacer al respecto, en espanol, 1-2 oraciones"
-}`
+  const prompt = buildThreatPrompt(ip, threat, enrichment, correlationAlerts)
 
   try {
     const client = new OpenAI({ apiKey })
-    const response = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      max_tokens: 900,
-      temperature: 0.2,
-      response_format: { type: "json_object" },
+    const response = await client.responses.create({
+      model: MODEL,
+      input: prompt,
+      tools: [{ type: "web_search" }],
+      max_output_tokens: 6000,
     })
 
-    const raw = response.choices[0]?.message?.content ?? "{}"
-    const ai = JSON.parse(raw)
+    const text = response.output_text ?? ""
+    // The search tool can push the model into fenced output despite the prompt.
+    const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)
+    const ai = JSON.parse(json || "{}")
     const analyzedAt = new Date()
 
     const result: ThreatAnalysis = {
@@ -217,6 +110,9 @@ Devuelve UNICAMENTE un JSON valido (sin markdown):
       intent: ai.intent ?? "",
       sophistication: ai.sophistication ?? "script-kiddie",
       keyTactics: Array.isArray(ai.keyTactics) ? ai.keyTactics : [],
+      webFindings: ai.webFindings ?? "",
+      iocs: Array.isArray(ai.iocs) ? ai.iocs : [],
+      sources: extractSources(response),
       recommendation: ai.recommendation ?? "",
       analyzedAt: analyzedAt.toISOString(),
     }
