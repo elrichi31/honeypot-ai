@@ -99,3 +99,51 @@ if any(old in auth_content for old, _ in _REPLACEMENTS):
     print("[patch_auth] Relaxed userdb decoding to UTF-8 (errors=replace) — non-ASCII chars no longer crash auth.")
 else:
     print("[patch_auth] Tolerant userdb decoding already applied, skipping.")
+
+# ── 4. find(1) node budget ──────────────────────────────────────────────────
+
+FIND_PATH = "/cowrie/cowrie-git/src/cowrie/commands/find.py"
+FIND_MARKER = "_FIND_NODE_BUDGET"
+
+FIND_PATCH = '''
+
+# ── find(1) node budget (injected by patch_auth.py) ────────────────────────
+# find_recursive() walks the fake filesystem synchronously inside the Twisted
+# reactor, and cowrie is single-threaded: while it walks, every other SSH
+# session is frozen. maxdepth alone does not bound the work — the honeyfs has
+# symlink cycles, so a depth-20 walk re-expands the same subtrees over and
+# over. On 2026-08-04 a single `find / -name "*.env"` (no -maxdepth, so the
+# default 20) pinned a core for 5h43m: the port stayed bound, no handshake
+# completed, and the sensor logged nothing until it was restarted.
+# Cap total nodes visited so the walk always terminates promptly.
+_FIND_NODE_BUDGET = 20000
+
+_original_find_start = Command_find.start
+_original_find_recursive = Command_find.find_recursive
+
+
+def _budgeted_start(self) -> None:
+    self._find_budget = _FIND_NODE_BUDGET
+    _original_find_start(self)
+
+
+def _budgeted_find_recursive(self, path: str, depth: int) -> None:
+    if getattr(self, "_find_budget", _FIND_NODE_BUDGET) <= 0:
+        return
+    self._find_budget -= 1
+    _original_find_recursive(self, path, depth)
+
+
+Command_find.start = _budgeted_start
+Command_find.find_recursive = _budgeted_find_recursive
+# ── End find(1) node budget ────────────────────────────────────────────────
+'''
+
+find_content = open(FIND_PATH).read()
+
+if FIND_MARKER not in find_content:
+    with open(FIND_PATH, "a") as f:
+        f.write(FIND_PATCH)
+    print("[patch_auth] Appended find(1) node budget — `find /` can no longer wedge the reactor.")
+else:
+    print("[patch_auth] find(1) node budget already present, skipping.")
