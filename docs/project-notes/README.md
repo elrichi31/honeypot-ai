@@ -11,6 +11,7 @@ before touching the project.
 - [backend-layering.md](backend-layering.md) — Controller → Service → Repository convention in ingest-api; every layer lives under `src/modules/<domain>/` (no more separate `routes/` folder, since 2026-07-05); which layer owns SQL, cache, and business logic.
 - [kafka-stream.md](kafka-stream.md) — Kafka topology (Vector → Kafka → ingest-api → Postgres), topics, env vars, how to check LAG, and rollback procedure.
 - [sensor-event-shipping.md](sensor-event-shipping.md) — how honeypot events reach ingest (file+vector, not direct POST); the per-honeypot volume/config/env wiring the installer generator must emit, and the silent-failure gotcha if it doesn't.
+- [sensor-outage-playbook.md](sensor-outage-playbook.md) — why a sensor can be dead while `docker ps` says `Up` (cowrie's single reactor), the diagnostic order that clears vector before blaming it, the suricata `:latest` → 8.0.6 crash, and the masked-`VOLUME` bug that kept `local.rules` from ever loading.
 - [dashboard-dev-conventions.md](dashboard-dev-conventions.md) — dashboard-specific gotchas: the RSC Server→Client component-prop crash, test conventions (no vitest here, use `tsx --test`), the `tsconfig.tsbuildinfo` git trap, and Tailwind purge-in-prod pitfalls.
 
 ## Key facts (quick reference)

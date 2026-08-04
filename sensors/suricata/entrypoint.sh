@@ -13,6 +13,9 @@ if [ ! -f /var/lib/suricata/rules/suricata.rules ]; then
   suricata-update
 fi
 
+mkdir -p /var/lib/suricata/rules
+cp /opt/local.rules /var/lib/suricata/rules/local.rules
+
 echo "[suricata] Starting on interface: ${IFACE}"
 echo "[suricata] Rules: $(wc -l < /var/lib/suricata/rules/suricata.rules 2>/dev/null || echo 0) signatures loaded"
 
